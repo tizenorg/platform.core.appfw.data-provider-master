@@ -1,0 +1,126 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+# Uncomment this to turn on verbose mode.
+# export DH_VERBOSE=1
+
+CFLAGS += -Wall -fpie -Winline -Werror
+CXXFLAGS +=  -Wall -fpie -Winline -Werror
+LDFLAGS += -pie
+PREFIX ?= /usr
+DATADIR ?= /opt
+DESTDIR ?= $(CURDIR)/cmake_tmp
+
+ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
+	CFLAGS += -O0
+	CXXFLAGS += -O0
+else
+	CFLAGS += -O2
+	CXXFLAGS += -O2
+endif
+
+ifneq (,$(findstring arm,$(DEB_HOST_ARCH)))
+	export ARCH = arm
+else
+	export ARCH = i686
+endif
+
+LDFLAGS += -Wl,--rpath=$(PREFIX)/lib -Wl,--hash-style=both -Wl,--as-needed
+
+configure: configure-stamp
+configure-stamp:
+	dh_testdir
+	# Add here commands to configure the package.
+	CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" LDFLAGS="$(LDFLAGS)" cmake . -DCMAKE_INSTALL_PREFIX=$(PREFIX)
+
+	touch configure-stamp
+
+build: build-stamp
+
+build-stamp: configure-stamp 
+	dh_testdir
+
+	# Add here commands to compile the package.
+	$(MAKE)
+
+	for f in `find $(CURDIR)/debian/ -name "*.in"`; do \
+		cat $$f > $${f%.in}; \
+		sed -i -e "s#@PREFIX@#$(PREFIX)#g" $${f%.in}; \
+		sed -i -e "s#@DATADIR@#$(DATADIR)#g" $${f%.in}; \
+	done
+
+
+	touch $@
+
+clean:
+	dh_testdir
+	dh_testroot
+	rm -f build-stamp configure-stamp
+
+	# Add here commands to clean up after the build process.
+	-$(MAKE) clean
+	rm -rf CMakeCache.txt
+	rm -rf CMakeFiles
+	rm -rf cmake_install.cmake
+	rm -rf Makefile
+	rm -rf install_manifest.txt
+
+	rm -rf data/CMakeCache.txt
+	rm -rf data/CMakeFiles
+	rm -rf data/cmake_install.cmake
+	rm -rf data/install_manifest.txt
+	rm -rf data/Makefile
+
+	rm -rf data/*.edj
+
+	for f in `find debian/ -name "*.in"`; do \
+		rm -f $${f%.in}; \
+	done
+
+	dh_clean 
+
+install: build
+	dh_testdir
+	dh_testroot
+	dh_clean -k 
+	dh_installdirs
+
+	$(MAKE) DESTDIR=$(DESTDIR) install
+
+
+# Build architecture-independent files here.
+binary-indep: build install
+# We have nothing to do by default.
+
+# Build architecture-dependent files here.
+binary-arch: build install
+	dh_testdir
+	dh_testroot
+#	dh_installchangelogs 
+#	dh_installdocs
+#	dh_installexamples
+	dh_install --sourcedir=$(DESTDIR)
+#	dh_installdebconf	
+#	dh_installlogrotate
+#	dh_installemacsen
+#	dh_installpam
+#	dh_installmime
+#	dh_python
+#	dh_installinit
+#	dh_installcron
+#	dh_installinfo
+#	dh_installman
+	dh_link
+	dh_strip --dbg-package=com.samsung.data-provider-master-dbg
+	dh_compress
+	dh_fixperms
+#	dh_perl
+	dh_makeshlibs
+	dh_installdeb
+	dh_shlibdeps
+	dh_gencontrol
+	dh_md5sums
+	dh_builddeb
+
+binary: binary-indep binary-arch
+.PHONY: build clean binary-indep binary-arch binary install configure

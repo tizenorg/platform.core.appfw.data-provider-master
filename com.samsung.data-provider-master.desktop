@@ -1,0 +1,9 @@
+Name=Live Data Provider - Master
+Type=Application
+Exec=/opt/apps/com.samsung.data-provider-master/bin/data-provider-master
+Icon=com.samsung.data-provider-master.png
+NoDisplay=True
+Network=True
+Comment=Homescreen-Live Box content data provider (master)
+X-TIZEN-TaskManage=False
+X-TIZEN-Multiple=False
