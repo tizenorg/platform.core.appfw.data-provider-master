@@ -59,6 +59,13 @@ static struct info {
 	"  <arg type='d' name='y' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
+	" <method name='text_signal'>"
+	"  <arg type='s' name='pkgname' direction='in' />"
+	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='emission' direction='in' />"
+	"  <arg type='s' name='source' direction='in' />"
+	"  <arg type='i' name='result' direction='out' />"
+	" </method>"
 	" <method name='delete'>"
 	"  <arg type='s' name='pkgname' direction='in' />"
 	"  <arg type='s' name='filename' direction='in' />"
@@ -353,6 +360,66 @@ static void method_script(GDBusMethodInvocation *inv, GVariant *param)
 	param = g_variant_new("(i)", ret);
 	if (!param)
 		ErrPrint("Failed to create a variant\n");
+
+	g_dbus_method_invocation_return_value(inv, param);
+}
+
+static void method_text_signal(GDBusMethodInvocation *inv, GVariant *param)
+{
+	const char *pkgname;
+	const char *filename;
+	const char *emission;
+	const char *source;
+	struct client_node *client;
+	GDBusConnection *conn;
+	int ret;
+
+	conn = g_dbus_method_invocation_get_connection(inv);
+	if (!conn) {
+		ErrPrint("Failed to get connection\n");
+		/*! NOTE: Ignoring this and
+		 *        blocking the main loop of the client if it waiting this result!
+		 */
+		return;
+	}
+
+	client = client_find_by_connection(conn);
+	if (!client) {
+		ErrPrint("Failed to find a client\n");
+		/*! NOTE: Ignoring this and
+		 *        blocking the main loop of the client if it waiting this result!
+		 */
+		return;
+	}
+
+	g_variant_get(param, "(&s&s&s&s)", &pkgname, &filename, &emission, &source);
+
+	if (pkgmgr_is_fault(pkgname)) {
+		ret = -EAGAIN;
+	} else {
+		struct slave_node *slave;
+
+		slave = pkgmgr_slave(pkgname);
+		if (!slave) {
+			ErrPrint("Package[%s - %s] is not loaded\n", pkgname, filename);
+			ret = -ENETUNREACH;
+		} else {
+			/*!
+			 * \NOTE: just reuse "param" or renew it?
+			 *        Now, I'll renew it.
+			 *        Please, don't ask me why.
+			 */
+			param = g_variant_new("(ssss)", pkgname, filename, emission, source);
+			if (!param)
+				ret = -EFAULT;
+			else
+				ret = slave_push_command(slave, pkgname, filename, "text_signal", param, NULL, NULL);
+		}
+	}
+
+	param = g_variant_new("(i)", ret);
+	if (!param)
+		ErrPrint("Failed to create a varian\n");
 
 	g_dbus_method_invocation_return_value(inv, param);
 }
@@ -1387,6 +1454,10 @@ static void method_handler(GDBusConnection *conn,
 		{
 			.name = "clicked",
 			.method = method_clicked,
+		},
+		{
+			.name = "text_signal",
+			.method = method_text_signal,
 		},
 		{
 			.name = "resize",
