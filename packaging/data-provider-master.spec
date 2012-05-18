@@ -35,10 +35,35 @@ rm -rf %{buildroot}
 %make_install
 
 %post
+if [ -f "/etc/rc.d/rc3.d/S41data-provider-master" ]; then
+	rm -f /etc/rc.d/rc3.d/S41data-provider-master
+fi
+
+ln -sf /etc/rc.d/init.d/data-provider-master /etc/rc.d/rc3.d/S41data-provider-master
+
+TMP=`which ps`
+if [ $? -ne 0 ]; then
+	echo "'ps' is not exists"
+	exit 0
+fi
+
+TMP=`which aul_test`
+if [ $? -ne 0 ]; then
+	echo "'aul_test' is not exists"
+	exit 0
+fi
+
+PID=`ps ax | grep 'data-provider-master' | grep -v 'grep' | grep -v 'dpkg' | grep -v 'dlogutil' | awk '{print $1}'`
+if [ x"$PID" != x"" ]; then
+	aul_test term_pid $PID
+	sleep 1
+fi
+
+aul_test launch com.samsung.data-provider-master
+
 
 %files
 %defattr(-,root,root,-)
-/opt/apps/com.samsung.data-provider-master/res/edje/master.edj
 /opt/apps/com.samsung.data-provider-master/bin/data-provider-master
 /opt/share/applications/com.samsung.data-provider-master.desktop
 /etc/rc.d/init.d/data-provider-master

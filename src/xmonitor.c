@@ -30,12 +30,6 @@
 #include <Ecore_X.h>
 #include <Ecore.h>
 
-#include <X11/extensions/Xcomposite.h>
-#include <X11/extensions/XShm.h>
-#include <X11/Xatom.h>
-#include <X11/Xutil.h>
-#include <X11/Xlib.h>
-
 #include <gio/gio.h>
 
 #include "conf.h"
@@ -164,7 +158,7 @@ static inline void sniff_all_windows(void)
 		int i;
 	};
 
-	root = DefaultRootWindow(ecore_x_display_get());
+	root = ecore_x_window_root_first_get();
 	ecore_x_window_sniff(root);
 	DbgPrint("Sniff root window 0x%X\n", root);
 

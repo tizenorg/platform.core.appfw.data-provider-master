@@ -20,7 +20,6 @@
  */
 
 #include <Ecore_X.h>
-#include <X11/Xlib.h>
 
 #include "conf.h"
 
