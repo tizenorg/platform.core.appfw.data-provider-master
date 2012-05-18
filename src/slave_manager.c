@@ -286,6 +286,7 @@ static void slave_cmd_done(GDBusProxy *proxy, GAsyncResult *res, void *_cmd_item
 			 * ret == 0 : need_to_create 0
 			 * ret == 1 : need_to_create 1
 			 */
+			DbgPrint("\"new\" method returns: %d\n", ret);
 			if (ret == 0 || ret == 1) {
 				pkgmgr_set_info(inst, w, h, priority);
 				pkgmgr_created(item->pkgname, item->filename);
@@ -293,11 +294,20 @@ static void slave_cmd_done(GDBusProxy *proxy, GAsyncResult *res, void *_cmd_item
 				/*\note
 				 * If the current instance is created by the client,
 				 * send the deleted event or just delete an instance in the master
+				 * It will be cared by the "create_ret_cb"
 				 */
-				if (pkgmgr_client(inst))
-					pkgmgr_deleted(item->pkgname, item->filename);
-				else
-					pkgmgr_delete(inst);
+				struct client_node *client;
+
+				client = pkgmgr_client(inst);
+				if (client) {
+					GVariant *param;
+					/* Okay, the client wants to know about this */
+					param = g_variant_new("(ss)", item->pkgname, item->filename);
+					if (param)
+						client_push_command(client, "deleted", param);
+				}
+
+				pkgmgr_delete(inst);
 			}
 		}
 	} else {

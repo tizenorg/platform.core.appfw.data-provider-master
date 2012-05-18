@@ -128,7 +128,7 @@ static void render_post_cb(void *data, Evas *e, void *event_info)
 	return;
 }
 
-int script_signal_emit(Evas *e, const char *part, const char *signal)
+int script_signal_emit(Evas *e, const char *part, const char *signal, double x, double y, double ex, double ey)
 {
 	Ecore_Evas *ee;
 	struct script_info *info;
@@ -162,7 +162,7 @@ int script_signal_emit(Evas *e, const char *part, const char *signal)
 		return -EINVAL;
 	}
 
-	param = g_variant_new("(ssss)", pkgname, filename, signal, part);
+	param = g_variant_new("(ssssdddd)", pkgname, filename, signal, part, x, y, ex, ey);
 	if (!param) {
 		ErrPrint("Failed to create param\n");
 		return -EFAULT;
@@ -215,7 +215,7 @@ int script_handler_load(struct script_info *info, int is_pd)
 	fb_sync(info->fb);
 	info->loaded = 1;
 
-	script_signal_emit(script_handler_evas(info), pkgmgr_filename(info->inst), is_pd ? "pd,show" : "lb,show");
+	script_signal_emit(script_handler_evas(info), pkgmgr_filename(info->inst), is_pd ? "pd,show" : "lb,show", 0.0f, 0.0f, 0.0f, 0.0f);
 	return 0;
 }
 
@@ -238,7 +238,7 @@ int script_handler_unload(struct script_info *info, int is_pd)
 	if (info->port->unload(info->port_data, script_handler_evas(info)) < 0)
 		ErrPrint("Failed to unload script object. but go ahead\n");
 
-	script_signal_emit(script_handler_evas(info), pkgmgr_filename(info->inst), is_pd ? "pd,hide" : "lb,hide");
+	script_signal_emit(script_handler_evas(info), pkgmgr_filename(info->inst), is_pd ? "pd,hide" : "lb,hide", 0.0f, 0.0f, 0.0f, 0.0f);
 	evas_event_callback_del(script_handler_evas(info), EVAS_CALLBACK_RENDER_FLUSH_POST, render_post_cb);
 
 	ee = fb_canvas(info->fb);

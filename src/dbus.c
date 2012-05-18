@@ -43,13 +43,6 @@ static struct info {
 	"  <arg type='i' name='client_id' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
-	" <method name='script'>"
-	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
-	"  <arg type='s' name='emission' direction='in' />"
-	"  <arg type='s' name='source' direction='in' />"
-	"  <arg type='i' name='result' direction='out' />"
-	" </method>"
 	" <method name='clicked'>"
 	"  <arg type='s' name='pkgname' direction='in' />"
 	"  <arg type='s' name='filename' direction='in' />"
@@ -64,6 +57,10 @@ static struct info {
 	"  <arg type='s' name='filename' direction='in' />"
 	"  <arg type='s' name='emission' direction='in' />"
 	"  <arg type='s' name='source' direction='in' />"
+	"  <arg type='d' name='sx' direction='in' />"
+	"  <arg type='d' name='sy' direction='in' />"
+	"  <arg type='d' name='ex' direction='in' />"
+	"  <arg type='d' name='ey' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='delete'>"
@@ -308,68 +305,16 @@ static void method_ret(GDBusMethodInvocation *inv, GVariant *param)
 	g_dbus_method_invocation_return_value(inv, param);
 }
 
-static void method_script(GDBusMethodInvocation *inv, GVariant *param)
-{
-	const char *pkgname;
-	const char *filename;
-	const char *emission;
-	const char *source;
-	int ret;
-	struct client_node *client;
-	GDBusConnection *conn;
-
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		return;
-	}
-
-	client = client_find_by_connection(conn);
-	if (!client) {
-		ErrPrint("Failed to find a client\n");
-		return;
-	}
-
-	g_variant_get(param, "(&s&s&s&s)", &pkgname, &filename, &emission, &source);
-
-	if (pkgmgr_is_fault(pkgname)) {
-		/* TODO: Load this package */
-		ret = -EAGAIN;
-	} else {
-		struct slave_node *slave;
-		int ret;
-
-		slave = pkgmgr_slave(pkgname);
-		if (!slave) {
-			/* TODO: Impossible */
-			ErrPrint("Package[%s - %s] is not loaded yet\n", pkgname, filename);
-			ret = -ENETUNREACH;
-		} else {
-			/* NOTE: param is resued from here */
-			param = g_variant_new("(ssss)", pkgname, filename, emission, source);
-			if (!param) {
-				ret = -EFAULT;
-			} else {
-				ret = slave_push_command(slave,
-						pkgname, filename,
-						"script", param, NULL, NULL);
-			}
-		}
-	}
-
-	param = g_variant_new("(i)", ret);
-	if (!param)
-		ErrPrint("Failed to create a variant\n");
-
-	g_dbus_method_invocation_return_value(inv, param);
-}
-
 static void method_text_signal(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
 	const char *filename;
 	const char *emission;
 	const char *source;
+	double sx;
+	double sy;
+	double ex;
+	double ey;
 	struct client_node *client;
 	GDBusConnection *conn;
 	int ret;
@@ -392,7 +337,7 @@ static void method_text_signal(GDBusMethodInvocation *inv, GVariant *param)
 		return;
 	}
 
-	g_variant_get(param, "(&s&s&s&s)", &pkgname, &filename, &emission, &source);
+	g_variant_get(param, "(&s&s&s&sdddd)", &pkgname, &filename, &emission, &source, &sx, &sy, &ex, &ey);
 
 	if (pkgmgr_is_fault(pkgname)) {
 		ret = -EAGAIN;
@@ -409,7 +354,7 @@ static void method_text_signal(GDBusMethodInvocation *inv, GVariant *param)
 			 *        Now, I'll renew it.
 			 *        Please, don't ask me why.
 			 */
-			param = g_variant_new("(ssss)", pkgname, filename, emission, source);
+			param = g_variant_new("(ssssdddd)", pkgname, filename, emission, source, sx, sy, ex, ey);
 			if (!param)
 				ret = -EFAULT;
 			else
@@ -1446,11 +1391,6 @@ static void method_handler(GDBusConnection *conn,
 		void (*method)(GDBusMethodInvocation *, GVariant *);
 	} method_table[] = {
 		/* For viewer */
-		{
-			/* This method is only be used for EFL based viewer */
-			.name = "script",
-			.method = method_script,
-		},
 		{
 			.name = "clicked",
 			.method = method_clicked,

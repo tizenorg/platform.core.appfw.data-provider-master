@@ -12,6 +12,6 @@ extern int script_handler_is_loaded(struct script_info *info);
 extern int script_init(void);
 extern int script_fini(void);
 
-extern int script_signal_emit(Evas *e, const char *part, const char *signal);
+extern int script_signal_emit(Evas *e, const char *part, const char *signal, double x, double y, double ex, double ey);
 
 /* End of a file */

@@ -27,30 +27,23 @@ static void create_return_cb(const char *funcname, GVariant *param, int ret, voi
 
 	g_variant_unref(param);
 
-	inst = data;
-
-	pkgname = pkgmgr_name(inst);
-	filename = pkgmgr_filename(inst);
-	cluster = pkgmgr_cluster(inst);
-	category = pkgmgr_category(inst);
-	content = pkgmgr_content(inst);
-
-	if (ret < 0) { /* Error occured */
-		struct client_node *client;
-
-		client = pkgmgr_client(inst);
-		if (client) {
-			/* Okay, the client wants to know about this */
-			param = g_variant_new("(ss)", pkgname, filename);
-			if (param)
-				client_push_command(client, "deleted", param);
-
-			pkgmgr_delete(inst);
-		}
+	if (ret < 0) {
+		/*!
+		 * \WARN: Error occured
+		 * And the "inst" is already DELETED
+		 */
 	} else if (ret == 0) { /* DONE */
 		/* OKAY, There is no changes */
 	} else if (ret & 0x01) { /* NEED_TO_CREATE */
 		/* System send create request */
+		inst = data;
+
+		pkgname = pkgmgr_name(inst);
+		filename = pkgmgr_filename(inst);
+		cluster = pkgmgr_cluster(inst);
+		category = pkgmgr_category(inst);
+		content = pkgmgr_content(inst);
+
 		inst = rpc_send_create_request(NULL, pkgname, content, cluster, category, util_get_timestamp());
 		if (inst) {
 			/* Send create livebox again */
