@@ -1173,4 +1173,17 @@ int pkgmgr_text_lb(struct inst_info *inst)
 	return inst->text_lb;
 }
 
+int pkgmgr_update_size(struct inst_info *inst, int w, int h, int is_pd)
+{
+	if (is_pd) {
+		inst->pd_w = w;
+		inst->pd_h = h;
+	} else {
+		inst->lb_w = w;
+		inst->lb_h = h;
+	}
+
+	return 0;
+}
+
 /* End of a file */

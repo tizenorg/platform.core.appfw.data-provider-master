@@ -50,10 +50,10 @@ struct script_port {
 	int (*update_size)(void *handle, Evas *e, const char *id, double w, double h);
 	int (*update_category)(void *handle, Evas *e, const char *id, const char *category);
 
-	void *(*create)(const char *file, const char *group, int w, int h);
+	void *(*create)(const char *file, const char *group);
 	int (*destroy)(void *handle);
 
-	int (*load)(void *handle, Evas *e);
+	int (*load)(void *handle, Evas *e, int w, int h);
 	int (*unload)(void *handle, Evas *e);
 
 	int (*init)(void);
@@ -85,6 +85,9 @@ struct script_info {
 	struct fb_info *fb;
 	struct inst_info *inst;
 	int loaded;
+
+	int w;
+	int h;
 
 	struct script_port *port;
 	void *port_data;
@@ -175,7 +178,6 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double x, 
 int script_handler_load(struct script_info *info, int is_pd)
 {
 	int ret;
-	int w, h;
 
 	if (!info->port)
 		return -EINVAL;
@@ -201,15 +203,13 @@ int script_handler_load(struct script_info *info, int is_pd)
 	evas_event_callback_add(script_handler_evas(info),
 			EVAS_CALLBACK_RENDER_FLUSH_POST, render_post_cb, info->inst);
 
-	if (info->port->load(info->port_data, script_handler_evas(info)) < 0) {
+	if (info->port->load(info->port_data, script_handler_evas(info), info->w, info->h) < 0) {
 		ErrPrint("Failed to add new script object\n");
 		evas_event_callback_del(script_handler_evas(info), EVAS_CALLBACK_RENDER_FLUSH_POST, render_post_cb);
 		fb_destroy_buffer(info->fb);
 		return -EFAULT;
 	}
 
-	fb_get_size(info->fb, &w, &h);
-	ecore_evas_resize(info->ee, w, h);
 	ecore_evas_show(info->ee);
 	ecore_evas_activate(info->ee);
 	fb_sync(info->fb);
@@ -291,7 +291,10 @@ struct script_info *script_handler_create(struct inst_info *inst, const char *fi
 		return NULL;
 	}
 
-	info->port_data = info->port->create(file, group, w, h);
+	info->w = w;
+	info->h = h;
+
+	info->port_data = info->port->create(file, group);
 	if (!info->port_data) {
 		fb_destroy(info->fb);
 		free(info);
@@ -450,7 +453,21 @@ static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 			return -EINVAL;
 		}
 
-		info->port->update_size(info->port_data, script_handler_evas(info), block->id, w, h);
+		if (!block->id) {
+			pkgmgr_update_size(inst, w, h, is_pd);
+			fb_resize(script_handler_fb(info), w, h);
+
+			info->w = w;
+			info->h = h;
+
+			if (info->port->unload(info->port_data, script_handler_evas(info)) < 0)
+				ErrPrint("Failed to unload\n");
+
+			if (info->port->load(info->port_data, script_handler_evas(info), w, h) < 0)
+				ErrPrint("Failed to load\n");
+		} else {
+			info->port->update_size(info->port_data, script_handler_evas(info), block->id, w, h);
+		}
 	} else if (!strcasecmp(block->part, INFO_CATEGORY)) {
 		info->port->update_category(info->port_data, script_handler_evas(info), block->id, block->data);
 	}

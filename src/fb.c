@@ -47,11 +47,6 @@ static void *alloc_fb(void *data, int size)
 
 	info = data;
 
-	if (access(info->filename, F_OK | R_OK | W_OK) == 0) {
-		if (unlink(info->filename) < 0)
-			ErrPrint("unlink: %s - %s\n", info->filename, strerror(errno));
-	}
-
 	info->fd = open(info->filename, O_RDWR | O_CREAT, 0644);
 	if (info->fd < 0) {
 		ErrPrint("%s open failed: %s\n", info->filename, strerror(errno));
@@ -69,16 +64,9 @@ static void *alloc_fb(void *data, int size)
 
 		return NULL;
 	}
-/*
-	info->buffer = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED, info->fd, 0);
-	if (info->buffer == MAP_FAILED) {
-		ErrPrint("Failed to do mmap: %s\n", strerror(errno));
-		unlink(info->filename);
-		return NULL;
-	}
-*/
 
 	info->bufsz = size;
+	DbgPrint("Allocate new buffer: %p %d\n", info->buffer, info->bufsz);
 	return info->buffer;
 }
 
@@ -88,6 +76,7 @@ static void free_fb(void *data, void *ptr)
 
 	info = data;
 
+	DbgPrint("Release canvas buffer: %p\n", ptr);
 //	munmap(info->buffer, info->bufsz);
 	if (info->buffer) {
 		free(info->buffer);
@@ -131,15 +120,13 @@ int fb_create_buffer(struct fb_info *info)
 	if (info->created)
 		return 0;
 
-	if (creat(info->filename, 0644) < 0)
-		ErrPrint("Failed to create file %s\n", info->filename);
-
 	info->ee = ecore_evas_buffer_allocfunc_new(info->w, info->h, alloc_fb, free_fb, info);
 	if (!info->ee)
 		return -EFAULT;
 
 	ecore_evas_alpha_set(info->ee, EINA_TRUE);
 	ecore_evas_manual_render_set(info->ee, EINA_FALSE);
+	ecore_evas_resize(info->ee, info->w, info->h);
 	info->created = 1;
 	return 0;
 }
@@ -184,6 +171,21 @@ Ecore_Evas *fb_canvas(struct fb_info *info)
 const char *fb_filename(struct fb_info *info)
 {
 	return (info && info->filename) ? info->filename : "";
+}
+
+int fb_resize(struct fb_info *info, int w, int h)
+{
+	DbgPrint("info[%dx%d], new[%dx%d]\n", info->w, info->h, w, h);
+
+	info->w = w;
+	info->h = h;
+
+	if (info->created) {
+		DbgPrint("Resize EE to %dx%d\n", info->w, info->h);
+		ecore_evas_resize(info->ee, info->w, info->h);
+	}
+
+	return 0;
 }
 
 void fb_get_size(struct fb_info *info, int *w, int *h)

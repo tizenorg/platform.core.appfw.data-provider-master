@@ -10,5 +10,6 @@ extern void fb_get_size(struct fb_info *info, int *w, int *h);
 extern void fb_sync(struct fb_info *info);
 extern int fb_create_buffer(struct fb_info *info);
 extern int fb_destroy_buffer(struct fb_info *info);
+extern int fb_resize(struct fb_info *info, int w, int h);
 
 /* End of a file */
