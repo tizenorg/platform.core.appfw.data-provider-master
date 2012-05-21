@@ -15,7 +15,7 @@
 #include <dlog.h>
 
 #include "pkg_manager.h"
-#include "client_manager.h"
+//#include "client_manager.h"
 #include "slave_manager.h"
 #include "script_handler.h"
 #include "fb.h"
@@ -460,11 +460,13 @@ static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 			info->w = w;
 			info->h = h;
 
-			if (info->port->unload(info->port_data, script_handler_evas(info)) < 0)
-				ErrPrint("Failed to unload\n");
+			if (info->loaded > 0) {
+				if (info->port->unload(info->port_data, script_handler_evas(info)) < 0)
+					ErrPrint("Failed to unload\n");
 
-			if (info->port->load(info->port_data, script_handler_evas(info), w, h) < 0)
-				ErrPrint("Failed to load\n");
+				if (info->port->load(info->port_data, script_handler_evas(info), w, h) < 0)
+					ErrPrint("Failed to load\n");
+			}
 		} else {
 			info->port->update_size(info->port_data, script_handler_evas(info), block->id, w, h);
 		}
