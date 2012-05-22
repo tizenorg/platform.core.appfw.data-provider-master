@@ -420,7 +420,7 @@ static int prepare_sending_cb(struct slave_node *slave, struct inst_info *inst, 
 	if (param)
 		client_broadcast_command("deleted", param);
 
-	rpc_send_new(inst, NULL, NULL, 0);
+	rpc_send_new(inst, NULL, NULL, !!pkgmgr_client(inst));
 	return EXIT_SUCCESS;
 }
 
