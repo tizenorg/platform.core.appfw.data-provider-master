@@ -75,5 +75,6 @@ extern int pkgmgr_text_lb(struct inst_info *inst);
 
 extern const char *pkgmgr_script(struct inst_info *inst);
 extern int pkgmgr_update_size(struct inst_info *inst, int w, int h, int is_pd);
+extern int pkgmgr_get_size(struct inst_info *inst, int *w, int *h, int is_pd);
 
 /* End of a file */

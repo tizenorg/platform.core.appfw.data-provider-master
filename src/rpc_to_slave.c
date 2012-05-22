@@ -87,6 +87,43 @@ int rpc_send_new(struct inst_info *inst, void (*ret_cb)(const char *funcname, GV
 	return ret;
 }
 
+int rpc_send_renew(struct inst_info *inst, void (*ret_cb)(const char *funcname, GVariant *param, int ret, void *data), void *data)
+{
+	struct slave_node *slave;
+	GVariant *param;
+	int ret;
+	int w;
+	int h;
+
+	pkgmgr_get_size(inst, &w, &h, 0);
+	param = g_variant_new("(sssiidssiii)",
+			pkgmgr_name(inst),
+			pkgmgr_filename(inst),
+			pkgmgr_content(inst),
+			pkgmgr_timeout(inst),
+			!!pkgmgr_lb_path(inst),
+			pkgmgr_period(inst),
+			pkgmgr_cluster(inst),
+			pkgmgr_category(inst),
+			pkgmgr_pinup(inst),
+			w, h);
+	if (!param)
+		return -EFAULT;
+
+	slave = pkgmgr_slave(pkgmgr_name(inst));
+	if (!slave) {
+		ErrPrint("Slave is not found\n");
+		g_variant_unref(param);
+		return -EFAULT;
+	}
+
+	ret = slave_push_command(slave, pkgmgr_name(inst), pkgmgr_filename(inst), "renew", param, ret_cb, data);
+	if (ret < 0)
+		g_variant_unref(param);
+
+	return ret;
+}
+
 struct inst_info *rpc_send_create_request(struct client_node *client, const char *pkgname, const char *content, const char *cluster, const char *category, double timestamp)
 {
 	char *filename;

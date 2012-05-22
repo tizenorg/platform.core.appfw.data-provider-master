@@ -1186,4 +1186,17 @@ int pkgmgr_update_size(struct inst_info *inst, int w, int h, int is_pd)
 	return 0;
 }
 
+int pkgmgr_get_size(struct inst_info *inst, int *w, int *h, int is_pd)
+{
+	if (is_pd) {
+		*w = inst->pd_w;
+		*h = inst->pd_h;
+	} else {
+		*w = inst->lb_w;
+		*h = inst->lb_h;
+	}
+
+	return 0;
+}
+
 /* End of a file */

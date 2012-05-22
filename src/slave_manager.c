@@ -402,11 +402,22 @@ out:
 	return;
 }
 
+static void renew_ret_cb(const char *funcname, GVariant *param, int ret, void *data)
+{
+	if (ret == 0) {
+		DbgPrint("Renew is complete\n");
+		return;
+	}
+
+	/* TODO: Failed to re-create an instance */
+	DbgPrint("Failed to recreate, send delete event to client\n");
+	pkgmgr_deleted(pkgmgr_name(data), pkgmgr_filename(data));
+}
+
 /* Prepare package create list for package auto creation */
 static int prepare_sending_cb(struct slave_node *slave, struct inst_info *inst, void *data)
 {
 	const char *pkgname;
-	GVariant *param;
 
 	pkgname = pkgmgr_name(inst);
 
@@ -415,12 +426,15 @@ static int prepare_sending_cb(struct slave_node *slave, struct inst_info *inst, 
 		return EXIT_SUCCESS;
 	}
 
+	rpc_send_renew(inst, renew_ret_cb, inst);
 	/* Just send delete event to create again */
+	/*
 	param = g_variant_new("(ss)", pkgname, pkgmgr_filename(inst));
 	if (param)
 		client_broadcast_command("deleted", param);
 
 	rpc_send_new(inst, NULL, NULL, !!pkgmgr_client(inst));
+	*/
 	return EXIT_SUCCESS;
 }
 
