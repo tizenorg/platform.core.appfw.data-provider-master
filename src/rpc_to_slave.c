@@ -18,13 +18,6 @@
 
 static void create_return_cb(const char *funcname, GVariant *param, int ret, void *data)
 {
-	struct inst_info *inst;
-	const char *pkgname;
-	const char *filename;
-	const char *cluster;
-	const char *category;
-	const char *content;
-
 	g_variant_unref(param);
 
 	if (ret < 0) {
@@ -35,6 +28,14 @@ static void create_return_cb(const char *funcname, GVariant *param, int ret, voi
 	} else if (ret == 0) { /* DONE */
 		/* OKAY, There is no changes */
 	} else if (ret & 0x01) { /* NEED_TO_CREATE */
+		struct inst_info *inst;
+		const char *pkgname;
+		const char *filename;
+		const char *cluster;
+		const char *category;
+		const char *content;
+		double period;
+
 		/* System send create request */
 		inst = data;
 
@@ -43,8 +44,9 @@ static void create_return_cb(const char *funcname, GVariant *param, int ret, voi
 		cluster = pkgmgr_cluster(inst);
 		category = pkgmgr_category(inst);
 		content = pkgmgr_content(inst);
+		period = pkgmgr_period(inst);
 
-		inst = rpc_send_create_request(NULL, pkgname, content, cluster, category, util_get_timestamp());
+		inst = rpc_send_create_request(NULL, pkgname, content, cluster, category, util_get_timestamp(), period);
 		if (inst) {
 			/* Send create livebox again */
 			DbgPrint("Send create request again, it requires\n");
@@ -124,7 +126,7 @@ int rpc_send_renew(struct inst_info *inst, void (*ret_cb)(const char *funcname, 
 	return ret;
 }
 
-struct inst_info *rpc_send_create_request(struct client_node *client, const char *pkgname, const char *content, const char *cluster, const char *category, double timestamp)
+struct inst_info *rpc_send_create_request(struct client_node *client, const char *pkgname, const char *content, const char *cluster, const char *category, double timestamp, double period)
 {
 	char *filename;
 	int fnlen;
@@ -154,6 +156,9 @@ struct inst_info *rpc_send_create_request(struct client_node *client, const char
 		pkgmgr_delete(inst);
 		return NULL;
 	}
+
+	if (period >= 0.0f)
+		pkgmgr_set_period(inst, period);
 
 	/* This package has no client */
 	slave = pkgmgr_slave(pkgname);

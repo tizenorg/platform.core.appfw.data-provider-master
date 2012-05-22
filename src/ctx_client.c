@@ -42,7 +42,7 @@ static int update_pkg_cb(struct category *category, const char *pkgname, void *d
 	}
 
 	rpc_send_update_request(pkgname, c_name, s_name);
-	rpc_send_create_request(NULL, pkgname, "default", c_name, s_name, util_get_timestamp());
+	rpc_send_create_request(NULL, pkgname, "default", c_name, s_name, util_get_timestamp(), DEFAULT_PERIOD);
 	return EXIT_SUCCESS;
 }
 

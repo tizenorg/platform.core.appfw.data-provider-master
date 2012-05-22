@@ -44,6 +44,7 @@ extern int pkgmgr_set_client(struct inst_info *inst, struct client_node *client)
 extern struct client_node *pkgmgr_client(struct inst_info *inst);
 extern int pkgmgr_timeout(struct inst_info *inst);
 extern double pkgmgr_period(struct inst_info *inst);
+extern void pkgmgr_set_period(struct inst_info *inst, double period);
 extern const char *pkgmgr_filename(struct inst_info *info);
 extern const char *pkgmgr_cluster(struct inst_info *info);
 extern const char *pkgmgr_category(struct inst_info *info);

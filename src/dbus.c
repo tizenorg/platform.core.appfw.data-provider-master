@@ -81,6 +81,13 @@ static struct info {
 	"  <arg type='s' name='content' direction='in' />"
 	"  <arg type='s' name='cluster' direction='in' />"
 	"  <arg type='s' name='category' direction='in' />"
+	"  <arg type='d' name='period' direction='in' />"
+	"  <arg type='i' name='result' direction='out' />"
+	" </method>"
+	" <method name='set_period'>"
+	"  <arg type='s' name='pkgname' direction='in' />"
+	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='d' name='period' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='change_group'>"
@@ -1334,12 +1341,74 @@ static void method_resize(GDBusMethodInvocation *inv, GVariant *param)
 	g_dbus_method_invocation_return_value(inv, param);
 }
 
+static inline void validate_period(double *period)
+{
+	/* TODO:
+	 * Check the period value, is it valid?
+	 */
+	if (*period < 0.0f)
+		*period = 0.0f;
+}
+
+static void method_set_period(GDBusMethodInvocation *inv, GVariant *param)
+{
+	const char *pkgname;
+	const char *filename;
+	double period;
+	int ret;
+	GDBusConnection *conn;
+	struct client_node *client;
+
+	conn = g_dbus_method_invocation_get_connection(inv);
+	if (!conn) {
+		ErrPrint("Failed to get connection\n");
+		return;
+	}
+
+	client = client_find_by_connection(conn);
+	if (!client) {
+		ErrPrint("Failed to find a client\n");
+		return;
+	}
+
+	g_variant_get(param, "(&s&sd)", &pkgname, &filename, &period);
+
+	validate_period(&period);
+
+	if (util_validate_livebox_package(pkgname) < 0) {
+		ret = -EINVAL;
+	} else if (pkgmgr_is_fault(pkgname)) {
+		ret = -EAGAIN;
+	} else {
+		struct slave_node *slave;
+
+		slave = pkgmgr_slave(pkgname);
+		if (!slave) {
+			ErrPrint("Package[%s - %s] is not loaded\n", pkgname, filename);
+			ret = -ENETUNREACH;
+		} else {
+			param = g_variant_new("(ssd)", pkgname, filename, period);
+			if (!param)
+				ret = -EFAULT;
+			else
+				ret = slave_push_command(slave, pkgname, filename, "set_period", param, NULL, NULL);
+		}
+	}
+
+	param = g_variant_new("(i)", ret);
+	if (!param)
+		ErrPrint("Failed to make a return variant\n");
+
+	g_dbus_method_invocation_return_value(inv, param);
+}
+
 static void method_new(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
 	const char *content;
 	const char *cluster;
 	const char *category;
+	double period;
 	int ret;
 	double timestamp;
 	struct client_node *client;
@@ -1357,7 +1426,7 @@ static void method_new(GDBusMethodInvocation *inv, GVariant *param)
 		return;
 	}
 
-	g_variant_get(param, "(d&s&s&s&s)", &timestamp, &pkgname, &content, &cluster, &category);
+	g_variant_get(param, "(d&s&s&s&sd)", &timestamp, &pkgname, &content, &cluster, &category, &period);
 
 	if (util_validate_livebox_package(pkgname) < 0) {
 		ret = -EINVAL;
@@ -1365,7 +1434,7 @@ static void method_new(GDBusMethodInvocation *inv, GVariant *param)
 		ret = -EAGAIN;
 	} else {
 		struct inst_info *inst;
-		inst = rpc_send_create_request(client, pkgname, content, cluster, category, timestamp);
+		inst = rpc_send_create_request(client, pkgname, content, cluster, category, timestamp, period);
 		ret = inst ? 0 : -EFAULT;
 	}
 
@@ -1406,6 +1475,10 @@ static void method_handler(GDBusConnection *conn,
 		{
 			.name = "new",
 			.method = method_new,
+		},
+		{
+			.name = "set_period",
+			.method = method_set_period,
 		},
 		{
 			.name = "delete",

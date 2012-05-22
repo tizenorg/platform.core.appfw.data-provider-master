@@ -893,6 +893,11 @@ double pkgmgr_period(struct inst_info *inst)
 	return inst->period;
 }
 
+void pkgmgr_set_period(struct inst_info *inst, double period)
+{
+	inst->period = period;
+}
+
 const char *pkgmgr_script(struct inst_info *inst)
 {
 	return inst->script;
@@ -933,7 +938,7 @@ int pkgmgr_inform_pkglist(struct client_node *client)
 
 		EINA_LIST_FOREACH(info->inst_list, i_l, inst) {
 			/* Send all instance list to the new client */
-			param = g_variant_new("(dsssiiiissssidiiiii)", 
+			param = g_variant_new("(dsssiiiissssidiiiiid)", 
 					pkgmgr_timestamp(inst),
 					info->pkgname, inst->filename, inst->content,
 					inst->lb_w, inst->lb_h, inst->pd_w, inst->pd_h,
@@ -946,7 +951,8 @@ int pkgmgr_inform_pkglist(struct client_node *client)
 					!!inst->client,
 					inst->pinup_supported,
 					inst->text_lb,
-					inst->text_pd);
+					inst->text_pd,
+					inst->period);
 			if (param)
 				client_push_command(client, "created", param);
 		}
@@ -971,7 +977,7 @@ int pkgmgr_created(const char *pkgname, const char *filename)
 
 	prepare_fb(inst);
 
-	param = g_variant_new("(dsssiiiissssidiiiii)", 
+	param = g_variant_new("(dsssiiiissssidiiiiid)", 
 			pkgmgr_timestamp(inst),
 			pkgname, filename, inst->content,
 			inst->lb_w, inst->lb_h, inst->pd_w, inst->pd_h,
@@ -984,7 +990,8 @@ int pkgmgr_created(const char *pkgname, const char *filename)
 			!!inst->client,
 			inst->pinup_supported,
 			inst->text_lb,
-			inst->text_pd);
+			inst->text_pd,
+			inst->period);
 
 	if (param)
 		client_broadcast_command("created", param);
