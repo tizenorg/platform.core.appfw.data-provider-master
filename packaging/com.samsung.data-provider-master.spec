@@ -35,6 +35,9 @@ rm -rf %{buildroot}
 %make_install
 
 %post
+mkdir -p /opt/share/live_magazine
+chown 5000:5000 /opt/share/live_magazine
+
 if [ -f "/etc/rc.d/rc3.d/S41data-provider-master" ]; then
 	rm -f /etc/rc.d/rc3.d/S41data-provider-master
 fi
@@ -60,7 +63,6 @@ if [ x"$PID" != x"" ]; then
 fi
 
 aul_test launch com.samsung.data-provider-master
-
 
 %files
 %defattr(-,root,root,-)
