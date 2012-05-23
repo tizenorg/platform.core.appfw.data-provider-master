@@ -790,6 +790,7 @@ static void method_lb_mouse_up(GDBusMethodInvocation *inv, GVariant *param)
 			goto out;
 		}
 
+		script_handler_update_pointer(info, x, y, 0);
 
 		evas_event_feed_mouse_up(e, 1, EVAS_BUTTON_NONE, timestamp, NULL);
 		evas_event_feed_mouse_out(e, timestamp, NULL);
@@ -952,8 +953,11 @@ static void method_lb_mouse_down(GDBusMethodInvocation *inv, GVariant *param)
 			goto out;
 		}
 
+		script_handler_update_pointer(info, x, y, 1);
+
 		evas_event_feed_mouse_in(e, timestamp, NULL);
 		evas_event_feed_mouse_down(e, 1, EVAS_BUTTON_NONE, timestamp, NULL);
+
 		ret = 0;
 	}
 
@@ -1007,6 +1011,8 @@ static void method_lb_mouse_move(GDBusMethodInvocation *inv, GVariant *param)
 			ret = -EFAULT;
 			goto out;
 		}
+
+		script_handler_update_pointer(info, x, y, -1);
 
 		evas_event_feed_mouse_move(e, w * x, h * y, timestamp, NULL);
 		ret = 0;
@@ -1063,6 +1069,8 @@ static void method_pd_mouse_move(GDBusMethodInvocation *inv, GVariant *param)
 			goto out;
 		}
 
+		script_handler_update_pointer(info, x, y, -1);
+
 		evas_event_feed_mouse_move(e, x * w, y * h, timestamp, NULL);
 		ret = 0;
 	}
@@ -1117,6 +1125,8 @@ static void method_pd_mouse_up(GDBusMethodInvocation *inv, GVariant *param)
 			ret = -EFAULT;
 			goto out;
 		}
+
+		script_handler_update_pointer(info, x, y, 0);
 
 		evas_event_feed_mouse_up(e, 1, EVAS_BUTTON_NONE, timestamp, NULL);
 		evas_event_feed_mouse_out(e, timestamp, NULL);
@@ -1173,6 +1183,8 @@ static void method_pd_mouse_down(GDBusMethodInvocation *inv, GVariant *param)
 			ret = -EFAULT;
 			goto out;
 		}
+
+		script_handler_update_pointer(info, x, y, 1);
 
 		evas_event_feed_mouse_in(e, timestamp, NULL);
 		evas_event_feed_mouse_down(e, 1, EVAS_BUTTON_NONE, timestamp, NULL);

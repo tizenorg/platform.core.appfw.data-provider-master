@@ -89,6 +89,10 @@ struct script_info {
 	int w;
 	int h;
 
+	double x;
+	double y;
+	int down;
+
 	struct script_port *port;
 	void *port_data;
 };
@@ -131,7 +135,7 @@ static void render_post_cb(void *data, Evas *e, void *event_info)
 	return;
 }
 
-int script_signal_emit(Evas *e, const char *part, const char *signal, double x, double y, double ex, double ey)
+int script_signal_emit(Evas *e, const char *part, const char *signal, double sx, double sy, double ex, double ey)
 {
 	Ecore_Evas *ee;
 	struct script_info *info;
@@ -154,6 +158,7 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double x, 
 
 	if (!signal || strlen(signal) == 0)
 		signal = "";
+
 	if (!part || strlen(part) == 0)
 		part = "";
 
@@ -165,7 +170,11 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double x, 
 		return -EINVAL;
 	}
 
-	param = g_variant_new("(ssssdddd)", pkgname, filename, signal, part, x, y, ex, ey);
+	param = g_variant_new("(ssssddddddi)",
+			pkgname, filename,
+			signal, part,
+			sx, sy, ex, ey,
+			info->x, info->y, info->down);
 	if (!param) {
 		ErrPrint("Failed to create param\n");
 		return -EFAULT;
@@ -1091,6 +1100,19 @@ int script_fini(void)
 		dlclose(item->handle);
 		free(item);
 	}
+
+	return 0;
+}
+
+int script_handler_update_pointer(struct script_info *info, double x, double y, int down)
+{
+	info->x = x;
+	info->y = y;
+
+	if (down == 0)
+		info->down = 0;
+	else if (down == 1)
+		info->down = 1;
 
 	return 0;
 }
