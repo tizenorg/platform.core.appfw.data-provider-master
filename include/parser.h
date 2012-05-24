@@ -38,9 +38,11 @@ extern const char *parser_lb_group(struct item *handle);
 extern const char *parser_pd_path(struct item *handle);
 extern const char *parser_pd_group(struct item *handle);
 
+extern const char *parser_abi(struct item *handle);
+
 extern int parser_text_pd(struct item *handle);
 extern int parser_text_lb(struct item *handle);
 
-extern char *parser_script(struct item *handle);
+extern const char *parser_script(struct item *handle);
 
 /* End of a file */

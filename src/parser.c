@@ -57,6 +57,8 @@ struct item {
 	int text_pd;
 	int text_lb;
 
+	char *abi;
+
 	char *script;
 };
 
@@ -80,9 +82,14 @@ int parser_auto_launch(struct item *handle)
 	return handle->auto_launch;
 }
 
-char *parser_script(struct item *handle)
+const char *parser_script(struct item *handle)
 {
 	return handle->script;
+}
+
+const char *parser_abi(struct item *handle)
+{
+	return handle->abi;
 }
 
 unsigned int parser_size(struct item *handle)
@@ -352,6 +359,11 @@ static void text_lb_handler(struct item *item, char *buffer)
 	item->text_lb = !!atoi(buffer);
 }
 
+static void abi_handler(struct item *item, char *buffer)
+{
+	item->abi = dup_rtrim(buffer);
+}
+
 static void script_handler(struct item *item, char *buffer)
 {
 	item->script = dup_rtrim(buffer);
@@ -511,6 +523,10 @@ struct item *parser_load(const char *pkgname)
 		{
 			.name = "script",
 			.handler = script_handler,
+		},
+		{
+			.name = "abi",
+			.handler = abi_handler,
 		},
 		{
 			.name = NULL,
@@ -720,6 +736,7 @@ int parser_unload(struct item *item)
 {
 	s_list = eina_list_remove(s_list, item);
 
+	free(item->abi);
 	free(item->script);
 	free(item->group);
 	free(item->pd_group);

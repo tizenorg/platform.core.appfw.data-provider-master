@@ -85,6 +85,7 @@ struct pkg_info {
 	char *pd_group;
 
 	char *script; /* script type: edje, ... */
+	char *abi;
 
 	unsigned int pd_w;
 	unsigned int pd_h;
@@ -275,6 +276,12 @@ static inline struct pkg_info *new_pkginfo(const char *pkgname)
 		else
 			info->script = strdup("edje");
 
+		tmp = parser_abi(item);
+		if (tmp)
+			info->abi = strdup(tmp);
+		else
+			info->abi = strdup("c");
+
 		if (!info->script)
 			ErrPrint("Error: %s\n", strerror(errno));
 
@@ -313,6 +320,10 @@ static inline struct pkg_info *new_pkginfo(const char *pkgname)
 		}
 
 		info->script = strdup("edje");
+		if (!info->script)
+			ErrPrint("Error: %s\n", strerror(errno));
+
+		info->abi = strdup("c");
 		if (!info->script)
 			ErrPrint("Error: %s\n", strerror(errno));
 
@@ -1204,6 +1215,11 @@ int pkgmgr_get_size(struct inst_info *inst, int *w, int *h, int is_pd)
 	}
 
 	return 0;
+}
+
+const char *pkgmgr_abi(struct inst_info *inst)
+{
+	return inst->info->abi;
 }
 
 /* End of a file */

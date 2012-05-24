@@ -52,6 +52,7 @@ extern const char *pkgmgr_content(struct inst_info *inst);
 extern const char *pkgmgr_name_by_info(struct pkg_info *info);
 extern void *pkgmgr_lb_script(struct inst_info *inst);
 extern void *pkgmgr_pd_script(struct inst_info *inst);
+extern const char *pkgmgr_abi(struct inst_info *inst);
 
 extern int pkgmgr_delete_by_client(struct client_node *client);
 extern int pkgmgr_delete_by_slave(struct slave_node *slave);

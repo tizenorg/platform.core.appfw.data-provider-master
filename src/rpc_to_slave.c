@@ -61,7 +61,7 @@ int rpc_send_new(struct inst_info *inst, void (*ret_cb)(const char *funcname, GV
 	GVariant *param;
 	int ret;
 
-	param = g_variant_new("(sssiidssii)",
+	param = g_variant_new("(sssiidssiis)",
 			pkgmgr_name(inst),
 			pkgmgr_filename(inst),
 			pkgmgr_content(inst),
@@ -71,7 +71,8 @@ int rpc_send_new(struct inst_info *inst, void (*ret_cb)(const char *funcname, GV
 			pkgmgr_cluster(inst),
 			pkgmgr_category(inst),
 			pkgmgr_pinup(inst),
-			skip_need_to_create);
+			skip_need_to_create,
+			pkgmgr_abi(inst));
 	if (!param)
 		return -EFAULT;
 
@@ -98,7 +99,7 @@ int rpc_send_renew(struct inst_info *inst, void (*ret_cb)(const char *funcname, 
 	int h;
 
 	pkgmgr_get_size(inst, &w, &h, 0);
-	param = g_variant_new("(sssiidssiii)",
+	param = g_variant_new("(sssiidssiiis)",
 			pkgmgr_name(inst),
 			pkgmgr_filename(inst),
 			pkgmgr_content(inst),
@@ -108,7 +109,8 @@ int rpc_send_renew(struct inst_info *inst, void (*ret_cb)(const char *funcname, 
 			pkgmgr_cluster(inst),
 			pkgmgr_category(inst),
 			pkgmgr_pinup(inst),
-			w, h);
+			w, h,
+			pkgmgr_abi(inst));
 	if (!param)
 		return -EFAULT;
 
