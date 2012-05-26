@@ -286,7 +286,13 @@ static inline struct pkg_info *new_pkginfo(const char *pkgname)
 			ErrPrint("Error: %s\n", strerror(errno));
 
 		info->timeout = parser_timeout(item);
+
 		info->period = parser_period(item);
+		if (info->period < 0.0f)
+			info->period = 0.0f;
+		else if (info->period > 0.0f && info->period < MINIMUM_PERIOD)
+			info->period = MINIMUM_PERIOD;
+
 		info->size_list = parser_size(item);
 		info->auto_launch = parser_auto_launch(item);
 		info->secured = parser_secured(item);
@@ -298,7 +304,7 @@ static inline struct pkg_info *new_pkginfo(const char *pkgname)
 		parser_unload(item);
 	} else {
 		info->timeout = 0;
-		info->period = 0.0f;
+		info->period = 0.0f; /* No updates defined */
 		info->size_list = 0x01; /* Default */
 		info->auto_launch = 0;
 		info->secured = 0;

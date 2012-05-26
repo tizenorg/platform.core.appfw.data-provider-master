@@ -159,8 +159,12 @@ struct inst_info *rpc_send_create_request(struct client_node *client, const char
 		return NULL;
 	}
 
-	if (period >= 0.0f)
+	if (period >= 0.0f) {
+		if (period > 0.0f && period < MINIMUM_PERIOD)
+			period = MINIMUM_PERIOD;
+
 		pkgmgr_set_period(inst, period);
+	} /* else use the default period */
 
 	/* This package has no client */
 	slave = pkgmgr_slave(pkgname);

@@ -61,4 +61,6 @@ extern void conf_update_size(void);
 #define CR 13
 #define LF 10
 
+#define MINIMUM_PERIOD 1.0f
+
 /* End of a file */

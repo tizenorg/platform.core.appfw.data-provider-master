@@ -1385,8 +1385,6 @@ static void method_set_period(GDBusMethodInvocation *inv, GVariant *param)
 
 	g_variant_get(param, "(&s&sd)", &pkgname, &filename, &period);
 
-	validate_period(&period);
-
 	if (util_validate_livebox_package(pkgname) < 0) {
 		ret = -EINVAL;
 	} else if (pkgmgr_is_fault(pkgname)) {
@@ -1399,6 +1397,21 @@ static void method_set_period(GDBusMethodInvocation *inv, GVariant *param)
 			ErrPrint("Package[%s - %s] is not loaded\n", pkgname, filename);
 			ret = -ENETUNREACH;
 		} else {
+			if (period < 0.0f) { /* Use the default period */
+				struct inst_info *inst;
+
+				inst = pkgmgr_find(pkgname, filename);
+				if (inst) {
+					period = pkgmgr_period(inst);
+				} else {
+					DbgPrint("Failed to find proper instance info [%s, %s]\n", pkgname, filename);
+					period = 0.0f;
+				}
+			} else if (period > 0.0f && period < MINIMUM_PERIOD) {
+				DbgPrint("[32mPeriod value is changed to 1.0f from %lf[0m\n", period);
+				period = MINIMUM_PERIOD; /* defined at conf.h */
+			}
+
 			param = g_variant_new("(ssd)", pkgname, filename, period);
 			if (!param)
 				ret = -EFAULT;
@@ -1446,6 +1459,7 @@ static void method_new(GDBusMethodInvocation *inv, GVariant *param)
 		ret = -EAGAIN;
 	} else {
 		struct inst_info *inst;
+
 		inst = rpc_send_create_request(client, pkgname, content, cluster, category, timestamp, period);
 		ret = inst ? 0 : -EFAULT;
 	}
