@@ -12,6 +12,8 @@
 #include "pkg_manager.h"
 #include "group.h"
 
+int errno;
+
 static struct info {
 	Eina_List *cluster_list;
 } s_info = {
@@ -34,11 +36,14 @@ struct cluster *group_create_cluster(const char *name)
 	struct cluster *cluster;
 
 	cluster = malloc(sizeof(*cluster));
-	if (!cluster)
+	if (!cluster) {
+		ErrPrint("Heap: %s\n", strerror(errno));
 		return NULL;
+	}
 
 	cluster->name = strdup(name);
 	if (!cluster->name) {
+		ErrPrint("Heap: %s\n", strerror(errno));
 		free(cluster);
 		return NULL;
 	}
@@ -67,11 +72,14 @@ struct category *group_create_category(struct cluster *cluster, const char *name
 	struct category *category;
 
 	category = malloc(sizeof(*category));
-	if (!category)
+	if (!category) {
+		ErrPrint("Heap: %s\n", strerror(errno));
 		return NULL;
+	}
 
 	category->name = strdup(name);
 	if (!category->name) {
+		ErrPrint("Heap: %s\n", strerror(errno));
 		free(category);
 		return NULL;
 	}
@@ -258,8 +266,10 @@ int group_add_livebox(const char *group, const char *pkgname)
 					return -EFAULT;
 
 				name = strdup(pkgname);
-				if (!name)
+				if (!name) {
+					ErrPrint("Heap: %s (%s)\n", strerror(errno), pkgname);
 					return -ENOMEM;
+				}
 
 				category->pkg_list = eina_list_append(category->pkg_list, name);
 

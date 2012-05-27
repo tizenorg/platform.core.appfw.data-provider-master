@@ -63,4 +63,8 @@ extern void conf_update_size(void);
 
 #define MINIMUM_PERIOD 1.0f
 
+#define DEFAULT_SCRIPT	"edje"
+#define DEFAULT_ABI	"c"
+#define DEFAULT_GROUP	"disclosure"
+
 /* End of a file */

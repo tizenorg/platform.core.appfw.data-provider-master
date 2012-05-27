@@ -94,18 +94,30 @@ static inline int app_terminate(void *data)
 	ret = pkgmgr_fini();
 	if (ret < 0)
 		DbgPrint("Failed to finalize the pkgmgr\n");
+	else
+		DbgPrint("pkgmgr finalized\n");
 
 	ret = slave_manager_fini();
 	if (ret < 0)
 		DbgPrint("Failed to finalize the slave manager\n");
+	else
+		DbgPrint("Slave manager finalized\n");
 
 	ret = dbus_fini();
 	if (ret < 0)
 		DbgPrint("Failed to finalize the dbus\n");
+	else
+		DbgPrint("DBUS finialized\n");
 
 	dead_fini();
+	DbgPrint("dead signal handler finalized\n");
+
 	io_fini();
+	DbgPrint("IO finalized\n");
+
 	group_fini();
+	DbgPrint("Group finalized\n");
+
 	DbgPrint("Terminated\n");
 	return 0;
 }

@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <string.h>
-#include <errno.h>
 #include <stdlib.h> /* free */
 #include <libgen.h> /* basename */
 
@@ -53,6 +52,8 @@ int fault_check_pkgs(struct slave_node *node)
 			param = g_variant_new("(sss)", info->pkgname, info->filename, info->func);
 			if (param)
 				client_broadcast_command("fault_package", param);
+			else
+				ErrPrint("Failed to create a param\n");
 
 			s_info.call_list = eina_list_remove_list(s_info.call_list, l);
 
@@ -78,6 +79,8 @@ int fault_check_pkgs(struct slave_node *node)
 		param = g_variant_new("(sss)", pkgname, "", "");
 		if (param)
 			client_broadcast_command("fault_package", param);
+		else
+			ErrPrint("Failed to create a param\n");
 	}
 
 	return 0;

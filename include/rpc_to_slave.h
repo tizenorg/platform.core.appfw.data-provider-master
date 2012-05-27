@@ -1,7 +1,7 @@
 #define DEFAULT_PERIOD	-1.0f
 
-extern int rpc_send_new(struct inst_info *inst, void (*ret_cb)(const char *funcname, GVariant *param, int ret, void *data), void *data, int skip_need_to_create);
-extern int rpc_send_renew(struct inst_info *inst, void (*ret_cb)(const char *funcname, GVariant *param, int ret, void *data), void *data);
+extern int rpc_send_new(struct inst_info *inst, void (*ret_cb)(const char *funcname, GVariant *result, void *data), void *data, int skip_need_to_create);
+extern int rpc_send_renew(struct inst_info *inst, void (*ret_cb)(const char *funcname, GVariant *result, void *data), void *data);
 
 extern void rpc_send_update_request(const char *pkgname, const char *cluster, const char *category);
 /*!

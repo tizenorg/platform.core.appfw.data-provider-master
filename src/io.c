@@ -17,6 +17,8 @@
 #include "group.h"
 #include "util.h"
 
+int errno;
+
 int io_init(void)
 {
 	struct dirent *ent;

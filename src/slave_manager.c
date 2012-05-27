@@ -24,6 +24,8 @@
 #include "rpc_to_slave.h"
 #include "ctx_client.h"
 
+int errno;
+
 struct cmd_item {
 	char *pkgname;
 	char *filename;
@@ -31,7 +33,7 @@ struct cmd_item {
 	GVariant *param;
 	struct slave_node *slave;
 
-	void (*ret_cb)(const char *funcname, GVariant *param, int ret, void *cbdata);
+	void (*ret_cb)(const char *funcname, GVariant *result, void *cbdata);
 	void *cbdata;
 };
 
@@ -81,7 +83,7 @@ static inline void pause_slave(struct slave_node *slave)
 		return;
 	}
 
-	slave_push_command(slave, NULL, NULL, "pause", param, NULL, NULL);
+	(void)slave_push_command(slave, NULL, NULL, "pause", param, NULL, NULL);
 }
 
 static inline void resume_slave(struct slave_node *slave)
@@ -99,17 +101,7 @@ static inline void resume_slave(struct slave_node *slave)
 		return;
 	}
 
-	slave_push_command(slave, NULL, NULL, "resume", param, NULL, NULL);
-}
-
-static Eina_Bool slave_pong_cb(void *data)
-{
-	struct slave_node *slave = data;
-
-	slave_fault_deactivating(slave, 1);
-
-	slave->pong_timer = NULL;
-	return ECORE_CALLBACK_CANCEL;
+	(void)slave_push_command(slave, NULL, NULL, "resume", param, NULL, NULL);
 }
 
 static inline struct slave_node *create_slave_data(const char *name)
@@ -118,13 +110,13 @@ static inline struct slave_node *create_slave_data(const char *name)
 
 	slave = malloc(sizeof(*slave));
 	if (!slave) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("Heap: %s\n", strerror(errno));
 		return NULL;
 	}
 
 	slave->name = strdup(name);
 	if (!slave->name) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("Heap: %s\n", strerror(errno));
 		free(slave);
 		return NULL;
 	}
@@ -165,7 +157,8 @@ static inline void destroy_command(struct cmd_item *item)
 }
 
 /*!
- * \note This function has not to destroy command instance
+ * \note
+ * This function has not to destroy command instance
  * beacuse the slave_done_cb will be invoked after connection is lost.
  * then it will try to access this smd_item.
  *
@@ -186,6 +179,12 @@ static inline void clear_waiting_command_list(struct slave_node *slave)
 	}
 }
 
+/*!
+ * \note
+ * This function clear all pended command requests,
+ * so we can destroy every items in this list.
+ * because those are not used by anyone.
+ */
 static inline void clear_sending_command_list(struct slave_node *slave)
 {
 	Eina_List *l;
@@ -219,11 +218,6 @@ static inline void destroy_slave_data(struct slave_node *slave)
 	free(slave);
 }
 
-static inline Eina_List *find_slave(const char *name)
-{
-	return NULL;
-}
-
 static inline void invoke_deactivate_cbs(struct slave_node *slave)
 {
 	Eina_List *l;
@@ -240,13 +234,23 @@ static inline void invoke_deactivate_cbs(struct slave_node *slave)
 	}
 }
 
+static Eina_Bool slave_pong_cb(void *data)
+{
+	struct slave_node *slave = data;
+
+	ErrPrint("Slave is not responded in %lf secs\n", g_conf.ping_time);
+	slave_fault_deactivating(slave, 1);
+
+	slave->pong_timer = NULL;
+	return ECORE_CALLBACK_CANCEL;
+}
+
 static void slave_cmd_done(GDBusProxy *proxy, GAsyncResult *res, void *_cmd_item)
 {
 	GVariant *result;
 	GError *err;
 	struct slave_node *slave;
 	struct cmd_item *item;
-	const int ret;
 
 	item = _cmd_item;
 	slave = item->slave;
@@ -271,60 +275,10 @@ static void slave_cmd_done(GDBusProxy *proxy, GAsyncResult *res, void *_cmd_item
 	}
 
 	slave->waiting_list = eina_list_remove(slave->waiting_list, item);
-
-	if (!strcmp(item->funcname, "new")) {
-		struct inst_info *inst;
-		double priority;
-		int w, h;
-
-		g_variant_get(result, "(iiid)", &ret, &w, &h, &priority);
-
-		inst = pkgmgr_find(item->pkgname, item->filename);
-		if (inst) {
-			/*!
-			 * \note
-			 * ret == 0 : need_to_create 0
-			 * ret == 1 : need_to_create 1
-			 */
-			DbgPrint("\"new\" method returns: %d\n", ret);
-			if (ret == 0 || ret == 1) {
-				pkgmgr_set_info(inst, w, h, priority);
-				pkgmgr_created(item->pkgname, item->filename);
-			} else {
-				/*\note
-				 * If the current instance is created by the client,
-				 * send the deleted event or just delete an instance in the master
-				 * It will be cared by the "create_ret_cb"
-				 */
-				struct client_node *client;
-
-				client = pkgmgr_client(inst);
-				if (client) {
-					GVariant *param;
-					/* Okay, the client wants to know about this */
-					param = g_variant_new("(ss)", item->pkgname, item->filename);
-					if (param)
-						client_push_command(client, "deleted", param);
-				}
-
-				pkgmgr_delete(inst);
-			}
-		}
-	} else {
-		g_variant_get(result, "(i)", &ret);
-
-		if (!strcmp(item->funcname, "delete")) {
-			if (ret == 0)
-				pkgmgr_deleted(item->pkgname, item->filename);
-			else
-				ErrPrint("%s is not deleted - returns %d\n", item->pkgname, ret);
-		}
-	}
-
-	g_variant_unref(result);
-
 	if (item->ret_cb)
-		item->ret_cb(item->funcname, g_variant_ref(item->param), ret, item->cbdata);
+		item->ret_cb(item->funcname, result, item->cbdata);
+	else
+		g_variant_unref(result);
 
 	destroy_command(item);
 }
@@ -385,7 +339,7 @@ static inline void register_signal_callback(struct slave_node *data)
 
 	signal = malloc(signal_len);
 	if (!signal) {
-		ErrPrint("Memory: %s\n", strerror(errno));
+		ErrPrint("Heap: %s\n", strerror(errno));
 		return;
 	}
 
@@ -402,15 +356,18 @@ out:
 	return;
 }
 
-static void renew_ret_cb(const char *funcname, GVariant *param, int ret, void *data)
+static void renew_ret_cb(const char *funcname, GVariant *result, void *data)
 {
+	int ret;
+
+	g_variant_get(result, "(i)", &ret);
 	if (ret == 0) {
 		DbgPrint("Renew is complete\n");
 		return;
 	}
 
 	/* TODO: Failed to re-create an instance */
-	DbgPrint("Failed to recreate, send delete event to client\n");
+	DbgPrint("Failed to recreate, send delete event to client (%d)\n", ret);
 	pkgmgr_deleted(pkgmgr_name(data), pkgmgr_filename(data));
 }
 
@@ -427,14 +384,6 @@ static int prepare_sending_cb(struct slave_node *slave, struct inst_info *inst, 
 	}
 
 	rpc_send_renew(inst, renew_ret_cb, inst);
-	/* Just send delete event to create again */
-	/*
-	param = g_variant_new("(ss)", pkgname, pkgmgr_filename(inst));
-	if (param)
-		client_broadcast_command("deleted", param);
-
-	rpc_send_new(inst, NULL, NULL, !!pkgmgr_client(inst));
-	*/
 	return EXIT_SUCCESS;
 }
 
@@ -513,15 +462,16 @@ int slave_activate(struct slave_node *slave)
 		return -EBUSY;
 
 	param = bundle_create();
-	if (!param)
+	if (!param) {
+		ErrPrint("Failed to create a bundle\n");
 		return -EFAULT;
+	}
 
 	bundle_add(param, "name", slave->name);
 	slave->pid = (pid_t)aul_launch_app(SLAVE_PKGNAME, param);
 	bundle_free(param);
 
 	DbgPrint("Slave %s reactivated with pid %d\n", slave->name, slave->pid);
-
 	if (slave->pid < 0)
 		return -EFAULT;
 
@@ -633,30 +583,33 @@ const char *slave_name(struct slave_node *slave)
 	return slave->name;
 }
 
-int slave_broadcast_command(const char *cmd, GVariant *param)
+void slave_broadcast_command(const char *cmd, GVariant *param)
 {
 	struct slave_node *slave;
 	Eina_List *l;
 
 	EINA_LIST_FOREACH(s_info.slave_list, l, slave) {
-		slave_push_command(slave, NULL, NULL, cmd, g_variant_ref(param), NULL, NULL);
+		(void)slave_push_command(slave, NULL, NULL, cmd, g_variant_ref(param), NULL, NULL);
 	}
 
 	g_variant_unref(param);
-	return 0;
 }
 
-int slave_push_command(struct slave_node *slave, const char *pkgname, const char *filename, const char *cmd, GVariant *param, void (*ret_cb)(const char *funcname, GVariant *param, int ret, void *data), void *data)
+int slave_push_command(struct slave_node *slave, const char *pkgname, const char *filename, const char *cmd, GVariant *param, void (*ret_cb)(const char *funcname, GVariant *result, void *data), void *data)
 {
 	struct cmd_item *item;
 
 	item = malloc(sizeof(*item));
-	if (!item)
+	if (!item) {
+		g_variant_unref(param);
 		return -ENOMEM;
+	}
 
 	if (pkgname) {
 		item->pkgname = strdup(pkgname);
 		if (!item->pkgname) {
+			ErrPrint("Heap: %s (%s)\n", strerror(errno), pkgname);
+			g_variant_unref(param);
 			free(item);
 			return -ENOMEM;
 		}
@@ -667,6 +620,8 @@ int slave_push_command(struct slave_node *slave, const char *pkgname, const char
 	if (filename) {
 		item->filename = strdup(filename);
 		if (!item->filename) {
+			ErrPrint("Heap: %s (%s)\n", strerror(errno), filename);
+			g_variant_unref(param);
 			free(item->pkgname);
 			free(item);
 			return -ENOMEM;
@@ -677,6 +632,8 @@ int slave_push_command(struct slave_node *slave, const char *pkgname, const char
 
 	item->funcname = strdup(cmd);
 	if (!item->funcname) {
+		ErrPrint("Heap: %s (%s)\n", strerror(errno), cmd);
+		g_variant_unref(param);
 		free(item->filename);
 		free(item->pkgname);
 		free(item);
@@ -690,7 +647,6 @@ int slave_push_command(struct slave_node *slave, const char *pkgname, const char
 
 	slave->sending_list = eina_list_append(slave->sending_list, item);
 	check_and_fire_cmd_consumer(slave);
-
 	return 0;
 }
 

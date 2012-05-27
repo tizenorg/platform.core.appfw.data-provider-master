@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <errno.h>
 #include <stdlib.h> /* malloc */
 #include <string.h> /* strdup */
 #include <libgen.h> /* basename */
@@ -16,7 +17,7 @@
 #include "ctx_client.h"
 #include "xmonitor.h"
 
-int aul_listen_app_dead_signal(int (*)(int, void *), void *);
+int errno;
 
 static struct info {
 	Eina_List *client_list;
@@ -154,11 +155,14 @@ static inline struct cmd_item *make_cmd(struct client_node *client, const char *
 	struct cmd_item *cmd;
 
 	cmd = malloc(sizeof(*cmd));
-	if (!cmd)
+	if (!cmd) {
+		ErrPrint("Heap: %s\n", strerror(errno));
 		return NULL;
+	}
 
 	cmd->funcname = strdup(funcname);
 	if (!cmd->funcname) {
+		ErrPrint("Heap: %s (funcname: %s)\n", strerror(errno), funcname);
 		free(cmd);
 		return NULL;
 	}
@@ -175,7 +179,7 @@ struct client_node *client_new(int pid)
 
 	client = malloc(sizeof(*client));
 	if (!client) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("Heap: %s\n", strerror(errno));
 		return NULL;
 	}
 

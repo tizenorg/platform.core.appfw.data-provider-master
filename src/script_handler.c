@@ -32,6 +32,8 @@
 #define INFO_SIZE "size"
 #define INFO_CATEGORY "category"
 
+int errno;
+
 static struct info {
 	Eina_List *script_port_list;
 } s_info = {
@@ -143,6 +145,7 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double sx,
 	const char *filename;
 	struct slave_node *slave;
 	GVariant *param;
+	int ret;
 
 	ee = ecore_evas_ecore_evas_get(e);
 	if (!ee) {
@@ -180,8 +183,8 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double sx,
 		return -EFAULT;
 	}
 
-	slave_push_command(slave, pkgname, filename, "script", param, NULL, NULL);
-	return 0;
+	ret = slave_push_command(slave, pkgname, filename, "script", param, NULL, NULL); 
+	return ret;
 }
 
 int script_handler_load(struct script_info *info, int is_pd)
@@ -927,7 +930,7 @@ int script_init(void)
 		pathlen = strlen(ent->d_name) + strlen(g_conf.path.script_port) + 1;
 		path = malloc(pathlen);
 		if (!path) {
-			ErrPrint("Error: %s\n", strerror(errno));
+			ErrPrint("Heap: %s %d\n", strerror(errno), pathlen);
 			closedir(dir);
 			return -ENOMEM;
 		}
@@ -936,7 +939,7 @@ int script_init(void)
 
 		item = malloc(sizeof(*item));
 		if (!item) {
-			ErrPrint("Error: %s\n", strerror(errno));
+			ErrPrint("Heap: %s\n", strerror(errno));
 			free(path);
 			closedir(dir);
 			return -ENOMEM;
@@ -945,7 +948,6 @@ int script_init(void)
 		DbgPrint("Open SCRIPT PORT: %s\n", path);
 		item->handle = dlopen(path, RTLD_LOCAL | RTLD_LAZY);
 		free(path);
-
 		if (!item->handle) {
 			ErrPrint("Error: %s\n", dlerror());
 			free(item);
@@ -954,139 +956,80 @@ int script_init(void)
 		}
 
 		item->magic_id = dlsym(item->handle, "script_magic_id");
-		if (!item->magic_id) {
-			ErrPrint("Error: %s\n", dlerror());
-			dlclose(item->handle);
-			free(item);
-			closedir(dir);
-			return -EFAULT;
-		}
+		if (!item->magic_id)
+			goto errout;
+
 		DbgPrint("SCRIPT PORT magic id: %s [%p]\n", item->magic_id());
 
 		item->update_text = dlsym(item->handle, "script_update_text");
-		if (!item->update_text) {
-			ErrPrint("Error: %s)\n", dlerror());
-			dlclose(item->handle);
-			free(item);
-			closedir(dir);
-			return -EFAULT;
-		}
+		if (!item->update_text)
+			goto errout;
 
 		item->update_image = dlsym(item->handle, "script_update_image");
-		if (!item->update_image) {
-			ErrPrint("Error: %s\n", dlerror());
-			dlclose(item->handle);
-			free(item);
-			closedir(dir);
-			return -EFAULT;
-		}
+		if (!item->update_image)
+			goto errout;
 
 		item->update_script = dlsym(item->handle, "script_update_script");
-		if (!item->update_script) {
-			ErrPrint("Error: %s\n", dlerror());
-			dlclose(item->handle);
-			free(item);
-			closedir(dir);
-			return -EFAULT;
-		}
+		if (!item->update_script)
+			goto errout;
 
 		item->update_signal = dlsym(item->handle, "script_update_signal");
-		if (!item->update_signal) {
-			ErrPrint("Error: %s\n", dlerror());
-			dlclose(item->handle);
-			free(item);
-			closedir(dir);
-			return -EFAULT;
-		}
+		if (!item->update_signal)
+			goto errout;
 
 		item->update_drag = dlsym(item->handle, "script_update_drag");
-		if (!item->update_drag) {
-			ErrPrint("Error: %s\n", dlerror());
-			dlclose(item->handle);
-			free(item);
-			closedir(dir);
-			return -EFAULT;
-		}
+		if (!item->update_drag)
+			goto errout;
 
 		item->update_size = dlsym(item->handle, "script_update_size");
-		if (!item->update_size) {
-			ErrPrint("Error: %s\n", dlerror());
-			dlclose(item->handle);
-			free(item);
-			closedir(dir);
-			return -EFAULT;
-		}
+		if (!item->update_size)
+			goto errout;
 
 		item->update_category = dlsym(item->handle, "script_update_category");
-		if (!item->update_category) {
-			ErrPrint("Error: %s\n", dlerror());
-			dlclose(item->handle);
-			free(item);
-			closedir(dir);
-			return -EFAULT;
-		}
+		if (!item->update_category)
+			goto errout;
 
 		item->create = dlsym(item->handle, "script_create");
-		if (!item->create) {
-			ErrPrint("Error: %s\n", dlerror());
-			dlclose(item->handle);
-			free(item);
-			closedir(dir);
-			return -EFAULT;
-		}
+		if (!item->create)
+			goto errout;
 
 		item->destroy = dlsym(item->handle, "script_destroy");
-		if (!item->destroy) {
-			ErrPrint("Error: %s\n", dlerror());
-			dlclose(item->handle);
-			free(item);
-			closedir(dir);
-			return -EFAULT;
-		}
+		if (!item->destroy)
+			goto errout;
 
 		item->load = dlsym(item->handle, "script_load");
-		if (!item->load) {
-			ErrPrint("Error: %s\n", dlerror());
-			dlclose(item->handle);
-			free(item);
-			closedir(dir);
-			return -EFAULT;
-		}
+		if (!item->load)
+			goto errout;
 
 		item->unload = dlsym(item->handle, "script_unload");
-		if (!item->unload) {
-			ErrPrint("Error: %s\n", dlerror());
-			dlclose(item->handle);
-			free(item);
-			closedir(dir);
-			return -EFAULT;
-		}
+		if (!item->unload)
+			goto errout;
 
 		item->init = dlsym(item->handle, "script_init");
-		if (!item->init) {
-			ErrPrint("Error: %s\n", dlerror());
-			dlclose(item->handle);
-			free(item);
-			closedir(dir);
-			return -EFAULT;
-		}
+		if (!item->init)
+			goto errout;
 
 		item->fini = dlsym(item->handle, "script_fini");
-		if (!item->fini) {
-			ErrPrint("Error: %s\n", dlerror());
-			dlclose(item->handle);
-			free(item);
-			closedir(dir);
-			return -EFAULT;
+		if (!item->fini)
+			goto errout;
+
+		if (item->init() < 0) {
+			ErrPrint("Failed to initialize script engine\n");
+			goto errout;
 		}
 
 		s_info.script_port_list = eina_list_append(s_info.script_port_list, item);
-
-		item->init();
 	}
 
 	closedir(dir);
 	return 0;
+
+errout:
+	ErrPrint("Error: %s\n", dlerror());
+	dlclose(item->handle);
+	free(item);
+	closedir(dir);
+	return -EFAULT;
 }
 
 int script_fini(void)

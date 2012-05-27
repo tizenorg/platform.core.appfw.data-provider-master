@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdbool.h>
-#include <errno.h>
 #include <libgen.h>
 #include <unistd.h>
 

@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <errno.h>
 #include <stdlib.h> /* free */
 #include <string.h> /* strcmp */
 #include <libgen.h> /* basename */
@@ -362,10 +361,11 @@ static void method_text_signal(GDBusMethodInvocation *inv, GVariant *param)
 			 *        Please, don't ask me why.
 			 */
 			param = g_variant_new("(ssssdddd)", pkgname, filename, emission, source, sx, sy, ex, ey);
-			if (!param)
+			if (!param) {
 				ret = -EFAULT;
-			else
+			} else {
 				ret = slave_push_command(slave, pkgname, filename, "text_signal", param, NULL, NULL);
+			}
 		}
 	}
 
@@ -419,9 +419,7 @@ static void method_clicked(GDBusMethodInvocation *inv, GVariant *param)
 			if (!param) {
 				ret = -EFAULT;
 			} else {
-				ret = slave_push_command(slave,
-						pkgname, filename,
-						"clicked", param, NULL, NULL);
+				ret = slave_push_command(slave, pkgname, filename, "clicked", param, NULL, NULL);
 			}
 		}
 	}
@@ -1234,10 +1232,11 @@ static void method_change_group(GDBusMethodInvocation *inv, GVariant *param)
 			ret = -ENETUNREACH;
 		} else {
 			param = g_variant_new("(ssss)", pkgname, filename, cluster, category);
-			if (!param)
+			if (!param) {
 				ret = -EFAULT;
-			else
+			} else {
 				ret = slave_push_command(slave, pkgname, filename, "change_group", param, NULL, NULL);
+			}
 		}
 	}
 
@@ -1246,6 +1245,23 @@ static void method_change_group(GDBusMethodInvocation *inv, GVariant *param)
 		ErrPrint("Failed to create variant\n");
 
 	g_dbus_method_invocation_return_value(inv, param);
+}
+
+static void del_ret_cb(const char *funcname, GVariant *result, void *data)
+{
+	int ret;
+	const char *pkgname;
+	const char *filename;
+	GVariant *param = data;
+
+	g_variant_get(param, "(&s&s)", &pkgname, &filename);
+	g_variant_get(result, "(i)", &ret);
+	if (ret == 0)
+		pkgmgr_deleted(pkgname, filename);
+	else
+		ErrPrint("%s is not deleted - returns %d\n", pkgname, ret);
+	g_variant_unref(param);
+	g_variant_unref(result);
 }
 
 static void method_delete(GDBusMethodInvocation *inv, GVariant *param)
@@ -1287,10 +1303,11 @@ static void method_delete(GDBusMethodInvocation *inv, GVariant *param)
 		} else {
 			/* NOTE: param is resued from here */
 			param = g_variant_new("(ss)", pkgname, filename);
-			if (!param)
+			if (!param) {
 				ret = -EFAULT;
-			else
-				ret = slave_push_command(slave, pkgname, filename, "delete", param, NULL, NULL);
+			} else {
+				ret = slave_push_command(slave, pkgname, filename, "delete", param, del_ret_cb, g_variant_ref(param));
+			}
 		}
 	}
 
@@ -1339,10 +1356,11 @@ static void method_resize(GDBusMethodInvocation *inv, GVariant *param)
 		} else {
 			/* NOTE: param is resued from here */
 			param = g_variant_new("(ssii)", pkgname, filename, w, h);
-			if (!param)
+			if (!param) {
 				ret = -EFAULT;
-			else
+			} else {
 				ret = slave_push_command(slave, pkgname, filename, "resize", param, NULL, NULL);
+			}
 		}
 	}
 
@@ -1413,10 +1431,11 @@ static void method_set_period(GDBusMethodInvocation *inv, GVariant *param)
 			}
 
 			param = g_variant_new("(ssd)", pkgname, filename, period);
-			if (!param)
+			if (!param) {
 				ret = -EFAULT;
-			else
+			} else {
 				ret = slave_push_command(slave, pkgname, filename, "set_period", param, NULL, NULL);
+			}
 		}
 	}
 

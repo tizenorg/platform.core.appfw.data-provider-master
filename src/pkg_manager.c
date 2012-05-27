@@ -23,6 +23,8 @@
 #include "script_handler.h"
 #include "fb.h"
 
+int errno;
+
 struct fault_info {
 	double timestamp;
 	char *filename;
@@ -119,6 +121,8 @@ void pkgmgr_pd_updated_by_inst(struct inst_info *inst, const char *descfile)
 			inst->info->pkgname, inst->filename, descfile, inst->pd_w, inst->pd_h);
 	if (param)
 		client_broadcast_command("pd_updated", param);
+	else
+		ErrPrint("Failed to create param (%s - %s)\n", inst->info->pkgname, inst->filename);
 }
 
 void pkgmgr_lb_updated_by_inst(struct inst_info *inst)
@@ -130,6 +134,8 @@ void pkgmgr_lb_updated_by_inst(struct inst_info *inst)
 				inst->lb_w, inst->lb_h, inst->priority);
 	if (param)
 		client_broadcast_command("lb_updated", param);
+	else
+		ErrPrint("Failed to create param (%s - %s)\n", inst->info->pkgname, inst->filename);
 
 }
 
@@ -199,8 +205,10 @@ static inline char *default_script_path(const char *pkgname)
 	len += strlen(g_conf.path.script) + 1;
 
 	ret = malloc(len);
-	if (!ret)
+	if (!ret) {
+		ErrPrint("Heap: %s - %d\n", strerror(errno), len);
 		return NULL;
+	}
 
 	snprintf(ret, len, g_conf.path.script, pkgname, pkgname);
 	return ret;
@@ -212,11 +220,14 @@ static inline struct pkg_info *new_pkginfo(const char *pkgname)
 	struct item *item;
 
 	info = malloc(sizeof(*info));
-	if (!info)
+	if (!info) {
+		ErrPrint("Heap: %s\n", strerror(errno));
 		return NULL;
+	}
 
 	info->pkgname = strdup(pkgname);
 	if (!info->pkgname) {
+		ErrPrint("Heap: %s\n", strerror(errno));
 		free(info);
 		return NULL;
 	}
@@ -264,7 +275,7 @@ static inline struct pkg_info *new_pkginfo(const char *pkgname)
 			if (tmp)
 				info->pd_group = strdup(tmp);
 			else
-				info->pd_group = strdup("disclosure");
+				info->pd_group = strdup(DEFAULT_GROUP);
 
 			if (!info->pd_group)
 				ErrPrint("Error: %s\n", strerror(errno));
@@ -274,15 +285,16 @@ static inline struct pkg_info *new_pkginfo(const char *pkgname)
 		if (tmp)
 			info->script = strdup(tmp);
 		else
-			info->script = strdup("edje");
+			info->script = strdup(DEFAULT_SCRIPT);
+		if (!info->script)
+			ErrPrint("Heap: %s\n", strerror(errno));
 
 		tmp = parser_abi(item);
 		if (tmp)
 			info->abi = strdup(tmp);
 		else
-			info->abi = strdup("c");
-
-		if (!info->script)
+			info->abi = strdup(DEFAULT_ABI);
+		if (!info->abi)
 			ErrPrint("Error: %s\n", strerror(errno));
 
 		info->timeout = parser_timeout(item);
@@ -316,7 +328,7 @@ static inline struct pkg_info *new_pkginfo(const char *pkgname)
 
 		info->pd_path = default_script_path(pkgname);
 		if (info->pd_path) {
-			info->pd_group = strdup("disclosure");
+			info->pd_group = strdup(DEFAULT_GROUP);
 			if (!info->pd_group) {
 				free(info->pd_path);
 				info->pd_path = NULL;
@@ -325,11 +337,11 @@ static inline struct pkg_info *new_pkginfo(const char *pkgname)
 			info->pd_group = NULL;
 		}
 
-		info->script = strdup("edje");
+		info->script = strdup(DEFAULT_SCRIPT);
 		if (!info->script)
 			ErrPrint("Error: %s\n", strerror(errno));
 
-		info->abi = strdup("c");
+		info->abi = strdup(DEFAULT_ABI);
 		if (!info->script)
 			ErrPrint("Error: %s\n", strerror(errno));
 
@@ -377,18 +389,23 @@ int pkgmgr_set_fault(const char *pkgname, const char *filename, const char *func
 	struct fault_info *fault;
 
 	info = find_pkginfo(pkgname);
-	if (!info)
+	if (!info) {
+		ErrPrint("Package %s is not found\n", pkgname);
 		return -ENOENT;
+	}
 
 	info->fault_count++;
 
 	fault = malloc(sizeof(*fault));
-	if (!fault)
+	if (!fault) {
+		ErrPrint("Heap: %s\n", strerror(errno));
 		return -ENOMEM;
+	}
 
 	if (filename) {
 		fault->filename = strdup(filename);
 		if (!fault->filename) {
+			ErrPrint("Error: %s\n", strerror(errno));
 			free(fault);
 			return -ENOMEM;
 		}
@@ -399,6 +416,7 @@ int pkgmgr_set_fault(const char *pkgname, const char *filename, const char *func
 	if (funcname) {
 		fault->function = strdup(funcname);
 		if (!fault->function) {
+			ErrPrint("Error: %s\n", strerror(errno));
 			free(fault->filename);
 			free(fault);
 			return -ENOMEM;
@@ -408,7 +426,6 @@ int pkgmgr_set_fault(const char *pkgname, const char *filename, const char *func
 	}
 
 	fault->timestamp = util_get_timestamp();
-
 	if (info->fault_info) {
 		/* Just for debugging and exceptional case,
 		 * This is not possible to occur */
@@ -641,13 +658,13 @@ struct inst_info *pkgmgr_new(double timestamp, const char *pkgname, const char *
 
 	inst = calloc(1, sizeof(*inst));
 	if (!inst) {
-		ErrPrint("Memory: %s\n", strerror(errno));
+		ErrPrint("Heap: %s\n", strerror(errno));
 		return NULL;
 	}
 
 	inst->filename = strdup(filename);
 	if (!inst->filename) {
-		ErrPrint("Memory: %s\n", strerror(errno));
+		ErrPrint("Heap: %s\n", strerror(errno));
 		free(inst);
 		return NULL;
 	}
@@ -655,7 +672,7 @@ struct inst_info *pkgmgr_new(double timestamp, const char *pkgname, const char *
 	if (content) {
 		inst->content = strdup(content);
 		if (!inst->content) {
-			ErrPrint("Memory: %s\n", strerror(errno));
+			ErrPrint("Heap: %s\n", strerror(errno));
 			free(inst->filename);
 			free(inst);
 			return NULL;
@@ -668,7 +685,7 @@ struct inst_info *pkgmgr_new(double timestamp, const char *pkgname, const char *
 
 	inst->cluster = strdup(cluster);
 	if (!inst->cluster) {
-		ErrPrint("Memory: %s\n", strerror(errno));
+		ErrPrint("Heap: %s\n", strerror(errno));
 		free(inst->content);
 		free(inst->filename);
 		free(inst);
@@ -677,7 +694,7 @@ struct inst_info *pkgmgr_new(double timestamp, const char *pkgname, const char *
 
 	inst->category = strdup(category);
 	if (!inst->category) {
-		ErrPrint("Memory: %s\n", strerror(errno));
+		ErrPrint("Heap: %s\n", strerror(errno));
 		free(inst->cluster);
 		free(inst->content);
 		free(inst->filename);
@@ -699,11 +716,11 @@ struct inst_info *pkgmgr_new(double timestamp, const char *pkgname, const char *
 	if (info->lb_path) {
 		inst->lb_path = strdup(info->lb_path);
 		if (!inst->lb_path)
-			ErrPrint("Error: %s\n", strerror(errno));
+			ErrPrint("Heap: %s\n", strerror(errno));
 
 		inst->lb_group = strdup(info->lb_group);
 		if (!inst->lb_group) {
-			ErrPrint("Error: %s\n", strerror(errno));
+			ErrPrint("Heap: %s\n", strerror(errno));
 			free(inst->lb_path);
 			inst->lb_path = NULL;
 		}
@@ -713,14 +730,14 @@ struct inst_info *pkgmgr_new(double timestamp, const char *pkgname, const char *
 	if (info->pd_path) {
 		inst->pd_path = strdup(info->pd_path);
 		if (!inst->pd_path)
-			ErrPrint("Error: %s\n", strerror(errno));
+			ErrPrint("Heap: %s\n", strerror(errno));
 	}
 
 	inst->pd_group = NULL;
 	if (inst->pd_path && info->pd_group) {
 		inst->pd_group = strdup(info->pd_group);
 		if (!inst->pd_group) {
-			ErrPrint("Error: %s\n", strerror(errno));
+			ErrPrint("Heap: %s\n", strerror(errno));
 			free(inst->pd_path);
 			inst->pd_path = NULL;
 		}	
@@ -728,7 +745,7 @@ struct inst_info *pkgmgr_new(double timestamp, const char *pkgname, const char *
 
 	inst->script = strdup(info->script);
 	if (!inst->script)
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("Heap: %s\n", strerror(errno));
 
 	inst->pd_w = info->pd_w;
 	inst->pd_h = info->pd_h;
@@ -759,6 +776,8 @@ int pkgmgr_delete_by_slave(struct slave_node *slave)
 			param = g_variant_new("(ss)", info->pkgname, inst->filename);
 			if (param)
 				client_broadcast_command("deleted", param);
+			else
+				ErrPrint("Failed to create a param\n");
 
 			delete_instance(inst);
 		}
@@ -800,15 +819,14 @@ int pkgmgr_delete_by_client(struct client_node *client)
 
 			param = g_variant_new("(ss)", info->pkgname, inst->filename);
 			if (param) {
-				int ret;
-
 				/* Send a command to the proper slave, to delete an instance */
-				ret = slave_push_command(info->slave, info->pkgname, inst->filename, "delete", g_variant_ref(param), NULL, NULL);
-				if (ret < 0)
-					g_variant_unref(param);
-
+				(void)slave_push_command(info->slave,
+						info->pkgname, inst->filename, "delete",
+						g_variant_ref(param), NULL, NULL);
 				/* Broadcast deleted livebox to every client to handling it correctly */
 				client_broadcast_command("deleted", param);
+			} else {
+				ErrPrint("Failed to create param\n");
 			}
 
 			delete_instance(inst);
@@ -1139,13 +1157,12 @@ int pkgmgr_set_pinup(struct inst_info *inst, int flag)
 	inst->is_pinned_up = flag;
 
 	param = g_variant_new("(ssi)", inst->info->pkgname, inst->filename, flag);
-	if (!param)
+	if (!param) {
+		ErrPrint("Failed to create a param\n");
 		return -EFAULT;
+	}
 
 	ret = slave_push_command(inst->info->slave, inst->info->pkgname, inst->filename, "pinup", param, NULL, NULL);
-	if (ret < 0)
-		g_variant_unref(param);
-
 	return ret;
 }
 

@@ -12,6 +12,8 @@
 #include "debug.h"
 #include "conf.h"
 
+int errno;
+
 unsigned long util_string_hash(const char *str)
 {
 	unsigned long ret = 0;

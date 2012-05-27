@@ -27,8 +27,6 @@ struct fb_info {
 
 	void *buffer;
 	int bufsz;
-
-	int created;
 };
 
 int fb_init(void)
@@ -110,14 +108,13 @@ struct fb_info *fb_create(const char *filename, int w, int h)
 	}
 	info->fd = -EINVAL;
 	info->ee = NULL;
-	info->created = 0;
 
 	return info;
 }
 
 int fb_create_buffer(struct fb_info *info)
 {
-	if (info->created)
+	if (info->ee)
 		return 0;
 
 	info->ee = ecore_evas_buffer_allocfunc_new(info->w, info->h, alloc_fb, free_fb, info);
@@ -127,33 +124,22 @@ int fb_create_buffer(struct fb_info *info)
 	ecore_evas_alpha_set(info->ee, EINA_TRUE);
 	ecore_evas_manual_render_set(info->ee, EINA_FALSE);
 	ecore_evas_resize(info->ee, info->w, info->h);
-	info->created = 1;
 	return 0;
 }
 
 int fb_destroy_buffer(struct fb_info *info)
 {
-	int ret;
-
-	if (!info->created)
+	if (!info->ee)
 		return -EINVAL;
 
-	ret = unlink(info->filename);
-	if (ret < 0)
-		ErrPrint("unlink: %s - %s\n", info->filename, strerror(errno));
-
-	if (info->ee) {
-		ecore_evas_free(info->ee);
-		info->ee = NULL;
-	}
-
-	info->created = 0;
+	ecore_evas_free(info->ee);
+	info->ee = NULL;
 	return 0;
 }
 
 int fb_destroy(struct fb_info *info)
 {
-	if (info->created) {
+	if (info->ee) {
 		ErrPrint("Destroy buffer first!!!!!!!!!!\n");
 		return -EINVAL;
 	}
@@ -180,7 +166,7 @@ int fb_resize(struct fb_info *info, int w, int h)
 	info->w = w;
 	info->h = h;
 
-	if (info->created) {
+	if (info->ee) {
 		DbgPrint("Resize EE to %dx%d\n", info->w, info->h);
 		ecore_evas_resize(info->ee, info->w, info->h);
 	}

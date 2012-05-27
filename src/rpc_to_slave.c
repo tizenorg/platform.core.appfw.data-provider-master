@@ -16,31 +16,43 @@
 #include "conf.h"
 #include "client_manager.h"
 
-static void create_return_cb(const char *funcname, GVariant *param, int ret, void *data)
-{
-	g_variant_unref(param);
+int errno;
 
-	if (ret < 0) {
-		/*!
-		 * \WARN: Error occured
-		 * And the "inst" is already DELETED
-		 */
-	} else if (ret == 0) { /* DONE */
-		/* OKAY, There is no changes */
-	} else if (ret & 0x01) { /* NEED_TO_CREATE */
-		struct inst_info *inst;
-		const char *pkgname;
-		const char *filename;
+static void create_return_cb(const char *funcname, GVariant *result, void *data)
+{
+	struct inst_info *inst;
+	double priority;
+	int w, h;
+	int ret;
+	const char *pkgname;
+	const char *filename;
+
+	inst = data;
+	g_variant_get(result, "(iiid)", &ret, &w, &h, &priority);
+	g_variant_unref(result);
+
+	pkgname = pkgmgr_name(inst);
+	filename = pkgmgr_filename(inst);
+
+	/*!
+	 * \note
+	 * ret == 0 : need_to_create 0
+	 * ret == 1 : need_to_create 1
+	 */
+	DbgPrint("\"new\" method returns: %d\n", ret);
+	if (ret == 0) { /* DONE */
+		pkgmgr_set_info(inst, w, h, priority);
+		pkgmgr_created(pkgname, filename);
+	} else if (ret == 1) { /* NEED_TO_CREATE */
 		const char *cluster;
 		const char *category;
 		const char *content;
 		double period;
 
-		/* System send create request */
-		inst = data;
+		pkgmgr_set_info(inst, w, h, priority);
+		pkgmgr_created(pkgname, filename);
 
-		pkgname = pkgmgr_name(inst);
-		filename = pkgmgr_filename(inst);
+		/* Send create request again */
 		cluster = pkgmgr_cluster(inst);
 		category = pkgmgr_category(inst);
 		content = pkgmgr_content(inst);
@@ -52,18 +64,41 @@ static void create_return_cb(const char *funcname, GVariant *param, int ret, voi
 			DbgPrint("Send create request again, it requires\n");
 			DbgPrint("pkgname: %s, cluster: %s, category: %s\n", pkgname, cluster, category);
 		}
+	} else if (ret < 0) {
+		/*\note
+		 * If the current instance is created by the client,
+		 * send the deleted event or just delete an instance in the master
+		 * It will be cared by the "create_ret_cb"
+		 */
+		struct client_node *client;
+
+		client = pkgmgr_client(inst);
+		if (client) {
+			GVariant *param;
+			/* Okay, the client wants to know about this */
+			param = g_variant_new("(ss)", pkgname, filename);
+			if (param)
+				client_push_command(client, "deleted", param);
+		}
+
+		pkgmgr_delete(inst);
 	}
 }
 
-int rpc_send_new(struct inst_info *inst, void (*ret_cb)(const char *funcname, GVariant *param, int ret, void *data), void *data, int skip_need_to_create)
+int rpc_send_new(struct inst_info *inst, void (*ret_cb)(const char *funcname, GVariant *result, void *data), void *data, int skip_need_to_create)
 {
 	struct slave_node *slave;
 	GVariant *param;
 	int ret;
+	const char *pkgname;
+	const char *filename;
+
+	pkgname = pkgmgr_name(inst);
+	filename = pkgmgr_filename(inst);
 
 	param = g_variant_new("(sssiidssiis)",
-			pkgmgr_name(inst),
-			pkgmgr_filename(inst),
+			pkgname,
+			filename,
 			pkgmgr_content(inst),
 			pkgmgr_timeout(inst),
 			!!pkgmgr_lb_path(inst),
@@ -73,35 +108,39 @@ int rpc_send_new(struct inst_info *inst, void (*ret_cb)(const char *funcname, GV
 			pkgmgr_pinup(inst),
 			skip_need_to_create,
 			pkgmgr_abi(inst));
-	if (!param)
+	if (!param) {
+		ErrPrint("Failed to create a param\n");
 		return -EFAULT;
+	}
 
-	slave = pkgmgr_slave(pkgmgr_name(inst));
+	slave = pkgmgr_slave(pkgname);
 	if (!slave) {
 		ErrPrint("Slave is not found\n");
 		g_variant_unref(param);
 		return -EFAULT;
 	}
 
-	ret = slave_push_command(slave, pkgmgr_name(inst), pkgmgr_filename(inst), "new", param, ret_cb, data);
-	if (ret < 0)
-		g_variant_unref(param);
-
+	ret = slave_push_command(slave, pkgname, filename, "new", param, ret_cb, data);
 	return ret;
 }
 
-int rpc_send_renew(struct inst_info *inst, void (*ret_cb)(const char *funcname, GVariant *param, int ret, void *data), void *data)
+int rpc_send_renew(struct inst_info *inst, void (*ret_cb)(const char *funcname, GVariant *result, void *data), void *data)
 {
 	struct slave_node *slave;
 	GVariant *param;
 	int ret;
 	int w;
 	int h;
+	const char *pkgname;
+	const char *filename;
+
+	pkgname = pkgmgr_name(inst);
+	filename = pkgmgr_filename(inst);
 
 	pkgmgr_get_size(inst, &w, &h, 0);
 	param = g_variant_new("(sssiidssiiis)",
-			pkgmgr_name(inst),
-			pkgmgr_filename(inst),
+			pkgname,
+			filename,
 			pkgmgr_content(inst),
 			pkgmgr_timeout(inst),
 			!!pkgmgr_lb_path(inst),
@@ -111,20 +150,19 @@ int rpc_send_renew(struct inst_info *inst, void (*ret_cb)(const char *funcname, 
 			pkgmgr_pinup(inst),
 			w, h,
 			pkgmgr_abi(inst));
-	if (!param)
+	if (!param) {
+		ErrPrint("Failed to create a param\n");
 		return -EFAULT;
+	}
 
-	slave = pkgmgr_slave(pkgmgr_name(inst));
+	slave = pkgmgr_slave(pkgname);
 	if (!slave) {
 		ErrPrint("Slave is not found\n");
 		g_variant_unref(param);
 		return -EFAULT;
 	}
 
-	ret = slave_push_command(slave, pkgmgr_name(inst), pkgmgr_filename(inst), "renew", param, ret_cb, data);
-	if (ret < 0)
-		g_variant_unref(param);
-
+	ret = slave_push_command(slave, pkgname, filename, "renew", param, ret_cb, data);
 	return ret;
 }
 
@@ -139,7 +177,7 @@ struct inst_info *rpc_send_create_request(struct client_node *client, const char
 	fnlen = 256 + strlen(g_conf.path.image);
 	filename = malloc(fnlen);
 	if (!filename) {
-		ErrPrint("Failed to allocate memory for filename: %d\n", fnlen);
+		ErrPrint("Heap: %s (%d)\n", strerror(errno), fnlen);
 		return NULL;
 	}
 
@@ -206,7 +244,6 @@ void rpc_send_update_request(const char *pkgname, const char *cluster, const cha
 {
 	struct slave_node *slave;
 	GVariant *param;
-	int ret;
 
 	slave = pkgmgr_slave(pkgname);
 	if (!slave)
@@ -218,9 +255,7 @@ void rpc_send_update_request(const char *pkgname, const char *cluster, const cha
 		return;
 	}
 
-	ret = slave_push_command(slave, pkgname, NULL, "update_content", param, NULL, NULL);
-	if (ret < 0)
-		g_variant_unref(param);
+	(void)slave_push_command(slave, pkgname, NULL, "update_content", param, NULL, NULL);
 }
 
 void rpc_send_pause_request(void)
@@ -228,8 +263,10 @@ void rpc_send_pause_request(void)
 	GVariant *param;
 
 	param = g_variant_new("(d)", util_get_timestamp());
-	if (!param)
+	if (!param) {
+		ErrPrint("Failed to create a param\n");
 		return;
+	}
 
 	slave_broadcast_command("pause", param);
 }
@@ -239,8 +276,10 @@ void rpc_send_resume_request(void)
 	GVariant *param;
 
 	param = g_variant_new("(d)", util_get_timestamp());
-	if (!param)
+	if (!param) {
+		ErrPrint("Failed to create a param\n");
 		return;
+	}
 
 	slave_broadcast_command("resume", param);
 }
