@@ -24,11 +24,6 @@ struct conf {
 	int height;
 
 	struct {
-		const char *error;
-		const char *fault;
-	} log;
-
-	struct {
 		const char *conf;
 		const char *image;
 		const char *script;

@@ -31,6 +31,11 @@ struct fault_info {
 	char *function;
 };
 
+/*!
+ * \note
+ * inst_info describes created instances.
+ * every package can holds many instances
+ */
 struct inst_info {
 	char *filename;
 	char *content;
@@ -68,6 +73,9 @@ struct inst_info {
 	struct pkg_info *info;
 };
 
+/*!
+ * pkg_info describes the loaded package.
+ */
 struct pkg_info {
 	char *pkgname;
 	unsigned long fault_count;

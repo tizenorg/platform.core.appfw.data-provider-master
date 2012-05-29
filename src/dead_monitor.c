@@ -17,18 +17,18 @@ int aul_listen_app_dead_signal(int (*)(int, void *), void *);
 static int dead_cb(int pid, void *cb_data)
 {
 	struct slave_node *slave;
-	struct client_node *client;
 
 	slave = slave_find_by_pid(pid);
 	if (slave) {
 		slave_fault_deactivating(slave, 0);
-		return 0;
-	}
-
-	client = client_find(pid);
-	if (client) {
-		client_fault_deactivating(client);
-		return 0;
+	} else {
+		struct client_node *client;
+		client = client_find(pid);
+		if (client) {
+			client_destroy(client);
+		} else {
+			/* Ignore this dead signal */
+		}
 	}
 
 	return 0;

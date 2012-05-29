@@ -434,7 +434,6 @@ static void pd_group_handler(struct item *item, char *buffer)
 		LOGD("Error: %s\n", strerror(errno));
 }
 
-
 struct item *parser_load(const char *pkgname)
 {
 	struct item *item;

@@ -177,18 +177,13 @@ struct client_node *client_new(int pid)
 {
 	struct client_node *client;
 
-	client = malloc(sizeof(*client));
+	client = calloc(1, sizeof(*client));
 	if (!client) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		return NULL;
 	}
 
 	client->pid = pid;
-	client->proxy = NULL;
-	client->cmd_timer = NULL;
-	client->sending_list = NULL;
-	client->pkg_list = NULL;
-	client->paused = 0;
 
 	s_info.client_list = eina_list_append(s_info.client_list, client);
 	s_info.nr_of_clients++;
@@ -221,6 +216,9 @@ struct client_node *client_find_by_connection(GDBusConnection *conn)
 
 	EINA_LIST_FOREACH(s_info.client_list, l, client) {
 		proxy = client_proxy(client);
+		if (!proxy)
+			continue;
+
 		if (g_dbus_proxy_get_connection(proxy) == conn)
 			return client;
 	}
@@ -317,16 +315,6 @@ int client_broadcast_command(const char *funcname, GVariant *param)
 	}
 
 	g_variant_unref(param);
-	return 0;
-}
-
-int client_fault_deactivating(struct client_node *client)
-{
-	/*!
-	 * \todo
-	 * remove all pkg, which are created by this client!
-	 */
-	(void)client_destroy(client);
 	return 0;
 }
 

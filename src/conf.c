@@ -27,11 +27,6 @@ struct conf g_conf = {
 	.width = 0,
 	.height = 0,
 
-	.log = {
-		.error = "/opt/apps/com.samsung."PACKAGE"/data/live.err",
-		.fault = "/opt/apps/com.samsung."PACKAGE"/data/live.fault",
-	},
-
 	.path = {
 		.conf = "/opt/live/%s/etc/%s.conf",
 		.image = "/opt/share/live_magazine/",

@@ -85,6 +85,11 @@ static void create_return_cb(const char *funcname, GVariant *result, void *data)
 	}
 }
 
+/*!
+ * \note
+ * Send "new" livebox reqeust to slave data provider,
+ * after send the request, "ret_cb" will be invoked.
+ */
 int rpc_send_new(struct inst_info *inst, void (*ret_cb)(const char *funcname, GVariant *result, void *data), void *data, int skip_need_to_create)
 {
 	struct slave_node *slave;

@@ -10,7 +10,6 @@ extern int client_push_command(struct client_node *client, const char *funcname,
 extern int client_broadcast_command(const char *funcname, GVariant *param);
 extern int client_pid(struct client_node *client);
 extern GDBusProxy *client_proxy(struct client_node *client);
-extern int client_fault_deactivating(struct client_node *client);
 
 extern void client_pause(struct client_node *client);
 extern void client_resume(struct client_node *client);

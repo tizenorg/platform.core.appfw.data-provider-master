@@ -108,7 +108,7 @@ static inline struct slave_node *create_slave_data(const char *name)
 {
 	struct slave_node *slave;
 
-	slave = malloc(sizeof(*slave));
+	slave = calloc(1, sizeof(*slave));
 	if (!slave) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		return NULL;
@@ -121,15 +121,7 @@ static inline struct slave_node *create_slave_data(const char *name)
 		return NULL;
 	}
 
-	slave->pong_timer = NULL;
-	slave->refcnt = 0;
 	slave->name_hash = util_string_hash(name);
-	slave->is_secured = 0;
-	slave->proxy = NULL;
-	slave->sending_list = NULL;
-	slave->waiting_list = NULL;
-	slave->cmd_timer = NULL;
-	slave->fault_count = 0;
 	slave->pid = (pid_t)-1;
 	slave->paused = s_info.paused;
 
@@ -169,12 +161,9 @@ static inline void destroy_command(struct cmd_item *item)
  */
 static inline void clear_waiting_command_list(struct slave_node *slave)
 {
-	Eina_List *l;
-	Eina_List *n;
 	struct cmd_item *item;
 
-	EINA_LIST_FOREACH_SAFE(slave->waiting_list, l, n, item) {
-		slave->waiting_list = eina_list_remove_list(slave->waiting_list, l);
+	EINA_LIST_FREE(slave->waiting_list, item) {
 		item->slave = NULL;
 	}
 }
@@ -187,12 +176,9 @@ static inline void clear_waiting_command_list(struct slave_node *slave)
  */
 static inline void clear_sending_command_list(struct slave_node *slave)
 {
-	Eina_List *l;
-	Eina_List *n;
 	struct cmd_item *item;
 
-	EINA_LIST_FOREACH_SAFE(slave->sending_list, l, n, item) {
-		slave->sending_list = eina_list_remove_list(slave->sending_list, l);
+	EINA_LIST_FREE(slave->sending_list, item) {
 		destroy_command(item);
 	}
 }
@@ -283,6 +269,10 @@ static void slave_cmd_done(GDBusProxy *proxy, GAsyncResult *res, void *_cmd_item
 	destroy_command(item);
 }
 
+/*!
+ * \note
+ * This callback function will consume items in the sending list.
+ */
 static Eina_Bool cmd_consumer_cb(void *data)
 {
 	struct slave_node *slave = data;
@@ -366,7 +356,11 @@ static void renew_ret_cb(const char *funcname, GVariant *result, void *data)
 		return;
 	}
 
-	/* TODO: Failed to re-create an instance */
+	/*!
+	 * \note
+	 * Failed to re-create an instance.
+	 * In this case, delete the instance and send its deleted status to every clients.
+	 */
 	DbgPrint("Failed to recreate, send delete event to client (%d)\n", ret);
 	pkgmgr_deleted(pkgmgr_name(data), pkgmgr_filename(data));
 }
@@ -454,6 +448,10 @@ int slave_is_activated(struct slave_node *slave)
 	return slave->pid > 0;
 }
 
+/*!
+ * \note
+ * Launch a new slave with bundle (its name)
+ */
 int slave_activate(struct slave_node *slave)
 {
 	bundle *param;
@@ -481,7 +479,12 @@ int slave_activate(struct slave_node *slave)
 	return 0;
 }
 
-/* Laucnh the slave */
+/*!
+ * \note
+ * Increase the reference counter of the slave
+ * Reference counter means number of loaded packages.
+ * If there is no pakcage are loaded, the refcnt will be 0
+ */
 int slave_ref(struct slave_node *slave)
 {
 	if (slave->is_secured && slave->refcnt > 0) {
@@ -493,6 +496,10 @@ int slave_ref(struct slave_node *slave)
 	return slave->refcnt;
 }
 
+/*!
+ * \note
+ * Decrease the reference counter of the slave.
+ */
 int slave_unref(struct slave_node *slave)
 {
 	if (slave->refcnt == 0)
@@ -540,6 +547,11 @@ struct slave_node *slave_find_usable(void)
 		if (tmp->is_secured && tmp->refcnt > 0)
 			continue;
 
+		/*!
+		 * \note
+		 * Check the loaded package counter.
+		 * Maximum loadable package counter is sotred in the g_conf.slave_max_load.
+		 */
 		if (tmp->refcnt >= g_conf.slave_max_load)
 			continue;
 
@@ -645,6 +657,11 @@ int slave_push_command(struct slave_node *slave, const char *pkgname, const char
 	item->ret_cb = ret_cb;
 	item->cbdata = data;
 
+	/*!
+	 * \note
+	 * Add this item to sending_list, and fire the command consumer.
+	 * Command consumer will comsume this requests
+	 */
 	slave->sending_list = eina_list_append(slave->sending_list, item);
 	check_and_fire_cmd_consumer(slave);
 	return 0;
@@ -708,11 +725,8 @@ int slave_manager_init(void)
 int slave_manager_fini(void)
 {
 	struct slave_node *slave;
-	Eina_List *l;
-	Eina_List *n;
 
-	EINA_LIST_FOREACH_SAFE(s_info.slave_list, l, n, slave) {
-		s_info.slave_list = eina_list_remove_list(s_info.slave_list, l);
+	EINA_LIST_FREE(s_info.slave_list, slave) {
 		destroy_slave_data(slave);
 	}
 
