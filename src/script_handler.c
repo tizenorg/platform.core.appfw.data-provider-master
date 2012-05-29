@@ -294,8 +294,6 @@ struct script_info *script_handler_create(struct inst_info *inst, const char *fi
 	}
 
 	info->inst = inst;
-	info->ee = NULL;
-	info->loaded = 0;
 	info->port = find_port(pkgmgr_script(inst));
 	if (!info->port) {
 		fb_destroy(info->fb);
@@ -339,7 +337,7 @@ int script_handler_is_loaded(struct script_info *info)
 
 struct fb_info *script_handler_fb(struct script_info *info)
 {
-	return info->fb;
+	return info ? info->fb : NULL;
 }
 
 void *script_handler_evas(struct script_info *info)

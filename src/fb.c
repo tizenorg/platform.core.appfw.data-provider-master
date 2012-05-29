@@ -154,9 +154,9 @@ Ecore_Evas *fb_canvas(struct fb_info *info)
 	return info->ee;
 }
 
-const char *fb_filename(struct fb_info *info)
+const char *fb_filename(struct fb_info *fb)
 {
-	return (info && info->filename) ? info->filename : "";
+	return (fb && fb->filename) ? fb->filename : "";
 }
 
 int fb_resize(struct fb_info *info, int w, int h)

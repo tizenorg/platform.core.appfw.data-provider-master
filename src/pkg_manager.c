@@ -113,40 +113,6 @@ static struct info {
 	.pkg_list = NULL,
 };
 
-void pkgmgr_pd_updated_by_inst(struct inst_info *inst, const char *descfile)
-{
-	GVariant *param;
-
-	/*!
-	 * \note
-	 * the description file can be NULL
-	 * when a pd is written as EDJE
-	 */
-	if (!descfile)
-		descfile = inst->filename;
-
-	param = g_variant_new("(sssii)",
-			inst->info->pkgname, inst->filename, descfile, inst->pd_w, inst->pd_h);
-	if (param)
-		client_broadcast_command("pd_updated", param);
-	else
-		ErrPrint("Failed to create param (%s - %s)\n", inst->info->pkgname, inst->filename);
-}
-
-void pkgmgr_lb_updated_by_inst(struct inst_info *inst)
-{
-	GVariant *param;
-
-	param = g_variant_new("(ssiid)",
-				inst->info->pkgname, inst->filename,
-				inst->lb_w, inst->lb_h, inst->priority);
-	if (param)
-		client_broadcast_command("lb_updated", param);
-	else
-		ErrPrint("Failed to create param (%s - %s)\n", inst->info->pkgname, inst->filename);
-
-}
-
 static inline struct inst_info *find_instance(struct pkg_info *pkginfo, const char *filename)
 {
 	Eina_List *l;
@@ -185,7 +151,8 @@ static inline int delete_instance(struct inst_info *inst)
 		script_handler_destroy(inst->pd_script);
 	}
 
-	util_unlink(inst->filename);
+	if (unlink(inst->filename) < 0)
+		ErrPrint("Unlink: %s\n", strerror(errno));
 
 	free(inst->lb_path);
 	free(inst->lb_group);
@@ -204,30 +171,12 @@ static inline int delete_instance(struct inst_info *inst)
 	return 0;
 }
 
-static inline char *default_script_path(const char *pkgname)
-{
-	char *ret;
-	int len;
-
-	len = strlen(pkgname) * 2;
-	len += strlen(g_conf.path.script) + 1;
-
-	ret = malloc(len);
-	if (!ret) {
-		ErrPrint("Heap: %s - %d\n", strerror(errno), len);
-		return NULL;
-	}
-
-	snprintf(ret, len, g_conf.path.script, pkgname, pkgname);
-	return ret;
-}
-
 static inline struct pkg_info *new_pkginfo(const char *pkgname)
 {
 	struct pkg_info *info;
 	struct item *item;
 
-	info = malloc(sizeof(*info));
+	info = calloc(1, sizeof(*info));
 	if (!info) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		return NULL;
@@ -240,11 +189,6 @@ static inline struct pkg_info *new_pkginfo(const char *pkgname)
 		return NULL;
 	}
 
-	info->inst_list = NULL;
-	info->fault_info = NULL;
-	info->slave = NULL;
-	info->fault_count = 0lu;
-
 	s_info.pkg_list = eina_list_append(s_info.pkg_list, info);
 
 	item = parser_load(info->pkgname);
@@ -254,54 +198,46 @@ static inline struct pkg_info *new_pkginfo(const char *pkgname)
 		tmp = parser_lb_path(item);
 		if (tmp) {
 			info->lb_path = strdup(tmp);
-			if (!info->lb_path)
+			if (!info->lb_path) {
 				ErrPrint("Error: %s\n", strerror(errno));
+			} else {
+				tmp = parser_lb_group(item);
+				if (tmp) {
+					info->lb_group = strdup(tmp);
+					if (!info->lb_group)
+						ErrPrint("Error: %s\n", strerror(errno));
+				}
+			}
 		} else {
 			info->lb_path = NULL; /* Livebox has not to include the EDJE file */
 		}
 
-		info->lb_group = NULL;
-		if (info->lb_path) {
-			tmp = parser_lb_group(item);
-			if (tmp) {
-				info->lb_group = strdup(tmp);
-				if (!info->lb_group)
+		tmp = parser_pd_path(item);
+		if (tmp) {
+			info->pd_path = strdup(tmp);
+			if (!info->pd_path) {
+				ErrPrint("Error: %s\n", strerror(errno));
+			} else {
+				tmp = parser_pd_group(item);
+				if (tmp)
+					info->pd_group = strdup(tmp);
+				else
+					info->pd_group = strdup(DEFAULT_GROUP);
+
+				if (!info->pd_group)
 					ErrPrint("Error: %s\n", strerror(errno));
 			}
-		}
-
-		tmp = parser_pd_path(item);
-		if (tmp)
-			info->pd_path = strdup(tmp);
-		else
-			info->pd_path = default_script_path(pkgname);
-
-		if (!info->pd_path) {
-			ErrPrint("Error: %s\n", strerror(errno));
 		} else {
-			tmp = parser_pd_group(item);
-			if (tmp)
-				info->pd_group = strdup(tmp);
-			else
-				info->pd_group = strdup(DEFAULT_GROUP);
-
-			if (!info->pd_group)
-				ErrPrint("Error: %s\n", strerror(errno));
+			info->pd_path = NULL;
 		}
 
 		tmp = parser_script(item);
-		if (tmp)
-			info->script = strdup(tmp);
-		else
-			info->script = strdup(DEFAULT_SCRIPT);
+		info->script = tmp ? strdup(tmp) : strdup(DEFAULT_SCRIPT);
 		if (!info->script)
 			ErrPrint("Heap: %s\n", strerror(errno));
 
 		tmp = parser_abi(item);
-		if (tmp)
-			info->abi = strdup(tmp);
-		else
-			info->abi = strdup(DEFAULT_ABI);
+		info->abi = tmp ? strdup(tmp) : strdup(DEFAULT_ABI);
 		if (!info->abi)
 			ErrPrint("Error: %s\n", strerror(errno));
 
@@ -323,27 +259,7 @@ static inline struct pkg_info *new_pkginfo(const char *pkgname)
 
 		parser_unload(item);
 	} else {
-		info->timeout = 0;
-		info->period = 0.0f; /* No updates defined */
 		info->size_list = 0x01; /* Default */
-		info->auto_launch = 0;
-		info->secured = 0;
-		info->text_pd = 0;
-		info->text_pd = 0;
-
-		info->lb_path = NULL;
-		info->lb_group = NULL;
-
-		info->pd_path = default_script_path(pkgname);
-		if (info->pd_path) {
-			info->pd_group = strdup(DEFAULT_GROUP);
-			if (!info->pd_group) {
-				free(info->pd_path);
-				info->pd_path = NULL;
-			}
-		} else {
-			info->pd_group = NULL;
-		}
 
 		info->script = strdup(DEFAULT_SCRIPT);
 		if (!info->script)
@@ -389,6 +305,61 @@ static inline int delete_pkginfo(struct pkg_info *info)
 	free(info->script);
 	free(info);
 	return 0;
+}
+
+static inline void prepare_fb(struct inst_info *inst)
+{
+	if (inst->lb_path) {
+		inst->lb_script = script_handler_create(inst, inst->lb_path, inst->lb_group, inst->lb_w, inst->lb_h);
+		if (script_handler_load(inst->lb_script, 0) < 0) {
+			script_handler_destroy(inst->lb_script);
+			inst->lb_script = NULL;
+		}
+	}
+
+	if (inst->pd_path) {
+		inst->pd_script = script_handler_create(inst, inst->pd_path, inst->pd_group, inst->pd_w, inst->pd_h);
+		if (!inst->pd_script && inst->lb_script) {
+			ErrPrint("Failed to load PD script\n");
+			script_handler_unload(inst->lb_script, 0);
+			script_handler_destroy(inst->lb_script);
+			inst->lb_script = NULL;
+		}
+	}
+}
+
+void pkgmgr_pd_updated_by_inst(struct inst_info *inst, const char *descfile)
+{
+	GVariant *param;
+
+	/*!
+	 * \note
+	 * the description file can be NULL
+	 * when a pd is written as EDJE
+	 */
+	if (!descfile)
+		descfile = inst->filename;
+
+	param = g_variant_new("(sssii)",
+			inst->info->pkgname, inst->filename, descfile, inst->pd_w, inst->pd_h);
+	if (param)
+		client_broadcast_command("pd_updated", param);
+	else
+		ErrPrint("Failed to create param (%s - %s)\n", inst->info->pkgname, inst->filename);
+}
+
+void pkgmgr_lb_updated_by_inst(struct inst_info *inst)
+{
+	GVariant *param;
+
+	param = g_variant_new("(ssiid)",
+				inst->info->pkgname, inst->filename,
+				inst->lb_w, inst->lb_h, inst->priority);
+	if (param)
+		client_broadcast_command("lb_updated", param);
+	else
+		ErrPrint("Failed to create param (%s - %s)\n", inst->info->pkgname, inst->filename);
+
 }
 
 int pkgmgr_set_fault(const char *pkgname, const char *filename, const char *funcname)
@@ -620,27 +591,6 @@ struct inst_info *pkgmgr_find(const char *pkgname, const char *filename)
 	return inst;
 }
 
-static inline void prepare_fb(struct inst_info *inst)
-{
-	if (inst->lb_path) {
-		inst->lb_script = script_handler_create(inst, inst->lb_path, inst->lb_group, inst->lb_w, inst->lb_h);
-		if (script_handler_load(inst->lb_script, 0) < 0) {
-			script_handler_destroy(inst->lb_script);
-			inst->lb_script = NULL;
-		}
-	}
-
-	if (inst->pd_path) {
-		inst->pd_script = script_handler_create(inst, inst->pd_path, inst->pd_group, inst->pd_w, inst->pd_h);
-		if (!inst->pd_script && inst->lb_script) {
-			ErrPrint("Failed to load PD script\n");
-			script_handler_unload(inst->lb_script, 0);
-			script_handler_destroy(inst->lb_script);
-			inst->lb_script = NULL;
-		}
-	}
-}
-
 struct inst_info *pkgmgr_new(double timestamp, const char *pkgname, const char *filename, const char *content, const char *cluster, const char *category)
 {
 	struct pkg_info *info;
@@ -720,35 +670,32 @@ struct inst_info *pkgmgr_new(double timestamp, const char *pkgname, const char *
 	inst->text_lb = info->text_lb;
 	inst->text_pd = info->text_pd;
 
-	inst->lb_group = NULL;
 	if (info->lb_path) {
 		inst->lb_path = strdup(info->lb_path);
-		if (!inst->lb_path)
+		if (!inst->lb_path) {
 			ErrPrint("Heap: %s\n", strerror(errno));
-
-		inst->lb_group = strdup(info->lb_group);
-		if (!inst->lb_group) {
-			ErrPrint("Heap: %s\n", strerror(errno));
-			free(inst->lb_path);
-			inst->lb_path = NULL;
+		} else {
+			inst->lb_group = strdup(info->lb_group);
+			if (!inst->lb_group) {
+				ErrPrint("Heap: %s\n", strerror(errno));
+				free(inst->lb_path);
+				inst->lb_path = NULL;
+			}
 		}
 	}
 
-	inst->pd_path = NULL;
 	if (info->pd_path) {
 		inst->pd_path = strdup(info->pd_path);
-		if (!inst->pd_path)
+		if (!inst->pd_path) {
 			ErrPrint("Heap: %s\n", strerror(errno));
-	}
-
-	inst->pd_group = NULL;
-	if (inst->pd_path && info->pd_group) {
-		inst->pd_group = strdup(info->pd_group);
-		if (!inst->pd_group) {
-			ErrPrint("Heap: %s\n", strerror(errno));
-			free(inst->pd_path);
-			inst->pd_path = NULL;
-		}	
+		} else if (info->pd_group) {
+			inst->pd_group = strdup(info->pd_group);
+			if (!inst->pd_group) {
+				ErrPrint("Heap: %s\n", strerror(errno));
+				free(inst->pd_path);
+				inst->pd_path = NULL;
+			}	
+		}
 	}
 
 	inst->script = strdup(info->script);
@@ -986,8 +933,8 @@ int pkgmgr_inform_pkglist(struct client_node *client)
 					info->pkgname, inst->filename, inst->content,
 					inst->lb_w, inst->lb_h, inst->pd_w, inst->pd_h,
 					inst->cluster, inst->category,
-					inst->lb_script ? fb_filename(script_handler_fb(inst->lb_script)) : "",
-					inst->pd_script ? fb_filename(script_handler_fb(inst->pd_script)) : "",
+					fb_filename(script_handler_fb(inst->lb_script)),
+					fb_filename(script_handler_fb(inst->pd_script)),
 					inst->auto_launch,
 					inst->priority,
 					inst->size_list,
@@ -1025,8 +972,8 @@ int pkgmgr_created(const char *pkgname, const char *filename)
 			pkgname, filename, inst->content,
 			inst->lb_w, inst->lb_h, inst->pd_w, inst->pd_h,
 			inst->cluster, inst->category,
-			inst->lb_script ? fb_filename(script_handler_fb(inst->lb_script)) : "",
-			inst->pd_script ? fb_filename(script_handler_fb(inst->pd_script)) : "",
+			fb_filename(script_handler_fb(inst->lb_script)),
+			fb_filename(script_handler_fb(inst->pd_script)),
 			inst->auto_launch,
 			inst->priority,
 			inst->size_list,

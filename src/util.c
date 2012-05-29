@@ -49,33 +49,6 @@ int util_check_ext(const char *filename, const char *check_ptr)
 	return 0;
 }
 
-int util_unlink(const char *filename)
-{
-	char *descfile;
-	int desclen;
-
-	desclen = strlen(filename) + 6; /* .desc */
-	descfile = malloc(desclen);
-	if (descfile) {
-		int ret;
-		ret = snprintf(descfile, desclen, "%s.desc", filename);
-		if (ret < 0) {
-			DbgPrint("Error: %s\n", strerror(errno));
-		} else {
-			ret = unlink(descfile);
-			if (ret < 0)
-				DbgPrint("Unlink: %s - %s\n",
-					descfile, strerror(errno));
-		}
-		free(descfile);
-	}
-
-	if (unlink(filename) < 0)
-		DbgPrint("Unlink: %s - %s\n", filename, strerror(errno));
-
-	return 0;
-}
-
 int util_validate_livebox_package(const char *pkgname)
 {
 	int len;
