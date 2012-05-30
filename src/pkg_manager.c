@@ -279,15 +279,9 @@ static inline struct pkg_info *new_pkginfo(const char *pkgname)
 
 static inline int delete_pkginfo(struct pkg_info *info)
 {
-	Eina_List *l;
-	Eina_List *n;
 	struct inst_info *inst;
 
-	if (info->slave)
-		slave_unref(info->slave);
-
-	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
-		info->inst_list = eina_list_remove_list(info->inst_list, l);
+	EINA_LIST_FREE(info->inst_list, inst) {
 		delete_instance(inst);
 	}
 
@@ -303,6 +297,17 @@ static inline int delete_pkginfo(struct pkg_info *info)
 	free(info->pd_path);
 	free(info->pkgname);
 	free(info->script);
+
+	if (info->slave) {
+		int nr;
+		nr = slave_unref(info->slave);
+		if (nr == 0) {
+			DbgPrint("Slave %d has no more package, destroy it\n",
+								slave_pid(info->slave));
+			slave_destroy(info->slave);
+		}
+	}
+
 	free(info);
 	return 0;
 }

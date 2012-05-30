@@ -39,7 +39,6 @@ static void create_return_cb(const char *funcname, GVariant *result, void *data)
 	 * ret == 0 : need_to_create 0
 	 * ret == 1 : need_to_create 1
 	 */
-	DbgPrint("\"new\" method returns: %d\n", ret);
 	if (ret == 0) { /* DONE */
 		pkgmgr_set_info(inst, w, h, priority);
 		pkgmgr_created(pkgname, filename);
@@ -58,12 +57,10 @@ static void create_return_cb(const char *funcname, GVariant *result, void *data)
 		content = pkgmgr_content(inst);
 		period = pkgmgr_period(inst);
 
+		/* Send create livebox again */
 		inst = rpc_send_create_request(NULL, pkgname, content, cluster, category, util_get_timestamp(), period);
-		if (inst) {
-			/* Send create livebox again */
-			DbgPrint("Send create request again, it requires\n");
-			DbgPrint("pkgname: %s, cluster: %s, category: %s\n", pkgname, cluster, category);
-		}
+		if (!inst)
+			ErrPrint("Failed to send a create request for %s(%s, %s)\n", pkgname, cluster, category);
 	} else if (ret < 0) {
 		/*\note
 		 * If the current instance is created by the client,

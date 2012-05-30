@@ -64,7 +64,7 @@ static inline int get_pid(Ecore_X_Window win)
 	if (ecore_x_window_prop_property_get(win, atom, ECORE_X_ATOM_CARDINAL,
 				sizeof(int), &in_pid, &num) == EINA_FALSE) {
 		if (ecore_x_netwm_pid_get(win, &pid) == EINA_FALSE) {
-			DbgPrint("Failed to get PID from a window 0x%X\n", win);
+			ErrPrint("Failed to get PID from a window 0x%X\n", win);
 			return -EINVAL;
 		}
 	} else {
@@ -79,7 +79,6 @@ static Eina_Bool create_cb(void *data, int type, void *event)
 {
 	Ecore_X_Event_Window_Create *info = event;
 
-	DbgPrint("Window created: 0x%X\n", info->win);
 	ecore_x_window_client_sniff(info->win);
 
 	return ECORE_CALLBACK_RENEW;
@@ -98,19 +97,14 @@ int xmonitor_update_state(void)
 	int pid;
 
 	win = ecore_x_window_focus_get();
-	DbgPrint("Update state for 0x%X\n", win);
 
 	pid = get_pid(win);
-	if (pid <= 0) {
-		DbgPrint("PID is not available\n");
+	if (pid <= 0)
 		return -ENOENT;
-	}
 
 	client = client_find(pid);
-	if (!client) {
-		DbgPrint("Client is not found for %d\n", pid);
+	if (!client)
 		return -EINVAL;
-	}
 
 	client_resume(client);
 	return 0;
@@ -160,7 +154,6 @@ static inline void sniff_all_windows(void)
 
 	root = ecore_x_window_root_first_get();
 	ecore_x_window_sniff(root);
-	DbgPrint("Sniff root window 0x%X\n", root);
 
 	new_item = malloc(sizeof(*new_item));
 	if (!new_item) {

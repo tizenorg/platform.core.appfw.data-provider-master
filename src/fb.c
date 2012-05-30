@@ -64,7 +64,6 @@ static void *alloc_fb(void *data, int size)
 	}
 
 	info->bufsz = size;
-	DbgPrint("Allocate new buffer: %p %d\n", info->buffer, info->bufsz);
 	return info->buffer;
 }
 
@@ -74,7 +73,6 @@ static void free_fb(void *data, void *ptr)
 
 	info = data;
 
-	DbgPrint("Release canvas buffer: %p\n", ptr);
 //	munmap(info->buffer, info->bufsz);
 	if (info->buffer) {
 		free(info->buffer);
@@ -161,15 +159,11 @@ const char *fb_filename(struct fb_info *fb)
 
 int fb_resize(struct fb_info *info, int w, int h)
 {
-	DbgPrint("info[%dx%d], new[%dx%d]\n", info->w, info->h, w, h);
-
 	info->w = w;
 	info->h = h;
 
-	if (info->ee) {
-		DbgPrint("Resize EE to %dx%d\n", info->w, info->h);
+	if (info->ee)
 		ecore_evas_resize(info->ee, info->w, info->h);
-	}
 
 	return 0;
 }

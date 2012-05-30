@@ -42,7 +42,7 @@ Evas *virtual_canvas_create(int w, int h)
 	/* Create virtual canvas */
 	internal_ee = ecore_evas_buffer_new(w, h);
 	if (!internal_ee) {
-		DbgPrint("Failed to create a new canvas buffer\n");
+		ErrPrint("Failed to create a new canvas buffer\n");
 		return NULL;
 	}
 
@@ -53,7 +53,7 @@ Evas *virtual_canvas_create(int w, int h)
 	internal_e = ecore_evas_get(internal_ee);
 	if (!internal_e) {
 		ecore_evas_free(internal_ee);
-		DbgPrint("Faield to get Evas object\n");
+		ErrPrint("Faield to get Evas object\n");
 		return NULL;
 	}
 
@@ -68,7 +68,7 @@ int virtual_canvas_flush_to_file(Evas *e, const char *filename, int w, int h)
 
 	internal_ee = ecore_evas_ecore_evas_get(e);
 	if (!internal_ee) {
-		DbgPrint("Failed to get ecore evas\n");
+		ErrPrint("Failed to get ecore evas\n");
 		return -EFAULT;
 	}
 
@@ -77,7 +77,7 @@ int virtual_canvas_flush_to_file(Evas *e, const char *filename, int w, int h)
 	/* Get a pointer of a buffer of the virtual canvas */
 	data = (void *)ecore_evas_buffer_pixels_get(internal_ee);
 	if (!data) {
-		DbgPrint("Failed to get pixel data\n");
+		ErrPrint("Failed to get pixel data\n");
 		return -EFAULT;
 	}
 
@@ -91,7 +91,7 @@ int virtual_canvas_flush_data_to_file(Evas *e, char *data, const char *filename,
 
 	output = evas_object_image_add(e);
 	if (!output) {
-		DbgPrint("Failed to create an image object\n");
+		ErrPrint("Failed to create an image object\n");
 		return -EFAULT;
 	}
 
@@ -106,14 +106,14 @@ int virtual_canvas_flush_data_to_file(Evas *e, char *data, const char *filename,
 	if (evas_object_image_save(output, filename, NULL, g_conf.quality)
 								== EINA_FALSE) {
 		evas_object_del(output);
-		DbgPrint("Faield to save a captured image (%s)\n", filename);
+		ErrPrint("Faield to save a captured image (%s)\n", filename);
 		return -EFAULT;
 	}
 
 	evas_object_del(output);
 
 	if (access(filename, F_OK) != 0) {
-		DbgPrint("File %s is not found\n", filename);
+		ErrPrint("File %s is not found (%s)\n", filename, strerror(errno));
 		return -EFAULT;
 	}
 
@@ -126,7 +126,7 @@ int virtual_canvas_destroy(Evas *e)
 
 	ee = ecore_evas_ecore_evas_get(e);
 	if (!ee) {
-		DbgPrint("Failed to ecore evas object\n");
+		ErrPrint("Failed to ecore evas object\n");
 		return -EFAULT;
 	}
 

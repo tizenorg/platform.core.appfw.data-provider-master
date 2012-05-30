@@ -625,7 +625,6 @@ static void method_deleted(GDBusMethodInvocation *inv, GVariant *param)
 		ErrPrint("Unknown slave: %s\n", slavename);
 		ret = -EINVAL;
 	} else {
-		DbgPrint("Package %s is deleted\n", pkgname);
 		ret = pkgmgr_deleted(pkgname, filename);
 	}
 
@@ -639,7 +638,7 @@ static void method_deleted(GDBusMethodInvocation *inv, GVariant *param)
 static void on_client_signal(GDBusProxy *proxy, gchar *sender, gchar *signame, GVariant *param, gpointer data)
 {
 	DbgPrint("Sender: %s\n", sender);
-	DbgPrint("SigName: %s\n", signame);
+	DbgPrint("Signame: %s\n", signame);
 }
 
 static void client_proxy_prepared_cb(GObject *obj, GAsyncResult *res, gpointer client)
@@ -689,8 +688,6 @@ static void method_acquire(GDBusMethodInvocation *inv, GVariant *param)
 		ret = -EFAULT;
 		goto errout;
 	}
-
-	DbgPrint("Client %d is created\n", client_pid);
 
 errout:
 	param = g_variant_new("(i)", ret);
@@ -1292,6 +1289,7 @@ static void method_delete(GDBusMethodInvocation *inv, GVariant *param)
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
+		DbgPrint("[%s] is fault package. ignore delete request\n", pkgname);
 		ret = -EAGAIN;
 	} else {
 		struct slave_node *slave;
@@ -1303,11 +1301,10 @@ static void method_delete(GDBusMethodInvocation *inv, GVariant *param)
 		} else {
 			/* NOTE: param is resued from here */
 			param = g_variant_new("(ss)", pkgname, filename);
-			if (!param) {
+			if (!param)
 				ret = -EFAULT;
-			} else {
+			else
 				ret = slave_push_command(slave, pkgname, filename, "delete", param, del_ret_cb, g_variant_ref(param));
-			}
 		}
 	}
 
@@ -1426,7 +1423,6 @@ static void method_set_period(GDBusMethodInvocation *inv, GVariant *param)
 					period = 0.0f;
 				}
 			} else if (period > 0.0f && period < MINIMUM_PERIOD) {
-				DbgPrint("[32mPeriod value is changed to 1.0f from %lf[0m\n", period);
 				period = MINIMUM_PERIOD; /* defined at conf.h */
 			}
 

@@ -31,9 +31,6 @@ FILE *__file_log_fp;
 
 static int slave_deactivate_cb(struct slave_node *slave, void *data)
 {
-	DbgPrint("Slave %s is deactivated (%d)\n",
-			slave_name(slave), slave_get_fault_count(slave));
-
 	slave_activate(slave);
 	return EXIT_SUCCESS;
 }

@@ -7,7 +7,7 @@
 #include <gio/gio.h>
 
 #include <dlog.h>
-#include <vconf.h>
+//#include <vconf.h>
 //#include <context_subscribe.h>
 
 #include "debug.h"

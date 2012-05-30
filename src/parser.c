@@ -565,8 +565,6 @@ struct item *parser_load(const char *pkgname)
 	item->secured = 0;
 	item->pinup = 1;
 
-	DbgPrint("Open conf file %s\n", item->filename);
-
 	fp = fopen(item->filename, "rt");
 	if (!fp) {
 		free(item->filename);

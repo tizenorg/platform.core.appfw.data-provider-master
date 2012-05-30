@@ -73,8 +73,6 @@ static inline void pause_slave(struct slave_node *slave)
 	double timestamp;
 	GVariant *param;
 
-	DbgPrint("Pause slave %d\n", slave_pid(slave));
-
 	timestamp = util_get_timestamp();
 
 	param = g_variant_new("(d)", timestamp);
@@ -91,7 +89,6 @@ static inline void resume_slave(struct slave_node *slave)
 	double timestamp;
 	GVariant *param;
 
-	DbgPrint("Resume slave %d\n", slave_pid(slave));
 
 	timestamp = util_get_timestamp();
 
@@ -192,7 +189,6 @@ static inline void destroy_slave_data(struct slave_node *slave)
 	clear_sending_command_list(slave);
 
 	if (slave->pid > 0) {
-		DbgPrint("Terminate pid %d (slave: %s)\n", slave->pid, slave->name);
 		aul_terminate_pid(slave->pid);
 		slave->pid = (pid_t)-1;
 	}
@@ -351,17 +347,15 @@ static void renew_ret_cb(const char *funcname, GVariant *result, void *data)
 	int ret;
 
 	g_variant_get(result, "(i)", &ret);
-	if (ret == 0) {
-		DbgPrint("Renew is complete\n");
+	if (ret == 0)
 		return;
-	}
 
 	/*!
 	 * \note
 	 * Failed to re-create an instance.
 	 * In this case, delete the instance and send its deleted status to every clients.
 	 */
-	DbgPrint("Failed to recreate, send delete event to client (%d)\n", ret);
+	ErrPrint("Failed to recreate, send delete event to clients (%d)\n", ret);
 	pkgmgr_deleted(pkgmgr_name(data), pkgmgr_filename(data));
 }
 
@@ -469,7 +463,6 @@ int slave_activate(struct slave_node *slave)
 	slave->pid = (pid_t)aul_launch_app(SLAVE_PKGNAME, param);
 	bundle_free(param);
 
-	DbgPrint("Slave %s reactivated with pid %d\n", slave->name, slave->pid);
 	if (slave->pid < 0)
 		return -EFAULT;
 
@@ -519,10 +512,8 @@ struct slave_node *slave_create(const char *name, int secured)
 	struct slave_node *slave;
 
 	slave = slave_find(name);
-	if (slave) {
-		DbgPrint("Creating slave but found already exists one\n");
+	if (slave)
 		return slave;
-	}
 
 	slave = create_slave_data(name);
 	if (!slave) {
@@ -531,7 +522,6 @@ struct slave_node *slave_create(const char *name, int secured)
 	}
 
 	slave->is_secured = !!secured;
-	DbgPrint(">>>>>>>>> Add slave %d to slave_list\n", slave->pid);
 	s_info.slave_list = eina_list_append(s_info.slave_list, slave);
 	return slave;
 }
@@ -669,7 +659,6 @@ int slave_push_command(struct slave_node *slave, const char *pkgname, const char
 
 int slave_destroy(struct slave_node *slave)
 {
-	DbgPrint(">>>>>>>>>>>>> Slave %s [%d] is removed from the list\n", slave->name, slave->pid);
 	s_info.slave_list = eina_list_remove(s_info.slave_list, slave);
 	pkgmgr_delete_by_slave(slave);
 	destroy_slave_data(slave);
