@@ -141,6 +141,8 @@ static inline struct pkg_info *find_pkginfo(const char *pkgname)
 
 static inline int delete_instance(struct inst_info *inst)
 {
+	struct pkg_info *info;
+
 	if (inst->lb_script) {
 		script_handler_unload(inst->lb_script, 0);
 		script_handler_destroy(inst->lb_script);
@@ -151,8 +153,7 @@ static inline int delete_instance(struct inst_info *inst)
 		script_handler_destroy(inst->pd_script);
 	}
 
-	if (unlink(inst->filename) < 0)
-		ErrPrint("Unlink: %s\n", strerror(errno));
+	(void)util_unlink(inst->filename);
 
 	free(inst->lb_path);
 	free(inst->lb_group);
@@ -167,7 +168,16 @@ static inline int delete_instance(struct inst_info *inst)
 
 	free(inst->script);
 
+	info = inst->info;
+
 	free(inst);
+
+	if (!info || !info->slave)
+		return 0;
+
+	if (slave_unref(info->slave) <= 0)
+		slave_destroy(info->slave);
+
 	return 0;
 }
 
@@ -297,17 +307,6 @@ static inline int delete_pkginfo(struct pkg_info *info)
 	free(info->pd_path);
 	free(info->pkgname);
 	free(info->script);
-
-	if (info->slave) {
-		int nr;
-		nr = slave_unref(info->slave);
-		if (nr == 0) {
-			DbgPrint("Slave %d has no more package, destroy it\n",
-								slave_pid(info->slave));
-			slave_destroy(info->slave);
-		}
-	}
-
 	free(info);
 	return 0;
 }
@@ -410,10 +409,13 @@ int pkgmgr_set_fault(const char *pkgname, const char *filename, const char *func
 	}
 
 	fault->timestamp = util_get_timestamp();
+
 	if (info->fault_info) {
 		/* Just for debugging and exceptional case,
 		 * This is not possible to occur */
-		DbgPrint("Fault info is not cleared, forcely clear it and update\n");
+		DbgPrint("Previous fault info will be overrided with new info\n");
+		DbgPrint("Filename: %s\n", info->fault_info->filename);
+		DbgPrint("Function: %s\n", info->fault_info->function);
 		free(info->fault_info->filename);
 		free(info->fault_info->function);
 		free(info->fault_info);
@@ -483,7 +485,6 @@ struct slave_node *pkgmgr_slave(const char *pkgname)
 int pkgmgr_set_slave(const char *pkgname, struct slave_node *slave)
 {
 	struct pkg_info *info;
-	int ret;
 
 	info = find_pkginfo(pkgname);
 	if (!info) {
@@ -496,44 +497,24 @@ int pkgmgr_set_slave(const char *pkgname, struct slave_node *slave)
 		return -EBUSY;
 	}
 
-	ret = slave_ref(slave);
-	if (ret < 0) 
-		return ret;
-
 	info->slave = slave;
 	return 0;
 }
 
-int pkgmgr_reset_slave(const char *pkgname)
-{
-	struct pkg_info *info;
-
-	info = find_pkginfo(pkgname);
-	if (!info)
-		return -ENOENT;
-
-	if (!info->slave)
-		return -EINVAL;
-
-	slave_unref(info->slave);
-	info->slave = NULL;
-	return 0;
-}
-
-int pkgmgr_renew_by_slave(struct slave_node *node, int (*cb)(struct slave_node *, struct inst_info *, void *), void *data)
+int pkgmgr_renew_by_slave(struct slave_node *slave, int (*cb)(struct slave_node *, struct inst_info *, void *), void *data)
 {
 	Eina_List *l;
 	struct pkg_info *info;
 
 	EINA_LIST_FOREACH(s_info.pkg_list, l, info) {
-		if (info->slave == node) {
+		if (info->slave == slave) {
 			Eina_List *il;
 			Eina_List *in;
 			struct inst_info *inst;
 			int ret;
 
 			EINA_LIST_FOREACH_SAFE(info->inst_list, il, in, inst) {
-				ret = cb(node, inst, data);
+				ret = cb(slave, inst, data);
 				if (ret != EXIT_SUCCESS)
 					return -EFAULT;
 			}
@@ -711,6 +692,28 @@ struct inst_info *pkgmgr_new(double timestamp, const char *pkgname, const char *
 	inst->pd_h = info->pd_h;
 
 	info->inst_list = eina_list_append(info->inst_list, inst);
+
+	if (info->slave) {
+		slave_ref(info->slave);
+		return inst;
+	}
+
+	if (!info->secured)
+		info->slave = slave_find_usable();
+
+	if (!info->slave) {
+		char slavename[BUFSIZ];
+		snprintf(slavename, sizeof(slavename), "%lf", util_get_timestamp());
+		info->slave = slave_create(slavename, info->secured);
+	}
+
+	if (!info->slave) {
+		ErrPrint("Failed to get proper slave object\n");
+		pkgmgr_delete(inst);
+		return NULL;
+	}
+
+	slave_ref(info->slave);
 	return inst;
 }
 
@@ -1203,6 +1206,19 @@ int pkgmgr_get_size(struct inst_info *inst, int *w, int *h, int is_pd)
 const char *pkgmgr_abi(struct inst_info *inst)
 {
 	return inst->info->abi;
+}
+
+void pkgmgr_clear_slave_info(struct slave_node *slave)
+{
+	Eina_List *l;
+	struct pkg_info *info;
+
+	EINA_LIST_FOREACH(s_info.pkg_list, l, info) {
+		if (info->slave == slave) {
+			DbgPrint(">>>>>>>>>>>>> Slave info is cleared for %s\n", info->pkgname);
+			info->slave = NULL;
+		}
+	}
 }
 
 /* End of a file */

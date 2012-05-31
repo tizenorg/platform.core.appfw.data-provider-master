@@ -21,13 +21,13 @@ static struct info {
 };
 
 struct fault_info {
-	struct slave_node *node;
+	struct slave_node *slave;
 	char *pkgname;
 	char *filename;
 	char *func;
 };
 
-int fault_check_pkgs(struct slave_node *node)
+int fault_check_pkgs(struct slave_node *slave)
 {
 	struct fault_info *info;
 	Eina_List *l;
@@ -36,14 +36,14 @@ int fault_check_pkgs(struct slave_node *node)
 
 	found = 0;
 	EINA_LIST_FOREACH_SAFE(s_info.call_list, l, n, info) {
-		if (info->node == node) {
+		if (info->slave == slave) {
 			GVariant *param;
 			int ret;
 
 			ret = pkgmgr_set_fault(info->pkgname, info->filename, info->func);
 
 			ErrPrint("Fault processing ====\n");
-			ErrPrint("Slavename: %s[%d]\n", slave_name(info->node), slave_pid(info->node));
+			ErrPrint("Slavename: %s[%d]\n", slave_name(info->slave), slave_pid(info->slave));
 			ErrPrint("Package: %s\n", info->pkgname);
 			ErrPrint("Filename: %s\n", info->filename);
 			ErrPrint("Funcname: %s\n", info->func);
@@ -65,15 +65,15 @@ int fault_check_pkgs(struct slave_node *node)
 		}
 	}
 
-	if (!found && slave_is_secured(node)) {
+	if (!found && slave_is_secured(slave)) {
 		const char *pkgname;
 		GVariant *param;
 		int ret;
 
-		pkgname = pkgmgr_find_by_slave(node);
+		pkgname = pkgmgr_find_by_slave(slave);
 		ret = pkgmgr_set_fault(pkgname, NULL, NULL);
 		ErrPrint("Fault processing ====\n");
-		ErrPrint("Slavename: %s[%d]\n", slave_name(node), slave_pid(node));
+		ErrPrint("Slavename: %s[%d]\n", slave_name(slave), slave_pid(slave));
 		ErrPrint("Package: %s\n", pkgname);
 		ErrPrint("Set fault %s(%d)\n", !ret ? "Success" : "Failed", ret);
 		param = g_variant_new("(sss)", pkgname, "", "");
@@ -86,7 +86,7 @@ int fault_check_pkgs(struct slave_node *node)
 	return 0;
 }
 
-int fault_func_call(struct slave_node *node, const char *pkgname, const char *filename, const char *func)
+int fault_func_call(struct slave_node *slave, const char *pkgname, const char *filename, const char *func)
 {
 	struct fault_info *info;
 
@@ -94,7 +94,7 @@ int fault_func_call(struct slave_node *node, const char *pkgname, const char *fi
 	if (!info)
 		return -ENOMEM;
 
-	info->node = node;
+	info->slave = slave;
 
 	info->pkgname = strdup(pkgname);
 	if (!info->pkgname) {
@@ -121,13 +121,13 @@ int fault_func_call(struct slave_node *node, const char *pkgname, const char *fi
 	return 0;
 }
 
-int fault_func_ret(struct slave_node *node, const char *pkgname, const char *filename, const char *func)
+int fault_func_ret(struct slave_node *slave, const char *pkgname, const char *filename, const char *func)
 {
 	struct fault_info *info;
 	Eina_List *l;
 
 	EINA_LIST_FOREACH(s_info.call_list, l, info) {
-		if (info->node != node)
+		if (info->slave != slave)
 			continue;
 
 		if (strcmp(info->pkgname, pkgname))

@@ -21,7 +21,6 @@ extern int pkgmgr_clear_fault(const char *pkgname);
 extern int pkgmgr_is_fault(const char *pkgname);
 extern int pkgmgr_get_fault(const char *pkgname, double *timestamp, const char **filename, const char **funcname);
 extern struct slave_node *pkgmgr_slave(const char *pkgname);
-extern int pkgmgr_reset_slave(const char *pkgname);
 extern int pkgmgr_set_slave(const char *pkgname, struct slave_node *slave);
 extern int pkgmgr_renew_by_slave(struct slave_node *node, int (*cb)(struct slave_node *, struct inst_info *, void *), void *data);
 extern int pkgmgr_renew_by_pkg(const char *pkgname, int (*cb)(struct slave_node *, struct inst_info *, void *), void *data);
@@ -78,5 +77,7 @@ extern int pkgmgr_text_lb(struct inst_info *inst);
 extern const char *pkgmgr_script(struct inst_info *inst);
 extern int pkgmgr_update_size(struct inst_info *inst, int w, int h, int is_pd);
 extern int pkgmgr_get_size(struct inst_info *inst, int *w, int *h, int is_pd);
+
+extern void pkgmgr_clear_slave_info(struct slave_node *slave);
 
 /* End of a file */

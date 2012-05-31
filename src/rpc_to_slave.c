@@ -173,7 +173,6 @@ struct inst_info *rpc_send_create_request(struct client_node *client, const char
 	char *filename;
 	int fnlen;
 	struct inst_info *inst;
-	struct slave_node *slave;
 	int ret;
 
 	fnlen = 256 + strlen(g_conf.path.image);
@@ -205,32 +204,6 @@ struct inst_info *rpc_send_create_request(struct client_node *client, const char
 
 		pkgmgr_set_period(inst, period);
 	} /* else use the default period */
-
-	/* This package has no client */
-	slave = pkgmgr_slave(pkgname);
-	if (!slave) {
-		if (!pkgmgr_is_secured(pkgname))
-			slave = slave_find_usable();
-
-		if (!slave) {
-			char tmpname[BUFSIZ];
-			snprintf(tmpname, sizeof(tmpname), "%lf", util_get_timestamp());
-			slave = slave_create(tmpname, pkgmgr_is_secured(pkgname));
-		}
-
-		if (!slave) {
-			ErrPrint("Failed to get proper slave object\n");
-			pkgmgr_delete(inst);
-			return NULL;
-		}
-
-		ret = pkgmgr_set_slave(pkgname, slave);
-		if (ret < 0) {
-			ErrPrint("Failed to set slave\n");
-			pkgmgr_delete(inst);
-			return NULL;
-		}
-	}
 
 	ret = rpc_send_new(inst, create_return_cb, inst, !!client);
 	if (ret < 0) {

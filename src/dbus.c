@@ -361,11 +361,10 @@ static void method_text_signal(GDBusMethodInvocation *inv, GVariant *param)
 			 *        Please, don't ask me why.
 			 */
 			param = g_variant_new("(ssssdddd)", pkgname, filename, emission, source, sx, sy, ex, ey);
-			if (!param) {
+			if (!param)
 				ret = -EFAULT;
-			} else {
+			else
 				ret = slave_push_command(slave, pkgname, filename, "text_signal", param, NULL, NULL);
-			}
 		}
 	}
 
@@ -416,11 +415,10 @@ static void method_clicked(GDBusMethodInvocation *inv, GVariant *param)
 		} else {
 			/* NOTE: param is resued from here */
 			param = g_variant_new("(sssddd)", pkgname, filename, event, timestamp, x, y);
-			if (!param) {
+			if (!param)
 				ret = -EFAULT;
-			} else {
+			else
 				ret = slave_push_command(slave, pkgname, filename, "clicked", param, NULL, NULL);
-			}
 		}
 	}
 
@@ -518,14 +516,8 @@ static void method_bye(GDBusMethodInvocation *inv, GVariant *param)
 		ErrPrint("Unknown slave: %s\n", slavename);
 		ret = -EINVAL;
 	} else {
-		/*!
-		 * \note
-		 * Update the PID value
-		 * for prevent trying process temination
-		 * from destroyer
-		 */
-		slave_bye_bye(slave);
-		slave_destroy(slave);
+		DbgPrint("&&&&&&&&&&&&& BYE\n");
+		slave_reset_pid(slave); /*!< To prevent reactivating from the dead callback */
 		ret = 0;
 	}
 
@@ -534,6 +526,9 @@ static void method_bye(GDBusMethodInvocation *inv, GVariant *param)
 		ErrPrint("Failed to create variant\n");
 
 	g_dbus_method_invocation_return_value(inv, param);
+
+	if (ret == 0)
+		slave_destroyed(slave);
 }
 
 static void method_desc_updated(GDBusMethodInvocation *inv, GVariant *param)
@@ -1229,11 +1224,10 @@ static void method_change_group(GDBusMethodInvocation *inv, GVariant *param)
 			ret = -ENETUNREACH;
 		} else {
 			param = g_variant_new("(ssss)", pkgname, filename, cluster, category);
-			if (!param) {
+			if (!param)
 				ret = -EFAULT;
-			} else {
+			else
 				ret = slave_push_command(slave, pkgname, filename, "change_group", param, NULL, NULL);
-			}
 		}
 	}
 
@@ -1353,11 +1347,10 @@ static void method_resize(GDBusMethodInvocation *inv, GVariant *param)
 		} else {
 			/* NOTE: param is resued from here */
 			param = g_variant_new("(ssii)", pkgname, filename, w, h);
-			if (!param) {
+			if (!param)
 				ret = -EFAULT;
-			} else {
+			else
 				ret = slave_push_command(slave, pkgname, filename, "resize", param, NULL, NULL);
-			}
 		}
 	}
 
@@ -1427,11 +1420,10 @@ static void method_set_period(GDBusMethodInvocation *inv, GVariant *param)
 			}
 
 			param = g_variant_new("(ssd)", pkgname, filename, period);
-			if (!param) {
+			if (!param)
 				ret = -EFAULT;
-			} else {
+			else
 				ret = slave_push_command(slave, pkgname, filename, "set_period", param, NULL, NULL);
-			}
 		}
 	}
 

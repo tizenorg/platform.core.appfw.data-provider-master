@@ -168,11 +168,6 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double sx,
 	pkgname = pkgmgr_name(info->inst);
 	filename = pkgmgr_filename(info->inst);
 	slave = pkgmgr_slave(pkgname);
-	if (!slave) {
-		ErrPrint("Slave is not exists\n");
-		return -EINVAL;
-	}
-
 	param = g_variant_new("(ssssddddddi)",
 			pkgname, filename,
 			signal, part,
@@ -957,7 +952,7 @@ int script_init(void)
 		if (!item->magic_id)
 			goto errout;
 
-		DbgPrint("SCRIPT PORT magic id: %s [%p]\n", item->magic_id());
+		DbgPrint("SCRIPT PORT magic id: %s\n", item->magic_id());
 
 		item->update_text = dlsym(item->handle, "script_update_text");
 		if (!item->update_text)

@@ -38,6 +38,11 @@ struct cmd_item {
 };
 
 struct slave_node {
+	enum {
+		CREATED = 0xbeefbeef,
+		DESTROYING = 0xdeadbeef,
+		DESTROYED = 0xdeaddead,
+	} state;
 	char *name;
 	unsigned long name_hash;
 	pid_t pid;
@@ -121,13 +126,7 @@ static inline struct slave_node *create_slave_data(const char *name)
 	slave->name_hash = util_string_hash(name);
 	slave->pid = (pid_t)-1;
 	slave->paused = s_info.paused;
-
-	if (slave_activate(slave) < 0) {
-		ErrPrint("Launch failed: %s\n", name);
-		free(slave->name);
-		free(slave);
-		return NULL;
-	}
+	slave->state = CREATED;
 
 	return slave;
 }
@@ -180,22 +179,22 @@ static inline void clear_sending_command_list(struct slave_node *slave)
 	}
 }
 
-static inline void destroy_slave_data(struct slave_node *slave)
+void slave_destroyed(struct slave_node *slave)
 {
+	s_info.slave_list = eina_list_remove(s_info.slave_list, slave);
+
+	pkgmgr_clear_slave_info(slave);
+
 	if (slave->pong_timer)
 		ecore_timer_del(slave->pong_timer);
-
-	clear_waiting_command_list(slave);
-	clear_sending_command_list(slave);
-
-	if (slave->pid > 0) {
-		aul_terminate_pid(slave->pid);
-		slave->pid = (pid_t)-1;
-	}
 
 	if (slave->proxy)
 		g_object_unref(slave->proxy);
 
+	if (slave->cmd_timer)
+		ecore_timer_del(slave->cmd_timer);
+
+	slave->state = DESTROYED;
 	free(slave->name);
 	free(slave);
 }
@@ -236,6 +235,12 @@ static void slave_cmd_done(GDBusProxy *proxy, GAsyncResult *res, void *_cmd_item
 
 	item = _cmd_item;
 	slave = item->slave;
+	if (!slave || slave->state == DESTROYED) {
+		ErrPrint("Slave is already destroyed\n");
+		goto out;
+	}
+
+	slave->waiting_list = eina_list_remove(slave->waiting_list, item);
 
 	err = NULL;
 	result = g_dbus_proxy_call_finish(proxy, res, &err);
@@ -246,23 +251,20 @@ static void slave_cmd_done(GDBusProxy *proxy, GAsyncResult *res, void *_cmd_item
 		}
 
 		slave_fault_deactivating(slave, 1);
-		destroy_command(item);
-		return;
+		goto out;
 	}
 
-	if (!slave) {
-		destroy_command(item);
-		g_variant_unref(result);
-		return;
-	}
-
-	slave->waiting_list = eina_list_remove(slave->waiting_list, item);
 	if (item->ret_cb)
 		item->ret_cb(item->funcname, result, item->cbdata);
 	else
 		g_variant_unref(result);
 
+out:
 	destroy_command(item);
+	if (slave && !slave->waiting_list && slave->state == DESTROYING) {
+		DbgPrint("All requests are cleared. Destroy this\n");
+		slave_deactivate(slave);
+	}
 }
 
 /*!
@@ -380,6 +382,11 @@ int slave_fault_deactivating(struct slave_node *slave, int terminate)
 	if (!slave || !slave->proxy)
 		return 0;
 
+	if (slave->state == DESTROYING) {
+		slave_destroyed(slave);
+		return 0;
+	}
+
 	(void)fault_check_pkgs(slave);
 
 	if (slave->cmd_timer) {
@@ -387,32 +394,43 @@ int slave_fault_deactivating(struct slave_node *slave, int terminate)
 		slave->cmd_timer = NULL;
 	}
 
-	if (slave->pid > 0 && terminate)
-		aul_terminate_pid(slave->pid);
+	if (terminate)
+		slave_deactivate(slave);
+	else
+		slave->pid = (pid_t)-1;
 
 	slave->proxy = NULL;
-	slave->pid = (pid_t)-1;
 	slave->fault_count++;
+
 	if (slave->pong_timer) {
 		ecore_timer_del(slave->pong_timer);
 		slave->pong_timer = NULL;
 	}
 
-	/*
-	 * TODO: Keep all command and send them again,
-	 * or just clean all command when the slave crashes?
+	/*!
+	 * \todo:
+	 * Keep all requests to send them again when the slave is re-activated or just discard all?
+	 * I just discarding all requests.
+	 * I think, The livebox couldn't keep its context when it is re-created from crashes of other liveboxes
 	 */
 	clear_waiting_command_list(slave);
 	clear_sending_command_list(slave);
 
 	pkgmgr_renew_by_slave(slave, prepare_sending_cb, NULL);
 
-	invoke_deactivate_cbs(slave);
+	if (slave->state == CREATED)
+		invoke_deactivate_cbs(slave);
+	else
+		slave_destroyed(slave);
+
 	return 0;
 }
 
 int slave_update_proxy(struct slave_node *slave, GDBusProxy *proxy)
 {
+	if (!slave)
+		return -EINVAL;
+
 	if (slave->proxy)
 		return -EBUSY;
 
@@ -450,6 +468,11 @@ int slave_activate(struct slave_node *slave)
 {
 	bundle *param;
 
+	if (slave->state != CREATED) {
+		DbgPrint("$$$$$$$$$$$$ SLAVE is now destroying or destroyed, don't try to activate this\n");
+		return -EINVAL;
+	}
+
 	if (slave->pid > 0)
 		return -EBUSY;
 
@@ -468,6 +491,15 @@ int slave_activate(struct slave_node *slave)
 
 	if (slave->paused)
 		pause_slave(slave);
+
+	return 0;
+}
+
+int slave_deactivate(struct slave_node *slave)
+{
+	if (slave->pid > 0) {
+		aul_terminate_pid(slave->pid);
+	}
 
 	return 0;
 }
@@ -521,6 +553,12 @@ struct slave_node *slave_create(const char *name, int secured)
 		return NULL;
 	}
 
+	if (slave_activate(slave) < 0) {
+		ErrPrint("Launch failed: %s\n", name);
+		slave_destroyed(slave);
+		return NULL;
+	}
+
 	slave->is_secured = !!secured;
 	s_info.slave_list = eina_list_append(s_info.slave_list, slave);
 	return slave;
@@ -530,11 +568,9 @@ struct slave_node *slave_find_usable(void)
 {
 	Eina_List *l;
 	struct slave_node *slave;
-	struct slave_node *tmp;
 
-	slave = NULL;
-	EINA_LIST_FOREACH(s_info.slave_list, l, tmp) {
-		if (tmp->is_secured && tmp->refcnt > 0)
+	EINA_LIST_FOREACH(s_info.slave_list, l, slave) {
+		if (slave->is_secured && slave->refcnt > 0)
 			continue;
 
 		/*!
@@ -542,13 +578,13 @@ struct slave_node *slave_find_usable(void)
 		 * Check the loaded package counter.
 		 * Maximum loadable package counter is sotred in the g_conf.slave_max_load.
 		 */
-		if (tmp->refcnt >= g_conf.slave_max_load)
+		if (slave->refcnt >= g_conf.slave_max_load)
 			continue;
 
-		slave = tmp;
+		return slave;
 	}
 
-	return slave;
+	return NULL;
 }
 
 struct slave_node *slave_find_by_pid(pid_t pid)
@@ -600,6 +636,11 @@ void slave_broadcast_command(const char *cmd, GVariant *param)
 int slave_push_command(struct slave_node *slave, const char *pkgname, const char *filename, const char *cmd, GVariant *param, void (*ret_cb)(const char *funcname, GVariant *result, void *data), void *data)
 {
 	struct cmd_item *item;
+
+	if (!slave || slave->state != CREATED) {
+		g_variant_unref(param);
+		return -EINVAL;
+	}
 
 	item = malloc(sizeof(*item));
 	if (!item) {
@@ -659,9 +700,26 @@ int slave_push_command(struct slave_node *slave, const char *pkgname, const char
 
 int slave_destroy(struct slave_node *slave)
 {
-	s_info.slave_list = eina_list_remove(s_info.slave_list, slave);
-	pkgmgr_delete_by_slave(slave);
-	destroy_slave_data(slave);
+	DbgPrint("$$$$$$$$$$ Destroy slave\n");
+	slave->state = DESTROYING;
+
+	/*!
+	 * \note
+	 * Slave has to be destroyed,
+	 * so clear pended requests
+	 */
+	clear_sending_command_list(slave);
+	if (slave->waiting_list) {
+		/*!
+		 * \note
+		 * If there is waiting packets
+		 * Do not destory this slave now
+		 * Wait until receive all those waitings
+		 */
+		return 0;
+	}
+
+	slave_deactivate(slave);
 	return 0;
 }
 
@@ -701,7 +759,7 @@ void *slave_del_deactivate_cb(int (*cb)(struct slave_node *, void *))
 	return NULL;
 }
 
-int slave_get_fault_count(struct slave_node *slave)
+int slave_fault_count(struct slave_node *slave)
 {
 	return slave->fault_count;
 }
@@ -716,7 +774,11 @@ int slave_manager_fini(void)
 	struct slave_node *slave;
 
 	EINA_LIST_FREE(s_info.slave_list, slave) {
-		destroy_slave_data(slave);
+		clear_waiting_command_list(slave);
+		clear_sending_command_list(slave);
+
+		slave_deactivate(slave);
+		slave_destroyed(slave);
 	}
 
 	return 0;
@@ -728,11 +790,18 @@ void slave_ping(struct slave_node *slave)
 		ecore_timer_reset(slave->pong_timer);
 }
 
-void slave_bye_bye(struct slave_node *slave)
+void slave_reset_pid(struct slave_node *slave)
 {
 	/*!
 	 * \note
 	 * Just reset the PID.
+	 * This function is used for preventing detection from dead callback.
+	 * When process is terminated(dead), aul_dead_cb will be called.
+	 *
+	 * Currently, if we can find the process using terminated pid from the dead_cb,
+	 * It will try to re-activate it (only for slave).
+	 *
+	 * To prevent it, reset the PID info of a slave.
 	 */
 	slave->pid = (pid_t)-1;
 }

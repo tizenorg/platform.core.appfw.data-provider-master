@@ -241,6 +241,10 @@ struct client_node *client_find(int pid)
 
 int client_is_all_paused(void)
 {
+	/*!
+	 * \todo
+	 * Check the "lock" state. using vconf
+	 */
 	DbgPrint("nr_of_clients: %d / nr_of_paused_clients: %d\n",
 			s_info.nr_of_clients, s_info.nr_of_paused_clients);
 

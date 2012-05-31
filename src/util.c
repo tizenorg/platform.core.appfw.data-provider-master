@@ -78,4 +78,36 @@ int util_validate_livebox_package(const char *pkgname)
 	return 0;
 }
 
+int util_unlink(const char *filename)
+{
+	char *descfile;
+	int desclen;
+	int ret;
+
+	desclen = strlen(filename) + 6; /* .desc */
+	descfile = malloc(desclen);
+	if (!descfile) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
+	ret = snprintf(descfile, desclen, "%s.desc", filename);
+	if (ret < 0) {
+		DbgPrint("Error: %s\n", strerror(errno));
+		free(descfile);
+		return -EFAULT;
+	}
+
+	ret = unlink(descfile);
+	if (ret < 0)
+		DbgPrint("Unlink: %s - %s\n", descfile, strerror(errno));
+
+	free(descfile);
+
+	if (unlink(filename) < 0)
+		DbgPrint("Unlink: %s - %s\n", filename, strerror(errno));
+
+	return 0;
+}
+
 /* End of a file */
