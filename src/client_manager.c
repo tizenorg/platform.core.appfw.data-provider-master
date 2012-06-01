@@ -9,6 +9,7 @@
 #include <gio/gio.h>
 
 #include <dlog.h>
+#include <vconf.h>
 
 #include "debug.h"
 #include "client_manager.h"
@@ -241,14 +242,15 @@ struct client_node *client_find(int pid)
 
 int client_is_all_paused(void)
 {
-	/*!
-	 * \todo
-	 * Check the "lock" state. using vconf
-	 */
-	DbgPrint("nr_of_clients: %d / nr_of_paused_clients: %d\n",
-			s_info.nr_of_clients, s_info.nr_of_paused_clients);
+	int state;
 
-	return s_info.nr_of_clients == s_info.nr_of_paused_clients;
+	if (vconf_get_int(VCONFKEY_IDLE_LOCK_STATE, &state) != 0)
+		state = 0; /* UNLOCK */
+
+	DbgPrint("nr_of_clients: %d / nr_of_paused_clients: %d (locked: %d)\n",
+			s_info.nr_of_clients, s_info.nr_of_paused_clients, state);
+
+	return (state == 1) || s_info.nr_of_clients == s_info.nr_of_paused_clients;
 }
 
 void client_pause(struct client_node *client)
