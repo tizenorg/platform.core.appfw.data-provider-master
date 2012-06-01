@@ -7,8 +7,8 @@
 #include <gio/gio.h>
 
 #include <dlog.h>
-//#include <vconf.h>
-//#include <context_subscribe.h>
+#include <vconf.h>
+#include <context_subscribe.h>
 
 #include "debug.h"
 #include "slave_manager.h"
@@ -19,12 +19,16 @@
 #include "util.h"
 #include "rpc_to_slave.h"
 
+#define SYS_CLUSTER_KEY "file/private/com.samsung.cluster-home/system_cluster"
+
 static struct info {
 	int updated;
 	unsigned long pending_mask;
+	int enabled;
 } s_info = {
 	.updated = 0,
 	.pending_mask = 0,
+	.enabled = 0,
 };
 
 static int update_pkg_cb(struct category *category, const char *pkgname, void *data)
@@ -190,7 +194,6 @@ static inline void update_photo(void)
 
 void ctx_update(void)
 {
-/*
 	if (s_info.pending_mask & CONTEXT_NOTI_LOCATION)
 		update_location();
 
@@ -206,13 +209,15 @@ void ctx_update(void)
 	if (s_info.pending_mask & CONTEXT_NOTI_PHOTOS)
 		update_photo();
 
-*/
 	s_info.pending_mask = 0;
 	return;
 }
-/*
+
 static bool ctx_changed_cb(context_type_e type, void *user_data)
 {
+	if (!s_info.enabled)
+		return false;
+
 	if (client_is_all_paused()) {
 		s_info.pending_mask |= type;
 		return false;
@@ -240,20 +245,37 @@ static bool ctx_changed_cb(context_type_e type, void *user_data)
 
 	return false;
 }
-*/
+
+static void ctx_vconf_cb(keynode_t *node, void *data)
+{
+	if (!node)
+		vconf_get_int(SYS_CLUSTER_KEY, &s_info.enabled);
+	else
+		s_info.enabled = vconf_keynode_get_int(node);
+
+	DbgPrint("System cluster is %s\n", s_info.enabled ? "enabled" : "disabled");
+}
 
 int ctx_client_init(void)
 {
-/*
+	int ret;
+
+	ret = vconf_notify_key_changed(SYS_CLUSTER_KEY, ctx_vconf_cb, NULL);
+	if (ret < 0)
+		ErrPrint("Failed to register the system_cluster vconf\n");
+
+	ctx_vconf_cb(NULL, NULL);
+
 	context_set_context_changed_cb(ctx_changed_cb,
 		CONTEXT_NOTI_LOCATION | CONTEXT_NOTI_CONTACTS | CONTEXT_NOTI_APPS |
 		CONTEXT_NOTI_MUSIC | CONTEXT_NOTI_PHOTOS, NULL);
-*/
+
 	return 0;
 }
 
 int ctx_client_fini(void)
 {
+	vconf_ignore_key_changed(SYS_CLUSTER_KEY, ctx_vconf_cb);
 	return 0;
 }
 

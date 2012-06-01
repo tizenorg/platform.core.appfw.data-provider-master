@@ -1,6 +1,6 @@
 Name: com.samsung.data-provider-master
 Summary: Master data provider
-Version: 0.0.9
+Version: 0.1.0
 Release: 1
 Group: main/app
 License: Samsung Proprietary License
@@ -19,6 +19,7 @@ BuildRequires: pkgconfig(ecore-x)
 BuildRequires: pkgconfig(ecore)
 BuildRequires: pkgconfig(evas)
 BuildRequires: pkgconfig(ecore-evas)
+BuildRequires: pkgconfig(capi-context-engine)
 
 %description
 Manage the slave data provider and communicate with client applications.

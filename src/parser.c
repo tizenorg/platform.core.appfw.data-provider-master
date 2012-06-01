@@ -297,10 +297,13 @@ static inline int parse_size(const char *buffer, unsigned int *size)
 	return *size ? 0 : -1;
 }
 
-static inline char *dup_rtrim(char *buffer)
+/*!
+ * \note
+ * This will change the value of "buffer"
+ */
+static inline const char *rtrim(char *buffer)
 {
 	int len;
-	char *ret;
 
 	len = strlen(buffer);
 	while (len > 0 && isspace(buffer[len - 1]))
@@ -311,33 +314,61 @@ static inline char *dup_rtrim(char *buffer)
 
 	buffer[len] = '\0';
 
-	ret = malloc(len + 1);
-	if (!ret)
+	return buffer;
+}
+
+/*!
+ * \note
+ * This will change the value of "buffer"
+ */
+static inline char *dup_rtrim(char *buffer)
+{
+	char *ret;
+
+	if (!rtrim(buffer))
 		return NULL;
 
-	strcpy(ret, buffer);
+	ret = strdup(buffer);
+	if (!ret) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return NULL;
+	}
+
 	return ret;
 }
 
 static void period_handler(struct item *item, char *buffer)
 {
 	char *tmp = NULL;
+
+	if (!rtrim(buffer))
+		return;
+
 	item->period = strtod(buffer, &tmp);
 }
 
 static void timeout_handler(struct item *item, char *buffer)
 {
+	if (!rtrim(buffer))
+		return;
+
 	item->timeout = atoi(buffer);
 }
 
 static void network_handler(struct item *item, char *buffer)
 {
-	item->network = atoi(buffer);
+	if (!rtrim(buffer))
+		return;
+
+	item->network = !!atoi(buffer);
 }
 
 static void auto_launch_handler(struct item *item, char *buffer)
 {
-	item->auto_launch = atoi(buffer);
+	if (!rtrim(buffer))
+		return;
+
+	item->auto_launch = !!atoi(buffer);
 }
 
 static void size_handler(struct item *item, char *buffer)
@@ -356,6 +387,9 @@ static void pd_size_handler(struct item *item, char *buffer)
 
 static void text_lb_handler(struct item *item, char *buffer)
 {
+	if (!rtrim(buffer))
+		return;
+
 	item->text_lb = !!atoi(buffer);
 }
 
@@ -371,11 +405,17 @@ static void script_handler(struct item *item, char *buffer)
 
 static void text_pd_handler(struct item *item, char *buffer)
 {
+	if (!rtrim(buffer))
+		return;
+
 	item->text_pd = !!atoi(buffer);
 }
 
 static void pinup_handler(struct item *item, char *buffer)
 {
+	if (!rtrim(buffer))
+		return;
+
 	item->pinup = !!atoi(buffer);
 }
 
@@ -401,7 +441,10 @@ static void group_handler(struct item *item, char *buffer)
 
 static void secured_handler(struct item *item, char *buffer)
 {
-	item->secured = atoi(buffer);
+	if (!rtrim(buffer))
+		return;
+
+	item->secured = !!atoi(buffer);
 }
 
 static void lb_group_handler(struct item *item, char *buffer)

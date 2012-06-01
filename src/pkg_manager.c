@@ -655,6 +655,7 @@ struct inst_info *pkgmgr_new(double timestamp, const char *pkgname, const char *
 	inst->is_pinned_up = 0;
 	inst->text_lb = info->text_lb;
 	inst->text_pd = info->text_pd;
+	inst->auto_launch = info->auto_launch;
 
 	if (info->lb_path) {
 		inst->lb_path = strdup(info->lb_path);

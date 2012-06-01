@@ -1,3 +1,12 @@
+data-provider-master (0.1.0) unstable; urgency=low
+
+  * Git: slp/pkgs/d/data-provider-master
+  * Tag: data-provider-master_0.1.0
+
+  Enabling context engine
+
+ -- Sung-jae Park <nicesj.park@samsung.com>  Fri, 01 Jun 2012 10:51:41 +0900
+
 data-provider-master (0.0.9) unstable; urgency=low
 
   * Git: slp/pkgs/d/data-provider-master
