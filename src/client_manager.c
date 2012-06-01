@@ -247,9 +247,6 @@ int client_is_all_paused(void)
 	if (vconf_get_int(VCONFKEY_IDLE_LOCK_STATE, &state) != 0)
 		state = 0; /* UNLOCK */
 
-	DbgPrint("nr_of_clients: %d / nr_of_paused_clients: %d (locked: %d)\n",
-			s_info.nr_of_clients, s_info.nr_of_paused_clients, state);
-
 	return (state == 1) || s_info.nr_of_clients == s_info.nr_of_paused_clients;
 }
 

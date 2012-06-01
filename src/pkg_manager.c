@@ -724,8 +724,6 @@ int pkgmgr_delete_by_slave(struct slave_node *slave)
 	Eina_List *p_n;
 	struct pkg_info *info;
 
-	Eina_List *i_l;
-	Eina_List *i_n;
 	struct inst_info *inst;
 
 	GVariant *param;
@@ -734,9 +732,7 @@ int pkgmgr_delete_by_slave(struct slave_node *slave)
 		if (info->slave != slave)
 			continue;
 
-		EINA_LIST_FOREACH_SAFE(info->inst_list, i_l, i_n, inst) {
-			info->inst_list = eina_list_remove_list(info->inst_list, i_l);
-
+		EINA_LIST_FREE(info->inst_list, inst) {
 			param = g_variant_new("(ss)", info->pkgname, inst->filename);
 			if (param)
 				client_broadcast_command("deleted", param);
@@ -1215,10 +1211,8 @@ void pkgmgr_clear_slave_info(struct slave_node *slave)
 	struct pkg_info *info;
 
 	EINA_LIST_FOREACH(s_info.pkg_list, l, info) {
-		if (info->slave == slave) {
-			DbgPrint(">>>>>>>>>>>>> Slave info is cleared for %s\n", info->pkgname);
+		if (info->slave == slave)
 			info->slave = NULL;
-		}
 	}
 }
 

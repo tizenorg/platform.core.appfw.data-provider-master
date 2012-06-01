@@ -39,7 +39,7 @@ extern int slave_manager_fini(void);
 extern int slave_add_deactivate_cb(int (*cb)(struct slave_node *, void *), void *data);
 extern void *slave_del_deactivate_cb(int (*cb)(struct slave_node *, void *));
 
-extern int slave_fault_deactivating(struct slave_node *data, int terminate);
+extern int slave_dead_handler(struct slave_node *data);
 extern void slave_ping(struct slave_node *slave);
 extern void slave_reset_pid(struct slave_node *slave);
 extern void slave_set_pid(struct slave_node *slave, pid_t pid);

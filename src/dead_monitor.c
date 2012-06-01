@@ -20,7 +20,8 @@ static int dead_cb(int pid, void *cb_data)
 
 	slave = slave_find_by_pid(pid);
 	if (slave) {
-		slave_fault_deactivating(slave, 0);
+		DbgPrint("Slave %p is dead\n");
+		slave_dead_handler(slave);
 	} else {
 		struct client_node *client;
 		client = client_find(pid);

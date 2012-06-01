@@ -252,8 +252,6 @@ static void ctx_vconf_cb(keynode_t *node, void *data)
 		vconf_get_int(SYS_CLUSTER_KEY, &s_info.enabled);
 	else
 		s_info.enabled = vconf_keynode_get_int(node);
-
-	DbgPrint("System cluster is %s\n", s_info.enabled ? "enabled" : "disabled");
 }
 
 int ctx_client_init(void)

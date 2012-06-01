@@ -93,19 +93,19 @@ int util_unlink(const char *filename)
 
 	ret = snprintf(descfile, desclen, "%s.desc", filename);
 	if (ret < 0) {
-		DbgPrint("Error: %s\n", strerror(errno));
+		ErrPrint("Error: %s\n", strerror(errno));
 		free(descfile);
 		return -EFAULT;
 	}
 
 	ret = unlink(descfile);
 	if (ret < 0)
-		DbgPrint("Unlink: %s - %s\n", descfile, strerror(errno));
+		ErrPrint("Unlink: %s - %s\n", descfile, strerror(errno));
 
 	free(descfile);
 
 	if (unlink(filename) < 0)
-		DbgPrint("Unlink: %s - %s\n", filename, strerror(errno));
+		ErrPrint("Unlink: %s - %s\n", filename, strerror(errno));
 
 	return 0;
 }

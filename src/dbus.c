@@ -431,8 +431,6 @@ static void method_clicked(GDBusMethodInvocation *inv, GVariant *param)
 
 static void on_slave_signal(GDBusProxy *proxy, gchar *sender, gchar *signame, GVariant *param, gpointer data)
 {
-	DbgPrint("Sender: %s\n", sender);
-	DbgPrint("Signame: %s\n", signame);
 }
 
 static void slave_proxy_prepared_cb(GObject *obj, GAsyncResult *res, gpointer slave)
@@ -516,7 +514,6 @@ static void method_bye(GDBusMethodInvocation *inv, GVariant *param)
 		ErrPrint("Unknown slave: %s\n", slavename);
 		ret = -EINVAL;
 	} else {
-		DbgPrint("&&&&&&&&&&&&& BYE\n");
 		slave_reset_pid(slave); /*!< To prevent reactivating from the dead callback */
 		ret = 0;
 	}
@@ -632,8 +629,6 @@ static void method_deleted(GDBusMethodInvocation *inv, GVariant *param)
 
 static void on_client_signal(GDBusProxy *proxy, gchar *sender, gchar *signame, GVariant *param, gpointer data)
 {
-	DbgPrint("Sender: %s\n", sender);
-	DbgPrint("Signame: %s\n", signame);
 }
 
 static void client_proxy_prepared_cb(GObject *obj, GAsyncResult *res, gpointer client)
@@ -1283,7 +1278,6 @@ static void method_delete(GDBusMethodInvocation *inv, GVariant *param)
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
-		DbgPrint("[%s] is fault package. ignore delete request\n", pkgname);
 		ret = -EAGAIN;
 	} else {
 		struct slave_node *slave;
@@ -1412,7 +1406,6 @@ static void method_set_period(GDBusMethodInvocation *inv, GVariant *param)
 				if (inst) {
 					period = pkgmgr_period(inst);
 				} else {
-					DbgPrint("Failed to find proper instance info [%s, %s]\n", pkgname, filename);
 					period = 0.0f;
 				}
 			} else if (period > 0.0f && period < MINIMUM_PERIOD) {
@@ -1667,12 +1660,10 @@ static void on_bus_acquired(GDBusConnection *conn,
 
 static void on_name_acquired(GDBusConnection *conn, const gchar *name, gpointer user_data)
 {
-	DbgPrint("%s\n", name);
 }
 
 static void on_name_lost(GDBusConnection *conn, const gchar *name, gpointer user_data)
 {
-	DbgPrint("%s\n", name);
 }
 
 int dbus_init(void)
