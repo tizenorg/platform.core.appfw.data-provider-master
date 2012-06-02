@@ -11,7 +11,8 @@
 #include <context_subscribe.h>
 
 #include "debug.h"
-#include "slave_manager.h"
+#include "slave_life.h"
+#include "slave_rpc.h"
 #include "client_manager.h"
 #include "pkg_manager.h"
 #include "group.h"
@@ -35,6 +36,8 @@ static int update_pkg_cb(struct category *category, const char *pkgname, void *d
 {
 	const char *c_name;
 	const char *s_name;
+	double timestamp;
+	char *filename;
 
 	c_name = group_cluster_name_by_category(category);
 	s_name = group_category_name(category);
@@ -44,8 +47,13 @@ static int update_pkg_cb(struct category *category, const char *pkgname, void *d
 		return EXIT_FAILURE;
 	}
 
-	rpc_send_update_request(pkgname, c_name, s_name);
-	rpc_send_create_request(NULL, pkgname, "default", c_name, s_name, util_get_timestamp(), DEFAULT_PERIOD);
+	slave_rpc_request_update(pkgname, c_name, s_name);
+
+	/* Just try to create a new package */
+	timestamp = util_get_timestamp();
+	filename = util_new_filename(timestamp);
+	pkgmgr_new(NULL, timestamp, pkgname, filename, "default", c_name, s_name, DEFAULT_PERIOD);
+	free(filename);
 	return EXIT_SUCCESS;
 }
 

@@ -61,5 +61,7 @@ extern void conf_update_size(void);
 #define DEFAULT_SCRIPT	"edje"
 #define DEFAULT_ABI	"c"
 #define DEFAULT_GROUP	"disclosure"
+#define BUNDLE_SLAVE_NAME "name"
+#define PACKET_TIME 0.01f
 
 /* End of a file */

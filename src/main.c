@@ -15,7 +15,8 @@
 
 #include "debug.h"
 #include "dbus.h"
-#include "slave_manager.h"
+#include "slave_life.h"
+#include "slave_rpc.h"
 #include "pkg_manager.h"
 #include "group.h"
 #include "dead_monitor.h"
@@ -29,12 +30,6 @@
 FILE *__file_log_fp;
 #endif
 
-static int slave_deactivate_cb(struct slave_node *slave, void *data)
-{
-	slave_activate(slave);
-	return EXIT_SUCCESS;
-}
-
 static inline int app_create(void *data)
 {
 	int ret;
@@ -45,17 +40,9 @@ static inline int app_create(void *data)
 	if (ret < 0)
 		DbgPrint("Failed to initialize the dbus\n");
 
-	ret = slave_manager_init();
-	if (ret < 0)
-		DbgPrint("Failed to initialize the slave manager\n");
-
 	ret = pkgmgr_init();
 	if (ret < 0)
 		DbgPrint("Failed to initialize the pkgmgr\n");
-
-	ret = slave_add_deactivate_cb(slave_deactivate_cb, NULL);
-	if (ret < 0)
-		DbgPrint("Failed to add deactivate callback\n");
 
 	ret = dead_init();
 	DbgPrint("Dead callback is registered: %d\n", ret);
@@ -78,27 +65,17 @@ static inline int app_create(void *data)
 static inline int app_terminate(void *data)
 {
 	int ret;
-	void *cbdata;
 
 	xmonitor_fini();
 
 	ret = ctx_client_fini();
 	DbgPrint("ctx_client_fini returns %d\n", ret);
 
-	cbdata = slave_del_deactivate_cb(slave_deactivate_cb);
-	DbgPrint("cbdata of slave deactivate callback is %p\n", cbdata);
-
 	ret = pkgmgr_fini();
 	if (ret < 0)
 		DbgPrint("Failed to finalize the pkgmgr\n");
 	else
 		DbgPrint("pkgmgr finalized\n");
-
-	ret = slave_manager_fini();
-	if (ret < 0)
-		DbgPrint("Failed to finalize the slave manager\n");
-	else
-		DbgPrint("Slave manager finalized\n");
 
 	ret = dbus_fini();
 	if (ret < 0)

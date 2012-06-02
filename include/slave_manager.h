@@ -13,21 +13,13 @@ extern struct slave_node *slave_create(const char *name, int secured);
  * \brief
  * Try to terminate the slave
  */
-extern int slave_destroy(struct slave_node *slave);
-
-/*!
- * \brief
- * If the slave is successfully terminated,
- * it will send "byebye" to us.
- * At that time, clear all resources using this.
- */
-extern void slave_destroyed(struct slave_node *slave);
+extern void slave_destroy(struct slave_node *slave);
 
 extern int slave_update_proxy(struct slave_node *data, GDBusProxy *proxy);
 extern GDBusProxy *slave_get_proxy(struct slave_node *data);
-extern int slave_ref(struct slave_node *slave);
-extern int slave_unref(struct slave_node *slave);
-extern int slave_refcnt(struct slave_node *slave);
+extern void slave_ref(struct slave_node *slave);
+extern void slave_unref(struct slave_node *slave);
+extern int const slave_refcnt(struct slave_node *slave);
 extern void slave_broadcast_command(const char *cmd, GVariant *param);
 extern int slave_push_command(struct slave_node *node, const char *pkgname, const char *filename, const char *cmd, GVariant *param, void (*ret_cb)(const char *funcname, GVariant *result, void *data), void *data);
 extern const char *slave_name(struct slave_node *slave);

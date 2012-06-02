@@ -13,7 +13,7 @@
 
 #include "debug.h"
 #include "client_manager.h"
-#include "slave_manager.h"
+#include "slave_life.h"
 #include "pkg_manager.h"
 #include "ctx_client.h"
 #include "xmonitor.h"
@@ -71,7 +71,6 @@ static inline void destroy_client(struct client_node *client)
 
 	s_info.nr_of_clients--;
 
-	pkgmgr_delete_by_client(client);
 	clear_sending_list(client);
 
 	if (client->cmd_timer)

@@ -2,12 +2,12 @@
 #include <unistd.h>
 #include <libgen.h>
 
-#include <gio/gio.h>
-
 #include <aul.h>
 #include <dlog.h>
 
-#include "slave_manager.h"
+#include <gio/gio.h>
+
+#include "slave_life.h"
 #include "client_manager.h"
 #include "fault_manager.h"
 #include "debug.h"
@@ -21,7 +21,7 @@ static int dead_cb(int pid, void *cb_data)
 	slave = slave_find_by_pid(pid);
 	if (slave) {
 		DbgPrint("Slave %p is dead\n");
-		slave_dead_handler(slave);
+		slave_deactivated_by_fault(slave);
 	} else {
 		struct client_node *client;
 		client = client_find(pid);

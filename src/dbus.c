@@ -14,7 +14,8 @@
 #include "debug.h"
 #include "pkg_manager.h"
 #include "fault_manager.h"
-#include "slave_manager.h"
+#include "slave_life.h"
+#include "slave_rpc.h"
 #include "client_manager.h"
 #include "script_handler.h"
 #include "util.h"
@@ -204,10 +205,6 @@ static struct info {
 	"  <arg type='s' name='slave_name' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
-	" <method name='bye'>"
-	"  <arg type='s' name='slave_name' direction='in' />"
-	"  <arg type='i' name='result' direction='out' />"
-	" </method>"
 	" <method name='updated'>"
 	"  <arg type='s' name='slave_name' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
@@ -238,17 +235,16 @@ static struct info {
 static void method_ping(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *slavename;
-	struct slave_node *node;
+	struct slave_node *slave;
 	int ret;
 
 	g_variant_get(param, "(&s)", &slavename);
 
-	node = slave_find(slavename);
-	if (!node) {
+	slave = slave_find_by_name(slavename);
+	if (!slave) {
 		ErrPrint("Unknown slave! %s\n", slavename);
 		ret = -EINVAL;
 	} else {
-		slave_ping(node);
 		ret = 0;
 	}
 
@@ -257,6 +253,9 @@ static void method_ping(GDBusMethodInvocation *inv, GVariant *param)
 		ErrPrint("Failed to create a variant\n");
 
 	g_dbus_method_invocation_return_value(inv, param);
+
+	if (slave)
+		slave_rpc_ping(slave);
 }
 
 static void method_call(GDBusMethodInvocation *inv, GVariant *param)
@@ -270,7 +269,7 @@ static void method_call(GDBusMethodInvocation *inv, GVariant *param)
 
 	g_variant_get(param, "(&s&s&s&s)", &slave_name, &pkgname, &filename, &funcname);
 
-	node = slave_find(slave_name);
+	node = slave_find_by_name(slave_name);
 	if (!node) {
 		ErrPrint("Failed to find a correct slave: %s\n", slave_name);
 		ret = -EFAULT;
@@ -296,7 +295,7 @@ static void method_ret(GDBusMethodInvocation *inv, GVariant *param)
 
 	g_variant_get(param, "(&s&s&s&s)", &slave_name, &pkgname, &filename, &funcname);
 
-	node = slave_find(slave_name);
+	node = slave_find_by_name(slave_name);
 	if (!node) {
 		ErrPrint("Failed to find a correct slave: %s\n", slave_name);
 		ret = -EFAULT;
@@ -364,7 +363,7 @@ static void method_text_signal(GDBusMethodInvocation *inv, GVariant *param)
 			if (!param)
 				ret = -EFAULT;
 			else
-				ret = slave_push_command(slave, pkgname, filename, "text_signal", param, NULL, NULL);
+				ret = slave_rpc_async_request(slave, pkgname, filename, "text_signal", param, NULL, NULL);
 		}
 	}
 
@@ -418,7 +417,7 @@ static void method_clicked(GDBusMethodInvocation *inv, GVariant *param)
 			if (!param)
 				ret = -EFAULT;
 			else
-				ret = slave_push_command(slave, pkgname, filename, "clicked", param, NULL, NULL);
+				ret = slave_rpc_async_request(slave, pkgname, filename, "clicked", param, NULL, NULL);
 		}
 	}
 
@@ -451,7 +450,7 @@ static void slave_proxy_prepared_cb(GObject *obj, GAsyncResult *res, gpointer sl
 
 	g_signal_connect(proxy, "g-signal", G_CALLBACK(on_slave_signal), NULL);
 
-	ret = slave_update_proxy(slave, proxy);
+	ret = slave_rpc_update_proxy(slave, proxy);
 	if (ret < 0)
 		g_object_unref(proxy);
 }
@@ -464,7 +463,7 @@ static void method_hello(GDBusMethodInvocation *inv, GVariant *param)
 
 	g_variant_get(param, "(&s)", &slavename);
 
-	slave = slave_find(slavename);
+	slave = slave_find_by_name(slavename);
 	if (!slave) {
 		ErrPrint("Unknown slave: %s\n", slavename);
 
@@ -501,33 +500,6 @@ static void method_hello(GDBusMethodInvocation *inv, GVariant *param)
 	}
 }
 
-static void method_bye(GDBusMethodInvocation *inv, GVariant *param)
-{
-	const char *slavename;
-	struct slave_node *slave;
-	int ret;
-
-	g_variant_get(param, "(&s)", &slavename);
-
-	slave = slave_find(slavename);
-	if (!slave) {
-		ErrPrint("Unknown slave: %s\n", slavename);
-		ret = -EINVAL;
-	} else {
-		slave_reset_pid(slave); /*!< To prevent reactivating from the dead callback */
-		ret = 0;
-	}
-
-	param = g_variant_new("(i)", ret);
-	if (!param)
-		ErrPrint("Failed to create variant\n");
-
-	g_dbus_method_invocation_return_value(inv, param);
-
-	if (ret == 0)
-		slave_destroyed(slave);
-}
-
 static void method_desc_updated(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *slavename;
@@ -539,7 +511,7 @@ static void method_desc_updated(GDBusMethodInvocation *inv, GVariant *param)
 
 	g_variant_get(param, "(&s&s&s&s)", &slavename, &pkgname, &filename, &descfile);
 
-	slave = slave_find(slavename);
+	slave = slave_find_by_name(slavename);
 	if (!slave) {
 		ErrPrint("Unknown slave: %s\n", slavename);
 		ret = -EINVAL;
@@ -577,7 +549,7 @@ static void method_updated(GDBusMethodInvocation *inv, GVariant *param)
 
 	g_variant_get(param, "(&s&s&siid)", &slavename, &pkgname, &filename, &x, &y, &priority);
 
-	slave = slave_find(slavename);
+	slave = slave_find_by_name(slavename);
 	if (!slave) {
 		ErrPrint("Unknown slave: %s\n", slavename);
 		ret = -EINVAL;
@@ -612,7 +584,7 @@ static void method_deleted(GDBusMethodInvocation *inv, GVariant *param)
 
 	g_variant_get(param, "(&s&s&s)", &slavename, &pkgname, &filename);
 
-	slave = slave_find(slavename);
+	slave = slave_find_by_name(slavename);
 	if (!slave) {
 		ErrPrint("Unknown slave: %s\n", slavename);
 		ret = -EINVAL;
@@ -1222,7 +1194,7 @@ static void method_change_group(GDBusMethodInvocation *inv, GVariant *param)
 			if (!param)
 				ret = -EFAULT;
 			else
-				ret = slave_push_command(slave, pkgname, filename, "change_group", param, NULL, NULL);
+				ret = slave_rpc_async_request(slave, pkgname, filename, "change_group", param, NULL, NULL);
 		}
 	}
 
@@ -1292,7 +1264,7 @@ static void method_delete(GDBusMethodInvocation *inv, GVariant *param)
 			if (!param)
 				ret = -EFAULT;
 			else
-				ret = slave_push_command(slave, pkgname, filename, "delete", param, del_ret_cb, g_variant_ref(param));
+				ret = slave_rpc_async_request(slave, pkgname, filename, "delete", param, del_ret_cb, g_variant_ref(param));
 		}
 	}
 
@@ -1344,7 +1316,7 @@ static void method_resize(GDBusMethodInvocation *inv, GVariant *param)
 			if (!param)
 				ret = -EFAULT;
 			else
-				ret = slave_push_command(slave, pkgname, filename, "resize", param, NULL, NULL);
+				ret = slave_rpc_async_request(slave, pkgname, filename, "resize", param, NULL, NULL);
 		}
 	}
 
@@ -1416,7 +1388,7 @@ static void method_set_period(GDBusMethodInvocation *inv, GVariant *param)
 			if (!param)
 				ret = -EFAULT;
 			else
-				ret = slave_push_command(slave, pkgname, filename, "set_period", param, NULL, NULL);
+				ret = slave_rpc_async_request(slave, pkgname, filename, "set_period", param, NULL, NULL);
 		}
 	}
 
@@ -1458,10 +1430,21 @@ static void method_new(GDBusMethodInvocation *inv, GVariant *param)
 	} else if (pkgmgr_is_fault(pkgname)) {
 		ret = -EAGAIN;
 	} else {
-		struct inst_info *inst;
+		char *filename;
 
-		inst = rpc_send_create_request(client, pkgname, content, cluster, category, timestamp, period);
-		ret = inst ? 0 : -EFAULT;
+		filename = util_new_filename(timestamp);
+		if (!filename) {
+			ret = -ENOMEM;
+		} else {
+			struct inst_info *inst;
+
+			if (period > 0.0f && period < MINIMUM_PERIOD)
+				period = MINIMUM_PERIOD;
+
+			inst = pkgmgr_new(client, timestamp, pkgname, filename, content, cluster, category, period);
+			free(filename);
+			ret = inst ? 0 : -EFAULT;
+		}
 	}
 
 	param = g_variant_new("(i)", ret);
@@ -1575,10 +1558,6 @@ static void method_handler(GDBusConnection *conn,
 		{
 			.name = "hello",
 			.method = method_hello,
-		},
-		{
-			.name = "bye",
-			.method = method_bye,
 		},
 		{
 			.name = "updated",

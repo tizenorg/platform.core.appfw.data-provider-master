@@ -21,16 +21,11 @@ extern int pkgmgr_clear_fault(const char *pkgname);
 extern int pkgmgr_is_fault(const char *pkgname);
 extern int pkgmgr_get_fault(const char *pkgname, double *timestamp, const char **filename, const char **funcname);
 extern struct slave_node *pkgmgr_slave(const char *pkgname);
-extern int pkgmgr_set_slave(const char *pkgname, struct slave_node *slave);
-extern int pkgmgr_renew_by_slave(struct slave_node *node, int (*cb)(struct slave_node *, struct inst_info *, void *), void *data);
-extern int pkgmgr_renew_by_pkg(const char *pkgname, int (*cb)(struct slave_node *, struct inst_info *, void *), void *data);
 
 extern struct inst_info *pkgmgr_find(const char *pkgname, const char *filename);
 
-extern struct inst_info *pkgmgr_new(double timestamp, const char *pkgname, const char *filename, const char *content, const char *cluster, const char *category);
+extern struct inst_info *pkgmgr_new(struct client_node *client, double timestamp, const char *pkgname, const char *filename, const char *content, const char *cluster, const char *category, double period);
 extern int pkgmgr_delete(struct inst_info *inst);
-
-extern void pkgmgr_set_info(struct inst_info *inst, int w, int h, double priority);
 
 extern const char *pkgmgr_name(struct inst_info *inst);
 
@@ -54,7 +49,6 @@ extern void *pkgmgr_pd_script(struct inst_info *inst);
 extern const char *pkgmgr_abi(struct inst_info *inst);
 
 extern int pkgmgr_delete_by_client(struct client_node *client);
-extern int pkgmgr_delete_by_slave(struct slave_node *slave);
 
 extern int pkgmgr_lb_updated(const char *pkgname, const char *filename, int w, int h, double priority);
 extern int pkgmgr_pd_updated(const char *pkgname, const char *filename, const char *descfile, int w, int h);
@@ -69,7 +63,7 @@ extern int pkgmgr_unload_pd(struct inst_info *inst);
 extern int pkgmgr_load_pd(struct inst_info *inst);
 extern int pkgmgr_is_secured(const char *pkgname);
 extern int pkgmgr_inform_pkglist(struct client_node *client);
-extern const char *pkgmgr_find_by_slave(struct slave_node *slave);
+extern const char *pkgmgr_find_by_secure_slave(struct slave_node *slave);
 
 extern int pkgmgr_text_pd(struct inst_info *inst);
 extern int pkgmgr_text_lb(struct inst_info *inst);

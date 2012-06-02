@@ -16,7 +16,8 @@
 
 #include "pkg_manager.h"
 //#include "client_manager.h"
-#include "slave_manager.h"
+#include "slave_life.h"
+#include "slave_rpc.h"
 #include "script_handler.h"
 #include "fb.h"
 #include "debug.h"
@@ -178,7 +179,7 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double sx,
 		return -EFAULT;
 	}
 
-	ret = slave_push_command(slave, pkgname, filename, "script", param, NULL, NULL); 
+	ret = slave_rpc_async_request(slave, pkgname, filename, "script", param, NULL, NULL); 
 	return ret;
 }
 

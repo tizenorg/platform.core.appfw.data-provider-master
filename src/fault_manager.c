@@ -10,12 +10,18 @@
 
 #include "pkg_manager.h"
 #include "debug.h"
-#include "slave_manager.h"
+#include "slave_life.h"
+#include "slave_rpc.h"
 #include "util.h"
 #include "client_manager.h"
 
 static struct info {
 	Eina_List *call_list;
+	enum {
+		FAULT_NONE,
+		FAULT_MARK,
+		FAULT_CHECK,
+	} state;
 } s_info = {
 	.call_list = NULL,
 };
@@ -26,6 +32,11 @@ struct fault_info {
 	char *filename;
 	char *func;
 };
+
+int fault_is_occured(void)
+{
+	return s_info.state == FAULT_CHECK;
+}
 
 int fault_check_pkgs(struct slave_node *slave)
 {
@@ -62,25 +73,35 @@ int fault_check_pkgs(struct slave_node *slave)
 			free(info->func);
 			free(info);
 			found++;
+
+			s_info.state = FAULT_CHECK;
 		}
 	}
 
-	if (!found && slave_is_secured(slave)) {
+	if (!found) {
 		const char *pkgname;
-		GVariant *param;
-		int ret;
 
-		pkgname = pkgmgr_find_by_slave(slave);
-		ret = pkgmgr_set_fault(pkgname, NULL, NULL);
-		ErrPrint("Fault processing ====\n");
-		ErrPrint("Slavename: %s[%d]\n", slave_name(slave), slave_pid(slave));
-		ErrPrint("Package: %s\n", pkgname);
-		ErrPrint("Set fault %s(%d)\n", !ret ? "Success" : "Failed", ret);
-		param = g_variant_new("(sss)", pkgname, "", "");
-		if (param)
-			client_broadcast_command("fault_package", param);
-		else
-			ErrPrint("Failed to create a param\n");
+		pkgname = pkgmgr_find_by_secure_slave(slave);
+		if (!pkgname) {
+			ErrPrint("Slave is crashed, but I couldn't find a fault package\n");
+		} else {
+			int ret;
+			GVariant *param;
+
+			ret = pkgmgr_set_fault(pkgname, NULL, NULL);
+			ErrPrint("Fault processing ====\n");
+			ErrPrint("Slavename: %s[%d]\n", slave_name(slave), slave_pid(slave));
+			ErrPrint("Package: %s\n", pkgname);
+			ErrPrint("Set fault %s(%d)\n", !ret ? "Success" : "Failed", ret);
+
+			param = g_variant_new("(sss)", pkgname, "", "");
+			if (param)
+				client_broadcast_command("fault_package", param);
+			else
+				ErrPrint("Failed to create a param\n");
+
+			s_info.state = FAULT_CHECK;
+		}
 	}
 
 	return 0;
@@ -118,6 +139,8 @@ int fault_func_call(struct slave_node *slave, const char *pkgname, const char *f
 	}
 
 	s_info.call_list = eina_list_append(s_info.call_list, info);
+
+	s_info.state = FAULT_MARK;
 	return 0;
 }
 
@@ -144,6 +167,8 @@ int fault_func_ret(struct slave_node *slave, const char *pkgname, const char *fi
 		free(info->pkgname);
 		free(info->func);
 		free(info);
+
+		s_info.state = FAULT_NONE;
 		return 0;
 	} 
 

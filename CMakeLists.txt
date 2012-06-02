@@ -44,7 +44,6 @@ ADD_DEFINITIONS(${pkg_CFLAGS})
 ADD_EXECUTABLE(${PROJECT_NAME}
 	src/main.c
 	src/dbus.c
-	src/slave_manager.c
 	src/pkg_manager.c
 	src/util.c
 	src/fault_manager.c
@@ -56,10 +55,11 @@ ADD_EXECUTABLE(${PROJECT_NAME}
 	src/group.c
 	src/fb.c
 	src/script_handler.c
-	src/rpc_to_slave.c
 	src/io.c
 	src/virtual_canvas.c
 	src/xmonitor.c
+	src/slave_life.c
+	src/slave_rpc.c
 )
 
 TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${pkg_LDFLAGS} "-ldl")
