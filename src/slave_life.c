@@ -21,6 +21,7 @@
 #include "ctx_client.h"
 #include "debug.h"
 #include "conf.h"
+#include "setting.h"
 
 int errno;
 
@@ -258,6 +259,8 @@ int slave_activate(struct slave_node *slave)
 	slave_ref(slave);
 
 	invoke_activate_cb(slave);
+
+	slave_check_pause_or_resume();
 	return 0;
 }
 
@@ -318,10 +321,10 @@ void slave_faulted(struct slave_node *slave)
 
 void slave_deactivated_by_fault(struct slave_node *slave)
 {
+	(void)fault_check_pkgs(slave);
+
 	slave->pid = (pid_t)-1;
 	slave->fault_count++;
-
-	(void)fault_check_pkgs(slave);
 
 	invoke_deactivate_cb(slave);
 
@@ -568,7 +571,7 @@ void slave_check_pause_or_resume(void)
 	Eina_List *l;
 	struct slave_node *slave;
 
-	paused = client_is_all_paused();
+	paused = client_is_all_paused() || setting_is_locked();
 
 	if (s_info.paused == paused)
 		return;

@@ -19,6 +19,7 @@
 #include "conf.h"
 #include "util.h"
 #include "rpc_to_slave.h"
+#include "setting.h"
 
 #define SYS_CLUSTER_KEY "file/private/com.samsung.cluster-home/system_cluster"
 
@@ -202,6 +203,7 @@ static inline void update_photo(void)
 
 void ctx_update(void)
 {
+	DbgPrint("Update all pending ctx events\n");
 	if (s_info.pending_mask & CONTEXT_NOTI_LOCATION)
 		update_location();
 
@@ -223,31 +225,40 @@ void ctx_update(void)
 
 static bool ctx_changed_cb(context_type_e type, void *user_data)
 {
-	if (!s_info.enabled)
+	if (!s_info.enabled) {
+		DbgPrint("Context event handler is disabled\n");
 		return false;
+	}
 
-	if (client_is_all_paused()) {
+	if (client_is_all_paused() || setting_is_locked()) {
+		DbgPrint("Data provider is paused, just marking the event type\n");
 		s_info.pending_mask |= type;
 		return false;
 	}
 
 	switch (type) {
 	case CONTEXT_NOTI_LOCATION:
+		DbgPrint("Processing events: Location\n");
 		update_location();
 		break;
 	case CONTEXT_NOTI_CONTACTS:
+		DbgPrint("Processing events: Contacts\n");
 		update_contacts();
 		break;
 	case CONTEXT_NOTI_APPS:
+		DbgPrint("Processing events: Apps\n");
 		update_apps();
 		break;
 	case CONTEXT_NOTI_MUSIC:
+		DbgPrint("Processing events: Music\n");
 		update_music();
 		break;
 	case CONTEXT_NOTI_PHOTOS:
+		DbgPrint("Processing events: Photo\n");
 		update_photo();
 		break;
 	default:
+		DbgPrint("Processing events: Unknown\n");
 		break;
 	}
 

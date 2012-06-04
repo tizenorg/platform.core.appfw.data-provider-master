@@ -9,7 +9,6 @@
 #include <gio/gio.h>
 
 #include <dlog.h>
-#include <vconf.h>
 
 #include "debug.h"
 #include "client_manager.h"
@@ -24,10 +23,12 @@ static struct info {
 	Eina_List *client_list;
 	int nr_of_clients;
 	int nr_of_paused_clients;
+	int is_locked;
 } s_info = {
 	.client_list = NULL,
 	.nr_of_clients = 0,
 	.nr_of_paused_clients = 0,
+	.is_locked = 0,
 };
 
 struct cmd_item {
@@ -241,12 +242,7 @@ struct client_node *client_find(int pid)
 
 int client_is_all_paused(void)
 {
-	int state;
-
-	if (vconf_get_int(VCONFKEY_IDLE_LOCK_STATE, &state) != 0)
-		state = 0; /* UNLOCK */
-
-	return (state == 1) || s_info.nr_of_clients == s_info.nr_of_paused_clients;
+	return s_info.nr_of_clients == s_info.nr_of_paused_clients;
 }
 
 void client_pause(struct client_node *client)

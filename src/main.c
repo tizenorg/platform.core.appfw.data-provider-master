@@ -25,6 +25,7 @@
 #include "io.h"
 #include "xmonitor.h"
 #include "script_handler.h"
+#include "setting.h"
 
 #if defined(FLOG)
 FILE *__file_log_fp;
@@ -59,12 +60,16 @@ static inline int app_create(void *data)
 	xmonitor_init();
 	DbgPrint("XMonitor init is done\n");
 
+	ret = setting_init();
+
 	return 0;
 }
 
 static inline int app_terminate(void *data)
 {
 	int ret;
+
+	ret = setting_fini();
 
 	xmonitor_fini();
 

@@ -1,3 +1,12 @@
+data-provider-master (0.2.1) unstable; urgency=low
+
+  * Git: slp/pkgs/d/data-provider-master
+  * Tag: data-provider-master_0.2.1
+
+  Fault(crash) dection code is updated
+
+ -- Sung-jae Park <nicesj.park@samsung.com>  Mon, 04 Jun 2012 15:47:03 +0900
+
 data-provider-master (0.2.0) unstable; urgency=low
 
   * Git: slp/pkgs/d/data-provider-master

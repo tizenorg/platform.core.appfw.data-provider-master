@@ -1,6 +1,6 @@
 Name: com.samsung.data-provider-master
 Summary: Master data provider
-Version: 0.2.0
+Version: 0.2.1
 Release: 1
 Group: main/app
 License: Samsung Proprietary License
@@ -36,8 +36,9 @@ rm -rf %{buildroot}
 %make_install
 
 %post
-mkdir -p /opt/share/live_magazine
+mkdir -p /opt/share/live_magazine/log
 chown 5000:5000 /opt/share/live_magazine
+chown 5000:5000 /opt/share/live_magazine/log
 
 if [ -f "/etc/rc.d/rc3.d/S41data-provider-master" ]; then
 	rm -f /etc/rc.d/rc3.d/S41data-provider-master

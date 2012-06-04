@@ -60,6 +60,7 @@ ADD_EXECUTABLE(${PROJECT_NAME}
 	src/xmonitor.c
 	src/slave_life.c
 	src/slave_rpc.c
+	src/setting.c
 )
 
 TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${pkg_LDFLAGS} "-ldl")
