@@ -35,6 +35,9 @@ static inline int app_create(void *data)
 {
 	int ret;
 
+	ret = ctx_client_init();
+	DbgPrint("Context engine is initialized: %d\n", ret);
+
 	conf_update_size();
 
 	ret = dbus_init();
@@ -53,9 +56,6 @@ static inline int app_create(void *data)
 
 	ret = io_init();
 	DbgPrint("Init I/O: %d\n", ret);
-
-	ret = ctx_client_init();
-	DbgPrint("Context engine is initialized: %d\n", ret);
 
 	xmonitor_init();
 	DbgPrint("XMonitor init is done\n");

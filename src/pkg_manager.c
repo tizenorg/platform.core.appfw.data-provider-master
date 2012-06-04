@@ -252,7 +252,7 @@ static int slave_activate_cb(struct slave_node *slave, void *data)
 				inst->period,
 				inst->cluster,
 				inst->category,
-				inst->pinup,
+				inst->is_pinned_up,
 				inst->lb_w, inst->lb_h,
 				inst->info->abi);
 		if (!param) {
@@ -777,7 +777,7 @@ static inline void send_to_slave(struct inst_info *inst)
 			inst->period,
 			inst->cluster,
 			inst->category,
-			inst->pinup,
+			inst->is_pinned_up,
 			!!inst->client,
 			inst->info->abi);
 	if (!param) {
