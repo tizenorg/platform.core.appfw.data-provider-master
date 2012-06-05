@@ -17,14 +17,16 @@
 #include "dbus.h"
 #include "slave_life.h"
 #include "slave_rpc.h"
-#include "pkg_manager.h"
+#include "client_life.h"
+#include "instance.h"
+#include "script_handler.h"
+#include "package.h"
 #include "group.h"
 #include "dead_monitor.h"
 #include "conf.h"
 #include "ctx_client.h"
 #include "io.h"
 #include "xmonitor.h"
-#include "script_handler.h"
 #include "setting.h"
 
 #if defined(FLOG)
@@ -41,12 +43,10 @@ static inline int app_create(void *data)
 	conf_update_size();
 
 	ret = dbus_init();
-	if (ret < 0)
-		DbgPrint("Failed to initialize the dbus\n");
+	DbgPrint("dbus initialized: %d\n", ret);
 
-	ret = pkgmgr_init();
-	if (ret < 0)
-		DbgPrint("Failed to initialize the pkgmgr\n");
+	ret = package_init();
+	DbgPrint("pkgmgr initialized: %d\n", ret);
 
 	ret = dead_init();
 	DbgPrint("Dead callback is registered: %d\n", ret);
@@ -57,10 +57,18 @@ static inline int app_create(void *data)
 	ret = io_init();
 	DbgPrint("Init I/O: %d\n", ret);
 
-	xmonitor_init();
-	DbgPrint("XMonitor init is done\n");
+	ret = xmonitor_init();
+	DbgPrint("XMonitor init is done: %d\n", ret);
 
 	ret = setting_init();
+	DbgPrint("Setting initialized: %d\n", ret);
+
+	ret = client_init();
+	DbgPrint("Client initialized: %d\n", ret);
+
+	if (access(g_conf.path.slave_log, R_OK|W_OK) != 0) {
+		mkdir(g_conf.path.slave_log, 755);
+	}
 
 	return 0;
 }
@@ -70,32 +78,30 @@ static inline int app_terminate(void *data)
 	int ret;
 
 	ret = setting_fini();
+	DbgPrint("Finalize setting : %d\n", ret);
 
 	xmonitor_fini();
 
 	ret = ctx_client_fini();
 	DbgPrint("ctx_client_fini returns %d\n", ret);
 
-	ret = pkgmgr_fini();
-	if (ret < 0)
-		DbgPrint("Failed to finalize the pkgmgr\n");
-	else
-		DbgPrint("pkgmgr finalized\n");
+	ret = package_fini();
+	DbgPrint("Finalize package info: %d\n", ret);
 
 	ret = dbus_fini();
-	if (ret < 0)
-		DbgPrint("Failed to finalize the dbus\n");
-	else
-		DbgPrint("DBUS finialized\n");
+	DbgPrint("Finalize dbus: %d\n", ret);
 
-	dead_fini();
-	DbgPrint("dead signal handler finalized\n");
+	ret = dead_fini();
+	DbgPrint("dead signal handler finalized: %d\n", ret);
 
-	io_fini();
-	DbgPrint("IO finalized\n");
+	ret = io_fini();
+	DbgPrint("IO finalized: %d\n", ret);
 
-	group_fini();
-	DbgPrint("Group finalized\n");
+	ret = group_fini();
+	DbgPrint("Group finalized: %d\n", ret);
+
+	ret = client_fini();
+	DbgPrint("Finalize client connections : %d\n", ret);
 
 	DbgPrint("Terminated\n");
 	return 0;
@@ -132,7 +138,6 @@ int main(int argc, char *argv[])
 	if (!__file_log_fp)
 		__file_log_fp = fdopen(1, "w+t");
 #endif
-
 	/* appcore_agent_terminate */
 	if (ecore_init() < 0) {
 		ErrPrint("Failed to initiate ecore\n");

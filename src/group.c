@@ -9,7 +9,6 @@
 #include <Eina.h>
 
 #include "debug.h"
-#include "pkg_manager.h"
 #include "group.h"
 
 int errno;

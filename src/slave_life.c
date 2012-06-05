@@ -16,12 +16,13 @@
 
 #include "slave_life.h"
 #include "slave_rpc.h"
+#include "client_life.h"
 #include "fault_manager.h"
-#include "client_manager.h"
 #include "ctx_client.h"
 #include "debug.h"
 #include "conf.h"
 #include "setting.h"
+#include "util.h"
 
 int errno;
 
@@ -42,6 +43,8 @@ struct slave_node {
 	Eina_List *event_delete_list;
 
 	Eina_List *data_list;
+
+	int faulted;
 };
 
 struct event {
@@ -85,6 +88,7 @@ static inline struct slave_node *create_slave_node(const char *name, int is_secu
 	slave->pid = (pid_t)-1;
 
 	s_info.slave_list = eina_list_append(s_info.slave_list, slave);
+	DbgPrint("slave data is created %p\n", slave);
 	return slave;
 }
 
@@ -98,8 +102,10 @@ static inline void invoke_delete_cb(struct slave_node *slave)
 	EINA_LIST_FOREACH_SAFE(slave->event_delete_list, l, n, event) {
 		ret = event->evt_cb(event->slave, event->cbdata);
 		if (ret < 0) {
-			slave->event_delete_list = eina_list_remove(slave->event_delete_list, event);
-			free(event);
+			if (eina_list_data_find(slave->event_delete_list, event)) {
+				slave->event_delete_list = eina_list_remove(slave->event_delete_list, event);
+				free(event);
+			}
 		}
 	}
 }
@@ -109,17 +115,12 @@ static inline void destroy_slave_node(struct slave_node *slave)
 	struct event *event;
 	struct priv_data *priv;
 
-	DbgPrint("Slave node is destroyed\n");
-
-	if (slave->refcnt > 0) {
-		ErrPrint("Slave refcnt is not ZERO\n");
-		return;
-	}
-
 	if (slave->pid != (pid_t)-1) {
 		ErrPrint("Slave is not deactivated\n");
 		return;
 	}
+
+	DbgPrint("Slave data is destroyed %p\n", slave);
 
 	invoke_delete_cb(slave);
 
@@ -159,23 +160,32 @@ static inline struct slave_node *find_slave(const char *name)
 	return NULL;
 }
 
-void slave_ref(struct slave_node *slave)
+struct slave_node *slave_ref(struct slave_node *slave)
 {
-	DbgPrint("Slave refcnt: %d\n", slave->refcnt);
+	if (!slave)
+		return NULL;
+
 	slave->refcnt++;
+	return slave;
 }
 
-void slave_unref(struct slave_node *slave)
+struct slave_node *slave_unref(struct slave_node *slave)
 {
-	DbgPrint("Slave refcnt: %d\n", slave->refcnt);
-	if (slave->refcnt == 0)
-		return;
+	if (!slave)
+		return NULL;
+
+	if (slave->refcnt == 0) {
+		ErrPrint("Slave refcnt is not valid\n");
+		return NULL;
+	}
 
 	slave->refcnt--;
-	if (slave->refcnt == 0)
+	if (slave->refcnt == 0) {
 		destroy_slave_node(slave);
+		slave = NULL;
+	}
 
-	return;
+	return slave;
 }
 
 int const slave_refcnt(struct slave_node *slave)
@@ -208,7 +218,6 @@ struct slave_node *slave_create(const char *name, int is_secured)
  */
 void slave_destroy(struct slave_node *slave)
 {
-	DbgPrint("Destroy slave\n");
 	slave_unref(slave);
 }
 
@@ -222,10 +231,17 @@ static inline void invoke_activate_cb(struct slave_node *slave)
 	EINA_LIST_FOREACH_SAFE(slave->event_activate_list, l, n, event) {
 		ret = event->evt_cb(event->slave, event->cbdata);
 		if (ret < 0) {
-			slave->event_activate_list = eina_list_remove(slave->event_activate_list, event);
-			free(event);
+			if (eina_list_data_find(slave->event_activate_list, event)) {
+				slave->event_activate_list = eina_list_remove(slave->event_activate_list, event);
+				free(event);
+			}
 		}
 	}
+}
+
+int slave_is_faulted(struct slave_node *slave)
+{
+	return slave->faulted;
 }
 
 int slave_activate(struct slave_node *slave)
@@ -241,7 +257,6 @@ int slave_activate(struct slave_node *slave)
 		return -EFAULT;
 	}
 
-	DbgPrint("Launch slave\n");
 	bundle_add(param, BUNDLE_SLAVE_NAME, slave->name);
 	slave->pid = (pid_t)aul_launch_app(SLAVE_PKGNAME, param);
 	bundle_free(param);
@@ -250,6 +265,7 @@ int slave_activate(struct slave_node *slave)
 		ErrPrint("Failed to launch a new slave %s\n", slave->name);
 		return -EFAULT;
 	}
+	DbgPrint("Slave launched %d\n", slave->pid);
 
 	/*!
 	 * \note
@@ -257,10 +273,10 @@ int slave_activate(struct slave_node *slave)
 	 * To prevent from making an orphan(slave).
 	 */
 	slave_ref(slave);
-
 	invoke_activate_cb(slave);
-
 	slave_check_pause_or_resume();
+
+	slave->faulted = 0;
 	return 0;
 }
 
@@ -270,16 +286,17 @@ static inline void invoke_deactivate_cb(struct slave_node *slave)
 	Eina_List *n;
 	struct event *event;
 	int ret;
-	int reactivate;
+	int reactivate = 0;
 
-	reactivate = 0;
 	EINA_LIST_FOREACH_SAFE(slave->event_deactivate_list, l, n, event) {
 		ret = event->evt_cb(event->slave, event->cbdata);
 		if (ret < 0) {
-			slave->event_deactivate_list = eina_list_remove(slave->event_deactivate_list, event);
-			free(event);
-		} else if (ret == SLAVE_EVENT_RETURN_REACTIVATE) {
-			reactivate = 1;
+			if (eina_list_data_find(slave->event_deactivate_list, event)) {
+				slave->event_deactivate_list = eina_list_remove(slave->event_deactivate_list, event);
+				free(event);
+			}
+		} else if (ret == SLAVE_NEED_TO_REACTIVATE) {
+			reactivate++;
 		}
 	}
 
@@ -289,6 +306,8 @@ static inline void invoke_deactivate_cb(struct slave_node *slave)
 
 int slave_deactivate(struct slave_node *slave)
 {
+	pid_t pid;
+	DbgPrint("Slave deactivate: %d\n", slave->pid);
 	if (slave->pid == (pid_t)-1)
 		return -EALREADY;
 
@@ -296,9 +315,9 @@ int slave_deactivate(struct slave_node *slave)
 	 * \todo
 	 * check the return value of the aul_terminate_pid
 	 */
-	DbgPrint("Terminate: %d\n", slave->pid);
-	aul_terminate_pid(slave->pid);
-	slave->pid = (pid_t)-1;
+	pid = slave->pid;
+	slave->pid = -1;
+	aul_terminate_pid(pid);
 
 	invoke_deactivate_cb(slave);
 
@@ -311,7 +330,6 @@ void slave_faulted(struct slave_node *slave)
 	if (slave->pid == (pid_t)-1)
 		return;
 
-	DbgPrint("Terminate: %d\n", slave->pid);
 	aul_terminate_pid(slave->pid);
 	/*!
 	 * \note
@@ -325,26 +343,11 @@ void slave_deactivated_by_fault(struct slave_node *slave)
 
 	slave->pid = (pid_t)-1;
 	slave->fault_count++;
+	slave->faulted = 1;
 
 	invoke_deactivate_cb(slave);
 
 	slave_unref(slave);
-}
-
-void slave_paused(struct slave_node *slave)
-{
-	if (slave->paused)
-		DbgPrint("Slave state is not mangaged correctly\n");
-
-	slave->paused = 1;
-}
-
-void slave_resumed(struct slave_node *slave)
-{
-	if (!slave->paused)
-		DbgPrint("Slave state is not managed correctly\n");
-
-	slave->paused = 0;
 }
 
 int slave_is_activated(struct slave_node *slave)
@@ -384,7 +387,7 @@ int slave_event_callback_add(struct slave_node *slave, enum slave_event event, i
 	return 0;
 }
 
-int slave_event_callback_del(struct slave_node *slave, enum slave_event event, int (*cb)(struct slave_node *, void *))
+int slave_event_callback_del(struct slave_node *slave, enum slave_event event, int (*cb)(struct slave_node *, void *), void *data)
 {
 	struct event *ev;
 	Eina_List *l;
@@ -393,7 +396,7 @@ int slave_event_callback_del(struct slave_node *slave, enum slave_event event, i
 	switch (event) {
 	case SLAVE_EVENT_DEACTIVATE:
 		EINA_LIST_FOREACH_SAFE(slave->event_deactivate_list, l, n, ev) {
-			if (ev->evt_cb == cb) {
+			if (ev->evt_cb == cb && ev->cbdata == data) {
 				slave->event_deactivate_list = eina_list_remove(slave->event_deactivate_list, ev);
 				free(ev);
 				return 0;
@@ -402,7 +405,7 @@ int slave_event_callback_del(struct slave_node *slave, enum slave_event event, i
 		break;
 	case SLAVE_EVENT_DELETE:
 		EINA_LIST_FOREACH_SAFE(slave->event_delete_list, l, n, ev) {
-			if (ev->evt_cb == cb) {
+			if (ev->evt_cb == cb && ev->cbdata == data) {
 				slave->event_delete_list = eina_list_remove(slave->event_delete_list, ev);
 				free(ev);
 				return 0;
@@ -411,7 +414,7 @@ int slave_event_callback_del(struct slave_node *slave, enum slave_event event, i
 		break;
 	case SLAVE_EVENT_ACTIVATE:
 		EINA_LIST_FOREACH_SAFE(slave->event_activate_list, l, n, ev) {
-			if (ev->evt_cb == cb) {
+			if (ev->evt_cb == cb && ev->cbdata == data) {
 				slave->event_activate_list = eina_list_remove(slave->event_activate_list, ev);
 				free(ev);
 				return 0;
@@ -543,7 +546,7 @@ void slave_unload_package(struct slave_node *slave)
 void slave_load_instance(struct slave_node *slave)
 {
 	slave->loaded_instance++;
-	DbgPrint("Loaded instance: %d\n", slave->loaded_instance);
+	DbgPrint("Instance: (%d)%d\n", slave->pid, slave->loaded_instance);
 }
 
 int slave_loaded_instance(struct slave_node *slave)
@@ -559,10 +562,9 @@ void slave_unload_instance(struct slave_node *slave)
 	}
 
 	slave->loaded_instance--;
+	DbgPrint("Instance: (%d)%d\n", slave->pid, slave->loaded_instance);
 	if (slave->loaded_instance == 0)
 		slave_deactivate(slave);
-
-	DbgPrint("Loaded instance: %d\n", slave->loaded_instance);
 }
 
 void slave_check_pause_or_resume(void)
@@ -571,7 +573,7 @@ void slave_check_pause_or_resume(void)
 	Eina_List *l;
 	struct slave_node *slave;
 
-	paused = client_is_all_paused() || setting_is_locked();
+	paused = (client_count() && client_is_all_paused()) || setting_is_locked();
 
 	if (s_info.paused == paused)
 		return;
@@ -580,11 +582,11 @@ void slave_check_pause_or_resume(void)
 
 	if (s_info.paused) {
 		EINA_LIST_FOREACH(s_info.slave_list, l, slave) {
-			slave_rpc_pause(slave);
+			slave_pause(slave);
 		}
 	} else {
 		EINA_LIST_FOREACH(s_info.slave_list, l, slave) {
-			slave_rpc_resume(slave);
+			slave_resume(slave);
 		}
 
 		ctx_update();
@@ -604,6 +606,68 @@ const char *slave_name(struct slave_node *slave)
 pid_t slave_pid(struct slave_node *slave)
 {
 	return slave->pid;
+}
+
+static void resume_cb(struct slave_node *slave, const char *func, GVariant *result, void *data)
+{
+	int ret;
+
+	if (!result)
+		return;
+
+	g_variant_get(result, "(i)", &ret);
+	if (ret == 0)
+		slave->paused = 0;
+}
+
+static void pause_cb(struct slave_node *slave, const char *func, GVariant *result, void *data)
+{
+	int ret;
+
+	if (!result)
+		return;
+
+	g_variant_get(result, "(i)", &ret);
+	if (ret == 0)
+		slave->paused = 1;
+}
+
+int slave_resume(struct slave_node *slave)
+{
+	double timestamp;
+	GVariant *param;
+
+	if (!slave->paused)
+		return 0;
+
+	timestamp = util_timestamp();
+
+	param = g_variant_new("(d)", timestamp);
+	if (!param) {
+		ErrPrint("Failed to prepare param\n");
+		return -EFAULT;
+	}
+
+	return slave_rpc_async_request(slave, NULL, NULL, "resume", param, resume_cb, NULL);
+}
+
+int slave_pause(struct slave_node *slave)
+{
+	double timestamp;
+	GVariant *param;
+
+	if (slave->paused)
+		return 0;
+
+	timestamp = util_timestamp();
+
+	param = g_variant_new("(d)", timestamp);
+	if (!param) {
+		ErrPrint("Failed to prepare param\n");
+		return -EFAULT;
+	}
+
+	return slave_rpc_async_request(slave, NULL, NULL, "pause", param, pause_cb, NULL);
 }
 
 /* End of a file */

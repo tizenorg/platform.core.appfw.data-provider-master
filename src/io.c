@@ -11,7 +11,6 @@
 
 #include "debug.h"
 #include "conf.h"
-#include "pkg_manager.h"
 #include "io.h"
 #include "parser.h"
 #include "group.h"
@@ -23,7 +22,7 @@ int io_init(void)
 {
 	struct dirent *ent;
 	DIR *dir;
-	struct item *item;
+	struct parser *item;
 
 	dir = opendir(g_conf.path.root);
 	if (!dir) {

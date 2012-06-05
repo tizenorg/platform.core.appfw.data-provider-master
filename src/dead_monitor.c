@@ -8,7 +8,7 @@
 #include <gio/gio.h>
 
 #include "slave_life.h"
-#include "client_manager.h"
+#include "client_life.h"
 #include "fault_manager.h"
 #include "debug.h"
 
@@ -20,15 +20,18 @@ static int dead_cb(int pid, void *cb_data)
 
 	slave = slave_find_by_pid(pid);
 	if (slave) {
-		DbgPrint("Slave %p is dead\n");
 		slave_deactivated_by_fault(slave);
 	} else {
 		struct client_node *client;
-		client = client_find(pid);
+		client = client_find_by_pid(pid);
 		if (client) {
-			client_destroy(client);
+			client_deactivated_by_fault(client);
 		} else {
-			/* Ignore this dead signal */
+			ErrPrint("Unknown PID:%d is terminated\n", pid);
+			/*!
+			 * \note
+			 * Ignore this dead signal
+			 */
 		}
 	}
 

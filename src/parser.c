@@ -36,7 +36,7 @@
 static Eina_List *s_list;
 int errno;
 
-struct item {
+struct parser {
 	char *filename;
 	double period;
 	int timeout;
@@ -62,88 +62,88 @@ struct item {
 	char *script;
 };
 
-double parser_period(struct item *handle)
+double parser_period(struct parser *handle)
 {
 	return handle->period;
 }
 
-int parser_network(struct item *handle)
+int parser_network(struct parser *handle)
 {
 	return handle->network;
 }
 
-int parser_timeout(struct item *handle)
+int parser_timeout(struct parser *handle)
 {
 	return handle->timeout;
 }
 
-int parser_auto_launch(struct item *handle)
+int parser_auto_launch(struct parser *handle)
 {
 	return handle->auto_launch;
 }
 
-const char *parser_script(struct item *handle)
+const char *parser_script(struct parser *handle)
 {
 	return handle->script;
 }
 
-const char *parser_abi(struct item *handle)
+const char *parser_abi(struct parser *handle)
 {
 	return handle->abi;
 }
 
-unsigned int parser_size(struct item *handle)
+unsigned int parser_size(struct parser *handle)
 {
 	return handle->size;
 }
 
-const char *parser_lb_path(struct item *handle)
+const char *parser_lb_path(struct parser *handle)
 {
 	return handle->lb_path;
 }
 
-const char *parser_lb_group(struct item *handle)
+const char *parser_lb_group(struct parser *handle)
 {
 	return handle->lb_group;
 }
 
-const char *parser_pd_path(struct item *handle)
+const char *parser_pd_path(struct parser *handle)
 {
 	return handle->pd_path;
 }
 
-const char *parser_pd_group(struct item *handle)
+const char *parser_pd_group(struct parser *handle)
 {
 	return handle->pd_group;
 }
 
-const char *parser_group_str(struct item *handle)
+const char *parser_group_str(struct parser *handle)
 {
 	return handle->group;
 }
 
-int parser_secured(struct item *handle)
+int parser_secured(struct parser *handle)
 {
 	return handle->secured;
 }
 
-void parser_get_pdsize(struct item *handle, unsigned int *width, unsigned int *height)
+void parser_get_pdsize(struct parser *handle, unsigned int *width, unsigned int *height)
 {
 	*width = handle->pd_width;
 	*height = handle->pd_height;
 }
 
-int parser_pinup(struct item *handle)
+int parser_pinup(struct parser *handle)
 {
 	return handle->pinup;
 }
 
-int parser_text_lb(struct item *handle)
+int parser_text_lb(struct parser *handle)
 {
 	return handle->text_lb;
 }
 
-int parser_text_pd(struct item *handle)
+int parser_text_pd(struct parser *handle)
 {
 	return handle->text_pd;
 }
@@ -151,7 +151,7 @@ int parser_text_pd(struct item *handle)
 int parser_find(const char *pkgname)
 {
 	Eina_List *l;
-	struct item *item;
+	struct parser *item;
 	char *filename;
 	int len;
 	int ret;
@@ -337,7 +337,7 @@ static inline char *dup_rtrim(char *buffer)
 	return ret;
 }
 
-static void period_handler(struct item *item, char *buffer)
+static void period_handler(struct parser *item, char *buffer)
 {
 	char *tmp = NULL;
 
@@ -347,7 +347,7 @@ static void period_handler(struct item *item, char *buffer)
 	item->period = strtod(buffer, &tmp);
 }
 
-static void timeout_handler(struct item *item, char *buffer)
+static void timeout_handler(struct parser *item, char *buffer)
 {
 	if (!rtrim(buffer))
 		return;
@@ -355,7 +355,7 @@ static void timeout_handler(struct item *item, char *buffer)
 	item->timeout = atoi(buffer);
 }
 
-static void network_handler(struct item *item, char *buffer)
+static void network_handler(struct parser *item, char *buffer)
 {
 	if (!rtrim(buffer))
 		return;
@@ -363,7 +363,7 @@ static void network_handler(struct item *item, char *buffer)
 	item->network = !!atoi(buffer);
 }
 
-static void auto_launch_handler(struct item *item, char *buffer)
+static void auto_launch_handler(struct parser *item, char *buffer)
 {
 	if (!rtrim(buffer))
 		return;
@@ -371,7 +371,7 @@ static void auto_launch_handler(struct item *item, char *buffer)
 	item->auto_launch = !!atoi(buffer);
 }
 
-static void size_handler(struct item *item, char *buffer)
+static void size_handler(struct parser *item, char *buffer)
 {
 	if (parse_size(buffer, &item->size) == -1) {
 		LOGE("Failed to get size\n");
@@ -379,13 +379,13 @@ static void size_handler(struct item *item, char *buffer)
 	}
 }
 
-static void pd_size_handler(struct item *item, char *buffer)
+static void pd_size_handler(struct parser *item, char *buffer)
 {
 	if (sscanf(buffer, "%ux%u", &item->pd_width, &item->pd_height) != 2)
 		LOGE("parse pd size\n");
 }
 
-static void text_lb_handler(struct item *item, char *buffer)
+static void text_lb_handler(struct parser *item, char *buffer)
 {
 	if (!rtrim(buffer))
 		return;
@@ -393,17 +393,17 @@ static void text_lb_handler(struct item *item, char *buffer)
 	item->text_lb = !!atoi(buffer);
 }
 
-static void abi_handler(struct item *item, char *buffer)
+static void abi_handler(struct parser *item, char *buffer)
 {
 	item->abi = dup_rtrim(buffer);
 }
 
-static void script_handler(struct item *item, char *buffer)
+static void script_handler(struct parser *item, char *buffer)
 {
 	item->script = dup_rtrim(buffer);
 }
 
-static void text_pd_handler(struct item *item, char *buffer)
+static void text_pd_handler(struct parser *item, char *buffer)
 {
 	if (!rtrim(buffer))
 		return;
@@ -411,7 +411,7 @@ static void text_pd_handler(struct item *item, char *buffer)
 	item->text_pd = !!atoi(buffer);
 }
 
-static void pinup_handler(struct item *item, char *buffer)
+static void pinup_handler(struct parser *item, char *buffer)
 {
 	if (!rtrim(buffer))
 		return;
@@ -419,7 +419,7 @@ static void pinup_handler(struct item *item, char *buffer)
 	item->pinup = !!atoi(buffer);
 }
 
-static void lb_path_handler(struct item *item, char *buffer)
+static void lb_path_handler(struct parser *item, char *buffer)
 {
 	if (item->lb_path)
 		free(item->lb_path);
@@ -429,7 +429,7 @@ static void lb_path_handler(struct item *item, char *buffer)
 		LOGD("Error: %s\n", strerror(errno));
 }
 
-static void group_handler(struct item *item, char *buffer)
+static void group_handler(struct parser *item, char *buffer)
 {
 	if (item->group)
 		free(item->group);
@@ -439,7 +439,7 @@ static void group_handler(struct item *item, char *buffer)
 		LOGD("Error: %s\n", strerror(errno));
 }
 
-static void secured_handler(struct item *item, char *buffer)
+static void secured_handler(struct parser *item, char *buffer)
 {
 	if (!rtrim(buffer))
 		return;
@@ -447,7 +447,7 @@ static void secured_handler(struct item *item, char *buffer)
 	item->secured = !!atoi(buffer);
 }
 
-static void lb_group_handler(struct item *item, char *buffer)
+static void lb_group_handler(struct parser *item, char *buffer)
 {
 	if (item->lb_group)
 		free(item->lb_group);
@@ -457,7 +457,7 @@ static void lb_group_handler(struct item *item, char *buffer)
 		LOGD("Error: %s\n", strerror(errno));
 }
 
-static void pd_path_handler(struct item *item, char *buffer)
+static void pd_path_handler(struct parser *item, char *buffer)
 {
 	if (item->pd_path)
 		free(item->pd_path);
@@ -467,7 +467,7 @@ static void pd_path_handler(struct item *item, char *buffer)
 		LOGD("Error: %s\n", strerror(errno));
 }
 
-static void pd_group_handler(struct item *item, char *buffer)
+static void pd_group_handler(struct parser *item, char *buffer)
 {
 	if (item->pd_group)
 		free(item->pd_group);
@@ -477,9 +477,9 @@ static void pd_group_handler(struct item *item, char *buffer)
 		LOGD("Error: %s\n", strerror(errno));
 }
 
-struct item *parser_load(const char *pkgname)
+struct parser *parser_load(const char *pkgname)
 {
-	struct item *item;
+	struct parser *item;
 	FILE *fp;
 	int c;
 	enum state {
@@ -500,7 +500,7 @@ struct item *parser_load(const char *pkgname)
 	char buffer[256];
 	static const struct token_parser {
 		const char *name;
-		void (*handler)(struct item *, char *buffer);
+		void (*handler)(struct parser *, char *buffer);
 	} token_handler[] = {
 		{
 			.name = "period",
@@ -772,7 +772,7 @@ struct item *parser_load(const char *pkgname)
 	return item;
 }
 
-int parser_unload(struct item *item)
+int parser_unload(struct parser *item)
 {
 	s_list = eina_list_remove(s_list, item);
 

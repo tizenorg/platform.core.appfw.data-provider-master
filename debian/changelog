@@ -1,3 +1,12 @@
+data-provider-master (0.3.0) unstable; urgency=low
+
+  * Git: slp/pkgs/d/data-provider-master
+  * Tag: data-provider-master_0.3.0
+
+  Way of package/instance management is changed.
+
+ -- Sung-jae Park <nicesj.park@samsung.com>  Thu, 07 Jun 2012 02:25:24 +0900
+
 data-provider-master (0.2.1) unstable; urgency=low
 
   * Git: slp/pkgs/d/data-provider-master

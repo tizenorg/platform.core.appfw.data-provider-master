@@ -29,6 +29,7 @@ struct conf {
 		const char *script;
 		const char *root;
 		const char *script_port;
+		const char *slave_log;
 	} path;
 
 	struct {
@@ -44,6 +45,7 @@ struct conf {
 	const int slave_max_load;
 
 	double ping_time;
+	double delayed_ctx_init_time;
 };
 
 extern struct conf g_conf;

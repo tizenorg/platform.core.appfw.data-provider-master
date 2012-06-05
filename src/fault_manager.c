@@ -8,12 +8,13 @@
 #include <dlog.h>
 #include <Eina.h>
 
-#include "pkg_manager.h"
 #include "debug.h"
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "util.h"
-#include "client_manager.h"
+#include "client_life.h"
+#include "client_rpc.h"
+#include "package.h"
 
 static struct info {
 	Eina_List *call_list;
@@ -25,6 +26,7 @@ static struct info {
 
 struct fault_info {
 	struct slave_node *slave;
+	double timestamp;
 	char *pkgname;
 	char *filename;
 	char *func;
@@ -43,67 +45,89 @@ static void clear_log_file(struct slave_node *slave)
 	unlink(filename);
 }
 
-static int check_log_file(struct slave_node *slave)
+static char *check_log_file(struct slave_node *slave)
 {
 	char pkgname[BUFSIZ];
 	const char *pattern = "liblive-";
 	char *ptr;
 	FILE *fp;
-	int ret;
 	int i;
 	char filename[BUFSIZ];
-
-	DbgPrint("Try to access log file \n");
 
 	snprintf(filename, sizeof(filename), "/opt/share/live_magazine/log/slave.%d", slave_pid(slave));
 	fp = fopen(filename, "rt");
 	if (!fp) {
 		ErrPrint("No log file found [%s]\n", strerror(errno));
-		return -EIO;
+		return NULL;
 	}
 
 	ptr = fgets(pkgname, sizeof(pkgname), fp);
 	fclose(fp);
 	if (ptr != pkgname) {
 		ErrPrint("Invalid log\n");
-		return -EINVAL;
+		return NULL;
 	}
-	
-	DbgPrint("Filename: [%s]\n", pkgname);
 
 	for (i = 0; pattern[i] && (pattern[i] == pkgname[i]); i++); /*!< Check pattern of filename */
 	if (strlen(pattern) != i) {
 		ErrPrint("Pattern is not matched: %d\n", i);
-		return -EINVAL;
+		return NULL;
 	}
 
 	ptr = pkgname + i;
-	DbgPrint("ptr[%s] pkgname[%s]\n", ptr, pkgname);
-
 	i = strlen(ptr) - 3; /* Skip the ".so" */
 	if (i <= 0 || strcmp(ptr + i, ".so")) {
 		ErrPrint("Extension is not matched\n");
-		return -EINVAL;
+		return NULL;
 	}
 		
 	ptr[i] = '\0'; /*!< Truncate tailer ".so" */
-
-	ret = pkgmgr_set_fault(ptr, NULL, NULL);
-	ErrPrint("Fault process ===\n");
-	ErrPrint("Slavename: %s[%d]\n", slave_name(slave), slave_pid(slave));
-	ErrPrint("Package: %s\n", ptr);
-	ErrPrint("Set fault %s(%d)\n", !ret ? "Success" : "Failed", ret);
-
-	s_info.fault_mark_count = 0;
 	if (unlink(filename) < 0)
 		ErrPrint("Failed to unlink %s\n", filename);
 
-	return 0;
+	return strdup(ptr);
+}
+
+void fault_unicast_info(struct client_node *client, const char *pkgname, const char *filename, const char *func)
+{
+	GVariant *param;
+
+	param = g_variant_new("(sss)", pkgname, filename, func);
+	if (!param)
+		return;
+
+	client_rpc_async_request(client, "fault_package", param);
+	DbgPrint("Fault package: %s\n", pkgname);
+}
+
+void fault_broadcast_info(const char *pkgname, const char *filename, const char *func)
+{
+	GVariant *param;
+
+	param = g_variant_new("(sss)", pkgname, filename, func);
+	if (!param) {
+		ErrPrint("Failed to create a param\n");
+		return;
+	}
+
+	client_rpc_broadcast("fault_package", param);
+	DbgPrint("Fault package: %s\n", pkgname);
+}
+
+static inline void dump_fault_info(const char *name, pid_t pid, const char *pkgname, const char *filename, const char *funcname)
+{
+	ErrPrint("Fault processing ====\n");
+	ErrPrint("Slavename: %s[%d]\n", name, pid);
+	ErrPrint("Package: %s\n", pkgname);
+	ErrPrint("Filename: %s\n", filename);
+	ErrPrint("Funcname: %s\n", funcname);
 }
 
 int fault_check_pkgs(struct slave_node *slave)
 {
 	struct fault_info *info;
+	struct pkg_info *pkg;
+	const char *pkgname;
 	Eina_List *l;
 	Eina_List *n;
 	int found;
@@ -111,24 +135,23 @@ int fault_check_pkgs(struct slave_node *slave)
 	found = 0;
 	EINA_LIST_FOREACH_SAFE(s_info.call_list, l, n, info) {
 		if (info->slave == slave) {
-			GVariant *param;
 			int ret;
+			const char *filename;
+			const char *func;
 
-			ret = pkgmgr_set_fault(info->pkgname, info->filename, info->func);
+			pkg = package_find(info->pkgname);
+			if (!pkg) {
+				ErrPrint("Failed to find a package %s\n", info->pkgname);
+				continue;
+			}
 
-			ErrPrint("Fault processing ====\n");
-			ErrPrint("Slavename: %s[%d]\n", slave_name(info->slave), slave_pid(info->slave));
-			ErrPrint("Package: %s\n", info->pkgname);
-			ErrPrint("Filename: %s\n", info->filename);
-			ErrPrint("Funcname: %s\n", info->func);
+			filename = info->filename ? info->filename : "";
+			func = info->func ? info->func : "";
+
+			ret = package_set_fault_info(pkg, info->timestamp, info->filename, info->func);
+			dump_fault_info(slave_name(info->slave), slave_pid(info->slave), info->pkgname, filename, func);
 			ErrPrint("Set fault %s(%d)\n", !ret ? "Success" : "Failed", ret);
-
-			param = g_variant_new("(sss)", info->pkgname, info->filename, info->func);
-			if (param)
-				client_broadcast_command("fault_package", param);
-			else
-				ErrPrint("Failed to create a param\n");
-
+			fault_broadcast_info(info->pkgname, info->filename, info->func);
 			s_info.call_list = eina_list_remove_list(s_info.call_list, l);
 
 			free(info->pkgname);
@@ -136,41 +159,40 @@ int fault_check_pkgs(struct slave_node *slave)
 			free(info->func);
 			free(info);
 			found++;
-
-			s_info.fault_mark_count = 0;
 		}
 	}
 
-	if (!found) {
-		const char *pkgname;
+	if (found)
+		goto out;
 
-		pkgname = pkgmgr_find_by_secure_slave(slave);
-		if (!pkgname) {
-			ErrPrint("Slave is crashed, but I couldn't find a recorded fault package\n");
-			check_log_file(slave);
-		} else {
-			int ret;
-			GVariant *param;
-
-			ret = pkgmgr_set_fault(pkgname, NULL, NULL);
-			ErrPrint("Fault processing ====\n");
-			ErrPrint("Slavename: %s[%d]\n", slave_name(slave), slave_pid(slave));
-			ErrPrint("Package: %s\n", pkgname);
-			ErrPrint("Set fault %s(%d)\n", !ret ? "Success" : "Failed", ret);
-
-			param = g_variant_new("(sss)", pkgname, "", "");
-			if (param)
-				client_broadcast_command("fault_package", param);
-			else
-				ErrPrint("Failed to create a param\n");
-
-			s_info.fault_mark_count = 0;
-			clear_log_file(slave);
+	pkgname = package_find_by_secured_slave(slave);
+	if (!pkgname) {
+		ErrPrint("Slave is crashed, but I couldn't find a recorded fault package\n");
+		pkgname = (const char *)check_log_file(slave);
+		if (pkgname) {
+			pkg = package_find(pkgname);
+			if (pkg) {
+				found = package_set_fault_info(pkg, util_timestamp(), NULL, NULL);
+				dump_fault_info(slave_name(slave), slave_pid(slave), pkgname, "", "");
+				ErrPrint("Set fault %s(%d)\n", !found ? "Success" : "Failed", found);
+				fault_broadcast_info(pkgname, "", "");
+			}
 		}
-	} else {
-		clear_log_file(slave);
+
+		goto out;
 	}
 
+	pkg = package_find(pkgname);
+	if (pkg) {
+		found = package_set_fault_info(pkg, util_timestamp(), NULL, NULL);
+		dump_fault_info(slave_name(slave), slave_pid(slave), pkgname, "", "");
+		ErrPrint("Set fault %s(%d)\n", !found ? "Success" : "Failed", found);
+		fault_broadcast_info(pkgname, "", "");
+	}
+
+out:
+	s_info.fault_mark_count = 0;
+	clear_log_file(slave);
 	return 0;
 }
 
@@ -204,6 +226,8 @@ int fault_func_call(struct slave_node *slave, const char *pkgname, const char *f
 		free(info);
 		return -ENOMEM;
 	}
+
+	info->timestamp = util_timestamp();
 
 	s_info.call_list = eina_list_append(s_info.call_list, info);
 

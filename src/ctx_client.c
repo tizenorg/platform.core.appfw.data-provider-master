@@ -13,8 +13,10 @@
 #include "debug.h"
 #include "slave_life.h"
 #include "slave_rpc.h"
-#include "client_manager.h"
-#include "pkg_manager.h"
+#include "client_life.h"
+#include "client_rpc.h"
+#include "package.h"
+#include "instance.h"
 #include "group.h"
 #include "conf.h"
 #include "util.h"
@@ -38,7 +40,7 @@ static int update_pkg_cb(struct category *category, const char *pkgname, void *d
 	const char *c_name;
 	const char *s_name;
 	double timestamp;
-	char *filename;
+	struct inst_info *inst;
 
 	c_name = group_cluster_name_by_category(category);
 	s_name = group_category_name(category);
@@ -51,10 +53,9 @@ static int update_pkg_cb(struct category *category, const char *pkgname, void *d
 	slave_rpc_request_update(pkgname, c_name, s_name);
 
 	/* Just try to create a new package */
-	timestamp = util_get_timestamp();
-	filename = util_new_filename(timestamp);
-	pkgmgr_new(NULL, timestamp, pkgname, filename, "default", c_name, s_name, DEFAULT_PERIOD);
-	free(filename);
+	timestamp = util_timestamp();
+	inst = instance_create(NULL, timestamp, pkgname, "default", c_name, s_name, DEFAULT_PERIOD);
+	instance_activate(inst);
 	return EXIT_SUCCESS;
 }
 
@@ -62,6 +63,8 @@ static inline void update_location(void)
 {
 	struct cluster *cluster;
 	struct category *category;
+
+	DbgPrint("Processing events: Location\n");
 
 	cluster = group_find_cluster("location");
 	if (cluster) {
@@ -109,6 +112,8 @@ static inline void update_contacts(void)
 	struct cluster *cluster;
 	struct category *category;
 
+	DbgPrint("Processing events: Contacts\n");
+
 	cluster = group_find_cluster("people");
 	if (cluster) {
 		category = group_find_category(cluster, "people_frequently");
@@ -134,6 +139,8 @@ static inline void update_apps(void)
 	struct cluster *cluster;
 	struct category *category;
 
+	DbgPrint("Processing events: Apps\n");
+
 	cluster = group_find_cluster("apps");
 	if (cluster) {
 		category = group_find_category(cluster, "apps_frequently");
@@ -157,6 +164,8 @@ static inline void update_music(void)
 {
 	struct cluster *cluster;
 	struct category *category;
+
+	DbgPrint("Processing events: Music\n");
 
 	cluster = group_find_cluster("music");
 	if (!cluster)
@@ -184,6 +193,8 @@ static inline void update_photo(void)
 	struct cluster *cluster;
 	struct category *category;
 
+	DbgPrint("Processing events: Photo\n");
+
 	cluster = group_find_cluster("photos_videos");
 	if (!cluster)
 		return;
@@ -203,7 +214,6 @@ static inline void update_photo(void)
 
 void ctx_update(void)
 {
-	DbgPrint("Update all pending ctx events\n");
 	if (s_info.pending_mask & CONTEXT_NOTI_LOCATION)
 		update_location();
 
@@ -225,36 +235,28 @@ void ctx_update(void)
 
 static bool ctx_changed_cb(context_type_e type, void *user_data)
 {
-	if (!s_info.enabled) {
-		DbgPrint("Context event handler is disabled\n");
+	if (!s_info.enabled)
 		return false;
-	}
 
-	if (client_is_all_paused() || setting_is_locked()) {
-		DbgPrint("Data provider is paused, just marking the event type\n");
+	if ((client_count() && client_is_all_paused()) || setting_is_locked()) {
 		s_info.pending_mask |= type;
 		return false;
 	}
 
 	switch (type) {
 	case CONTEXT_NOTI_LOCATION:
-		DbgPrint("Processing events: Location\n");
 		update_location();
 		break;
 	case CONTEXT_NOTI_CONTACTS:
-		DbgPrint("Processing events: Contacts\n");
 		update_contacts();
 		break;
 	case CONTEXT_NOTI_APPS:
-		DbgPrint("Processing events: Apps\n");
 		update_apps();
 		break;
 	case CONTEXT_NOTI_MUSIC:
-		DbgPrint("Processing events: Music\n");
 		update_music();
 		break;
 	case CONTEXT_NOTI_PHOTOS:
-		DbgPrint("Processing events: Photo\n");
 		update_photo();
 		break;
 	default:
@@ -267,10 +269,13 @@ static bool ctx_changed_cb(context_type_e type, void *user_data)
 
 static void ctx_vconf_cb(keynode_t *node, void *data)
 {
-	if (!node)
-		vconf_get_int(SYS_CLUSTER_KEY, &s_info.enabled);
-	else
+	if (!node) {
+		if (vconf_get_int(SYS_CLUSTER_KEY, &s_info.enabled) < 0) {
+			s_info.enabled = 1; /*!< Enable this for default option */
+		}
+	} else {
 		s_info.enabled = vconf_keynode_get_int(node);
+	}
 }
 
 static Eina_Bool delayed_ctx_init_cb(void *data)
@@ -278,6 +283,7 @@ static Eina_Bool delayed_ctx_init_cb(void *data)
 	context_set_context_changed_cb(ctx_changed_cb,
 		CONTEXT_NOTI_LOCATION | CONTEXT_NOTI_CONTACTS | CONTEXT_NOTI_APPS |
 		CONTEXT_NOTI_MUSIC | CONTEXT_NOTI_PHOTOS, NULL);
+
 	return ECORE_CALLBACK_CANCEL;
 }
 
@@ -291,7 +297,7 @@ int ctx_client_init(void)
 
 	ctx_vconf_cb(NULL, NULL);
 
-	if (!ecore_timer_add(1.0f, delayed_ctx_init_cb, NULL)) {
+	if (!ecore_timer_add(g_conf.delayed_ctx_init_time, delayed_ctx_init_cb, NULL)) {
 		ErrPrint("Failed to add timer for delayed ctx init\n");
 		delayed_ctx_init_cb(NULL);
 	}

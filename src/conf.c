@@ -30,6 +30,7 @@ struct conf g_conf = {
 	.path = {
 		.conf = "/opt/live/%s/etc/%s.conf",
 		.image = "/opt/share/live_magazine/",
+		.slave_log = "/opt/share/live_magazine/log",
 		.script = "/opt/live/%s/res/script/%s.edj",
 		.root = "/opt/live/",
 		.script_port = "/opt/live/script_port/",
@@ -59,6 +60,7 @@ struct conf g_conf = {
 	.error = "/opt/apps/com.samsung."PACKAGE"/res/images/error.png",
 	.ping_time = 60.0f,
 	.slave_max_load = 10,
+	.delayed_ctx_init_time = 1.0f,
 };
 
 void conf_update_size(void)

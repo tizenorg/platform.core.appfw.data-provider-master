@@ -15,12 +15,13 @@
 #include "debug.h"
 #include "slave_life.h"
 #include "slave_rpc.h"
-#include "client_manager.h"
 #include "group.h"
 #include "util.h"
 #include "parser.h"
 #include "conf.h"
 #include "pkg_manager.h"
+#include "client_life.h"
+#include "client_rpc.h"
 #include "script_handler.h"
 #include "fb.h"
 
@@ -40,8 +41,11 @@ struct fault_info {
 struct inst_info {
 	enum {
 		INST_LOCAL_ONLY,
+
 		INST_REQUEST_TO_CREATE,
 		INST_CREATED,
+
+		INST_REQUEST_TO_DELETE,
 	} state;
 
 	char *filename;
@@ -78,6 +82,8 @@ struct inst_info {
 
 	struct client_node *client;
 	struct pkg_info *info;
+
+	int refcnt;
 };
 
 /*!
@@ -146,72 +152,104 @@ static inline struct pkg_info *find_pkginfo(const char *pkgname)
 	return NULL;
 }
 
-static inline int delete_instance(struct inst_info *inst)
+static inline void unicast_delete_event(struct client_node *client, const char *pkgname, const char *filename)
 {
-	if (inst->state == INST_CREATED) {
-		DbgPrint("Unload instance\n");
-		slave_unload_instance(inst->info->slave);
+	GVariant *param;
+
+	if (!client)
+		return;
+
+	param = g_variant_new("(ss)", pkgname, filename);
+	if (!param) {
+		ErrPrint("Failed to create a param\n");
+		return;
 	}
+		
+	client_rpc_async_request(client, "deleted", param);
+}
 
-	if (inst->lb_script) {
-		script_handler_unload(inst->lb_script, 0);
-		script_handler_destroy(inst->lb_script);
+static inline void broadcast_delete_event(const char *pkgname, const char *filename)
+{
+	GVariant *param;
+
+	param = g_variant_new("(ss)", pkgname, filename);
+	if (!param) {
+		ErrPrint("Failed to create a param\n");
+		return;
 	}
-
-	if (inst->pd_script) {
-		script_handler_unload(inst->pd_script, 1);
-		script_handler_destroy(inst->pd_script);
-	}
-
-	(void)util_unlink(inst->filename);
-
-	free(inst->lb_path);
-	free(inst->lb_group);
-
-	free(inst->pd_path);
-	free(inst->pd_group);
-
-	free(inst->cluster);
-	free(inst->category);
-	free(inst->filename);
-	free(inst->content);
-
-	free(inst->script);
-	free(inst);
-	return 0;
+		
+	client_rpc_broadcast("deleted", param);
 }
 
 static int slave_del_cb(struct slave_node *slave, void *data)
 {
 	struct pkg_info *info = data;
 	struct inst_info *inst;
-	GVariant *param;
+	Eina_List *l;
+	Eina_List *n;
 
-	EINA_LIST_FREE(info->inst_list, inst) {
-		param = g_variant_new("(ss)", info->pkgname, inst->filename);
-		if (param)
-			client_broadcast_command("deleted", param);
-		else
-			ErrPrint("Failed to create a param\n");
-
-		DbgPrint("delete_instance\n");
-		delete_instance(inst);
+	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
+		pkgmgr_delete(inst, BROADCAST);
 	}
 
 	return 0;
+}
+
+static void del_ret_cb(const char *funcname, GVariant *result, void *data)
+{
+	int ret;
+	struct inst_info *inst = data;
+	const char *pkgname;
+	const char *filename;
+
+	pkgmgr_inst_unref(inst);
+
+	if (!result)
+		return;
+
+	pkgname = pkgmgr_name(inst);
+	filename = pkgmgr_filename(inst);
+
+	g_variant_get(result, "(i)", &ret);
+	if (ret == 0) {
+		ErrPrint("%s is now deleting\n", pkgname);
+		slave_unload_instance(inst->info->slave);
+		pkgmgr_delete(inst, BROADCAST);
+	} else {
+		ErrPrint("%s is not deleted - returns %d\n", pkgname, ret);
+	}
+	g_variant_unref(result);
 }
 
 static void renew_ret_cb(const char *funcname, GVariant *result, void *data)
 {
 	int ret;
 	struct inst_info *inst = data;
-	GVariant *param;
 	struct pkg_info *info = inst->info;
+
+	pkgmgr_inst_unref(inst);
+
+	if (!result)
+		return;
 
 	g_variant_get(result, "(i)", &ret);
 	if (ret == 0) {
-		inst->state = INST_CREATED;
 		slave_load_instance(inst->info->slave);
+
+		if (inst->state == INST_REQUEST_TO_DELETE) {
+			GVariant *param;
+			param = g_variant_new("(ss)", inst->info->pkgname, inst->filename);
+			if (!param)
+				return;
+
+			pkgmgr_inst_ref(inst);
+			slave_rpc_async_request(inst->info->slave,
+					inst->info->pkgname, inst->filename,
+					"delete", param, del_ret_cb, inst);
+			return;
+		}
+
+		inst->state = INST_CREATED;
 		return;
 	}
 
@@ -220,13 +258,8 @@ static void renew_ret_cb(const char *funcname, GVariant *result, void *data)
 	 * Failed to re-create an instance.
 	 * In this case, delete the instance and send its deleted status to every clients.
 	 */
-	ErrPrint("Failed to recreate, send delete event to clients (%d)\n", ret);
-	param = g_variant_new("(ss)", info->pkgname, inst->filename);
-	if (param)
-		client_broadcast_command("deleted", param);
-
-	DbgPrint("pkgmgr_delete\n");
-	pkgmgr_delete(inst);
+	ErrPrint("Failed to recreate %s[%s], send delete event to clients (%d)\n", info->pkgname, inst->filename, ret);
+	pkgmgr_delete(inst, BROADCAST);
 }
 
 static int slave_activate_cb(struct slave_node *slave, void *data)
@@ -243,6 +276,10 @@ static int slave_activate_cb(struct slave_node *slave, void *data)
 		if (inst->state != INST_LOCAL_ONLY)
 			continue;
 
+		/*!
+		 * If the instance is created by the terminated client,
+		 * do not re-create it.
+		 */
 		param = g_variant_new("(sssiidssiiis)",
 				info->pkgname,
 				inst->filename,
@@ -261,6 +298,7 @@ static int slave_activate_cb(struct slave_node *slave, void *data)
 		}
 
 		inst->state = INST_REQUEST_TO_CREATE;
+		pkgmgr_inst_ref(inst);
 		slave_rpc_async_request(slave, info->pkgname, inst->filename, "renew", param, renew_ret_cb, inst);
 	}
 
@@ -273,29 +311,40 @@ static int slave_deactivate_cb(struct slave_node *slave, void *data)
 
 	if (info->fault_info) {
 		struct inst_info *inst;
-		GVariant *param;
+		Eina_List *l;
+		Eina_List *n;
 
-		EINA_LIST_FREE(info->inst_list, inst) {
-			param = g_variant_new("(ss)", info->pkgname, inst->filename);
-			if (param)
-				client_broadcast_command("deleted", param);
-
-			DbgPrint("delete_instance\n");
-			delete_instance(inst);
+		EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
+			if (inst->state == INST_REQUEST_TO_DELETE) {
+				pkgmgr_delete(inst, LOCAL);
+			} else {
+				pkgmgr_delete(inst, BROADCAST);
+			}
 		}
 
 		return 0;
 	} else {
 		struct inst_info *inst;
 		Eina_List *l;
+		Eina_List *n;
 
-		EINA_LIST_FOREACH(info->inst_list, l, inst) {
-			if (inst->state == INST_CREATED) {
-				DbgPrint("Unload instance\n");
+		EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
+			if (inst->state == INST_REQUEST_TO_DELETE) {
+				pkgmgr_delete(inst, LOCAL);
+			} else if (inst->state == INST_CREATED) {
 				slave_unload_instance(inst->info->slave);
+				inst->state = INST_LOCAL_ONLY;
+			} else if (inst->state == INST_REQUEST_TO_CREATE) {
+				inst->state = INST_LOCAL_ONLY;
 			}
+		}
 
-			inst->state = INST_LOCAL_ONLY;
+		if (info->inst_list) {
+			DbgPrint("Remained===================\n");
+			EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
+				DbgPrint("%s - %s (%p)\n", inst->info->pkgname, inst->filename, inst->client);
+			}
+			DbgPrint("===================\n");
 		}
 
 		/* Try to re-activate after all deactivate callback is processed */
@@ -311,14 +360,15 @@ static int slave_deactivate_cb(struct slave_node *slave, void *data)
 static inline int delete_pkginfo(struct pkg_info *info)
 {
 	struct inst_info *inst;
+	Eina_List *l;
+	Eina_List *n;
 
-	slave_event_callback_del(info->slave, SLAVE_EVENT_DELETE, slave_del_cb);
-	slave_event_callback_del(info->slave, SLAVE_EVENT_ACTIVATE, slave_activate_cb);
-	slave_event_callback_del(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivate_cb);
+	slave_event_callback_del(info->slave, SLAVE_EVENT_DELETE, slave_del_cb, info);
+	slave_event_callback_del(info->slave, SLAVE_EVENT_ACTIVATE, slave_activate_cb, info);
+	slave_event_callback_del(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivate_cb, info);
 
-	EINA_LIST_FREE(info->inst_list, inst) {
-		DbgPrint("delete_instance\n");
-		delete_instance(inst);
+	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
+		pkgmgr_delete(inst, LOCAL);
 	}
 
 	if (info->fault_info) {
@@ -441,21 +491,17 @@ static struct pkg_info *new_pkginfo(const char *pkgname)
 		info->pinup = 1;
 	}
 
-	if (!info->secured) {
-		DbgPrint("Non-secured livebox is created for %s\n", info->pkgname);
+	if (!info->secured)
 		info->slave = slave_find_available();
-	}
 
 	if (!info->slave) {
 		char slavename[BUFSIZ];
 		snprintf(slavename, sizeof(slavename), "%lf", util_get_timestamp());
-
-		DbgPrint("Create a new slave %s for %s, (secured: %d\n", slavename, info->pkgname, info->secured);
 		info->slave = slave_create(slavename, info->secured);
 	}
 
 	if (!info->slave) {
-		ErrPrint("Failed to create a new slave\n");
+		ErrPrint("Failed to create a new slave(%ssecured)\n", info->secured ? "" : "non-");
 		delete_pkginfo(info);
 		return NULL;
 	}
@@ -505,7 +551,7 @@ void pkgmgr_pd_updated_by_inst(struct inst_info *inst, const char *descfile)
 	param = g_variant_new("(sssii)",
 			inst->info->pkgname, inst->filename, descfile, inst->pd_w, inst->pd_h);
 	if (param)
-		client_broadcast_command("pd_updated", param);
+		client_rpc_broadcast("pd_updated", param);
 	else
 		ErrPrint("Failed to create param (%s - %s)\n", inst->info->pkgname, inst->filename);
 }
@@ -518,7 +564,7 @@ void pkgmgr_lb_updated_by_inst(struct inst_info *inst)
 				inst->info->pkgname, inst->filename,
 				inst->lb_w, inst->lb_h, inst->priority);
 	if (param)
-		client_broadcast_command("lb_updated", param);
+		client_rpc_broadcast("lb_updated", param);
 	else
 		ErrPrint("Failed to create param (%s - %s)\n", inst->info->pkgname, inst->filename);
 
@@ -571,9 +617,9 @@ int pkgmgr_set_fault(const char *pkgname, const char *filename, const char *func
 	if (info->fault_info) {
 		/* Just for debugging and exceptional case,
 		 * This is not possible to occur */
-		DbgPrint("Previous fault info will be overrided with new info\n");
-		DbgPrint("Filename: %s\n", info->fault_info->filename);
-		DbgPrint("Function: %s\n", info->fault_info->function);
+		ErrPrint("Previous fault info will be overrided with new info\n");
+		ErrPrint("Filename: %s\n", info->fault_info->filename);
+		ErrPrint("Function: %s\n", info->fault_info->function);
 		free(info->fault_info->filename);
 		free(info->fault_info->function);
 		free(info->fault_info);
@@ -670,7 +716,7 @@ struct inst_info *pkgmgr_find(const char *pkgname, const char *filename)
 	return inst;
 }
 
-static inline int send_created_to_client(struct inst_info *inst)
+static inline int broadcast_created_event(struct inst_info *inst)
 {
 	GVariant *param;
 
@@ -693,9 +739,35 @@ static inline int send_created_to_client(struct inst_info *inst)
 			inst->period);
 
 	if (param)
-		client_broadcast_command("created", param);
+		client_rpc_broadcast("created", param);
 
 	return 0;
+}
+
+static void del_for_new_ret_cb(const char *funcname, GVariant *result, void *data)
+{
+	int ret;
+	struct inst_info *inst = data;
+	const char *pkgname;
+	const char *filename;
+
+	pkgmgr_inst_unref(inst);
+
+	if (!result)
+		return;
+
+	pkgname = pkgmgr_name(inst);
+	filename = pkgmgr_filename(inst);
+
+	g_variant_get(result, "(i)", &ret);
+	if (ret == 0) {
+		ErrPrint("%s is now deleting\n", pkgname);
+		pkgmgr_delete(inst, UNICAST);
+	} else {
+		ErrPrint("%s is not deleted - returns %d\n", pkgname, ret);
+	}
+
+	g_variant_unref(result);
 }
 
 static void new_ret_cb(const char *funcname, GVariant *result, void *data)
@@ -709,30 +781,49 @@ static void new_ret_cb(const char *funcname, GVariant *result, void *data)
 	int h;
 	int ret;
 
+	pkgmgr_inst_unref(inst);
+
+	if (!result)
+		return;
+
 	g_variant_get(result, "(iiid)", &ret, &w, &h, &priority);
 	g_variant_unref(result);
 
 	switch (ret) {
 	case 1: /* need to create */
+		if (inst->state == INST_REQUEST_TO_CREATE) {
 		/*!
 		 * \note
 		 * Send create livebox again
 		 * re-use "inst" from here
 		 */
-		timestamp = util_get_timestamp();
-		filename = util_new_filename(timestamp);
-		new_inst = pkgmgr_new(inst->client, timestamp,
+			timestamp = util_get_timestamp();
+			filename = util_new_filename(timestamp);
+			new_inst = pkgmgr_new(inst->client, timestamp,
 					inst->info->pkgname, filename,
 					inst->content, inst->cluster, inst->category, inst->period);
-		free(filename);
+			free(filename);
+		}
 	case 0: /* no need to create */
-		inst->lb_w = w;
-		inst->lb_h = h;
-		inst->priority = priority;
+		if (inst->state == INST_REQUEST_TO_CREATE) {
+			inst->lb_w = w;
+			inst->lb_h = h;
+			inst->priority = priority;
 
-		send_created_to_client(inst);
-		inst->state = INST_CREATED;
-		slave_load_instance(inst->info->slave);
+			broadcast_created_event(inst);
+			inst->state = INST_CREATED;
+			slave_load_instance(inst->info->slave);
+		} else if (inst->state == INST_REQUEST_TO_DELETE) {
+			GVariant *param;
+			param = g_variant_new("(ss)", inst->info->pkgname, inst->filename);
+			if (!param)
+				return;
+
+			pkgmgr_inst_ref(inst);
+			slave_rpc_async_request(inst->info->slave,
+					inst->info->pkgname, inst->filename,
+					"delete", param, del_for_new_ret_cb, inst);
+		}
 		break;
 	default: /* error */
 		/*\note
@@ -740,16 +831,7 @@ static void new_ret_cb(const char *funcname, GVariant *result, void *data)
 		 * send the deleted event or just delete an instance in the master
 		 * It will be cared by the "create_ret_cb"
 		 */
-		if (inst->client) {
-			GVariant *param;
-			/* Okay, the client wants to know about this */
-			param = g_variant_new("(ss)", inst->info->pkgname, inst->filename);
-			if (param)
-				client_push_command(inst->client, "deleted", param);
-		}
-
-		DbgPrint("pkgmgr_delete\n");
-		pkgmgr_delete(inst);
+		pkgmgr_delete(inst, UNICAST);
 		break;
 	}
 }
@@ -779,9 +861,41 @@ static inline void send_to_slave(struct inst_info *inst)
 	 * \note
 	 * Try to activate a slave if it is not activated
 	 */
+	DbgPrint("new : activate[%s - %s]\n", inst->info->pkgname, inst->filename);
 	slave_activate(inst->info->slave);
-
+	pkgmgr_inst_ref(inst);
 	(void)slave_rpc_async_request(inst->info->slave, inst->info->pkgname, inst->filename, "new", param, new_ret_cb, inst);
+}
+
+static int client_deactivate_cb(struct client_node *client, void *data)
+{
+	struct inst_info *inst = data;
+	GVariant *param;
+
+	DbgPrint("Client - %s (%s)\n", inst->info->pkgname, inst->filename);
+
+	switch (inst->state) {
+	case INST_CREATED:
+		param = g_variant_new("(ss)", inst->info->pkgname, inst->filename);
+		if (!param)
+			return 0;
+
+		pkgmgr_inst_ref(inst);
+		slave_rpc_async_request(inst->info->slave,
+				inst->info->pkgname, inst->filename,
+				"delete", param, del_ret_cb, inst);
+	case INST_REQUEST_TO_CREATE:
+		inst->state = INST_REQUEST_TO_DELETE;
+		break;
+	case INST_LOCAL_ONLY:
+		pkgmgr_delete(inst, LOCAL);
+		break;
+	case INST_REQUEST_TO_DELETE:
+	default:
+		break;
+	}
+
+	return 0;
 }
 
 struct inst_info *pkgmgr_new(struct client_node *client, double timestamp, const char *pkgname, const char *filename, const char *content, const char *cluster, const char *category, double period)
@@ -905,8 +1019,17 @@ struct inst_info *pkgmgr_new(struct client_node *client, double timestamp, const
 	inst->client = client;
 	inst->state = INST_REQUEST_TO_CREATE; /* send_to_slave */
 	info->inst_list = eina_list_append(info->inst_list, inst);
+	pkgmgr_inst_ref(inst);
+
+	if (inst->client) {
+		client_ref(inst->client);
+		pkgmgr_inst_ref(inst);
+		client_event_callback_add(inst->client, CLIENT_EVENT_DEACTIVATE, client_deactivate_cb, inst);
+	}
 
 	send_to_slave(inst);
+
+	DbgPrint("Create an instance %p\n", inst);
 	return inst;
 }
 
@@ -915,20 +1038,70 @@ struct client_node *pkgmgr_client(struct inst_info *inst)
 	return inst->client;
 }
 
-int pkgmgr_delete(struct inst_info *inst)
+static inline void delete_instance(struct inst_info *inst)
 {
 	struct pkg_info *info;
 
+	DbgPrint("Delete instance %p\n", inst);
+
 	info = inst->info;
 
-	info->inst_list = eina_list_remove(info->inst_list, inst);
-	DbgPrint("delete_instance\n");
-	delete_instance(inst);
+	if (inst->lb_script) {
+		script_handler_unload(inst->lb_script, 0);
+		script_handler_destroy(inst->lb_script);
+	}
 
-	/*! \note
-	 * Do not delete package info event if it has instances
-	 * if (!info->inst_list)
-	 */
+	if (inst->pd_script) {
+		script_handler_unload(inst->pd_script, 1);
+		script_handler_destroy(inst->pd_script);
+	}
+
+	info->inst_list = eina_list_remove(info->inst_list, inst);
+
+	if (inst->state == INST_CREATED)
+		slave_unload_instance(inst->info->slave);
+
+	(void)util_unlink(inst->filename);
+
+	free(inst->lb_path);
+	free(inst->lb_group);
+
+	free(inst->pd_path);
+	free(inst->pd_group);
+
+	free(inst->cluster);
+	free(inst->category);
+	free(inst->filename);
+	free(inst->content);
+
+	free(inst->script);
+	free(inst);
+}
+
+int pkgmgr_delete(struct inst_info *inst, int way)
+{
+	if (inst->client) {
+		DbgPrint("inst refcnt: %d, client refcnt: %d\n", pkgmgr_inst_refcnt(inst), client_refcnt(inst->client));
+		client_event_callback_del(inst->client, CLIENT_EVENT_DEACTIVATE, client_deactivate_cb, inst);
+		client_unref(inst->client);
+		pkgmgr_inst_unref(inst);
+	}
+
+	if (pkgmgr_inst_refcnt(inst) == 1) {
+		switch (way) {
+		case UNICAST:
+			unicast_delete_event(inst->client, inst->info->pkgname, inst->filename);
+			break;
+		case BROADCAST:
+			broadcast_delete_event(inst->info->pkgname, inst->filename);
+			break;
+		case LOCAL:
+		default:
+			break;
+		}
+	}
+
+	pkgmgr_inst_unref(inst);
 	return 0;
 }
 
@@ -1015,7 +1188,7 @@ int pkgmgr_inform_pkglist(struct client_node *client)
 			/* Send all fault package list to the new client */
 			param = g_variant_new("(sss)", pkgname, filename, func);
 			if (param)
-				client_push_command(client, "fault_package", param);
+				client_rpc_async_request(client, "fault_package", param);
 
 			continue;
 		}
@@ -1038,33 +1211,36 @@ int pkgmgr_inform_pkglist(struct client_node *client)
 					inst->text_pd,
 					inst->period);
 			if (param)
-				client_push_command(client, "created", param);
+				client_rpc_async_request(client, "created", param);
 		}
 	}
 
 	return 0;
 }
 
+/*!
+ * Before invoke this, we should guarantees the instance's state.
+ * it has to be exists on the local only.
+ */
 int pkgmgr_deleted(const char *pkgname, const char *filename)
 {
 	struct pkg_info *info;
 	struct inst_info *inst;
-	GVariant *param;
 
 	info = find_pkginfo(pkgname);
-	if (!info)
+	if (!info) {
+		ErrPrint("Package[%s] is not found\n", pkgname);
 		return -ENOENT;
+	}
 
 	inst = find_instance(info, filename);
-	if (!inst)
+	if (!inst) {
+		ErrPrint("Instance[%s - %s] is not found\n", pkgname, filename);
 		return -ENOENT;
+	}
 
-	param = g_variant_new("(ss)", pkgname, filename);
-	if (param)
-		client_broadcast_command("deleted", param);
-
-	DbgPrint("pkgmgr_delete\n");
-	pkgmgr_delete(inst);
+	inst->state = INST_LOCAL_ONLY;
+	pkgmgr_delete(inst, BROADCAST);
 	return 0;
 }
 
@@ -1123,8 +1299,8 @@ int pkgmgr_fini(void)
 	struct pkg_info *info;
 
 	EINA_LIST_FOREACH_SAFE(s_info.pkg_list, l, t, info) {
-		s_info.pkg_list = eina_list_remove_list(s_info.pkg_list, l);
 		delete_pkginfo(info);
+		s_info.pkg_list = eina_list_remove_list(s_info.pkg_list, l);
 	}
 
 	return 0;
@@ -1266,6 +1442,28 @@ void pkgmgr_clear_slave_info(struct slave_node *slave)
 		if (info->slave == slave)
 			info->slave = NULL;
 	}
+}
+
+void pkgmgr_inst_ref(struct inst_info *inst)
+{
+	inst->refcnt++;
+}
+
+void pkgmgr_inst_unref(struct inst_info *inst)
+{
+	if (inst->refcnt == 0) {
+		ErrPrint("Invalid refcnt\n");
+		return;
+	}
+
+	inst->refcnt--;
+	if (inst->refcnt == 0)
+		delete_instance(inst);
+}
+
+int pkgmgr_inst_refcnt(struct inst_info *inst)
+{
+	return inst->refcnt;
 }
 
 /* End of a file */

@@ -26,7 +26,6 @@ int setting_is_locked(void)
 		state = 0; /* UNLOCK */
 	}
 
-	DbgPrint("Lock state is %d\n", state);
 	return state;
 }
 

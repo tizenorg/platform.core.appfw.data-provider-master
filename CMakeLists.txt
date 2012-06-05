@@ -44,12 +44,10 @@ ADD_DEFINITIONS(${pkg_CFLAGS})
 ADD_EXECUTABLE(${PROJECT_NAME}
 	src/main.c
 	src/dbus.c
-	src/pkg_manager.c
 	src/util.c
 	src/fault_manager.c
 	src/parser.c
 	src/conf.c
-	src/client_manager.c
 	src/dead_monitor.c
 	src/ctx_client.c
 	src/group.c
@@ -60,7 +58,11 @@ ADD_EXECUTABLE(${PROJECT_NAME}
 	src/xmonitor.c
 	src/slave_life.c
 	src/slave_rpc.c
+	src/client_life.c
+	src/client_rpc.c
 	src/setting.c
+	src/package.c
+	src/instance.c
 )
 
 TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${pkg_LDFLAGS} "-ldl")

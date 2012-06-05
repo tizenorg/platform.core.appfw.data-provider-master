@@ -14,10 +14,11 @@
 #include <gio/gio.h>
 #include <dlog.h>
 
-#include "pkg_manager.h"
-//#include "client_manager.h"
 #include "slave_life.h"
 #include "slave_rpc.h"
+#include "client_life.h"
+#include "package.h"
+#include "instance.h"
 #include "script_handler.h"
 #include "fb.h"
 #include "debug.h"
@@ -120,17 +121,17 @@ static void render_post_cb(void *data, Evas *e, void *event_info)
 
 	inst = data;
 
-	info = pkgmgr_lb_script(inst);
+	info = instance_lb_handle(inst);
 	if (info && script_handler_evas(info) == e) {
 		fb_sync(script_handler_fb(info));
-		pkgmgr_lb_updated_by_inst(inst);
+		instance_lb_updated_by_instance(inst);
 		return;
 	}
 
-	info = pkgmgr_pd_script(inst);
+	info = instance_pd_handle(inst);
 	if (info && script_handler_evas(info) == e) {
 		fb_sync(script_handler_fb(info));
-		pkgmgr_pd_updated_by_inst(inst, NULL);
+		instance_pd_updated_by_instance(inst, NULL);
 		return;
 	}
 
@@ -166,9 +167,9 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double sx,
 	if (!part || strlen(part) == 0)
 		part = "";
 
-	pkgname = pkgmgr_name(info->inst);
-	filename = pkgmgr_filename(info->inst);
-	slave = pkgmgr_slave(pkgname);
+	pkgname = package_name(instance_package(info->inst));
+	filename = instance_id(info->inst);
+	slave = package_slave(instance_package(info->inst));
 	param = g_variant_new("(ssssddddddi)",
 			pkgname, filename,
 			signal, part,
@@ -187,7 +188,7 @@ int script_handler_load(struct script_info *info, int is_pd)
 {
 	int ret;
 
-	if (!info->port)
+	if (!info || !info->port)
 		return -EINVAL;
 
 	if (info->loaded > 0) {
@@ -223,7 +224,7 @@ int script_handler_load(struct script_info *info, int is_pd)
 	fb_sync(info->fb);
 	info->loaded = 1;
 
-	script_signal_emit(script_handler_evas(info), pkgmgr_filename(info->inst), is_pd ? "pd,show" : "lb,show", 0.0f, 0.0f, 0.0f, 0.0f);
+	script_signal_emit(script_handler_evas(info), instance_id(info->inst), is_pd ? "pd,show" : "lb,show", 0.0f, 0.0f, 0.0f, 0.0f);
 	return 0;
 }
 
@@ -231,7 +232,7 @@ int script_handler_unload(struct script_info *info, int is_pd)
 {
 	Ecore_Evas *ee;
 
-	if (!info->port)
+	if (!info || !info->port)
 		return -EINVAL;
 
 	info->loaded--;
@@ -243,10 +244,11 @@ int script_handler_unload(struct script_info *info, int is_pd)
 		return 0;
 	}
 
+	script_signal_emit(script_handler_evas(info), instance_id(info->inst), is_pd ? "pd,hide" : "lb,hide", 0.0f, 0.0f, 0.0f, 0.0f);
+
 	if (info->port->unload(info->port_data, script_handler_evas(info)) < 0)
 		ErrPrint("Failed to unload script object. but go ahead\n");
 
-	script_signal_emit(script_handler_evas(info), pkgmgr_filename(info->inst), is_pd ? "pd,hide" : "lb,hide", 0.0f, 0.0f, 0.0f, 0.0f);
 	evas_event_callback_del(script_handler_evas(info), EVAS_CALLBACK_RENDER_FLUSH_POST, render_post_cb);
 
 	ee = fb_canvas(info->fb);
@@ -267,16 +269,16 @@ struct script_info *script_handler_create(struct inst_info *inst, const char *fi
 
 	filename = malloc(fname_len);
 	if (!filename) {
-		ErrPrint("Memory: %s\n", strerror(errno));
+		ErrPrint("Heap: %s\n", strerror(errno));
 		return NULL;
 	}
 
 	snprintf(filename, fname_len, "%s%s.%lf",
-			g_conf.path.image, basename((char*)file), util_get_timestamp());
+			g_conf.path.image, basename((char*)file), util_timestamp());
 
 	info = calloc(1, sizeof(*info));
 	if (!info) {
-		ErrPrint("Memory: %s\n", strerror(errno));
+		ErrPrint("Heap: %s\n", strerror(errno));
 		free(filename);
 		return NULL;
 	}
@@ -290,8 +292,10 @@ struct script_info *script_handler_create(struct inst_info *inst, const char *fi
 	}
 
 	info->inst = inst;
-	info->port = find_port(pkgmgr_script(inst));
+	info->port = find_port(package_script(instance_package(inst)));
 	if (!info->port) {
+		ErrPrint("Failed to find a proper port for [%s]%s\n",
+					instance_package(inst), package_script(instance_package(inst)));
 		fb_destroy(info->fb);
 		free(info);
 		return NULL;
@@ -302,6 +306,7 @@ struct script_info *script_handler_create(struct inst_info *inst, const char *fi
 
 	info->port_data = info->port->create(file, group);
 	if (!info->port_data) {
+		ErrPrint("Failed to create a port (%s - %s)\n", file, group);
 		fb_destroy(info->fb);
 		free(info);
 		return NULL;
@@ -312,11 +317,15 @@ struct script_info *script_handler_create(struct inst_info *inst, const char *fi
 
 int script_handler_destroy(struct script_info *info)
 {
-	if (!info->port)
+	if (!info || !info->port) {
+		ErrPrint("port is not valid\n");
 		return -EINVAL;
+	}
 
-	if (info->loaded != 0)
+	if (info->loaded != 0) {
+		ErrPrint("Script handler is not unloaded\n");
 		return -EINVAL;
+	}
 
 	if (info->port->destroy(info->port_data) < 0)
 		ErrPrint("Failed to destroy port, but go ahead\n");
@@ -328,7 +337,7 @@ int script_handler_destroy(struct script_info *info)
 
 int script_handler_is_loaded(struct script_info *info)
 {
-	return info->loaded > 0;
+	return info ? info->loaded > 0 : 0;
 }
 
 struct fb_info *script_handler_fb(struct script_info *info)
@@ -348,7 +357,7 @@ static int update_script_text(struct inst_info *inst, struct block *block, int i
 	if (!block || !block->part || !block->data)
 		return -EINVAL;
 
-	info = is_pd ? pkgmgr_pd_script(inst) : pkgmgr_lb_script(inst);
+	info = is_pd ? instance_pd_handle(inst) : instance_lb_handle(inst);
 	if (!info)
 		return -EFAULT;
 
@@ -366,7 +375,7 @@ static int update_script_image(struct inst_info *inst, struct block *block, int 
 	if (!block || !block->part)
 		return -EINVAL;
 
-	info = is_pd ? pkgmgr_pd_script(inst) : pkgmgr_lb_script(inst);
+	info = is_pd ? instance_pd_handle(inst) : instance_lb_handle(inst);
 	if (!info)
 		return -EFAULT;
 
@@ -384,7 +393,7 @@ static int update_script_script(struct inst_info *inst, struct block *block, int
 	if (!block || !block->part)
 		return -EINVAL;
 
-	info = is_pd ? pkgmgr_pd_script(inst) : pkgmgr_lb_script(inst);
+	info = is_pd ? instance_pd_handle(inst) : instance_lb_handle(inst);
 	if (!info)
 		return -EFAULT;
 
@@ -402,7 +411,7 @@ static int update_script_signal(struct inst_info *inst, struct block *block, int
 	if (!block)
 		return -EINVAL;
 
-	info = is_pd ? pkgmgr_pd_script(inst) : pkgmgr_lb_script(inst);
+	info = is_pd ? instance_pd_handle(inst) : instance_lb_handle(inst);
 	if (!info)
 		return -EFAULT;
 
@@ -421,12 +430,12 @@ static int update_script_drag(struct inst_info *inst, struct block *block, int i
 	if (!block || !block->data || !block->part)
 		return -EINVAL;
 
-	info = is_pd ? pkgmgr_pd_script(inst) : pkgmgr_lb_script(inst);
+	info = is_pd ? instance_pd_handle(inst) : instance_lb_handle(inst);
 	if (!info)
 		return -EFAULT;
 
 	if (sscanf(block->data, "%lfx%lf", &dx, &dy) != 2) {
-		ErrPrint("Invalid format of data\n");
+		ErrPrint("Invalid format of data (DRAG data [%s])\n", block->data);
 		return -EINVAL;
 	}
 
@@ -437,6 +446,24 @@ static int update_script_drag(struct inst_info *inst, struct block *block, int i
 	return 0;
 }
 
+int script_handler_resize(struct script_info *info, int w, int h)
+{
+	fb_resize(script_handler_fb(info), w, h);
+
+	info->w = w;
+	info->h = h;
+
+	if (info->loaded > 0) {
+		if (info->port->unload(info->port_data, script_handler_evas(info)) < 0)
+			ErrPrint("Failed to unload\n");
+
+		if (info->port->load(info->port_data, script_handler_evas(info), w, h) < 0)
+			ErrPrint("Failed to load\n");
+	}
+
+	return 0;
+}
+
 static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 {
 	struct script_info *info;
@@ -444,7 +471,7 @@ static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 	if (!block || !block->part || !block->data)
 		return -EINVAL;
 
-	info = is_pd ? pkgmgr_pd_script(inst) : pkgmgr_lb_script(inst);
+	info = is_pd ? instance_pd_handle(inst) : instance_lb_handle(inst);
 	if (!info)
 		return -EFAULT;
 
@@ -455,24 +482,17 @@ static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 		Evas_Coord w, h;
 
 		if (sscanf(block->data, "%dx%d", &w, &h) != 2) {
-			ErrPrint("Invalid format (%s)\n", block->data);
+			ErrPrint("Invalid format for SIZE(%s)\n", block->data);
 			return -EINVAL;
 		}
 
 		if (!block->id) {
-			pkgmgr_update_size(inst, w, h, is_pd);
-			fb_resize(script_handler_fb(info), w, h);
+			if (is_pd)
+				instance_set_pd_info(inst, w, h);
+			else
+				instance_set_lb_info(inst, w, h, -1.0f);
 
-			info->w = w;
-			info->h = h;
-
-			if (info->loaded > 0) {
-				if (info->port->unload(info->port_data, script_handler_evas(info)) < 0)
-					ErrPrint("Failed to unload\n");
-
-				if (info->port->load(info->port_data, script_handler_evas(info), w, h) < 0)
-					ErrPrint("Failed to load\n");
-			}
+			script_handler_resize(info, w, h);
 		} else {
 			info->port->update_size(info->port_data, script_handler_evas(info), block->id, w, h);
 		}
@@ -552,7 +572,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 	};
 
 	block = NULL;
-	inst = pkgmgr_find(pkgname, filename);
+	inst = instance_find_by_id(pkgname, filename);
 	if (!inst)
 		return -EINVAL;
 

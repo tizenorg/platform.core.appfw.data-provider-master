@@ -12,16 +12,18 @@
 #include <dlog.h>
 
 #include "debug.h"
-#include "pkg_manager.h"
-#include "fault_manager.h"
 #include "slave_life.h"
 #include "slave_rpc.h"
-#include "client_manager.h"
+#include "client_life.h"
+#include "client_rpc.h"
+#include "fault_manager.h"
+#include "instance.h"
 #include "script_handler.h"
 #include "util.h"
 #include "conf.h"
 #include "rpc_to_slave.h"
 #include "ctx_client.h"
+#include "package.h"
 
 static struct info {
 	GDBusNodeInfo *node_info;
@@ -45,7 +47,7 @@ static struct info {
 	" </method>"
 	" <method name='clicked'>"
 	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='s' name='event' direction='in' />"
 	"  <arg type='d' name='timestamp' direction='in' />"
 	"  <arg type='d' name='x' direction='in' />"
@@ -54,7 +56,7 @@ static struct info {
 	" </method>"
 	" <method name='text_signal'>"
 	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='s' name='emission' direction='in' />"
 	"  <arg type='s' name='source' direction='in' />"
 	"  <arg type='d' name='sx' direction='in' />"
@@ -65,12 +67,12 @@ static struct info {
 	" </method>"
 	" <method name='delete'>"
 	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='resize'>"
 	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='w' direction='in' />"
 	"  <arg type='i' name='h' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
@@ -86,20 +88,20 @@ static struct info {
 	" </method>"
 	" <method name='set_period'>"
 	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='d' name='period' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='change_group'>"
 	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='s' name='cluster' direction='in' />"
 	"  <arg type='s' name='category' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='pd_mouse_down'>"
 	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='width' direction='in' />"
 	"  <arg type='i' name='height' direction='in' />"
 	"  <arg type='d' name='timestamp' direction='in' />"
@@ -109,7 +111,7 @@ static struct info {
 	" </method>"
 	" <method name='pd_mouse_up'>"
 	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='width' direction='in' />"
 	"  <arg type='i' name='height' direction='in' />"
 	"  <arg type='d' name='timestamp' direction='in' />"
@@ -119,7 +121,7 @@ static struct info {
 	" </method>"
 	" <method name='pd_mouse_move'>"
 	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='width' direction='in' />"
 	"  <arg type='i' name='height' direction='in' />"
 	"  <arg type='d' name='timestamp' direction='in' />"
@@ -129,7 +131,7 @@ static struct info {
 	" </method>"
 	" <method name='lb_mouse_move'>"
 	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='width' direction='in' />"
 	"  <arg type='i' name='height' direction='in' />"
 	"  <arg type='d' name='timestamp' direction='in' />"
@@ -139,7 +141,7 @@ static struct info {
 	" </method>"
 	" <method name='lb_mouse_down'>"
 	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='width' direction='in' />"
 	"  <arg type='i' name='height' direction='in' />"
 	"  <arg type='d' name='timestamp' direction='in' />"
@@ -149,7 +151,7 @@ static struct info {
 	" </method>"
 	" <method name='lb_mouse_up'>"
 	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='width' direction='in' />"
 	"  <arg type='i' name='height' direction='in' />"
 	"  <arg type='d' name='timestamp' direction='in' />"
@@ -159,18 +161,18 @@ static struct info {
 	" </method>"
 	" <method name='pinup_changed'>"
 	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='pinup' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='create_pd'>"
 	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='destroy_pd'>"
 	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='activate_package'>"
@@ -190,14 +192,14 @@ static struct info {
 	" <method name='call'>"
 	"  <arg type='s' name='slave_name' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='s' name='funcname' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='ret'>"
 	"  <arg type='s' name='slave_name' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='s' name='funcname' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
@@ -208,7 +210,7 @@ static struct info {
 	" <method name='updated'>"
 	"  <arg type='s' name='slave_name' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='width' direction='in' />"
 	"  <arg type='i' name='height' direction='in' />"
 	"  <arg type='d' name='priority' direction='in' />"
@@ -217,14 +219,14 @@ static struct info {
 	" <method name='desc_updated'>"
 	"  <arg type='s' name='slave_name' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='s' name='descfile' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='deleted'>"
 	"  <arg type='s' name='slave_name' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
-	"  <arg type='s' name='filename' direction='in' />"
+	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 
@@ -261,20 +263,20 @@ static void method_ping(GDBusMethodInvocation *inv, GVariant *param)
 static void method_call(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	const char *funcname;
 	const char *slave_name;
 	struct slave_node *node;
 	int ret;
 
-	g_variant_get(param, "(&s&s&s&s)", &slave_name, &pkgname, &filename, &funcname);
+	g_variant_get(param, "(&s&s&s&s)", &slave_name, &pkgname, &id, &funcname);
 
 	node = slave_find_by_name(slave_name);
 	if (!node) {
 		ErrPrint("Failed to find a correct slave: %s\n", slave_name);
 		ret = -EFAULT;
 	} else {
-		ret = fault_func_call(node, pkgname, filename, funcname);
+		ret = fault_func_call(node, pkgname, id, funcname);
 	}
 
 	param = g_variant_new("(i)", ret);
@@ -287,20 +289,20 @@ static void method_call(GDBusMethodInvocation *inv, GVariant *param)
 static void method_ret(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	const char *funcname;
 	const char *slave_name;
 	struct slave_node *node;
 	int ret;
 
-	g_variant_get(param, "(&s&s&s&s)", &slave_name, &pkgname, &filename, &funcname);
+	g_variant_get(param, "(&s&s&s&s)", &slave_name, &pkgname, &id, &funcname);
 
 	node = slave_find_by_name(slave_name);
 	if (!node) {
 		ErrPrint("Failed to find a correct slave: %s\n", slave_name);
 		ret = -EFAULT;
 	} else {
-		ret = fault_func_ret(node, pkgname, filename, funcname);
+		ret = fault_func_ret(node, pkgname, id, funcname);
 	}
 
 	param = g_variant_new("(i)", ret);
@@ -313,7 +315,7 @@ static void method_ret(GDBusMethodInvocation *inv, GVariant *param)
 static void method_text_signal(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	const char *emission;
 	const char *source;
 	double sx;
@@ -323,6 +325,7 @@ static void method_text_signal(GDBusMethodInvocation *inv, GVariant *param)
 	struct client_node *client;
 	GDBusConnection *conn;
 	int ret;
+	struct inst_info *inst;
 
 	conn = g_dbus_method_invocation_get_connection(inv);
 	if (!conn) {
@@ -333,7 +336,7 @@ static void method_text_signal(GDBusMethodInvocation *inv, GVariant *param)
 		return;
 	}
 
-	client = client_find_by_connection(conn);
+	client = client_rpc_find_by_conn(conn);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
 		/*! NOTE: Ignoring this and
@@ -342,29 +345,12 @@ static void method_text_signal(GDBusMethodInvocation *inv, GVariant *param)
 		return;
 	}
 
-	g_variant_get(param, "(&s&s&s&sdddd)", &pkgname, &filename, &emission, &source, &sx, &sy, &ex, &ey);
-
-	if (pkgmgr_is_fault(pkgname)) {
-		ret = -EAGAIN;
+	g_variant_get(param, "(&s&s&s&sdddd)", &pkgname, &id, &emission, &source, &sx, &sy, &ex, &ey);
+	inst = instance_find_by_id(pkgname, id);
+	if (!inst) {
+		ret = -ENOENT;
 	} else {
-		struct slave_node *slave;
-
-		slave = pkgmgr_slave(pkgname);
-		if (!slave) {
-			ErrPrint("Package[%s - %s] is not loaded\n", pkgname, filename);
-			ret = -ENETUNREACH;
-		} else {
-			/*!
-			 * \NOTE: just reuse "param" or renew it?
-			 *        Now, I'll renew it.
-			 *        Please, don't ask me why.
-			 */
-			param = g_variant_new("(ssssdddd)", pkgname, filename, emission, source, sx, sy, ex, ey);
-			if (!param)
-				ret = -EFAULT;
-			else
-				ret = slave_rpc_async_request(slave, pkgname, filename, "text_signal", param, NULL, NULL);
-		}
+		ret = instance_text_signal_emit(inst, emission, source, sx, sy, ex, ey);
 	}
 
 	param = g_variant_new("(i)", ret);
@@ -377,7 +363,7 @@ static void method_text_signal(GDBusMethodInvocation *inv, GVariant *param)
 static void method_clicked(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	const char *event;
 	double timestamp;
 	double x;
@@ -385,6 +371,7 @@ static void method_clicked(GDBusMethodInvocation *inv, GVariant *param)
 	int ret;
 	struct client_node *client;
 	GDBusConnection *conn;
+	struct inst_info *inst;
 
 	conn = g_dbus_method_invocation_get_connection(inv);
 	if (!conn) {
@@ -392,33 +379,18 @@ static void method_clicked(GDBusMethodInvocation *inv, GVariant *param)
 		return;
 	}
 
-	client = client_find_by_connection(conn);
+	client = client_rpc_find_by_conn(conn);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
 		return;
 	}
 
-	g_variant_get(param, "(&s&s&sddd)", &pkgname, &filename, &event, &timestamp, &x, &y);
-
-	if (pkgmgr_is_fault(pkgname)) {
-		/* TODO: Load this package */
-		ret = -EAGAIN;
+	g_variant_get(param, "(&s&s&sddd)", &pkgname, &id, &event, &timestamp, &x, &y);
+	inst = instance_find_by_id(pkgname, id);
+	if (!inst) {
+		ret = -ENOENT;
 	} else {
-		struct slave_node *slave;
-
-		slave = pkgmgr_slave(pkgname);
-		if (!slave) {
-			/* TODO: Impossible */
-			ErrPrint("Package[%s - %s] is not loaded\n", pkgname, filename);
-			ret = -ENETUNREACH;
-		} else {
-			/* NOTE: param is resued from here */
-			param = g_variant_new("(sssddd)", pkgname, filename, event, timestamp, x, y);
-			if (!param)
-				ret = -EFAULT;
-			else
-				ret = slave_rpc_async_request(slave, pkgname, filename, "clicked", param, NULL, NULL);
-		}
+		ret = instance_clicked(inst, event, timestamp, x, y);
 	}
 
 	param = g_variant_new("(i)", ret);
@@ -504,12 +476,12 @@ static void method_desc_updated(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *slavename;
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	const char *descfile;
 	struct slave_node *slave;
 	int ret;
 
-	g_variant_get(param, "(&s&s&s&s)", &slavename, &pkgname, &filename, &descfile);
+	g_variant_get(param, "(&s&s&s&s)", &slavename, &pkgname, &id, &descfile);
 
 	slave = slave_find_by_name(slavename);
 	if (!slave) {
@@ -518,14 +490,18 @@ static void method_desc_updated(GDBusMethodInvocation *inv, GVariant *param)
 	} else {
 		struct inst_info *inst;
 
-		inst = pkgmgr_find(pkgname, filename);
-		if (inst) {
-			if (pkgmgr_text_pd(inst))
-				ret = pkgmgr_pd_updated(pkgname, filename, descfile, 0, 0);
-			else
-				ret = script_handler_parse_desc(pkgname, filename, descfile, 1);
+		inst = instance_find_by_id(pkgname, id);
+		if (!inst) {
+			ret = -ENOENT;
+		} else if (package_pd_type(instance_package(inst)) == PD_TYPE_TEXT) {
+			instance_set_pd_info(inst, 0, 0);
+			instance_pd_updated(pkgname, id, descfile);
+			ret = 0;
+		} else if (script_handler_is_loaded(instance_pd_handle(inst))) {
+			ret = script_handler_parse_desc(pkgname, id, descfile, 1);
 		} else {
-			ret = -EINVAL;
+			DbgPrint("desc updated, but ignored.(%s)\n", instance_id(inst));
+			ret = 0;
 		}
 	}
 
@@ -540,14 +516,14 @@ static void method_updated(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *slavename;
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	int x;
 	int y;
 	double priority;
 	struct slave_node *slave;
 	int ret;
 
-	g_variant_get(param, "(&s&s&siid)", &slavename, &pkgname, &filename, &x, &y, &priority);
+	g_variant_get(param, "(&s&s&siid)", &slavename, &pkgname, &id, &x, &y, &priority);
 
 	slave = slave_find_by_name(slavename);
 	if (!slave) {
@@ -556,14 +532,21 @@ static void method_updated(GDBusMethodInvocation *inv, GVariant *param)
 	} else {
 		struct inst_info *inst;
 
-		inst = pkgmgr_find(pkgname, filename);
+		inst = instance_find_by_id(pkgname, id);
 		if (inst) {
-			if (pkgmgr_lb_script(inst))
-				ret = script_handler_parse_desc(pkgname, filename, filename, 0);
-			else /* pkgmgr_text_lb(inst) */
-				ret = pkgmgr_lb_updated(pkgname, filename, x, y, priority);
+			if (package_lb_type(instance_package(inst)) == LB_TYPE_SCRIPT) {
+				ret = script_handler_parse_desc(pkgname, id, id, 0);
+			} else {
+				/*!
+				 * \check
+				 * text format (inst)
+				 */
+				instance_set_lb_info(inst, x, y, priority);
+				instance_lb_updated(pkgname, id);
+				ret = 0;
+			}
 		} else {
-			ret = -EINVAL;
+			ret = -ENOENT;
 		}
 	}
 
@@ -578,18 +561,24 @@ static void method_deleted(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *slavename;
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	struct slave_node *slave;
 	int ret;
 
-	g_variant_get(param, "(&s&s&s)", &slavename, &pkgname, &filename);
+	g_variant_get(param, "(&s&s&s)", &slavename, &pkgname, &id);
 
 	slave = slave_find_by_name(slavename);
 	if (!slave) {
 		ErrPrint("Unknown slave: %s\n", slavename);
 		ret = -EINVAL;
 	} else {
-		ret = pkgmgr_deleted(pkgname, filename);
+		struct inst_info *inst;
+
+		inst = instance_find_by_id(pkgname, id);
+		if (!inst)
+			ret = -ENOENT;
+		else
+			ret = instance_destroyed(inst);
 	}
 
 	param = g_variant_new("(i)", ret);
@@ -622,42 +611,50 @@ static void client_proxy_prepared_cb(GObject *obj, GAsyncResult *res, gpointer c
 
 	g_signal_connect(proxy, "g-signal", G_CALLBACK(on_client_signal), NULL);
 
-	ret = client_update_proxy(client, proxy);
+	ret = client_rpc_update_proxy(client, proxy);
 	if (ret < 0)
 		g_object_unref(proxy);
 }
 
 static void method_acquire(GDBusMethodInvocation *inv, GVariant *param)
 {
-	struct client_node *client;
-	int client_pid;
+	int pid;
 	int ret;
+	struct client_node *client;
+	GDBusConnection *conn;
 
-	g_variant_get(param, "(i)", &client_pid);
+	conn = g_dbus_method_invocation_get_connection(inv);
+	if (!conn) {
+		ErrPrint("Failed to get connection\n");
+		return;
+	}
+
+	DbgPrint("Acquire procedure is started\n");
+	client = client_rpc_find_by_conn(conn);
+	if (client) {
+		ErrPrint("Client is already registered\n");
+		return;
+	}
+
+	g_variant_get(param, "(i)", &pid);
+
+	DbgPrint("Client tries to acquire access permission: %d\n", pid);
 
 	ret = 0;
 
-	client = client_find(client_pid);
-	if (client) {
-		ErrPrint("%d is already registered client\n", client_pid);
-		ret = -EEXIST;
-		goto errout;
-	}
-
-	client = client_new(client_pid);
+	client = client_create(pid);
 	if (!client) {
-		ErrPrint("Failed to create client: %d\n", client_pid);
+		ErrPrint("Failed to create client: %d\n", pid);
 		ret = -EFAULT;
-		goto errout;
 	}
 
-errout:
 	param = g_variant_new("(i)", ret);
 	if (!param)
 		ErrPrint("Failed to create variant\n");
 
 	g_dbus_method_invocation_return_value(inv, param);
 
+	DbgPrint("Acquire returns %d\n", ret);
 	if (ret == 0) {
 		GDBusConnection *conn;
 		const char *sender;
@@ -667,6 +664,8 @@ errout:
 			ErrPrint("Failed to get connection object\n");
 			return;
 		}
+
+		client_rpc_update_conn(client, conn);
 
 		sender = g_dbus_method_invocation_get_sender(inv);
 		g_dbus_proxy_new(conn,
@@ -682,42 +681,69 @@ errout:
 
 static void method_release(GDBusMethodInvocation *inv, GVariant *param)
 {
-	struct client_node *client;
 	int pid;
-	int ret;
+	struct client_node *client;
+	GDBusConnection *conn;
 
-	g_variant_get(param, "(i)", &pid);
-
-	client = client_find(pid);
-	if (!client) {
-		ErrPrint("Unknown client: %d\n", pid);
-		ret = -EINVAL;
-	} else {
-		client_destroy(client);
-		ret = 0;
+	conn = g_dbus_method_invocation_get_connection(inv);
+	if (!conn) {
+		ErrPrint("Failed to get connection\n");
+		return;
 	}
 
-	param = g_variant_new("(i)", ret);
+	client = client_rpc_find_by_conn(conn);
+	if (!client) {
+		ErrPrint("Failed to find a client\n");
+		return;
+	}
+
+	g_variant_get(param, "(i)", &pid);
+	if (pid != client_pid(client)) {
+		ErrPrint("PID is not matched (%d - %d)\n", pid, client_pid(client));
+		return;
+	}
+
+	param = g_variant_new("(i)", 0);
 	if (!param)
 		ErrPrint("Failed to create variant\n");
 
 	g_dbus_method_invocation_return_value(inv, param);
+
+	client_destroy(client);
 }
 
 static void method_lb_mouse_up(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	int w;
 	int h;
 	double timestamp;
 	double x;
 	double y;
 	int ret;
+	struct client_node *client;
+	GDBusConnection *conn;
+	struct inst_info *inst;
 
-	g_variant_get(param, "(ssiiddd)", &pkgname, &filename, &w, &h, &timestamp, &x, &y);
+	conn = g_dbus_method_invocation_get_connection(inv);
+	if (!conn) {
+		ErrPrint("Failed to get connection\n");
+		return;
+	}
 
-	if (pkgmgr_is_fault(pkgname)) {
+	client = client_rpc_find_by_conn(conn);
+	if (!client) {
+		ErrPrint("Failed to find a client\n");
+		return;
+	}
+
+	g_variant_get(param, "(ssiiddd)", &pkgname, &id, &w, &h, &timestamp, &x, &y);
+
+	inst = instance_find_by_id(pkgname, id);
+	if (!inst) {
+		ret = -ENOENT;
+	} else if (package_is_fault(instance_package(inst))) {
 		/*!
 		 * \note
 		 * If the package is registered as fault module,
@@ -725,29 +751,22 @@ static void method_lb_mouse_up(GDBusMethodInvocation *inv, GVariant *param)
 		 */
 		ret = -EAGAIN;
 	} else {
-		struct inst_info *inst;
-		struct script_info *info;
+		struct script_info *script;
 		Evas *e;
 
-		inst = pkgmgr_find(pkgname, filename);
-		if (!inst) {
-			ret = -ENOENT;
-			goto out;
-		}
-
-		info = pkgmgr_lb_script(inst);
-		if (!info) {
+		script = instance_lb_handle(inst);
+		if (!script) {
 			ret = -EFAULT;
 			goto out;
 		}
 
-		e = script_handler_evas(info);
+		e = script_handler_evas(script);
 		if (!e) {
 			ret = -EFAULT;
 			goto out;
 		}
 
-		script_handler_update_pointer(info, x, y, 0);
+		script_handler_update_pointer(script, x, y, 0);
 
 		evas_event_feed_mouse_up(e, 1, EVAS_BUTTON_NONE, timestamp, NULL);
 		evas_event_feed_mouse_out(e, timestamp, NULL);
@@ -765,17 +784,37 @@ out:
 static void method_create_pd(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	struct inst_info *inst;
 	int ret;
+	struct client_node *client;
+	GDBusConnection *conn;
 
-	g_variant_get(param, "(&s&s)", &pkgname, &filename);
+	conn = g_dbus_method_invocation_get_connection(inv);
+	if (!conn) {
+		ErrPrint("Failed to get connection\n");
+		return;
+	}
 
-	inst = pkgmgr_find(pkgname, filename);
-	if (!inst)
+	client = client_rpc_find_by_conn(conn);
+	if (!client) {
+		ErrPrint("Failed to find a client\n");
+		return;
+	}
+
+	g_variant_get(param, "(&s&s)", &pkgname, &id);
+
+	inst = instance_find_by_id(pkgname, id);
+	if (!inst) {
 		ret = -ENOENT;
-	else
-		ret = pkgmgr_load_pd(inst);
+	} else {
+		if (package_is_fault(instance_package(inst))) {
+			ret = -EFAULT;
+		} else {
+			DbgPrint("Load script handler for %s\n", package_name(instance_package(inst)));
+			ret = script_handler_load(instance_pd_handle(inst), 1);
+		}
+	}
 
 	param = g_variant_new("(i)", ret);
 	if (!param)
@@ -789,6 +828,20 @@ static void method_livebox_is_exists(GDBusMethodInvocation *inv, GVariant *param
 {
 	const char *pkgname;
 	int ret;
+	struct client_node *client;
+	GDBusConnection *conn;
+
+	conn = g_dbus_method_invocation_get_connection(inv);
+	if (!conn) {
+		ErrPrint("Failed to get connection\n");
+		return;
+	}
+
+	client = client_rpc_find_by_conn(conn);
+	if (!client) {
+		ErrPrint("Failed to find a client\n");
+		return;
+	}
 
 	g_variant_get(param, "(&s)", &pkgname);
 
@@ -805,10 +858,29 @@ static void method_activate_pkg(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
 	int ret;
+	struct client_node *client;
+	GDBusConnection *conn;
+	struct pkg_info *info;
+
+	conn = g_dbus_method_invocation_get_connection(inv);
+	if (!conn) {
+		ErrPrint("Failed to get connection\n");
+		return;
+	}
+
+	client = client_rpc_find_by_conn(conn);
+	if (!client) {
+		ErrPrint("Failed to find a client\n");
+		return;
+	}
 
 	g_variant_get(param, "(&s)", &pkgname);
 
-	ret = pkgmgr_clear_fault(pkgname);
+	info = package_find(pkgname);
+	if (!info)
+		ret = -ENOENT;
+	else
+		ret = package_clear_fault(info);
 
 	param = g_variant_new("(i)", ret);
 	if (!param)
@@ -820,17 +892,36 @@ static void method_activate_pkg(GDBusMethodInvocation *inv, GVariant *param)
 static void method_destroy_pd(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	struct inst_info *inst;
 	int ret;
+	struct client_node *client;
+	GDBusConnection *conn;
 
-	g_variant_get(param, "(&s&s)", &pkgname, &filename);
+	conn = g_dbus_method_invocation_get_connection(inv);
+	if (!conn) {
+		ErrPrint("Failed to get connection\n");
+		return;
+	}
 
-	inst = pkgmgr_find(pkgname, filename);
-	if (!inst)
+	client = client_rpc_find_by_conn(conn);
+	if (!client) {
+		ErrPrint("Failed to find a client\n");
+		return;
+	}
+
+	g_variant_get(param, "(&s&s)", &pkgname, &id);
+
+	inst = instance_find_by_id(pkgname, id);
+	if (!inst) {
 		ret = -ENOENT;
-	else
-		ret = pkgmgr_unload_pd(inst);
+	} else {
+		if (package_is_fault(instance_package(inst))) {
+			ret = -EFAULT;
+		} else {
+			ret = script_handler_unload(instance_pd_handle(inst), 1);
+		}
+	}
 
 	param = g_variant_new("(i)", ret);
 	if (!param)
@@ -842,23 +933,32 @@ static void method_destroy_pd(GDBusMethodInvocation *inv, GVariant *param)
 static void method_pinup_changed(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	int pinup;
 	int ret;
+	struct client_node *client;
+	GDBusConnection *conn;
+	struct inst_info *inst;
 
-	g_variant_get(param, "(&s&si)", &pkgname, &filename, &pinup);
-
-	if (pkgmgr_is_fault(pkgname)) {
-		ret = -EAGAIN;
-	} else {
-		struct inst_info *inst;
-
-		inst = pkgmgr_find(pkgname, filename);
-		if (!inst)
-			ret = -ENOENT;
-		else
-			ret = pkgmgr_set_pinup(inst, pinup);
+	conn = g_dbus_method_invocation_get_connection(inv);
+	if (!conn) {
+		ErrPrint("Failed to get connection\n");
+		return;
 	}
+
+	client = client_rpc_find_by_conn(conn);
+	if (!client) {
+		ErrPrint("Failed to find a client\n");
+		return;
+	}
+
+	g_variant_get(param, "(&s&si)", &pkgname, &id, &pinup);
+
+	inst = instance_find_by_id(pkgname, id);
+	if (!inst)
+		ret = -ENOENT;
+	else
+		ret = instance_set_pinup(inst, pinup);
 
 	param = g_variant_new("(i)", ret);
 	if (!param)
@@ -870,54 +970,66 @@ static void method_pinup_changed(GDBusMethodInvocation *inv, GVariant *param)
 static void method_lb_mouse_down(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	int w;
 	int h;
 	double timestamp;
 	double x;
 	double y;
 	int ret;
+	struct client_node *client;
+	GDBusConnection *conn;
+	struct inst_info *inst;
 
-	g_variant_get(param, "(&s&siiddd)", &pkgname, &filename, &w, &h, &timestamp, &x, &y);
-
-	if (pkgmgr_is_fault(pkgname)) {
-		/*!
-		 * \note
-		 * If the package is registered as fault module,
-		 * slave has not load it, so we don't need to do anything at here!
-		 */
-		ret = -EAGAIN;
-	} else {
-		struct inst_info *inst;
-		struct script_info *info;
-		Evas *e;
-
-		inst = pkgmgr_find(pkgname, filename);
-		if (!inst) {
-			ret = -ENOENT;
-			goto out;
-		}
-
-		info = pkgmgr_lb_script(inst);
-		if (!info) {
-			ret = -EFAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(info);
-		if (!e) {
-			ret = -EFAULT;
-			goto out;
-		}
-
-		script_handler_update_pointer(info, x, y, 1);
-
-		evas_event_feed_mouse_in(e, timestamp, NULL);
-		evas_event_feed_mouse_down(e, 1, EVAS_BUTTON_NONE, timestamp, NULL);
-
-		ret = 0;
+	conn = g_dbus_method_invocation_get_connection(inv);
+	if (!conn) {
+		ErrPrint("Failed to get connection\n");
+		return;
 	}
 
+	client = client_rpc_find_by_conn(conn);
+	if (!client) {
+		ErrPrint("Failed to find a client\n");
+		return;
+	}
+
+	g_variant_get(param, "(&s&siiddd)", &pkgname, &id, &w, &h, &timestamp, &x, &y);
+
+	inst = instance_find_by_id(pkgname, id);
+	if (!inst) {
+		ret = -ENOENT;
+	} else {
+		if (package_is_fault(instance_package(inst))) {
+			/*!
+			 * \note
+			 * If the package is registered as fault module,
+			 * slave has not load it, so we don't need to do anything at here!
+			 */
+			ret = -EAGAIN;
+		} else {
+			struct script_info *script;
+			Evas *e;
+
+			script = instance_lb_handle(inst);
+			if (!script) {
+				ret = -EFAULT;
+				goto out;
+			}
+
+			e = script_handler_evas(script);
+			if (!e) {
+				ret = -EFAULT;
+				goto out;
+			}
+
+			script_handler_update_pointer(script, x, y, 1);
+
+			evas_event_feed_mouse_in(e, timestamp, NULL);
+			evas_event_feed_mouse_down(e, 1, EVAS_BUTTON_NONE, timestamp, NULL);
+
+			ret = 0;
+		}
+	}
 out:
 	param = g_variant_new("(i)", ret);
 	if (!param)
@@ -929,52 +1041,65 @@ out:
 static void method_lb_mouse_move(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	int w;
 	int h;
 	double timestamp;
 	double x;
 	double y;
 	int ret;
+	struct client_node *client;
+	GDBusConnection *conn;
+	struct inst_info *inst;
+	struct pkg_info *info;
 
-	g_variant_get(param, "(&s&siiddd)", &pkgname, &filename, &w, &h, &timestamp, &x, &y);
-
-	if (pkgmgr_is_fault(pkgname)) {
-		/*!
-		 * \note
-		 * If the package is registered as fault module,
-		 * slave has not load it, so we don't need to do anything at here!
-		 */
-		ret = -EAGAIN;
-	} else {
-		struct inst_info *inst;
-		struct script_info *info;
-		Evas *e;
-
-		inst = pkgmgr_find(pkgname, filename);
-		if (!inst) {
-			ret = -ENOENT;
-			goto out;
-		}
-
-		info = pkgmgr_lb_script(inst);
-		if (!info) {
-			ret = -EFAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(info);
-		if (!e) {
-			ret = -EFAULT;
-			goto out;
-		}
-
-		script_handler_update_pointer(info, x, y, -1);
-
-		evas_event_feed_mouse_move(e, w * x, h * y, timestamp, NULL);
-		ret = 0;
+	conn = g_dbus_method_invocation_get_connection(inv);
+	if (!conn) {
+		ErrPrint("Failed to get connection\n");
+		return;
 	}
 
+	client = client_rpc_find_by_conn(conn);
+	if (!client) {
+		ErrPrint("Failed to find a client\n");
+		return;
+	}
+
+	g_variant_get(param, "(&s&siiddd)", &pkgname, &id, &w, &h, &timestamp, &x, &y);
+
+	inst = instance_find_by_id(pkgname, id);
+	if (!inst) {
+		ret = -ENOENT;
+	} else {
+		info = instance_package(inst);
+		if (package_is_fault(info)) {
+			/*!
+			 * \note
+			 * If the package is registered as fault module,
+			 * slave has not load it, so we don't need to do anything at here!
+			 */
+			ret = -EAGAIN;
+		} else {
+			struct script_info *script;
+			Evas *e;
+
+			script = instance_lb_handle(inst);
+			if (!script) {
+				ret = -EFAULT;
+				goto out;
+			}
+
+			e = script_handler_evas(script);
+			if (!e) {
+				ret = -EFAULT;
+				goto out;
+			}
+
+			script_handler_update_pointer(script, x, y, -1);
+			evas_event_feed_mouse_move(e, w * x, h * y, timestamp, NULL);
+			ret = 0;
+		}
+	}
 out:
 	param = g_variant_new("(i)", ret);
 	if (!param)
@@ -986,52 +1111,65 @@ out:
 static void method_pd_mouse_move(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	int w;
 	int h;
 	double timestamp;
 	double x;
 	double y;
 	int ret;
+	struct client_node *client;
+	GDBusConnection *conn;
+	struct inst_info *inst;
+	struct pkg_info *info;
 
-	g_variant_get(param, "(&s&siiddd)", &pkgname, &filename, &w, &h, &timestamp, &x, &y);
-
-	if (pkgmgr_is_fault(pkgname)) {
-		/*!
-		 * \note
-		 * If the package is registered as fault module,
-		 * slave has not load it, so we don't need to do anything at here!
-		 */
-		ret = -EAGAIN;
-	} else {
-		struct inst_info *inst;
-		struct script_info *info;
-		Evas *e;
-
-		inst = pkgmgr_find(pkgname, filename);
-		if (!inst) {
-			ret = -ENOENT;
-			goto out;
-		}
-
-		info = pkgmgr_pd_script(inst);
-		if (!inst) {
-			ret = -EFAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(info);
-		if (!e) {
-			ret = -EFAULT;
-			goto out;
-		}
-
-		script_handler_update_pointer(info, x, y, -1);
-
-		evas_event_feed_mouse_move(e, x * w, y * h, timestamp, NULL);
-		ret = 0;
+	conn = g_dbus_method_invocation_get_connection(inv);
+	if (!conn) {
+		ErrPrint("Failed to get connection\n");
+		return;
 	}
 
+	client = client_rpc_find_by_conn(conn);
+	if (!client) {
+		ErrPrint("Failed to find a client\n");
+		return;
+	}
+
+	g_variant_get(param, "(&s&siiddd)", &pkgname, &id, &w, &h, &timestamp, &x, &y);
+
+	inst = instance_find_by_id(pkgname, id);
+	if (!inst) {
+		ret = -ENOENT;
+	} else {
+		info = instance_package(inst);
+		if (package_is_fault(info)) {
+			/*!
+			 * \note
+			 * If the package is registered as fault module,
+			 * slave has not load it, so we don't need to do anything at here!
+			 */
+			ret = -EAGAIN;
+		} else {
+			struct script_info *script;
+			Evas *e;
+
+			script = instance_pd_handle(inst);
+			if (!script) {
+				ret = -EFAULT;
+				goto out;
+			}
+
+			e = script_handler_evas(script);
+			if (!e) {
+				ret = -EFAULT;
+				goto out;
+			}
+
+			script_handler_update_pointer(script, x, y, -1);
+			evas_event_feed_mouse_move(e, x * w, y * h, timestamp, NULL);
+			ret = 0;
+		}
+	}
 out:
 	param = g_variant_new("(i)", ret);
 	if (!param)
@@ -1043,51 +1181,65 @@ out:
 static void method_pd_mouse_up(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	int w;
 	int h;
 	double timestamp;
 	double x;
 	double y;
 	int ret;
+	struct client_node *client;
+	GDBusConnection *conn;
+	struct inst_info *inst;
+	struct pkg_info *info;
 
-	g_variant_get(param, "(&s&siiddd)", &pkgname, &filename, &w, &h, &timestamp, &x, &y);
+	conn = g_dbus_method_invocation_get_connection(inv);
+	if (!conn) {
+		ErrPrint("Failed to get connection\n");
+		return;
+	}
 
-	if (pkgmgr_is_fault(pkgname)) {
-		/*!
-		 * \note
-		 * If the package is registered as fault module,
-		 * slave has not load it, so we don't need to do anything at here!
-		 */
-		ret = -EAGAIN;
+	client = client_rpc_find_by_conn(conn);
+	if (!client) {
+		ErrPrint("Failed to find a client\n");
+		return;
+	}
+
+	g_variant_get(param, "(&s&siiddd)", &pkgname, &id, &w, &h, &timestamp, &x, &y);
+
+	inst = instance_find_by_id(pkgname, id);
+	if (!inst) {
+		ret = -ENOENT;
 	} else {
-		struct inst_info *inst;
-		struct script_info *info;
-		Evas *e;
+		info = instance_package(inst);
+		if (package_is_fault(info)) {
+			/*!
+			 * \note
+			 * If the package is registered as fault module,
+			 * slave has not load it, so we don't need to do anything at here!
+			 */
+			ret = -EAGAIN;
+		} else {
+			struct script_info *script;
+			Evas *e;
 
-		inst = pkgmgr_find(pkgname, filename);
-		if (!inst) {
-			ret = -ENOENT;
-			goto out;
+			script = instance_pd_handle(inst);
+			if (!script) {
+				ret = -EFAULT;
+				goto out;
+			}
+
+			e = script_handler_evas(script);
+			if (!e) {
+				ret = -EFAULT;
+				goto out;
+			}
+
+			script_handler_update_pointer(script, x, y, 0);
+			evas_event_feed_mouse_up(e, 1, EVAS_BUTTON_NONE, timestamp, NULL);
+			evas_event_feed_mouse_out(e, timestamp, NULL);
+			ret = 0;
 		}
-
-		info = pkgmgr_pd_script(inst);
-		if (!inst) {
-			ret = -EFAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(info);
-		if (!e) {
-			ret = -EFAULT;
-			goto out;
-		}
-
-		script_handler_update_pointer(info, x, y, 0);
-
-		evas_event_feed_mouse_up(e, 1, EVAS_BUTTON_NONE, timestamp, NULL);
-		evas_event_feed_mouse_out(e, timestamp, NULL);
-		ret = 0;
 	}
 
 out:
@@ -1101,51 +1253,67 @@ out:
 static void method_pd_mouse_down(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	int w;
 	int h;
 	double timestamp;
 	double x;
 	double y;
 	int ret;
+	struct client_node *client;
+	GDBusConnection *conn;
+	struct inst_info *inst;
+	struct pkg_info *info;
 
-	g_variant_get(param, "(&s&siiddd)", &pkgname, &filename, &w, &h, &timestamp, &x, &y);
+	conn = g_dbus_method_invocation_get_connection(inv);
+	if (!conn) {
+		ErrPrint("Failed to get connection\n");
+		return;
+	}
 
-	if (pkgmgr_is_fault(pkgname)) {
-		/*!
-		 * \note
-		 * If the package is registered as fault module,
-		 * slave has not load it, so we don't need to do anything at here!
-		 */
-		ret = -EAGAIN;
+	client = client_rpc_find_by_conn(conn);
+	if (!client) {
+		ErrPrint("Failed to find a client\n");
+		return;
+	}
+
+	g_variant_get(param, "(&s&siiddd)", &pkgname, &id, &w, &h, &timestamp, &x, &y);
+
+	inst = instance_find_by_id(pkgname, id);
+	if (!inst) {
+		ret = -ENOENT;
 	} else {
-		struct inst_info *inst;
-		struct script_info *info;
-		Evas *e;
+		info = instance_package(inst);
 
-		inst = pkgmgr_find(pkgname, filename);
-		if (!inst) {
-			ret = -ENOENT;
-			goto out;
+		if (package_is_fault(info)) {
+			/*!
+			 * \note
+			 * If the package is registered as fault module,
+			 * slave has not load it, so we don't need to do anything at here!
+			 */
+			ret = -EAGAIN;
+		} else {
+			struct script_info *script;
+			Evas *e;
+
+			script = instance_pd_handle(inst);
+			if (!script) {
+				ret = -EFAULT;
+				goto out;
+			}
+
+			e = script_handler_evas(script);
+			if (!e) {
+				ret = -EFAULT;
+				goto out;
+			}
+
+			script_handler_update_pointer(script, x, y, 1);
+
+			evas_event_feed_mouse_in(e, timestamp, NULL);
+			evas_event_feed_mouse_down(e, 1, EVAS_BUTTON_NONE, timestamp, NULL);
+			ret = 0;
 		}
-
-		info = pkgmgr_pd_script(inst);
-		if (!inst) {
-			ret = -EFAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(info);
-		if (!e) {
-			ret = -EFAULT;
-			goto out;
-		}
-
-		script_handler_update_pointer(info, x, y, 1);
-
-		evas_event_feed_mouse_in(e, timestamp, NULL);
-		evas_event_feed_mouse_down(e, 1, EVAS_BUTTON_NONE, timestamp, NULL);
-		ret = 0;
 	}
 
 out:
@@ -1159,12 +1327,13 @@ out:
 static void method_change_group(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	const char *cluster;
 	const char *category;
 	int ret;
 	struct client_node *client;
 	GDBusConnection *conn;
+	struct inst_info *inst;
 
 	conn = g_dbus_method_invocation_get_connection(inv);
 	if (!conn) {
@@ -1172,30 +1341,19 @@ static void method_change_group(GDBusMethodInvocation *inv, GVariant *param)
 		return;
 	}
 
-	client = client_find_by_connection(conn);
+	client = client_rpc_find_by_conn(conn);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
 		return;
 	}
 
-	g_variant_get(param, "(&s&s&s&s)", &pkgname, &filename, &cluster, &category);
+	g_variant_get(param, "(&s&s&s&s)", &pkgname, &id, &cluster, &category);
 
-	if (pkgmgr_is_fault(pkgname)) {
-		ret = -EAGAIN;
+	inst = instance_find_by_id(pkgname, id);
+	if (!inst) {
+		ret = -ENOENT;
 	} else {
-		struct slave_node *slave;
-
-		slave = pkgmgr_slave(pkgname);
-		if (!slave) {
-			ErrPrint("Package[%s] is not loaed\n", pkgname);
-			ret = -ENETUNREACH;
-		} else {
-			param = g_variant_new("(ssss)", pkgname, filename, cluster, category);
-			if (!param)
-				ret = -EFAULT;
-			else
-				ret = slave_rpc_async_request(slave, pkgname, filename, "change_group", param, NULL, NULL);
-		}
+		ret = instance_change_group(inst, cluster, category);
 	}
 
 	param = g_variant_new("(i)", ret);
@@ -1205,30 +1363,14 @@ static void method_change_group(GDBusMethodInvocation *inv, GVariant *param)
 	g_dbus_method_invocation_return_value(inv, param);
 }
 
-static void del_ret_cb(const char *funcname, GVariant *result, void *data)
-{
-	int ret;
-	const char *pkgname;
-	const char *filename;
-	GVariant *param = data;
-
-	g_variant_get(param, "(&s&s)", &pkgname, &filename);
-	g_variant_get(result, "(i)", &ret);
-	if (ret == 0)
-		pkgmgr_deleted(pkgname, filename);
-	else
-		ErrPrint("%s is not deleted - returns %d\n", pkgname, ret);
-	g_variant_unref(param);
-	g_variant_unref(result);
-}
-
 static void method_delete(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	int ret;
 	struct client_node *client;
 	GDBusConnection *conn;
+	struct inst_info *inst;
 
 	conn = g_dbus_method_invocation_get_connection(inv);
 	if (!conn) {
@@ -1236,36 +1378,22 @@ static void method_delete(GDBusMethodInvocation *inv, GVariant *param)
 		return;
 	}
 
-	client = client_find_by_connection(conn);
+	client = client_rpc_find_by_conn(conn);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
 		return;
 	}
 
-	g_variant_get(param, "(&s&s)", &pkgname, &filename);
+	g_variant_get(param, "(&s&s)", &pkgname, &id);
 
-	if (pkgmgr_is_fault(pkgname)) {
-		/*!
-		 * \note
-		 * If the package is registered as fault module,
-		 * slave has not load it, so we don't need to do anything at here!
-		 */
-		ret = -EAGAIN;
+	inst = instance_find_by_id(pkgname, id);
+	if (!inst) {
+		ret = -ENOENT;
 	} else {
-		struct slave_node *slave;
+		if (instance_state(inst) == INST_DEACTIVATED)
+			instance_broadcast_deleted_event(inst);
 
-		slave = pkgmgr_slave(pkgname);
-		if (!slave) {
-			ErrPrint("Package[%s - %s] is not loaded\n", pkgname, filename);
-			ret = -ENETUNREACH;
-		} else {
-			/* NOTE: param is resued from here */
-			param = g_variant_new("(ss)", pkgname, filename);
-			if (!param)
-				ret = -EFAULT;
-			else
-				ret = slave_rpc_async_request(slave, pkgname, filename, "delete", param, del_ret_cb, g_variant_ref(param));
-		}
+		ret = instance_destroy(inst);
 	}
 
 	param = g_variant_new("(i)", ret);
@@ -1278,12 +1406,13 @@ static void method_delete(GDBusMethodInvocation *inv, GVariant *param)
 static void method_resize(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	int w;
 	int h;
 	int ret;
 	struct client_node *client;
 	GDBusConnection *conn;
+	struct inst_info *inst;
 
 	conn = g_dbus_method_invocation_get_connection(inv);
 	if (!conn) {
@@ -1291,33 +1420,19 @@ static void method_resize(GDBusMethodInvocation *inv, GVariant *param)
 		return;
 	}
 
-	client = client_find_by_connection(conn);
+	client = client_rpc_find_by_conn(conn);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
 		return;
 	}
 
-	g_variant_get(param, "(&s&sii)", &pkgname, &filename, &w, &h);
+	g_variant_get(param, "(&s&sii)", &pkgname, &id, &w, &h);
 
-	if (pkgmgr_is_fault(pkgname)) {
-		/* TODO: Load this package */
-		ret = -EAGAIN;
+	inst = instance_find_by_id(pkgname, id);
+	if (!inst) {
+		ret = -ENOENT;
 	} else {
-		struct slave_node *slave;
-
-		slave = pkgmgr_slave(pkgname);
-		if (!slave) {
-			/* TODO: Impossible */
-			ErrPrint("Package[%s - %s] is not loaded\n", pkgname, filename);
-			ret = -ENETUNREACH;
-		} else {
-			/* NOTE: param is resued from here */
-			param = g_variant_new("(ssii)", pkgname, filename, w, h);
-			if (!param)
-				ret = -EFAULT;
-			else
-				ret = slave_rpc_async_request(slave, pkgname, filename, "resize", param, NULL, NULL);
-		}
+		ret = instance_resize(inst, w, h);
 	}
 
 	param = g_variant_new("(i)", ret);
@@ -1327,23 +1442,15 @@ static void method_resize(GDBusMethodInvocation *inv, GVariant *param)
 	g_dbus_method_invocation_return_value(inv, param);
 }
 
-static inline void validate_period(double *period)
-{
-	/* TODO:
-	 * Check the period value, is it valid?
-	 */
-	if (*period < 0.0f)
-		*period = 0.0f;
-}
-
 static void method_set_period(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	double period;
 	int ret;
 	GDBusConnection *conn;
 	struct client_node *client;
+	struct inst_info *inst;
 
 	conn = g_dbus_method_invocation_get_connection(inv);
 	if (!conn) {
@@ -1351,45 +1458,19 @@ static void method_set_period(GDBusMethodInvocation *inv, GVariant *param)
 		return;
 	}
 
-	client = client_find_by_connection(conn);
+	client = client_rpc_find_by_conn(conn);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
 		return;
 	}
 
-	g_variant_get(param, "(&s&sd)", &pkgname, &filename, &period);
+	g_variant_get(param, "(&s&sd)", &pkgname, &id, &period);
 
-	if (util_validate_livebox_package(pkgname) < 0) {
-		ret = -EINVAL;
-	} else if (pkgmgr_is_fault(pkgname)) {
-		ret = -EAGAIN;
+	inst = instance_find_by_id(pkgname, id);
+	if (!inst) {
+		ret = -ENOENT;
 	} else {
-		struct slave_node *slave;
-
-		slave = pkgmgr_slave(pkgname);
-		if (!slave) {
-			ErrPrint("Package[%s - %s] is not loaded\n", pkgname, filename);
-			ret = -ENETUNREACH;
-		} else {
-			if (period < 0.0f) { /* Use the default period */
-				struct inst_info *inst;
-
-				inst = pkgmgr_find(pkgname, filename);
-				if (inst) {
-					period = pkgmgr_period(inst);
-				} else {
-					period = 0.0f;
-				}
-			} else if (period > 0.0f && period < MINIMUM_PERIOD) {
-				period = MINIMUM_PERIOD; /* defined at conf.h */
-			}
-
-			param = g_variant_new("(ssd)", pkgname, filename, period);
-			if (!param)
-				ret = -EFAULT;
-			else
-				ret = slave_rpc_async_request(slave, pkgname, filename, "set_period", param, NULL, NULL);
-		}
+		ret = instance_set_period(inst, period);
 	}
 
 	param = g_variant_new("(i)", ret);
@@ -1410,6 +1491,8 @@ static void method_new(GDBusMethodInvocation *inv, GVariant *param)
 	double timestamp;
 	struct client_node *client;
 	GDBusConnection *conn;
+	struct pkg_info *info;
+	struct inst_info *inst;
 
 	conn = g_dbus_method_invocation_get_connection(inv);
 	if (!conn) {
@@ -1417,7 +1500,7 @@ static void method_new(GDBusMethodInvocation *inv, GVariant *param)
 		return;
 	}
 
-	client = client_find_by_connection(conn);
+	client = client_rpc_find_by_conn(conn);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
 		return;
@@ -1425,25 +1508,26 @@ static void method_new(GDBusMethodInvocation *inv, GVariant *param)
 
 	g_variant_get(param, "(d&s&s&s&sd)", &timestamp, &pkgname, &content, &cluster, &category, &period);
 
-	if (util_validate_livebox_package(pkgname) < 0) {
-		ret = -EINVAL;
-	} else if (pkgmgr_is_fault(pkgname)) {
-		ret = -EAGAIN;
+	info = package_find(pkgname);
+	if (!info)
+		info = package_create(pkgname);
+
+	inst = NULL;
+	if (!info) {
+		ret = -EFAULT;
 	} else {
-		char *filename;
-
-		filename = util_new_filename(timestamp);
-		if (!filename) {
-			ret = -ENOMEM;
+		if (package_is_fault(info)) {
+			ret = -EAGAIN;
 		} else {
-			struct inst_info *inst;
-
 			if (period > 0.0f && period < MINIMUM_PERIOD)
 				period = MINIMUM_PERIOD;
 
-			inst = pkgmgr_new(client, timestamp, pkgname, filename, content, cluster, category, period);
-			free(filename);
-			ret = inst ? 0 : -EFAULT;
+			inst = instance_create(client, timestamp, pkgname, content, cluster, category, period);
+			/*!
+			 * \note
+			 * Using the "inst" without validate its value is at my disposal. ;)
+			 */
+			ret = instance_activate(inst);
 		}
 	}
 
@@ -1541,6 +1625,14 @@ static void method_handler(GDBusConnection *conn,
 			.name = "livebox_is_exists",
 			.method = method_livebox_is_exists,
 		},
+		{
+			.name = "acquire",
+			.method = method_acquire,
+		},
+		{
+			.name = "release",
+			.method = method_release,
+		},
 
 		/* For slave */
 		{
@@ -1570,16 +1662,6 @@ static void method_handler(GDBusConnection *conn,
 		{
 			.name = "deleted",
 			.method = method_deleted,
-		},
-
-		/* For client */
-		{
-			.name = "acquire",
-			.method = method_acquire,
-		},
-		{
-			.name = "release",
-			.method = method_release,
 		},
 		{
 			.name = NULL,

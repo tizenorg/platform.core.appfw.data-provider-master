@@ -36,7 +36,7 @@
 #include "xmonitor.h"
 #include "dlog.h"
 #include "debug.h"
-#include "client_manager.h"
+#include "client_life.h"
 #include "io.h"
 #include "main.h"
 #include "util.h"
@@ -102,11 +102,11 @@ int xmonitor_update_state(void)
 	if (pid <= 0)
 		return -ENOENT;
 
-	client = client_find(pid);
+	client = client_find_by_pid(pid);
 	if (!client)
 		return -EINVAL;
 
-	client_resume(client);
+	client_resumed(client);
 	return 0;
 }
 
@@ -121,7 +121,7 @@ static Eina_Bool client_cb(void *data, int type, void *event)
 	if (pid <= 0)
 		return ECORE_CALLBACK_RENEW;
 
-	client = client_find(pid);
+	client = client_find_by_pid(pid);
 	if (!client)
 		return ECORE_CALLBACK_RENEW;
 
@@ -130,9 +130,9 @@ static Eina_Bool client_cb(void *data, int type, void *event)
 		return ECORE_CALLBACK_RENEW;
 
 	if (!strcmp(name, "_X_ILLUME_DEACTIVATE_WINDOW"))
-		client_pause(client);
+		client_paused(client);
 	else if (!strcmp(name, "_X_ILLUME_ACTIVATE_WINDOW"))
-		client_resume(client);
+		client_resumed(client);
 
 	free(name);
 	return ECORE_CALLBACK_RENEW;
@@ -190,7 +190,7 @@ static inline void sniff_all_windows(void)
 			 * (ecore_x_window_visible_get(ret))
 			 */
 			pid = get_pid(ret);
-			if (pid > 0 && client_find(pid))
+			if (pid > 0 && client_find_by_pid(pid))
 				ecore_x_window_client_sniff(ret);
 
 			new_item = malloc(sizeof(*new_item));

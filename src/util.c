@@ -25,7 +25,7 @@ unsigned long util_string_hash(const char *str)
 	return ret;
 }
 
-double util_get_timestamp(void)
+double util_timestamp(void)
 {
 	struct timeval tv;
 
@@ -98,33 +98,11 @@ int util_unlink(const char *filename)
 		return -EFAULT;
 	}
 
-	ret = unlink(descfile);
-	if (ret < 0)
-		ErrPrint("Unlink: %s - %s\n", descfile, strerror(errno));
-
+	(void)unlink(descfile);
 	free(descfile);
-
-	if (unlink(filename) < 0)
-		ErrPrint("Unlink: %s - %s\n", filename, strerror(errno));
+	(void)unlink(filename);
 
 	return 0;
 }
 
-char *util_new_filename(double timestamp)
-{
-	char *filename;
-	int fnlen;
-
-	/* 256 >= strlen(STRING(getpid())) + string(STRING(timestamp)); */
-	fnlen = 256 + strlen(g_conf.path.image);
-
-	filename = malloc(fnlen);
-	if (!filename) {
-		ErrPrint("Heap: %s (%d)\n", strerror(errno), fnlen);
-		return NULL;
-	}
-
-	snprintf(filename, fnlen, "%s%d_%lf.png", g_conf.path.image, getpid(), timestamp);
-	return filename;
-}
 /* End of a file */

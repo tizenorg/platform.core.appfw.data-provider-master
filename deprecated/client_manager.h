@@ -14,5 +14,6 @@ extern GDBusProxy *client_proxy(struct client_node *client);
 extern void client_pause(struct client_node *client);
 extern void client_resume(struct client_node *client);
 extern int client_is_all_paused(void);
+extern int client_count(void);
 
 /* End of a file */

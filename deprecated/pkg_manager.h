@@ -4,6 +4,12 @@ struct pkg_info;
 struct category;
 struct inst_info;
 
+enum delete_cast {
+	UNICAST,
+	BROADCAST,
+	LOCAL,
+};
+
 enum func_ret_type {
 	DONE = 0x00,
 	NEED_TO_SCHEDULE = 0x01, /* Schedule me again right after return. */
@@ -25,7 +31,7 @@ extern struct slave_node *pkgmgr_slave(const char *pkgname);
 extern struct inst_info *pkgmgr_find(const char *pkgname, const char *filename);
 
 extern struct inst_info *pkgmgr_new(struct client_node *client, double timestamp, const char *pkgname, const char *filename, const char *content, const char *cluster, const char *category, double period);
-extern int pkgmgr_delete(struct inst_info *inst);
+extern int pkgmgr_delete(struct inst_info *inst, int way);
 
 extern const char *pkgmgr_name(struct inst_info *inst);
 
@@ -72,5 +78,9 @@ extern int pkgmgr_update_size(struct inst_info *inst, int w, int h, int is_pd);
 extern int pkgmgr_get_size(struct inst_info *inst, int *w, int *h, int is_pd);
 
 extern void pkgmgr_clear_slave_info(struct slave_node *slave);
+
+extern void pkgmgr_inst_ref(struct inst_info *inst);
+extern void pkgmgr_inst_unref(struct inst_info *inst);
+extern int pkgmgr_inst_refcnt(struct inst_info *inst);
 
 /* End of a file */

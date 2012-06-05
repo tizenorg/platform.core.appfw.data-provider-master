@@ -245,6 +245,11 @@ int client_is_all_paused(void)
 	return s_info.nr_of_clients == s_info.nr_of_paused_clients;
 }
 
+int client_count(void)
+{
+	return s_info.nr_of_clients;
+}
+
 void client_pause(struct client_node *client)
 {
 	if (!client->paused)
