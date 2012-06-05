@@ -33,7 +33,6 @@ extern const char *pkgmgr_lb_path(struct inst_info *inst);
 extern const char *pkgmgr_lb_group(struct inst_info *inst);
 extern const char *pkgmgr_pd_path(struct inst_info *inst);
 extern const char *pkgmgr_pd_group(struct inst_info *inst);
-extern double pkgmgr_timestamp(struct inst_info *inst);
 extern int pkgmgr_set_client(struct inst_info *inst, struct client_node *client);
 extern struct client_node *pkgmgr_client(struct inst_info *inst);
 extern int pkgmgr_timeout(struct inst_info *inst);

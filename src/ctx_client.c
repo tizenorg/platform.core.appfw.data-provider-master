@@ -273,6 +273,14 @@ static void ctx_vconf_cb(keynode_t *node, void *data)
 		s_info.enabled = vconf_keynode_get_int(node);
 }
 
+static Eina_Bool delayed_ctx_init_cb(void *data)
+{
+	context_set_context_changed_cb(ctx_changed_cb,
+		CONTEXT_NOTI_LOCATION | CONTEXT_NOTI_CONTACTS | CONTEXT_NOTI_APPS |
+		CONTEXT_NOTI_MUSIC | CONTEXT_NOTI_PHOTOS, NULL);
+	return ECORE_CALLBACK_CANCEL;
+}
+
 int ctx_client_init(void)
 {
 	int ret;
@@ -283,9 +291,10 @@ int ctx_client_init(void)
 
 	ctx_vconf_cb(NULL, NULL);
 
-	context_set_context_changed_cb(ctx_changed_cb,
-		CONTEXT_NOTI_LOCATION | CONTEXT_NOTI_CONTACTS | CONTEXT_NOTI_APPS |
-		CONTEXT_NOTI_MUSIC | CONTEXT_NOTI_PHOTOS, NULL);
+	if (!ecore_timer_add(1.0f, delayed_ctx_init_cb, NULL)) {
+		ErrPrint("Failed to add timer for delayed ctx init\n");
+		delayed_ctx_init_cb(NULL);
+	}
 
 	return 0;
 }

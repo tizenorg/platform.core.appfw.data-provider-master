@@ -670,25 +670,15 @@ struct inst_info *pkgmgr_find(const char *pkgname, const char *filename)
 	return inst;
 }
 
-static inline int send_created_to_client(const char *pkgname, const char *filename)
+static inline int send_created_to_client(struct inst_info *inst)
 {
-	struct pkg_info *info;
-	struct inst_info *inst;
 	GVariant *param;
-
-	info = find_pkginfo(pkgname);
-	if (!info)
-		return -ENOENT;
-
-	inst = find_instance(info, filename);
-	if (!inst)
-		return -ENOENT;
 
 	prepare_fb(inst);
 
 	param = g_variant_new("(dsssiiiissssidiiiiid)", 
-			pkgmgr_timestamp(inst),
-			pkgname, filename, inst->content,
+			inst->timestamp,
+			inst->info->pkgname, inst->filename, inst->content,
 			inst->lb_w, inst->lb_h, inst->pd_w, inst->pd_h,
 			inst->cluster, inst->category,
 			fb_filename(script_handler_fb(inst->lb_script)),
@@ -740,7 +730,7 @@ static void new_ret_cb(const char *funcname, GVariant *result, void *data)
 		inst->lb_h = h;
 		inst->priority = priority;
 
-		send_created_to_client(inst->info->pkgname, inst->filename);
+		send_created_to_client(inst);
 		inst->state = INST_CREATED;
 		slave_load_instance(inst->info->slave);
 		break;
@@ -925,11 +915,6 @@ struct client_node *pkgmgr_client(struct inst_info *inst)
 	return inst->client;
 }
 
-double pkgmgr_timestamp(struct inst_info *inst)
-{
-	return inst->timestamp;
-}
-
 int pkgmgr_delete(struct inst_info *inst)
 {
 	struct pkg_info *info;
@@ -1038,7 +1023,7 @@ int pkgmgr_inform_pkglist(struct client_node *client)
 		EINA_LIST_FOREACH(info->inst_list, i_l, inst) {
 			/* Send all instance list to the new client */
 			param = g_variant_new("(dsssiiiissssidiiiiid)", 
-					pkgmgr_timestamp(inst),
+					inst->timestamp,
 					info->pkgname, inst->filename, inst->content,
 					inst->lb_w, inst->lb_h, inst->pd_w, inst->pd_h,
 					inst->cluster, inst->category,
