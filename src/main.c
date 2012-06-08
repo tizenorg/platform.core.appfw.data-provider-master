@@ -35,7 +35,15 @@ FILE *__file_log_fp;
 
 static inline int app_create(void *data)
 {
+	static int initialized = 0;
 	int ret;
+
+	if (initialized == 1) {
+		DbgPrint("Already initialized\n");
+		return 0;
+	}
+
+	initialized = 1;
 
 	ret = ctx_client_init();
 	DbgPrint("Context engine is initialized: %d\n", ret);
