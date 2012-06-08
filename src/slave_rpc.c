@@ -151,13 +151,15 @@ static void slave_async_cb(GDBusProxy *proxy, GAsyncResult *result, void *data)
 		char *filename;
 		char *cmd;
 
+		cmd = packet->cmd ? packet->cmd : "";
+
 		if (err) {
-			ErrPrint("Error: %s\n", err->message);
+			ErrPrint("package[%s], cmd[%s]: %s\n", packet->pkgname, cmd, err->message);
 			g_error_free(err);
 		}
 
 		if (packet->ret_cb)
-			packet->ret_cb(packet->slave, packet->cmd, NULL, packet->cbdata);
+			packet->ret_cb(packet->slave, cmd, NULL, packet->cbdata);
 
 		if (!fault_is_occured() && packet->pkgname) {
 			/*!
@@ -168,7 +170,6 @@ static void slave_async_cb(GDBusProxy *proxy, GAsyncResult *result, void *data)
 			 * To fix that case, mark the fault again from here.
 			 */
 			filename = packet->filename ? packet->filename : "";
-			cmd = packet->cmd ? packet->cmd : "";
 			fault_func_call(packet->slave, packet->pkgname, filename, cmd);
 		}
 
@@ -413,8 +414,10 @@ int slave_rpc_sync_request(struct slave_node *slave,
 	result = g_dbus_proxy_call_sync(rpc->proxy, cmd, param,
 				G_DBUS_CALL_FLAGS_NO_AUTO_START, -1, NULL, &err);
 	if (!result) {
+		cmd = cmd ? cmd : "";
+
 		if (err) {
-			ErrPrint("Error: %s\n", err->message);
+			ErrPrint("Package[%s], cmd[%s]: %s\n", pkgname, cmd, err->message);
 			g_error_free(err);
 		}
 
@@ -427,7 +430,6 @@ int slave_rpc_sync_request(struct slave_node *slave,
 			 * To fix that case, mark the fault again from here.
 			 */
 			filename = filename ? filename : "";
-			cmd = cmd ? cmd : "";
 			fault_func_call(slave, pkgname, filename, cmd);
 		}
 

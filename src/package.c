@@ -151,10 +151,16 @@ static int slave_deactivated_cb(struct slave_node *slave, void *data)
 				break;
 			case INST_REQUEST_TO_DEACTIVATE:
 			case INST_ACTIVATED:
-			default:
 				instance_broadcast_deleted_event(inst);
 				instance_deactivated(inst);
 				instance_destroy(inst);
+				break;
+			case INST_DEACTIVATED:
+			case INST_DESTROY:
+			case INST_DESTROYED:
+			default:
+				DbgPrint("Package is already destroyed: %s\n",
+							package_name(instance_package(inst)));
 				break;
 			}
 		}
