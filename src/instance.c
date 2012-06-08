@@ -435,15 +435,20 @@ static void deactivate_cb(struct slave_node *slave, const char *funcname, GVaria
 
 	if (!result) {
 		ErrPrint("Failed to deactivate an instance: %s\n", inst->id);
-		if (inst->requested_state == INST_DESTROY || inst->requested_state == INST_DESTROYED) {
-			if (inst->state == INST_ACTIVATED) {
-				DbgPrint("Call unload instance (%s)\n", package_name(inst->info));
-				slave_unload_instance(package_slave(inst->info));
-			}
-
+		switch (inst->requested_state) {
+		case INST_ACTIVATED:
+			inst->state = INST_ACTIVATED; /*!< To reactivate this at the slave_deactivate_cb */
+			break;
+		case INST_DEACTIVATED:
+			DbgPrint("Call unload instance (%s)\n", package_name(inst->info));
+			slave_unload_instance(package_slave(inst->info));
+		case INST_DESTROY:
+		case INST_DESTROYED:
 			instance_broadcast_deleted_event(inst);
 			inst->state = INST_DESTROYED;
 			instance_destroy(inst);
+		default:
+			break;
 		}
 
 		instance_unref(inst);
@@ -453,33 +458,85 @@ static void deactivate_cb(struct slave_node *slave, const char *funcname, GVaria
 	g_variant_get(result, "(i)", &ret);
 	g_variant_unref(result);
 
-	inst->state = INST_DEACTIVATED;
+	switch (ret) {
+	case -EINVAL:
+		/*!
+		 * Slave has no instance of this package.
+		 */
+	case -ENOENT:
+		/*!
+		 * Slave has no instance of this.
+		 */
+		slave_unload_instance(package_slave(inst->info));
+		instance_broadcast_deleted_event(inst);
+		if (inst->lb.handle) {
+			script_handler_unload(inst->lb.handle, 0);
+			script_handler_destroy(inst->lb.handle);
+			inst->lb.handle = NULL;
+		}
 
-	DbgPrint("Call unload instance (%s)\n", package_name(inst->info));
-	slave_unload_instance(package_slave(inst->info));
-	instance_broadcast_deleted_event(inst);
-
-	if (inst->lb.handle) {
-		script_handler_unload(inst->lb.handle, 0);
-		script_handler_destroy(inst->lb.handle);
-		inst->lb.handle = NULL;
-	}
-
-	if (inst->pd.handle) {
-		script_handler_unload(inst->pd.handle, 1);
-		script_handler_destroy(inst->pd.handle);
-		inst->pd.handle = NULL;
-	}
-
-	if (inst->requested_state == INST_ACTIVATED) {
-		(void)instance_activate(inst);
-	} else if (inst->requested_state == INST_DESTROY || inst->requested_state == INST_DESTROYED) {
+		if (inst->pd.handle) {
+			script_handler_unload(inst->pd.handle, 1);
+			script_handler_destroy(inst->pd.handle);
+			inst->pd.handle = NULL;
+		}
+		/*!
+		 * \note
+		 * In this case, ignore the requested_state
+		 * Because, this instance is already met the problem.
+		 */
+		inst->state = INST_DESTROYED;
 		instance_destroy(inst);
-	}
+		break;
+	case 0:
+		/*!
+		 * \note
+		 * Successfully unloaded
+		 */
+		inst->state = INST_DEACTIVATED;
 
-	if (ret != 0) {
-		ErrPrint("Slave couldn't delete this instance, Forcely restart the slave\n");
-		slave_faulted(package_slave(inst->info));
+		switch (inst->requested_state) {
+		case INST_ACTIVATED:
+			inst->state = INST_ACTIVATED;
+			instance_reactivate(inst);
+			break;
+		case INST_DESTROYED:
+		case INST_DESTROY:
+			inst->state = INST_DESTROYED;
+			instance_destroy(inst);
+		case INST_DEACTIVATED:
+			slave_unload_instance(package_slave(inst->info));
+			instance_broadcast_deleted_event(inst);
+			if (inst->lb.handle) {
+				script_handler_unload(inst->lb.handle, 0);
+				script_handler_destroy(inst->lb.handle);
+				inst->lb.handle = NULL;
+			}
+
+			if (inst->pd.handle) {
+				script_handler_unload(inst->pd.handle, 1);
+				script_handler_destroy(inst->pd.handle);
+				inst->pd.handle = NULL;
+			}
+		default:
+			/*!< Unable to reach here */
+			break;
+		}
+
+		break;
+	default:
+		/*!
+		 * \note
+		 * Failed to unload this instance.
+		 * This is not possible, slave will always return -ENOENT, -EINVAL, or 0.
+		 * but care this exceptional case.
+		 */
+		ErrPrint("Destroy function returns invalid value: %d\n", ret);
+		slave_unload_instance(package_slave(inst->info));
+		instance_broadcast_deleted_event(inst);
+		inst->state = INST_DESTROYED;
+		instance_destroy(inst);
+		break;
 	}
 
 	instance_unref(inst);
@@ -517,8 +574,8 @@ static void reactivate_cb(struct slave_node *slave, const char *funcname, GVaria
 
 		switch (inst->requested_state) {
 		case INST_DESTROYED:
-			inst->state = INST_DESTROYED;
 			instance_broadcast_deleted_event(inst);
+			inst->state = INST_DESTROYED;
 			instance_destroy(inst);
 			break;
 		case INST_DEACTIVATED:
@@ -532,9 +589,9 @@ static void reactivate_cb(struct slave_node *slave, const char *funcname, GVaria
 		break;
 	default:
 		DbgPrint("Failed to activate an instance: %d\n", ret);
-		inst->state = INST_DESTROYED;
 		slave_unload_instance(package_slave(inst->info));
 		instance_broadcast_deleted_event(inst);
+		inst->state = INST_DESTROYED;
 		instance_destroy(inst);
 		break;
 	}
@@ -584,7 +641,7 @@ static void activate_cb(struct slave_node *slave, const char *funcname, GVariant
 
 		switch (inst->requested_state) {
 		case INST_DESTROYED:
-			instance_broadcast_deleted_event(inst);
+			instance_unicast_deleted_event(inst);
 			inst->state = INST_DESTROYED;
 			instance_destroy(inst);
 			break;
