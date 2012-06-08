@@ -239,7 +239,7 @@ static inline void invoke_activate_cb(struct slave_node *slave)
 	}
 }
 
-int slave_is_faulted(struct slave_node *slave)
+int const slave_is_faulted(struct slave_node *slave)
 {
 	return slave->faulted;
 }
@@ -300,24 +300,30 @@ static inline void invoke_deactivate_cb(struct slave_node *slave)
 		}
 	}
 
-	if (reactivate)
+	if (reactivate) {
+		DbgPrint("Need to reactivate a slave\n");
 		slave_activate(slave);
+	}
 }
 
 int slave_deactivate(struct slave_node *slave)
 {
 	pid_t pid;
-	DbgPrint("Slave deactivate: %d\n", slave->pid);
-	if (slave->pid == (pid_t)-1)
-		return -EALREADY;
 
+	if (!slave_is_activated(slave)) {
+		ErrPrint("Slave is already deactivated\n");
+		return -EALREADY;
+	}
+
+	DbgPrint("Deactivate a slave: %d\n", slave->pid);
 	/*!
 	 * \todo
 	 * check the return value of the aul_terminate_pid
 	 */
 	pid = slave->pid;
-	slave->pid = -1;
-	aul_terminate_pid(pid);
+	slave->pid = (pid_t)-1;
+	if (aul_terminate_pid(pid) < 0)
+		ErrPrint("Terminate failed. pid %d\n", pid);
 
 	invoke_deactivate_cb(slave);
 
@@ -327,14 +333,22 @@ int slave_deactivate(struct slave_node *slave)
 
 void slave_faulted(struct slave_node *slave)
 {
-	if (slave->pid == (pid_t)-1)
-		return;
-
-	aul_terminate_pid(slave->pid);
 	/*!
 	 * \note
 	 * Now the dead signal will be raised up
 	 */
+	if (!slave_is_activated(slave))
+		return;
+
+	/*!
+	 * \note
+	 * Without reset the slave->pid, dead callback will handle
+	 * this as a fault status.
+	 */
+	if (aul_terminate_pid(slave->pid) < 0) {
+		ErrPrint("Terminate failed. pid %d\n", slave->pid);
+		slave_deactivated_by_fault(slave);
+	}
 }
 
 void slave_deactivated_by_fault(struct slave_node *slave)
@@ -549,7 +563,7 @@ void slave_load_instance(struct slave_node *slave)
 	DbgPrint("Instance: (%d)%d\n", slave->pid, slave->loaded_instance);
 }
 
-int slave_loaded_instance(struct slave_node *slave)
+int const slave_loaded_instance(struct slave_node *slave)
 {
 	return slave->loaded_instance;
 }
@@ -598,12 +612,12 @@ int const slave_is_secured(struct slave_node *slave)
 	return slave->secured;
 }
 
-const char *slave_name(struct slave_node *slave)
+const char * const slave_name(struct slave_node *slave)
 {
 	return slave->name;
 }
 
-pid_t slave_pid(struct slave_node *slave)
+pid_t const slave_pid(struct slave_node *slave)
 {
 	return slave->pid;
 }

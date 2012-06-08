@@ -52,9 +52,9 @@ extern struct slave_node *slave_find_by_name(const char *name);
 extern void slave_dead_handler(struct slave_node *slave);
 extern void slave_check_pause_or_resume(void);
 extern int const slave_is_secured(struct slave_node *slave);
-extern int slave_is_faulted(struct slave_node *slave);
-extern const char *slave_name(struct slave_node *slave);
-extern pid_t slave_pid(struct slave_node *slave);
+extern int const slave_is_faulted(struct slave_node *slave);
+extern const char * const slave_name(struct slave_node *slave);
+extern pid_t const slave_pid(struct slave_node *slave);
 
 /*!
  * \note
@@ -71,7 +71,7 @@ extern struct slave_node *slave_find_available(void);
  */
 extern void slave_load_instance(struct slave_node *slave);
 extern void slave_unload_instance(struct slave_node *slave);
-extern int slave_loaded_instance(struct slave_node *slave);
+extern int const slave_loaded_instance(struct slave_node *slave);
 
 extern int slave_resume(struct slave_node *slave);
 extern int slave_pause(struct slave_node *slave);

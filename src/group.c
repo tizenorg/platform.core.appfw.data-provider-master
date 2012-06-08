@@ -165,12 +165,12 @@ int group_list_category_pkgs(struct category *category, int (*cb)(struct categor
 	return 0;
 }
 
-const char *group_category_name(struct category *category)
+const char * const group_category_name(struct category *category)
 {
 	return category->name;
 }
 
-const char *group_cluster_name(struct cluster *cluster)
+const char * const group_cluster_name(struct cluster *cluster)
 {
 	return cluster->name;
 }

@@ -147,7 +147,7 @@ int fb_destroy(struct fb_info *info)
 	return 0;
 }
 
-Ecore_Evas *fb_canvas(struct fb_info *info)
+Ecore_Evas * const fb_canvas(struct fb_info *info)
 {
 	return info->ee;
 }

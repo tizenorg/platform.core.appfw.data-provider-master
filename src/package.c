@@ -109,16 +109,19 @@ static int slave_activated_cb(struct slave_node *slave, void *data)
 	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
 		switch (instance_state(inst)) {
 		case INST_ACTIVATED:
+			DbgPrint("REAL Reactivate: %s\n", package_name(instance_package(inst)));
 			instance_reactivate(inst);
 			break;
 		case INST_REQUEST_TO_ACTIVATE:
+			DbgPrint("REAL Activate: %s\n", package_name(instance_package(inst)));
+			instance_deactivated(inst);
 			instance_activate(inst);
 			break;
 		case INST_DESTROY:
 		case INST_DESTROYED:
+			DbgPrint("REAL Destroy: %s\n", package_name(instance_package(inst)));
 			instance_deactivated(inst);
 			instance_destroy(inst);
-
 		case INST_DEACTIVATED:
 		default:
 			break;
@@ -165,8 +168,8 @@ static int slave_deactivated_cb(struct slave_node *slave, void *data)
 			 *
 			 * activate slave when the slave is reactivated
 			 */
+			DbgPrint("Reactivate[%d] instance %s\n", cnt, package_name(instance_package(inst)));
 			cnt++;
-			DbgPrint("Reactivate count: %d (%s)\n", cnt, package_name(instance_package(inst)));
 		}
 	}
 
@@ -495,7 +498,7 @@ double const package_period(struct pkg_info *info)
 	return info->period;
 }
 
-int  const package_secured(struct pkg_info *info)
+int const package_secured(struct pkg_info *info)
 {
 	return info->secured;
 }
@@ -679,7 +682,7 @@ const char *package_find_by_secured_slave(struct slave_node *slave)
 	return NULL;
 }
 
-const char *package_name(struct pkg_info *info)
+const char * const package_name(struct pkg_info *info)
 {
 	return info->pkgname;
 }

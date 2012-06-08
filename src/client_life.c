@@ -214,7 +214,7 @@ struct client_node *client_find_by_pid(pid_t pid)
 	return NULL;
 }
 
-int client_count_paused(void)
+int const client_count_paused(void)
 {
 	return s_info.nr_of_paused_clients;
 }

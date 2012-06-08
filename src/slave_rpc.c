@@ -123,7 +123,7 @@ static inline struct packet *pop_packet(void)
 static void slave_async_cb(GDBusProxy *proxy, GAsyncResult *result, void *data)
 {
 	struct packet *packet;
-	GError *err = NULL;
+	GError *err;
 	GVariant *param;
 
 	packet = data;
@@ -145,12 +145,16 @@ static void slave_async_cb(GDBusProxy *proxy, GAsyncResult *result, void *data)
 		goto out;
 	}
 
+	err = NULL;
 	param = g_dbus_proxy_call_finish(proxy, result, &err);
-	if (!param && err) {
+	if (!param) {
 		char *filename;
 		char *cmd;
-		ErrPrint("Error: %s\n", err->message);
-		g_error_free(err);
+
+		if (err) {
+			ErrPrint("Error: %s\n", err->message);
+			g_error_free(err);
+		}
 
 		if (packet->ret_cb)
 			packet->ret_cb(packet->slave, packet->cmd, NULL, packet->cbdata);

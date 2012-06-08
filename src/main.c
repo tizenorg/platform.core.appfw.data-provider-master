@@ -131,8 +131,6 @@ static int aul_handler_cb(aul_type type, bundle *kb, void *data)
 
 int main(int argc, char *argv[])
 {
-	int ret;
-
 #if defined(FLOG)
 	__file_log_fp = fopen("/tmp/live.log", "w+t");
 	if (!__file_log_fp)
@@ -169,7 +167,7 @@ int main(int argc, char *argv[])
 
 	ecore_x_shutdown();
 	ecore_shutdown();
-	return ret;
+	return 0;
 }
 
 /* End of a file */

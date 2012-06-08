@@ -314,29 +314,6 @@ struct inst_info *instance_create(struct client_node *client, double timestamp, 
 	DbgPrint("Create a new instance: id[%s], pkg[%s], content[%s], cluster[%s], category[%s], period[%lf]\n",
 								id, pkgname, content, cluster, category, period);
 
-	/*!
-	 * \note
-	 * LB should be created at the create time
-	 */
-	if (package_lb_type(inst->info) == LB_TYPE_SCRIPT) {
-		inst->lb.handle = script_handler_create(inst,
-						package_lb_path(inst->info), package_lb_group(inst->info),
-						inst->lb.width, inst->lb.height);
-
-		if (!inst->lb.handle)
-			ErrPrint("Failed to create LB\n");
-		else
-			script_handler_load(inst->lb.handle, 0);
-	}
-
-	if (package_pd_type(inst->info) == PD_TYPE_SCRIPT) {
-		inst->pd.handle = script_handler_create(inst,
-						package_pd_path(inst->info), package_pd_group(inst->info),
-						inst->pd.width, inst->pd.height);
-		if (!inst->pd.handle)
-			ErrPrint("Failed to create PD\n");
-	}
-
 	return inst;
 }
 
@@ -377,7 +354,7 @@ int instance_destroy(struct inst_info *inst)
 	return 0;
 }
 
-struct inst_info * const instance_ref(struct inst_info *inst)
+struct inst_info * instance_ref(struct inst_info *inst)
 {
 	if (!inst)
 		return NULL;
@@ -386,7 +363,7 @@ struct inst_info * const instance_ref(struct inst_info *inst)
 	return inst;
 }
 
-struct inst_info * const instance_unref(struct inst_info *inst)
+struct inst_info * instance_unref(struct inst_info *inst)
 {
 	if (!inst)
 		return NULL;
@@ -403,46 +380,6 @@ struct inst_info * const instance_unref(struct inst_info *inst)
 	}
 
 	return inst;
-}
-
-struct script_info *instance_lb_handle(struct inst_info *inst)
-{
-	return inst->lb.handle;
-}
-
-struct script_info *instance_pd_handle(struct inst_info *inst)
-{
-	return inst->pd.handle;
-}
-
-const char *instance_id(struct inst_info *inst)
-{
-	return inst->id;
-}
-
-const char *instance_content(struct inst_info *inst)
-{
-	return inst->content;
-}
-
-const char *instance_category(struct inst_info *inst)
-{
-	return inst->category;
-}
-
-const char *instance_cluster(struct inst_info *inst)
-{
-	return inst->cluster;
-}
-
-double instance_timestamp(struct inst_info *inst)
-{
-	return inst->timestamp;
-}
-
-enum instance_state instance_state(struct inst_info *inst)
-{
-	return inst->state;
 }
 
 struct inst_info *instance_find_by_id(const char *pkgname, const char *id)
@@ -516,21 +453,34 @@ static void deactivate_cb(struct slave_node *slave, const char *funcname, GVaria
 	g_variant_get(result, "(i)", &ret);
 	g_variant_unref(result);
 
-	if (ret != 0) {
-		ErrPrint("Slave couldn't delete this instance, Forcely restart the slave\n");
-		slave_faulted(package_slave(inst->info));
-	}
-
 	inst->state = INST_DEACTIVATED;
 
 	DbgPrint("Call unload instance (%s)\n", package_name(inst->info));
 	slave_unload_instance(package_slave(inst->info));
 	instance_broadcast_deleted_event(inst);
 
-	if (inst->requested_state == INST_ACTIVATED)
+	if (inst->lb.handle) {
+		script_handler_unload(inst->lb.handle, 0);
+		script_handler_destroy(inst->lb.handle);
+		inst->lb.handle = NULL;
+	}
+
+	if (inst->pd.handle) {
+		script_handler_unload(inst->pd.handle, 1);
+		script_handler_destroy(inst->pd.handle);
+		inst->pd.handle = NULL;
+	}
+
+	if (inst->requested_state == INST_ACTIVATED) {
 		(void)instance_activate(inst);
-	else if (inst->requested_state == INST_DESTROY || inst->requested_state == INST_DESTROYED)
+	} else if (inst->requested_state == INST_DESTROY || inst->requested_state == INST_DESTROYED) {
 		instance_destroy(inst);
+	}
+
+	if (ret != 0) {
+		ErrPrint("Slave couldn't delete this instance, Forcely restart the slave\n");
+		slave_faulted(package_slave(inst->info));
+	}
 
 	instance_unref(inst);
 }
@@ -648,8 +598,28 @@ static void activate_cb(struct slave_node *slave, const char *funcname, GVariant
 			 */
 		case INST_ACTIVATED:
 		default:
-			if (inst->lb.handle)
-				script_handler_resize(inst->lb.handle, w, h);
+			/*!
+			 * \note
+			 * LB should be created at the create time
+			 */
+			if (package_lb_type(inst->info) == LB_TYPE_SCRIPT) {
+				inst->lb.handle = script_handler_create(inst,
+								package_lb_path(inst->info), package_lb_group(inst->info),
+								inst->lb.width, inst->lb.height);
+
+				if (!inst->lb.handle)
+					ErrPrint("Failed to create LB\n");
+				else
+					script_handler_load(inst->lb.handle, 0);
+			}
+
+			if (package_pd_type(inst->info) == PD_TYPE_SCRIPT) {
+				inst->pd.handle = script_handler_create(inst,
+								package_pd_path(inst->info), package_pd_group(inst->info),
+								inst->pd.width, inst->pd.height);
+				if (!inst->pd.handle)
+					ErrPrint("Failed to create PD\n");
+			}
 
 			slave_load_instance(package_slave(inst->info));
 			instance_broadcast_created_event(inst);
@@ -679,17 +649,17 @@ int instance_deactivated(struct inst_info *inst)
 		slave_unload_instance(package_slave(inst->info));
 	}
 
-	//if (inst->lb.handle) {
-	//	script_handler_unload(inst->lb.handle, 0);
-	//	script_handler_destroy(inst->lb.handle);
-	//	inst->lb.handle = NULL;
-	//}
+	if (inst->lb.handle) {
+		script_handler_unload(inst->lb.handle, 0);
+		script_handler_destroy(inst->lb.handle);
+		inst->lb.handle = NULL;
+	}
 
-	//if (inst->pd.handle) {
-	//	script_handler_unload(inst->pd.handle, 1);
-	//	script_handler_destroy(inst->pd.handle);
-	//	inst->pd.handle = NULL;
-	//}
+	if (inst->pd.handle) {
+		script_handler_unload(inst->pd.handle, 1);
+		script_handler_destroy(inst->pd.handle);
+		inst->pd.handle = NULL;
+	}
 
 	inst->state = INST_DEACTIVATED;
 	inst->requested_state = INST_DEACTIVATED;
@@ -773,7 +743,6 @@ int instance_reactivate(struct inst_info *inst)
 	inst->requested_state = INST_ACTIVATED;
 
 	slave_activate(package_slave(inst->info));
-
 	DbgPrint("Reactivate: %s\n", package_name(inst->info));
 	return slave_rpc_async_request(package_slave(inst->info),
 			package_name(inst->info), inst->id,
@@ -905,11 +874,6 @@ void instance_set_pd_info(struct inst_info *inst, int w, int h)
 {
 	inst->pd.width = w;
 	inst->pd.height = h;
-}
-
-struct pkg_info *instance_package(struct inst_info *inst)
-{
-	return inst->info;
 }
 
 static void pinup_cb(struct slave_node *slave, const char *funcnane, GVariant *result, void *data)
@@ -1201,44 +1165,94 @@ int instance_change_group(struct inst_info *inst, const char *cluster, const cha
 					change_group_cb, cbdata);
 }
 
-int instance_auto_launch(struct inst_info *inst)
+int const instance_auto_launch(struct inst_info *inst)
 {
 	return inst->lb.auto_launch;
 }
 
-int instance_priority(struct inst_info *inst)
+int const instance_priority(struct inst_info *inst)
 {
 	return inst->lb.priority;
 }
 
-struct client_node *instance_client(struct inst_info *inst)
+struct client_node *const instance_client(struct inst_info *inst)
 {
 	return inst->client;
 }
 
-double instance_period(struct inst_info *inst)
+double const instance_period(struct inst_info *inst)
 {
 	return inst->period;
 }
 
-int instance_lb_width(struct inst_info *inst)
+int const instance_lb_width(struct inst_info *inst)
 {
 	return inst->lb.width;
 }
 
-int instance_lb_height(struct inst_info *inst)
+int const instance_lb_height(struct inst_info *inst)
 {
 	return inst->lb.height;
 }
 
-int instance_pd_width(struct inst_info *inst)
+int const instance_pd_width(struct inst_info *inst)
 {
 	return inst->pd.width;
 }
 
-int instance_pd_height(struct inst_info *inst)
+int const instance_pd_height(struct inst_info *inst)
 {
 	return inst->pd.height;
+}
+
+struct pkg_info *const instance_package(struct inst_info *inst)
+{
+	return inst->info;
+}
+
+struct script_info *const instance_lb_handle(struct inst_info *inst)
+{
+	return inst->lb.handle;
+}
+
+struct script_info * const instance_pd_handle(struct inst_info *inst)
+{
+	return inst->pd.handle;
+}
+
+char *const instance_id(struct inst_info *inst)
+{
+	return inst->id;
+}
+
+char *const instance_content(struct inst_info *inst)
+{
+	return inst->content;
+}
+
+char *const instance_category(struct inst_info *inst)
+{
+	return inst->category;
+}
+
+char *const instance_cluster(struct inst_info *inst)
+{
+	return inst->cluster;
+}
+
+double const instance_timestamp(struct inst_info *inst)
+{
+	return inst->timestamp;
+}
+
+void instance_set_state(struct inst_info *inst, enum instance_state state)
+{
+	inst->state = state;
+}
+
+enum instance_state const instance_state(struct inst_info *inst)
+{
+	return inst->state;
 }
 
 /* End of a file */

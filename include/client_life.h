@@ -35,7 +35,7 @@ extern struct client_node *client_find_by_pid(pid_t pid);
  * \note
  * Statistics for state of client
  */
-extern int client_count_paused(void);
+extern int const client_count_paused(void);
 extern int client_is_all_paused(void);
 extern int client_count(void);
 

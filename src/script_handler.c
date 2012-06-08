@@ -265,6 +265,9 @@ struct script_info *script_handler_create(struct inst_info *inst, const char *fi
 	char *filename;
 	int fname_len;
 
+	if (!file)
+		return NULL;
+
 	fname_len = strlen(g_conf.path.image) + strlen(basename((char*)file)) + 30;
 
 	filename = malloc(fname_len);

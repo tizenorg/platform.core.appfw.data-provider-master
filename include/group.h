@@ -10,8 +10,8 @@ extern struct category *group_create_category(struct cluster *cluster, const cha
 extern struct category *group_find_category(struct cluster *cluster, const char *name);
 extern int group_destroy_category(struct category *category);
 
-extern const char *group_category_name(struct category *category);
-extern const char *group_cluster_name(struct cluster *cluster);
+extern const char * const group_category_name(struct category *category);
+extern const char * const group_cluster_name(struct cluster *cluster);
 extern const char *group_cluster_name_by_category(struct category *category);
 
 extern int group_add_livebox(const char *group, const char *pkgname);

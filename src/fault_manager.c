@@ -32,7 +32,7 @@ struct fault_info {
 	char *func;
 };
 
-int fault_is_occured(void)
+int const fault_is_occured(void)
 {
 	return s_info.fault_mark_count;
 }

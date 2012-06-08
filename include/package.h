@@ -45,6 +45,7 @@ extern int const package_auto_launch(struct pkg_info *info);
 extern unsigned int const package_size_list(struct pkg_info *info);
 extern int const package_pd_width(struct pkg_info *info);
 extern int const package_pd_height(struct pkg_info *info);
+extern const char * const package_name(struct pkg_info *info);
 
 /*!
  * \brief
@@ -67,5 +68,4 @@ extern int package_list_update(struct client_node *client);
 extern int package_init(void);
 extern int package_fini(void);
 
-extern const char *package_name(struct pkg_info *info);
 /* End of a file */
