@@ -19,6 +19,7 @@
 #include "instance.h"
 #include "fb.h"
 #include "script_handler.h"
+#include "group.h"
 
 int errno;
 
@@ -180,6 +181,8 @@ static inline void destroy_package(struct pkg_info *info)
 {
 	s_info.pkg_list = eina_list_remove(s_info.pkg_list, info);
 
+	group_del_livebox(info->pkgname);
+
 	if (info->lb.type == LB_TYPE_SCRIPT) {
 		free(info->lb.info.script.path);
 		free(info->lb.info.script.group);
@@ -202,6 +205,7 @@ static inline int load_conf(struct pkg_info *info, const char *pkgname)
 {
 	struct parser *parser;
 	const char *str;
+	const char *group;
 
 	parser = parser_load(info->pkgname);
 	if (!parser) {
@@ -209,13 +213,13 @@ static inline int load_conf(struct pkg_info *info, const char *pkgname)
 
 		info->script = strdup(DEFAULT_SCRIPT);
 		if (!info->script) {
-			ErrPrint("Error: %s\n", strerror(errno));
+			ErrPrint("Heap: %s\n", strerror(errno));
 			return -ENOMEM;
 		}
 
 		info->abi = strdup(DEFAULT_ABI);
 		if (!info->abi) {
-			ErrPrint("Error: %s\n", strerror(errno));
+			ErrPrint("Heap: %s\n", strerror(errno));
 			free(info->script);
 			info->script = NULL;
 			return -ENOMEM;
@@ -237,6 +241,7 @@ static inline int load_conf(struct pkg_info *info, const char *pkgname)
 
 			info->lb.info.script.path = strdup(str);
 			if (!info->lb.info.script.path) {
+				ErrPrint("Heap: %s\n", strerror(errno));
 				parser_unload(parser);
 				return -ENOMEM;
 			}
@@ -245,6 +250,7 @@ static inline int load_conf(struct pkg_info *info, const char *pkgname)
 			if (str) {
 				info->lb.info.script.group = strdup(str);
 				if (!info->lb.info.script.group) {
+					ErrPrint("Heap: %s\n", strerror(errno));
 					free(info->lb.info.script.path);
 					parser_unload(parser);
 					return -ENOMEM;
@@ -261,6 +267,7 @@ static inline int load_conf(struct pkg_info *info, const char *pkgname)
 			info->pd.type = PD_TYPE_SCRIPT;
 			info->pd.info.script.path = strdup(str);
 			if (!info->pd.info.script.path) {
+				ErrPrint("Heap: %s\n", strerror(errno));
 				if (info->lb.type == LB_TYPE_SCRIPT) {
 					free(info->lb.info.script.path);
 					free(info->lb.info.script.group);
@@ -273,6 +280,7 @@ static inline int load_conf(struct pkg_info *info, const char *pkgname)
 			if (str) {
 				info->pd.info.script.group = strdup(str);
 				if (!info->pd.info.script.group) {
+					ErrPrint("Heap: %s\n", strerror(errno));
 					free(info->pd.info.script.path);
 					if (info->lb.type == LB_TYPE_SCRIPT) {
 						free(info->lb.info.script.path);
@@ -289,6 +297,7 @@ static inline int load_conf(struct pkg_info *info, const char *pkgname)
 	str = str ? str : DEFAULT_SCRIPT;
 	info->script = strdup(str);
 	if (!info->script) {
+		ErrPrint("Heap: %s\n", strerror(errno));
 		if (info->pd.type == PD_TYPE_SCRIPT) {
 			free(info->pd.info.script.path);
 			free(info->pd.info.script.group);
@@ -307,6 +316,7 @@ static inline int load_conf(struct pkg_info *info, const char *pkgname)
 	str = str ? str : DEFAULT_ABI;
 	info->abi = strdup(str);
 	if (!info->abi) {
+		ErrPrint("Heap: %s\n", strerror(errno));
 		free(info->script);
 		if (info->pd.type == PD_TYPE_SCRIPT) {
 			free(info->pd.info.script.path);
@@ -335,6 +345,11 @@ static inline int load_conf(struct pkg_info *info, const char *pkgname)
 	info->lb.pinup = parser_pinup(parser);
 
 	parser_get_pdsize(parser, &info->pd.width, &info->pd.height);
+
+	group = parser_group_str(parser);
+	if (group && group_add_livebox(group, pkgname) < 0)
+		ErrPrint("Failed to build cluster tree for %s{%s}\n", pkgname, group);
+
 	parser_unload(parser);
 	return 0;
 }
@@ -342,6 +357,9 @@ static inline int load_conf(struct pkg_info *info, const char *pkgname)
 struct pkg_info *package_create(const char *pkgname)
 {
 	struct pkg_info *info;
+
+	if (util_validate_livebox_package(pkgname) < 0)
+		return NULL;
 
 	info = calloc(1, sizeof(*info));
 	if (!info) {

@@ -8,6 +8,7 @@
 #include <stdlib.h>
 
 #include <dlog.h>
+#include <Eina.h>
 
 #include "debug.h"
 #include "conf.h"
@@ -15,6 +16,9 @@
 #include "parser.h"
 #include "group.h"
 #include "util.h"
+#include "client_life.h"
+#include "slave_life.h"
+#include "package.h"
 
 int errno;
 
@@ -22,7 +26,7 @@ int io_init(void)
 {
 	struct dirent *ent;
 	DIR *dir;
-	struct parser *item;
+	struct pkg_info *info;
 
 	dir = opendir(g_conf.path.root);
 	if (!dir) {
@@ -34,19 +38,9 @@ int io_init(void)
 		if (ent->d_name[0] == '.')
 			continue;
 
-		if (util_validate_livebox_package(ent->d_name) < 0)
-			continue;
-
-		item = parser_load(ent->d_name);
-		if (item) {
-			const char *groups;
-
-			groups = parser_group_str(item);
-			if (groups && group_add_livebox(groups, ent->d_name) < 0)
-				ErrPrint("Something goes wrong with group string[%s]\n", groups);
-
-			parser_unload(item);
-		}
+		info = package_create(ent->d_name);
+		if (info)
+			DbgPrint("[%s] information is built\n", ent->d_name);
 	}
 
 	closedir(dir);

@@ -54,8 +54,10 @@ int util_validate_livebox_package(const char *pkgname)
 	int len;
 	char *path;
 
-	if (!pkgname)
+	if (!pkgname) {
+		ErrPrint("Invalid argument\n");
 		return -EINVAL;
+	}
 
 	len = strlen(pkgname) * 2;
 	len += strlen(g_conf.path.root);
@@ -63,7 +65,7 @@ int util_validate_livebox_package(const char *pkgname)
 
 	path = malloc(len + 1);
 	if (!path) {
-		ErrPrint("heap-path: %s\n", strerror(errno));
+		ErrPrint("Heap: %s\n", strerror(errno));
 		return -ENOMEM;
 	}
 

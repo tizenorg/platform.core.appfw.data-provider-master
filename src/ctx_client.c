@@ -31,7 +31,7 @@ static struct info {
 	int enabled;
 } s_info = {
 	.updated = 0,
-	.pending_mask = 0,
+	.pending_mask = CONTEXT_NOTI_LOCATION | CONTEXT_NOTI_CONTACTS | CONTEXT_NOTI_APPS | CONTEXT_NOTI_MUSIC | CONTEXT_NOTI_PHOTOS,
 	.enabled = 0,
 };
 
@@ -283,6 +283,11 @@ static Eina_Bool delayed_ctx_init_cb(void *data)
 	context_set_context_changed_cb(ctx_changed_cb,
 		CONTEXT_NOTI_LOCATION | CONTEXT_NOTI_CONTACTS | CONTEXT_NOTI_APPS |
 		CONTEXT_NOTI_MUSIC | CONTEXT_NOTI_PHOTOS, NULL);
+
+	/*!
+	 * Triggering all events first
+	 */
+	ctx_update();
 
 	return ECORE_CALLBACK_CANCEL;
 }

@@ -40,11 +40,12 @@ mkdir -p /opt/share/live_magazine/log
 chown 5000:5000 /opt/share/live_magazine
 chown 5000:5000 /opt/share/live_magazine/log
 
-if [ -f "/etc/rc.d/rc3.d/S41data-provider-master" ]; then
-	rm -f /etc/rc.d/rc3.d/S41data-provider-master
-fi
+# Menu daemon will launch the data provider master automatically
+#if [ -f "/etc/rc.d/rc3.d/S41data-provider-master" ]; then
+#	rm -f /etc/rc.d/rc3.d/S41data-provider-master
+#fi
 
-ln -sf /etc/rc.d/init.d/data-provider-master /etc/rc.d/rc3.d/S41data-provider-master
+#ln -sf /etc/rc.d/init.d/data-provider-master /etc/rc.d/rc3.d/S41data-provider-master
 
 TMP=`which ps`
 if [ $? -ne 0 ]; then
@@ -64,7 +65,17 @@ if [ x"$PID" != x"" ]; then
 	sleep 1
 fi
 
-aul_test launch com.samsung.data-provider-master
+PID_LIST=`ps ax | grep 'data-provider-slave' | grep -v 'grep' | grep -v 'dpkg' | grep -v 'dlogutil' | awk '{print $1}'`
+for PID in $PID_LIST
+do
+	echo "Terminate old data provider slave $PID"
+	kill -9 $PID
+done
+
+#
+# menu-daemon will relaunch the data provider master
+#
+# aul_test launch com.samsung.data-provider-master
 
 %files
 %defattr(-,root,root,-)
