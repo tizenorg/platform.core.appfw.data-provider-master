@@ -517,13 +517,13 @@ static void method_updated(GDBusMethodInvocation *inv, GVariant *param)
 	const char *slavename;
 	const char *pkgname;
 	const char *id;
-	int x;
-	int y;
+	int w;
+	int h;
 	double priority;
 	struct slave_node *slave;
 	int ret;
 
-	g_variant_get(param, "(&s&s&siid)", &slavename, &pkgname, &id, &x, &y, &priority);
+	g_variant_get(param, "(&s&s&siid)", &slavename, &pkgname, &id, &w, &h, &priority);
 
 	slave = slave_find_by_name(slavename);
 	if (!slave) {
@@ -534,14 +534,16 @@ static void method_updated(GDBusMethodInvocation *inv, GVariant *param)
 
 		inst = instance_find_by_id(pkgname, id);
 		if (inst) {
+			instance_set_lb_info(inst, w, h, priority);
+
 			if (package_lb_type(instance_package(inst)) == LB_TYPE_SCRIPT) {
+				script_handler_resize(instance_lb_handle(inst), w, h);
 				ret = script_handler_parse_desc(pkgname, id, id, 0);
 			} else {
 				/*!
 				 * \check
 				 * text format (inst)
 				 */
-				instance_set_lb_info(inst, x, y, priority);
 				instance_lb_updated(pkgname, id);
 				ret = 0;
 			}
