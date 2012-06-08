@@ -93,17 +93,21 @@ struct fb_info *fb_create(const char *filename, int w, int h)
 	struct fb_info *info;
 
 	info = calloc(1, sizeof(*info));
-	if (!info)
+	if (!info) {
+		ErrPrint("Heap: %s\n", strerror(errno));
 		return NULL;
+	}
 
 	info->w = w;
 	info->h = h;
 
 	info->filename = strdup(filename);
 	if (!info->filename) {
+		ErrPrint("Heap: %s\n", strerror(errno));
 		free(info);
 		return NULL;
 	}
+
 	info->fd = -EINVAL;
 	info->ee = NULL;
 
@@ -112,12 +116,24 @@ struct fb_info *fb_create(const char *filename, int w, int h)
 
 int fb_create_buffer(struct fb_info *info)
 {
-	if (info->ee)
+	if (info->ee) {
+		int w = 0;
+		int h = 0;
+
+		ecore_evas_geometry_get(info->ee, NULL, NULL, &w, &h);
+		if (w != info->w || h != info->h) {
+			ErrPrint("EE exists, size mismatched requested (%dx%d) but (%dx%d)\n", info->w, info->h, w, h);
+			ecore_evas_resize(info->ee, info->w, info->h);
+		}
+
 		return 0;
+	}
 
 	info->ee = ecore_evas_buffer_allocfunc_new(info->w, info->h, alloc_fb, free_fb, info);
-	if (!info->ee)
+	if (!info->ee) {
+		ErrPrint("Failed to create a buffer\n");
 		return -EFAULT;
+	}
 
 	ecore_evas_alpha_set(info->ee, EINA_TRUE);
 	ecore_evas_manual_render_set(info->ee, EINA_FALSE);
@@ -127,8 +143,10 @@ int fb_create_buffer(struct fb_info *info)
 
 int fb_destroy_buffer(struct fb_info *info)
 {
-	if (!info->ee)
+	if (!info->ee) {
+		ErrPrint("EE is not exists\n");
 		return -EINVAL;
+	}
 
 	ecore_evas_free(info->ee);
 	info->ee = NULL;
@@ -138,7 +156,7 @@ int fb_destroy_buffer(struct fb_info *info)
 int fb_destroy(struct fb_info *info)
 {
 	if (info->ee) {
-		ErrPrint("Destroy buffer first!!!!!!!!!!\n");
+		ErrPrint("EE is not destroyed\n");
 		return -EINVAL;
 	}
 
