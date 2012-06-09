@@ -130,12 +130,54 @@ int fault_check_pkgs(struct slave_node *slave)
 	const char *pkgname;
 	Eina_List *l;
 	Eina_List *n;
-	int found;
+	int checked;
 
-	found = 0;
-	EINA_LIST_FOREACH_SAFE(s_info.call_list, l, n, info) {
-		if (info->slave == slave) {
+	/*!
+	 * \note
+	 * First step.
+	 * Check the log file
+	 */
+	pkgname = (const char *)check_log_file(slave);
+	if (pkgname) {
+		pkg = package_find(pkgname);
+		if (pkg) {
 			int ret;
+			ret = package_set_fault_info(pkg, util_timestamp(), NULL, NULL);
+			dump_fault_info(slave_name(slave), slave_pid(slave), pkgname, "", "");
+			ErrPrint("Set fault %s(%d)\n", !ret ? "Success" : "Failed", ret);
+			fault_broadcast_info(pkgname, "", "");
+			s_info.fault_mark_count = 0;
+			return 0;
+		}
+	}
+
+	/*!
+	 * \note
+	 * Second step.
+	 * Is it secured slave?
+	 */
+	pkgname = package_find_by_secured_slave(slave);
+	if (pkgname) {
+		pkg = package_find(pkgname);
+		if (pkg) {
+			int ret;
+			ret = package_set_fault_info(pkg, util_timestamp(), NULL, NULL);
+			dump_fault_info(slave_name(slave), slave_pid(slave), pkgname, "", "");
+			ErrPrint("Set fault %s(%d)\n", !ret ? "Success" : "Failed", ret);
+			fault_broadcast_info(pkgname, "", "");
+			s_info.fault_mark_count = 0;
+			clear_log_file(slave);
+			return 0;
+		}
+	}
+
+	/*!
+	 * \note
+	 * At last, check the pair of function call and return mark
+	 */
+	checked = 0;
+	EINA_LIST_REVERSE_FOREACH_SAFE(s_info.call_list, l, n, info) {
+		if (info->slave == slave) {
 			const char *filename;
 			const char *func;
 
@@ -148,49 +190,27 @@ int fault_check_pkgs(struct slave_node *slave)
 			filename = info->filename ? info->filename : "";
 			func = info->func ? info->func : "";
 
-			ret = package_set_fault_info(pkg, info->timestamp, info->filename, info->func);
-			dump_fault_info(slave_name(info->slave), slave_pid(info->slave), info->pkgname, filename, func);
-			ErrPrint("Set fault %s(%d)\n", !ret ? "Success" : "Failed", ret);
-			fault_broadcast_info(info->pkgname, info->filename, info->func);
+			if (!checked) {
+				int ret;
+				ret = package_set_fault_info(pkg, info->timestamp, info->filename, info->func);
+				fault_broadcast_info(info->pkgname, info->filename, info->func);
+				ErrPrint("Set fault %s(%d)\n", !ret ? "Success" : "Failed", ret);
+			} else {
+				DbgPrint("Treated as a false log\n");
+				dump_fault_info(
+					slave_name(info->slave), slave_pid(info->slave), info->pkgname, filename, func);
+			}
+
 			s_info.call_list = eina_list_remove_list(s_info.call_list, l);
 
 			free(info->pkgname);
 			free(info->filename);
 			free(info->func);
 			free(info);
-			found++;
+			checked = 1;
 		}
 	}
 
-	if (found)
-		goto out;
-
-	pkgname = package_find_by_secured_slave(slave);
-	if (!pkgname) {
-		ErrPrint("Slave is crashed, but I couldn't find a recorded fault package\n");
-		pkgname = (const char *)check_log_file(slave);
-		if (pkgname) {
-			pkg = package_find(pkgname);
-			if (pkg) {
-				found = package_set_fault_info(pkg, util_timestamp(), NULL, NULL);
-				dump_fault_info(slave_name(slave), slave_pid(slave), pkgname, "", "");
-				ErrPrint("Set fault %s(%d)\n", !found ? "Success" : "Failed", found);
-				fault_broadcast_info(pkgname, "", "");
-			}
-		}
-
-		goto out;
-	}
-
-	pkg = package_find(pkgname);
-	if (pkg) {
-		found = package_set_fault_info(pkg, util_timestamp(), NULL, NULL);
-		dump_fault_info(slave_name(slave), slave_pid(slave), pkgname, "", "");
-		ErrPrint("Set fault %s(%d)\n", !found ? "Success" : "Failed", found);
-		fault_broadcast_info(pkgname, "", "");
-	}
-
-out:
 	s_info.fault_mark_count = 0;
 	clear_log_file(slave);
 	return 0;

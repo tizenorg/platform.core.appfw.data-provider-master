@@ -734,7 +734,7 @@ static void method_lb_mouse_up(GDBusMethodInvocation *inv, GVariant *param)
 		return;
 	}
 
-	g_variant_get(param, "(ssiiddd)", &pkgname, &id, &w, &h, &timestamp, &x, &y);
+	g_variant_get(param, "(&s&siiddd)", &pkgname, &id, &w, &h, &timestamp, &x, &y);
 
 	inst = instance_find_by_id(pkgname, id);
 	if (!inst) {
@@ -763,9 +763,8 @@ static void method_lb_mouse_up(GDBusMethodInvocation *inv, GVariant *param)
 		}
 
 		script_handler_update_pointer(script, x, y, 0);
-
 		evas_event_feed_mouse_up(e, 1, EVAS_BUTTON_NONE, timestamp, NULL);
-		evas_event_feed_mouse_out(e, timestamp, NULL);
+		evas_event_feed_mouse_out(e, timestamp + 0.01f, NULL);
 		ret = 0;
 	}
 
@@ -801,14 +800,12 @@ static void method_create_pd(GDBusMethodInvocation *inv, GVariant *param)
 	g_variant_get(param, "(&s&s)", &pkgname, &id);
 
 	inst = instance_find_by_id(pkgname, id);
-	if (!inst) {
+	if (!inst)
 		ret = -ENOENT;
-	} else {
-		if (package_is_fault(instance_package(inst)))
-			ret = -EFAULT;
-		else
-			ret = script_handler_load(instance_pd_handle(inst), 1);
-	}
+	else if (package_is_fault(instance_package(inst)))
+		ret = -EFAULT;
+	else
+		ret = script_handler_load(instance_pd_handle(inst), 1);
 
 	param = g_variant_new("(i)", ret);
 	if (!param)
@@ -907,15 +904,12 @@ static void method_destroy_pd(GDBusMethodInvocation *inv, GVariant *param)
 	g_variant_get(param, "(&s&s)", &pkgname, &id);
 
 	inst = instance_find_by_id(pkgname, id);
-	if (!inst) {
+	if (!inst)
 		ret = -ENOENT;
-	} else {
-		if (package_is_fault(instance_package(inst))) {
-			ret = -EFAULT;
-		} else {
-			ret = script_handler_unload(instance_pd_handle(inst), 1);
-		}
-	}
+	else if (package_is_fault(instance_package(inst)))
+		ret = -EFAULT;
+	else
+		ret = script_handler_unload(instance_pd_handle(inst), 1);
 
 	param = g_variant_new("(i)", ret);
 	if (!param)
@@ -992,37 +986,34 @@ static void method_lb_mouse_down(GDBusMethodInvocation *inv, GVariant *param)
 	inst = instance_find_by_id(pkgname, id);
 	if (!inst) {
 		ret = -ENOENT;
+	} else if (package_is_fault(instance_package(inst))) {
+		/*!
+		 * \note
+		 * If the package is registered as fault module,
+		 * slave has not load it, so we don't need to do anything at here!
+		 */
+		ret = -EAGAIN;
 	} else {
-		if (package_is_fault(instance_package(inst))) {
-			/*!
-			 * \note
-			 * If the package is registered as fault module,
-			 * slave has not load it, so we don't need to do anything at here!
-			 */
-			ret = -EAGAIN;
-		} else {
-			struct script_info *script;
-			Evas *e;
+		struct script_info *script;
+		Evas *e;
 
-			script = instance_lb_handle(inst);
-			if (!script) {
-				ret = -EFAULT;
-				goto out;
-			}
-
-			e = script_handler_evas(script);
-			if (!e) {
-				ret = -EFAULT;
-				goto out;
-			}
-
-			script_handler_update_pointer(script, x, y, 1);
-
-			evas_event_feed_mouse_in(e, timestamp, NULL);
-			evas_event_feed_mouse_down(e, 1, EVAS_BUTTON_NONE, timestamp, NULL);
-
-			ret = 0;
+		script = instance_lb_handle(inst);
+		if (!script) {
+			ret = -EFAULT;
+			goto out;
 		}
+
+		e = script_handler_evas(script);
+		if (!e) {
+			ret = -EFAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, x, y, 1);
+		evas_event_feed_mouse_in(e, timestamp, NULL);
+		evas_event_feed_mouse_move(e, x * w, y * h, timestamp, NULL);
+		evas_event_feed_mouse_down(e, 1, EVAS_BUTTON_NONE, timestamp + 0.01f, NULL);
+		ret = 0;
 	}
 out:
 	param = g_variant_new("(i)", ret);
@@ -1045,7 +1036,6 @@ static void method_lb_mouse_move(GDBusMethodInvocation *inv, GVariant *param)
 	struct client_node *client;
 	GDBusConnection *conn;
 	struct inst_info *inst;
-	struct pkg_info *info;
 
 	conn = g_dbus_method_invocation_get_connection(inv);
 	if (!conn) {
@@ -1064,35 +1054,32 @@ static void method_lb_mouse_move(GDBusMethodInvocation *inv, GVariant *param)
 	inst = instance_find_by_id(pkgname, id);
 	if (!inst) {
 		ret = -ENOENT;
+	} else if (package_is_fault(instance_package(inst))) {
+		/*!
+		 * \note
+		 * If the package is registered as fault module,
+		 * slave has not load it, so we don't need to do anything at here!
+		 */
+		ret = -EAGAIN;
 	} else {
-		info = instance_package(inst);
-		if (package_is_fault(info)) {
-			/*!
-			 * \note
-			 * If the package is registered as fault module,
-			 * slave has not load it, so we don't need to do anything at here!
-			 */
-			ret = -EAGAIN;
-		} else {
-			struct script_info *script;
-			Evas *e;
+		struct script_info *script;
+		Evas *e;
 
-			script = instance_lb_handle(inst);
-			if (!script) {
-				ret = -EFAULT;
-				goto out;
-			}
-
-			e = script_handler_evas(script);
-			if (!e) {
-				ret = -EFAULT;
-				goto out;
-			}
-
-			script_handler_update_pointer(script, x, y, -1);
-			evas_event_feed_mouse_move(e, w * x, h * y, timestamp, NULL);
-			ret = 0;
+		script = instance_lb_handle(inst);
+		if (!script) {
+			ret = -EFAULT;
+			goto out;
 		}
+
+		e = script_handler_evas(script);
+		if (!e) {
+			ret = -EFAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, x, y, -1);
+		evas_event_feed_mouse_move(e, x * w, y * h, timestamp, NULL);
+		ret = 0;
 	}
 out:
 	param = g_variant_new("(i)", ret);
@@ -1115,7 +1102,6 @@ static void method_pd_mouse_move(GDBusMethodInvocation *inv, GVariant *param)
 	struct client_node *client;
 	GDBusConnection *conn;
 	struct inst_info *inst;
-	struct pkg_info *info;
 
 	conn = g_dbus_method_invocation_get_connection(inv);
 	if (!conn) {
@@ -1134,35 +1120,32 @@ static void method_pd_mouse_move(GDBusMethodInvocation *inv, GVariant *param)
 	inst = instance_find_by_id(pkgname, id);
 	if (!inst) {
 		ret = -ENOENT;
+	} else if (package_is_fault(instance_package(inst))) {
+		/*!
+		 * \note
+		 * If the package is registered as fault module,
+		 * slave has not load it, so we don't need to do anything at here!
+		 */
+		ret = -EAGAIN;
 	} else {
-		info = instance_package(inst);
-		if (package_is_fault(info)) {
-			/*!
-			 * \note
-			 * If the package is registered as fault module,
-			 * slave has not load it, so we don't need to do anything at here!
-			 */
-			ret = -EAGAIN;
-		} else {
-			struct script_info *script;
-			Evas *e;
+		struct script_info *script;
+		Evas *e;
 
-			script = instance_pd_handle(inst);
-			if (!script) {
-				ret = -EFAULT;
-				goto out;
-			}
-
-			e = script_handler_evas(script);
-			if (!e) {
-				ret = -EFAULT;
-				goto out;
-			}
-
-			script_handler_update_pointer(script, x, y, -1);
-			evas_event_feed_mouse_move(e, x * w, y * h, timestamp, NULL);
-			ret = 0;
+		script = instance_pd_handle(inst);
+		if (!script) {
+			ret = -EFAULT;
+			goto out;
 		}
+
+		e = script_handler_evas(script);
+		if (!e) {
+			ret = -EFAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, x, y, -1);
+		evas_event_feed_mouse_move(e, x * w, y * h, timestamp, NULL);
+		ret = 0;
 	}
 out:
 	param = g_variant_new("(i)", ret);
@@ -1185,7 +1168,6 @@ static void method_pd_mouse_up(GDBusMethodInvocation *inv, GVariant *param)
 	struct client_node *client;
 	GDBusConnection *conn;
 	struct inst_info *inst;
-	struct pkg_info *info;
 
 	conn = g_dbus_method_invocation_get_connection(inv);
 	if (!conn) {
@@ -1204,36 +1186,33 @@ static void method_pd_mouse_up(GDBusMethodInvocation *inv, GVariant *param)
 	inst = instance_find_by_id(pkgname, id);
 	if (!inst) {
 		ret = -ENOENT;
+	} else if (package_is_fault(instance_package(inst))) {
+		/*!
+		 * \note
+		 * If the package is registered as fault module,
+		 * slave has not load it, so we don't need to do anything at here!
+		 */
+		ret = -EAGAIN;
 	} else {
-		info = instance_package(inst);
-		if (package_is_fault(info)) {
-			/*!
-			 * \note
-			 * If the package is registered as fault module,
-			 * slave has not load it, so we don't need to do anything at here!
-			 */
-			ret = -EAGAIN;
-		} else {
-			struct script_info *script;
-			Evas *e;
+		struct script_info *script;
+		Evas *e;
 
-			script = instance_pd_handle(inst);
-			if (!script) {
-				ret = -EFAULT;
-				goto out;
-			}
-
-			e = script_handler_evas(script);
-			if (!e) {
-				ret = -EFAULT;
-				goto out;
-			}
-
-			script_handler_update_pointer(script, x, y, 0);
-			evas_event_feed_mouse_up(e, 1, EVAS_BUTTON_NONE, timestamp, NULL);
-			evas_event_feed_mouse_out(e, timestamp, NULL);
-			ret = 0;
+		script = instance_pd_handle(inst);
+		if (!script) {
+			ret = -EFAULT;
+			goto out;
 		}
+
+		e = script_handler_evas(script);
+		if (!e) {
+			ret = -EFAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, x, y, 0);
+		evas_event_feed_mouse_up(e, 1, EVAS_BUTTON_NONE, timestamp, NULL);
+		evas_event_feed_mouse_out(e, timestamp + 0.01f, NULL);
+		ret = 0;
 	}
 
 out:
@@ -1257,7 +1236,6 @@ static void method_pd_mouse_down(GDBusMethodInvocation *inv, GVariant *param)
 	struct client_node *client;
 	GDBusConnection *conn;
 	struct inst_info *inst;
-	struct pkg_info *info;
 
 	conn = g_dbus_method_invocation_get_connection(inv);
 	if (!conn) {
@@ -1276,38 +1254,34 @@ static void method_pd_mouse_down(GDBusMethodInvocation *inv, GVariant *param)
 	inst = instance_find_by_id(pkgname, id);
 	if (!inst) {
 		ret = -ENOENT;
+	} else if (package_is_fault(instance_package(inst))) {
+		/*!
+		 * \note
+		 * If the package is registered as fault module,
+		 * slave has not load it, so we don't need to do anything at here!
+		 */
+		ret = -EAGAIN;
 	} else {
-		info = instance_package(inst);
+		struct script_info *script;
+		Evas *e;
 
-		if (package_is_fault(info)) {
-			/*!
-			 * \note
-			 * If the package is registered as fault module,
-			 * slave has not load it, so we don't need to do anything at here!
-			 */
-			ret = -EAGAIN;
-		} else {
-			struct script_info *script;
-			Evas *e;
-
-			script = instance_pd_handle(inst);
-			if (!script) {
-				ret = -EFAULT;
-				goto out;
-			}
-
-			e = script_handler_evas(script);
-			if (!e) {
-				ret = -EFAULT;
-				goto out;
-			}
-
-			script_handler_update_pointer(script, x, y, 1);
-
-			evas_event_feed_mouse_in(e, timestamp, NULL);
-			evas_event_feed_mouse_down(e, 1, EVAS_BUTTON_NONE, timestamp, NULL);
-			ret = 0;
+		script = instance_pd_handle(inst);
+		if (!script) {
+			ret = -EFAULT;
+			goto out;
 		}
+
+		e = script_handler_evas(script);
+		if (!e) {
+			ret = -EFAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, x, y, 1);
+		evas_event_feed_mouse_in(e, timestamp, NULL);
+		evas_event_feed_mouse_move(e, x * w, y * h, timestamp, NULL);
+		evas_event_feed_mouse_down(e, 1, EVAS_BUTTON_NONE, timestamp + 0.01f, NULL);
+		ret = 0;
 	}
 
 out:
@@ -1509,20 +1483,18 @@ static void method_new(GDBusMethodInvocation *inv, GVariant *param)
 	inst = NULL;
 	if (!info) {
 		ret = -EFAULT;
+	} else if (package_is_fault(info)) {
+		ret = -EAGAIN;
 	} else {
-		if (package_is_fault(info)) {
-			ret = -EAGAIN;
-		} else {
-			if (period > 0.0f && period < MINIMUM_PERIOD)
-				period = MINIMUM_PERIOD;
+		if (period > 0.0f && period < MINIMUM_PERIOD)
+			period = MINIMUM_PERIOD;
 
-			inst = instance_create(client, timestamp, pkgname, content, cluster, category, period);
-			/*!
-			 * \note
-			 * Using the "inst" without validate its value is at my disposal. ;)
-			 */
-			ret = instance_activate(inst);
-		}
+		inst = instance_create(client, timestamp, pkgname, content, cluster, category, period);
+		/*!
+		 * \note
+		 * Using the "inst" without validate its value is at my disposal. ;)
+		 */
+		ret = instance_activate(inst);
 	}
 
 	param = g_variant_new("(i)", ret);

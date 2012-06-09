@@ -451,6 +451,17 @@ int package_dump_fault_info(struct pkg_info *info)
 	return 0;
 }
 
+int package_get_fault_info(struct pkg_info *info, double *timestamp, const char **filename, const char **function)
+{
+	if (!info->fault_info)
+		return -ENOENT;
+
+	*timestamp = info->fault_info->timestamp;
+	*filename = info->fault_info->filename;
+	*function = info->fault_info->function;
+	return 0;
+}
+
 int package_set_fault_info(struct pkg_info *info, double timestamp, const char *filename, const char *function)
 {
 	struct fault_info *fault;
