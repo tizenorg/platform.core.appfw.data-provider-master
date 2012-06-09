@@ -500,7 +500,6 @@ static void method_desc_updated(GDBusMethodInvocation *inv, GVariant *param)
 		} else if (script_handler_is_loaded(instance_pd_handle(inst))) {
 			ret = script_handler_parse_desc(pkgname, id, descfile, 1);
 		} else {
-			DbgPrint("desc updated, but ignored.(%s)\n", instance_id(inst));
 			ret = 0;
 		}
 	}
@@ -631,7 +630,6 @@ static void method_acquire(GDBusMethodInvocation *inv, GVariant *param)
 		return;
 	}
 
-	DbgPrint("Acquire procedure is started\n");
 	client = client_rpc_find_by_conn(conn);
 	if (client) {
 		ErrPrint("Client is already registered\n");
@@ -639,9 +637,6 @@ static void method_acquire(GDBusMethodInvocation *inv, GVariant *param)
 	}
 
 	g_variant_get(param, "(i)", &pid);
-
-	DbgPrint("Client tries to acquire access permission: %d\n", pid);
-
 	ret = 0;
 
 	client = client_create(pid);
@@ -656,7 +651,6 @@ static void method_acquire(GDBusMethodInvocation *inv, GVariant *param)
 
 	g_dbus_method_invocation_return_value(inv, param);
 
-	DbgPrint("Acquire returns %d\n", ret);
 	if (ret == 0) {
 		GDBusConnection *conn;
 		const char *sender;
@@ -810,12 +804,10 @@ static void method_create_pd(GDBusMethodInvocation *inv, GVariant *param)
 	if (!inst) {
 		ret = -ENOENT;
 	} else {
-		if (package_is_fault(instance_package(inst))) {
+		if (package_is_fault(instance_package(inst)))
 			ret = -EFAULT;
-		} else {
-			DbgPrint("Load script handler for %s\n", package_name(instance_package(inst)));
+		else
 			ret = script_handler_load(instance_pd_handle(inst), 1);
-		}
 	}
 
 	param = g_variant_new("(i)", ret);

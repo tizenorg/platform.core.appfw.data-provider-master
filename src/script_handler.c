@@ -451,6 +451,9 @@ static int update_script_drag(struct inst_info *inst, struct block *block, int i
 
 int script_handler_resize(struct script_info *info, int w, int h)
 {
+	if (info->w == w && info->h == h)
+		return 0;
+
 	fb_resize(script_handler_fb(info), w, h);
 
 	info->w = w;
@@ -493,7 +496,7 @@ static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 			if (is_pd)
 				instance_set_pd_info(inst, w, h);
 			else
-				instance_set_lb_info(inst, w, h, -1.0f);
+				instance_set_lb_info(inst, w, h, NO_CHANGE);
 
 			script_handler_resize(info, w, h);
 		} else {
@@ -613,7 +616,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 				break;
 
 			if (ch != '\n') {
-				DbgPrint("Syntax error: New line must has to be started right after '{'\n");
+				ErrPrint("Syntax error: New line must has to be started right after '{'\n");
 				goto errout;
 			}
 
@@ -640,7 +643,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 
 			if (ch == '=') {
 				if (field_name[field_idx][idx] != '\0') {
-					DbgPrint("Syntax error: Unrecognized field\n");
+					ErrPrint("Syntax error: Unrecognized field\n");
 					goto errout;
 				}
 
@@ -700,7 +703,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 					idx = 0;
 					break;
 				default:
-					DbgPrint("Syntax error: Unrecognized field\n");
+					ErrPrint("Syntax error: Unrecognized field\n");
 					goto errout;
 				}
 

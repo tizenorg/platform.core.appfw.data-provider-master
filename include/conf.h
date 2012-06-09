@@ -65,5 +65,6 @@ extern void conf_update_size(void);
 #define DEFAULT_GROUP	"disclosure"
 #define BUNDLE_SLAVE_NAME "name"
 #define PACKET_TIME 0.01f
+#define NO_CHANGE -1.0f
 
 /* End of a file */
