@@ -59,13 +59,13 @@ if [ $? -ne 0 ]; then
 	exit 0
 fi
 
-PID=`ps ax | grep 'data-provider-master' | grep -v 'grep' | grep -v 'dpkg' | grep -v 'dlogutil' | awk '{print $1}'`
+PID=`ps ax | grep 'data-provider-master' | grep -v 'grep' | grep -v 'rpm' | grep -v 'dlogutil' | awk '{print $1}'`
 if [ x"$PID" != x"" ]; then
 	aul_test term_pid $PID
 	sleep 1
 fi
 
-PID_LIST=`ps ax | grep 'data-provider-slave' | grep -v 'grep' | grep -v 'dpkg' | grep -v 'dlogutil' | awk '{print $1}'`
+PID_LIST=`ps ax | grep 'data-provider-slave' | grep -v 'grep' | grep -v 'rpm' | grep -v 'dlogutil' | awk '{print $1}'`
 for PID in $PID_LIST
 do
 	echo "Terminate old data provider slave $PID"

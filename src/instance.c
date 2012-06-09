@@ -327,9 +327,11 @@ int instance_destroyed(struct inst_info *inst)
 	case INST_ACTIVATED:
 		DbgPrint("Call unload instance (%s)\n", package_name(inst->info));
 		slave_unload_instance(package_slave(inst->info));
+		DbgPrint("Broadcast deleted event\n");
+		instance_broadcast_deleted_event(inst);
 	case INST_DEACTIVATED:
-		inst->state = INST_DESTROYED;
 		inst->requested_state = INST_DESTROYED;
+		inst->state = INST_DESTROYED;
 		instance_destroy(inst);
 		break;
 	case INST_DESTROYED:

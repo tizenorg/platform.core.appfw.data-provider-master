@@ -204,9 +204,10 @@ int client_rpc_broadcast(const char *funcname, GVariant *param)
 	struct client_rpc *rpc;
 
 	EINA_LIST_FOREACH(s_info.rpc_list, l, rpc) {
-		(void)client_rpc_async_request(rpc->client, funcname, param);
+		(void)client_rpc_async_request(rpc->client, funcname, g_variant_ref(param));
 	}
 
+	g_variant_unref(param);
 	return 0;
 }
 
@@ -298,7 +299,6 @@ int client_rpc_update_conn(struct client_node *client, GDBusConnection *conn)
 	if (rpc->conn)
 		ErrPrint("Connection is already exists, overwrite it\n");
 
-	DbgPrint("Client connection info is updated to %p\n", conn);
 	rpc->conn = conn;
 	return 0;
 }
