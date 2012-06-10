@@ -101,13 +101,6 @@ static void client_cmd_done(GDBusProxy *proxy, GAsyncResult *res, void *item)
 		}
 
 		client_fault(packet->client);
-
-		/*!
-		 * \note
-		 * If there is no packet consumer exists, destroy this client
-		 */
-		if (count_packet() == 0)
-			client_destroy(packet->client);
 	}
 
 	destroy_packet(packet);
@@ -138,6 +131,12 @@ static Eina_Bool packet_consumer_cb(void *data)
 
 	if (!client_is_activated(packet->client)) {
 		ErrPrint("Client is not activated, destroy this packet\n");
+		destroy_packet(packet);
+		return ECORE_CALLBACK_RENEW;
+	}
+
+	if (client_is_faulted(packet->client)) {
+		ErrPrint("Client is faulted, discard packet\n");
 		destroy_packet(packet);
 		return ECORE_CALLBACK_RENEW;
 	}
@@ -176,6 +175,12 @@ int client_rpc_async_request(struct client_node *client, const char *funcname, G
 {
 	struct packet *packet;
 	struct client_rpc *rpc;
+
+	if (client_is_faulted(client)) {
+		ErrPrint("Client is faulted\n");
+		g_variant_unref(param);
+		return -EFAULT;
+	}
 
 	rpc = client_data(client, "rpc");
 	if (!rpc) {
@@ -224,6 +229,12 @@ int client_rpc_sync_request(struct client_node *client, const char *funcname, GV
 		return -EINVAL;
 	}
 
+	if (client_is_faulted(client)) {
+		ErrPrint("Client is faulted\n");
+		g_variant_unref(param);
+		return -EFAULT;
+	}
+
 	rpc = client_data(client, "rpc");
 	if (!rpc) {
 		ErrPrint("Client has no \"rpc\" info (%s)\n", funcname);
@@ -248,13 +259,6 @@ int client_rpc_sync_request(struct client_node *client, const char *funcname, GV
 		}
 
 		client_fault(client);
-		/*!
-		 * \note
-		 * If this a last command
-		 */
-		if (count_packet() == 0)
-			client_destroy(client);
-
 		return -EIO;
 	}
 

@@ -47,7 +47,7 @@ struct period_cbdata {
 struct inst_info {
 	struct pkg_info *info;
 	enum instance_state state; /*!< Represents current state */
-	enum instance_state requested_state; /*!< Only ACTIVATED | DEACTIVATED is acceptable */
+	enum instance_state requested_state; /*!< Only ACTIVATED | DEACTIVATED | DESTROYED is acceptable */
 
 	char *id;
 	double timestamp;
@@ -83,10 +83,8 @@ int instance_unicast_created_event(struct inst_info *inst, struct client_node *c
 {
 	GVariant *param;
 
-	if (!inst->client && !client) {
-		DbgPrint("Instance[%s] is created by system\n", package_name(inst->info));
+	if (!inst->client && !client)
 		return 0;
-	}
 
 	param = g_variant_new("(dsssiiiissssidiiiiid)", 
 			inst->timestamp,
@@ -176,27 +174,29 @@ static int client_deactivated_cb(struct client_node *client, void *data)
 {
 	struct inst_info *inst = data;
 
-	DbgPrint("Instance destroying: %s\n", package_name(instance_package(inst)));
 	switch (inst->state) {
 	case INST_ACTIVATED:
-	case INST_REQUEST_TO_ACTIVATE:
 	case INST_DEACTIVATED:
 		DbgPrint("Destroy\n");
 		instance_destroy(inst);
 		break;
+	case INST_REQUEST_TO_ACTIVATE:
 	case INST_REQUEST_TO_DEACTIVATE:
-		DbgPrint("Requested state is changed to INST_DESTROY\n");
-		inst->requested_state = INST_DESTROY;
+	case INST_REQUEST_TO_REACTIVATE:
+	case INST_REQUEST_TO_DESTROY:
+		DbgPrint("Requested state is changed to INST_DESTROYED\n");
+		inst->requested_state = INST_DESTROYED;
 		break;
 	default:
 		break;
 	}
+
 	return 0;
 }
 
 static inline void destroy_instance(struct inst_info *inst)
 {
-	DbgPrint("Destroy instance for %s\n", package_name(inst->info));
+	DbgPrint("%s\n", package_name(inst->info));
 
 	if (inst->lb.handle) {
 		script_handler_unload(inst->lb.handle, 0);
@@ -307,53 +307,11 @@ struct inst_info *instance_create(struct client_node *client, double timestamp, 
 	}
 
 	inst->state = INST_DEACTIVATED;
+	inst->requested_state = INST_DEACTIVATED;
 	instance_ref(inst);
 
 	package_add_instance(inst->info, inst);
-
-	DbgPrint("Create a new instance: id[%s], pkg[%s], content[%s], cluster[%s], category[%s], period[%lf]\n",
-								id, pkgname, content, cluster, category, period);
-
 	return inst;
-}
-
-int instance_destroyed(struct inst_info *inst)
-{
-	switch (inst->state) {
-	case INST_REQUEST_TO_ACTIVATE:
-	case INST_REQUEST_TO_DEACTIVATE:
-		inst->requested_state = INST_DESTROYED;
-		return 0;
-	case INST_ACTIVATED:
-		DbgPrint("Call unload instance (%s)\n", package_name(inst->info));
-		slave_unload_instance(package_slave(inst->info));
-		DbgPrint("Broadcast deleted event\n");
-		instance_broadcast_deleted_event(inst);
-	case INST_DEACTIVATED:
-		inst->requested_state = INST_DESTROYED;
-		inst->state = INST_DESTROYED;
-		instance_destroy(inst);
-		break;
-	case INST_DESTROYED:
-	case INST_DESTROY:
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-int instance_destroy(struct inst_info *inst)
-{
-	if (inst->state == INST_DEACTIVATED || inst->state == INST_DESTROYED) {
-		instance_unref(inst);
-		return 0;
-	}
-
-	inst->requested_state = INST_DESTROY;
-	instance_deactivate(inst);
-	return 0;
 }
 
 struct inst_info * instance_ref(struct inst_info *inst)
@@ -384,52 +342,6 @@ struct inst_info * instance_unref(struct inst_info *inst)
 	return inst;
 }
 
-struct inst_info *instance_find_by_id(const char *pkgname, const char *id)
-{
-	Eina_List *l;
-	Eina_List *list;
-	struct inst_info *inst;
-	struct pkg_info *info;
-
-	info = package_find(pkgname);
-	if (!info) {
-		ErrPrint("Package %s is not exists\n", pkgname);
-		return NULL;
-	}
-
-	list = package_instance_list(info);
-
-	EINA_LIST_FOREACH(list, l, inst) {
-		if (!strcmp(inst->id, id))
-			return inst;
-	}
-
-	return NULL;
-}
-
-struct inst_info *instance_find_by_timestamp(const char *pkgname, double timestamp)
-{
-	Eina_List *l;
-	Eina_List *list;
-	struct inst_info *inst;
-	struct pkg_info *info;
-
-	info = package_find(pkgname);
-	if (!info) {
-		ErrPrint("Package %s is not exists\n", pkgname);
-		return NULL;
-	}
-
-	list = package_instance_list(info);
-
-	EINA_LIST_FOREACH(list, l, inst) {
-		if (inst->timestamp == timestamp)
-			return inst;
-	}
-
-	return NULL;
-}
-
 static void deactivate_cb(struct slave_node *slave, const char *funcname, GVariant *result, void *data)
 {
 	struct inst_info *inst = data;
@@ -437,22 +349,11 @@ static void deactivate_cb(struct slave_node *slave, const char *funcname, GVaria
 
 	if (!result) {
 		ErrPrint("Failed to deactivate an instance: %s\n", inst->id);
-		switch (inst->requested_state) {
-		case INST_ACTIVATED:
-			inst->state = INST_ACTIVATED; /*!< To reactivate this at the slave_deactivate_cb */
-			break;
-		case INST_DEACTIVATED:
-			DbgPrint("Call unload instance (%s)\n", package_name(inst->info));
-			slave_unload_instance(package_slave(inst->info));
-		case INST_DESTROY:
-		case INST_DESTROYED:
-			instance_broadcast_deleted_event(inst);
-			inst->state = INST_DESTROYED;
-			instance_destroy(inst);
-		default:
-			break;
-		}
-
+		/*!
+		 * \note
+		 * The instance_reload will care this.
+		 * And it will be called from the slave activate callback.
+		 */
 		instance_unref(inst);
 		return;
 	}
@@ -460,34 +361,39 @@ static void deactivate_cb(struct slave_node *slave, const char *funcname, GVaria
 	g_variant_get(result, "(i)", &ret);
 	g_variant_unref(result);
 
+	if (inst->state == INST_DESTROYED) {
+		/*!
+		 * \note
+		 * Already destroyed.
+		 * Do nothing at here anymore.
+		 */
+		instance_unref(inst);
+		return;
+	}
+
 	switch (ret) {
 	case -EINVAL:
 		/*!
+		 * \note
 		 * Slave has no instance of this package.
 		 */
 	case -ENOENT:
 		/*!
-		 * Slave has no instance of this.
+		 * \note
+		 * This instance's previous state is only can be the INST_ACTIVATED.
+		 * So we should care the slave_unload_instance from here.
+		 * And we should send notification to clients, about this is deleted.
 		 */
 		slave_unload_instance(package_slave(inst->info));
 		instance_broadcast_deleted_event(inst);
-		if (inst->lb.handle) {
-			script_handler_unload(inst->lb.handle, 0);
-			script_handler_destroy(inst->lb.handle);
-			inst->lb.handle = NULL;
-		}
 
-		if (inst->pd.handle) {
-			script_handler_unload(inst->pd.handle, 1);
-			script_handler_destroy(inst->pd.handle);
-			inst->pd.handle = NULL;
-		}
 		/*!
 		 * \note
+		 * Slave has no instance of this.
 		 * In this case, ignore the requested_state
-		 * Because, this instance is already met the problem.
+		 * Because, this instance is already met a problem.
 		 */
-		inst->state = INST_DESTROYED;
+		inst->state = INST_DEACTIVATED;
 		instance_destroy(inst);
 		break;
 	case 0:
@@ -495,31 +401,18 @@ static void deactivate_cb(struct slave_node *slave, const char *funcname, GVaria
 		 * \note
 		 * Successfully unloaded
 		 */
-		inst->state = INST_DEACTIVATED;
-
 		switch (inst->requested_state) {
 		case INST_ACTIVATED:
 			inst->state = INST_ACTIVATED;
 			instance_reactivate(inst);
 			break;
 		case INST_DESTROYED:
-		case INST_DESTROY:
-			inst->state = INST_DESTROYED;
+			inst->state = INST_DEACTIVATED;
 			instance_destroy(inst);
 		case INST_DEACTIVATED:
 			slave_unload_instance(package_slave(inst->info));
 			instance_broadcast_deleted_event(inst);
-			if (inst->lb.handle) {
-				script_handler_unload(inst->lb.handle, 0);
-				script_handler_destroy(inst->lb.handle);
-				inst->lb.handle = NULL;
-			}
-
-			if (inst->pd.handle) {
-				script_handler_unload(inst->pd.handle, 1);
-				script_handler_destroy(inst->pd.handle);
-				inst->pd.handle = NULL;
-			}
+			instance_deactivated(inst);
 		default:
 			/*!< Unable to reach here */
 			break;
@@ -536,7 +429,7 @@ static void deactivate_cb(struct slave_node *slave, const char *funcname, GVaria
 		ErrPrint("Destroy function returns invalid value: %d\n", ret);
 		slave_unload_instance(package_slave(inst->info));
 		instance_broadcast_deleted_event(inst);
-		inst->state = INST_DESTROYED;
+		instance_deactivated(inst);
 		instance_destroy(inst);
 		break;
 	}
@@ -551,38 +444,37 @@ static void reactivate_cb(struct slave_node *slave, const char *funcname, GVaria
 
 	if (!result) {
 		ErrPrint("Failed to activate an instance: %s\n", inst->id);
-		switch (inst->requested_state) {
-		case INST_ACTIVATED:
-		case INST_DEACTIVATED:
-		case INST_DESTROY:
-			slave_unload_instance(package_slave(inst->info));
-		case INST_DESTROYED:
-			instance_broadcast_deleted_event(inst);
-			inst->state = INST_DESTROYED;
-			instance_destroy(inst);
-		default:
-			instance_unref(inst);
-			break;
-		}
+		/*!
+		 * \note
+		 * instance_reload function will care this.
+		 * and it will be called from the slave_activate callback
+		 */
+		instance_unref(inst);
 		return;
 	}
 
 	g_variant_get(result, "(i)", &ret);
 	g_variant_unref(result);
 
+	if (inst->state == INST_DESTROYED) {
+		/*!
+		 * \note
+		 * Already destroyed.
+		 * Do nothing at here anymore.
+		 */
+		instance_unref(inst);
+		return;
+	}
+
 	switch (ret) {
 	case 0: /*!< normally created */
 		inst->state = INST_ACTIVATED;
-
 		switch (inst->requested_state) {
-		case INST_DESTROYED:
-			instance_broadcast_deleted_event(inst);
-			inst->state = INST_DESTROYED;
-			instance_destroy(inst);
-			break;
 		case INST_DEACTIVATED:
-		case INST_DESTROY:
 			instance_deactivate(inst);
+			break;
+		case INST_DESTROYED:
+			instance_destroy(inst);
 			break;
 		case INST_ACTIVATED:
 		default:
@@ -593,7 +485,7 @@ static void reactivate_cb(struct slave_node *slave, const char *funcname, GVaria
 		DbgPrint("Failed to activate an instance: %d\n", ret);
 		slave_unload_instance(package_slave(inst->info));
 		instance_broadcast_deleted_event(inst);
-		inst->state = INST_DESTROYED;
+		instance_deactivated(inst);
 		instance_destroy(inst);
 		break;
 	}
@@ -612,15 +504,27 @@ static void activate_cb(struct slave_node *slave, const char *funcname, GVariant
 
 	if (!result) {
 		ErrPrint("Failed to activate an instance: %s\n", inst->id);
-		instance_unicast_deleted_event(inst);
-		inst->state = INST_DESTROYED;
-		instance_destroy(inst);
+		/*!
+		 * \note
+		 * instance_reload will care this
+		 * it will be called from the slave_activate callback
+		 */
 		instance_unref(inst);
 		return;
 	}
 
 	g_variant_get(result, "(iiid)", &ret, &w, &h, &priority);
 	g_variant_unref(result);
+
+	if (inst->state == INST_DESTROYED) {
+		/*!
+		 * \note
+		 * Already destroyed.
+		 * Do nothing at here anymore.
+		 */
+		instance_unref(inst);
+		return;
+	}
 
 	switch (ret) {
 	case 1: /*!< need to create */
@@ -644,16 +548,15 @@ static void activate_cb(struct slave_node *slave, const char *funcname, GVariant
 		switch (inst->requested_state) {
 		case INST_DESTROYED:
 			instance_unicast_deleted_event(inst);
-			inst->state = INST_DESTROYED;
+			instance_deactivated(inst);
 			instance_destroy(inst);
 			break;
 		case INST_DEACTIVATED:
-		case INST_DESTROY:
 			instance_deactivate(inst);
 			/*!
 			 * \note
 			 * Even this instance will be destroyed, 
-			 * create instance.
+			 * create instance and destroy it from the deactivated_cb.
 			 */
 		case INST_ACTIVATED:
 		default:
@@ -688,12 +591,91 @@ static void activate_cb(struct slave_node *slave, const char *funcname, GVariant
 	default:
 		DbgPrint("Failed to activate an instance: %d\n", ret);
 		instance_unicast_deleted_event(inst);
-		inst->state = INST_DESTROYED;
+		instance_deactivated(inst);
 		instance_destroy(inst);
 		break;
 	}
 
 	instance_unref(inst);
+}
+
+int instance_destroyed(struct inst_info *inst)
+{
+	switch (inst->state) {
+	case INST_REQUEST_TO_ACTIVATE:
+		/*!
+		 * \note
+		 * No other clients know the existence of this instance,
+		 * only who added this knows it.
+		 * So send deleted event to only it.
+		 */
+		instance_unicast_deleted_event(inst);
+		instance_deactivated(inst);
+		inst->state = INST_DESTROYED;
+		inst->requested_state = INST_DESTROYED;
+		instance_unref(inst);
+		break;
+	case INST_REQUEST_TO_DEACTIVATE:
+	case INST_REQUEST_TO_REACTIVATE:
+	case INST_REQUEST_TO_DESTROY:
+	case INST_ACTIVATED:
+		DbgPrint("Call unload instance (%s)\n", package_name(inst->info));
+		slave_unload_instance(package_slave(inst->info));
+		DbgPrint("Broadcast deleted event\n");
+		instance_broadcast_deleted_event(inst);
+	case INST_DEACTIVATED:
+		inst->state = INST_DESTROYED;
+		inst->requested_state = INST_DESTROYED;
+		instance_unref(inst);
+		break;
+	case INST_DESTROYED:
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+int instance_destroy(struct inst_info *inst)
+{
+	GVariant *param;
+
+	if (!inst) {
+		ErrPrint("Invalid instance handle\n");
+		return -EINVAL;
+	}
+
+	switch (inst->state) {
+	case INST_REQUEST_TO_DEACTIVATE:
+	case INST_REQUEST_TO_ACTIVATE:
+	case INST_REQUEST_TO_DESTROY:
+	case INST_REQUEST_TO_REACTIVATE:
+		inst->requested_state = INST_DESTROYED;
+		return 0;
+	case INST_DEACTIVATED:
+		inst->state = INST_DESTROYED;
+		instance_unref(inst);
+		return 0;
+	case INST_DESTROYED:
+		return 0;
+	default:
+		break;
+	}
+
+	param = g_variant_new("(ss)", package_name(inst->info), inst->id);
+	if (!param) {
+		ErrPrint("Failed to build a delete param\n");
+		return -EFAULT;
+	}
+
+	inst->requested_state = INST_DESTROYED;
+	inst->state = INST_REQUEST_TO_DESTROY;
+	return slave_rpc_async_request(package_slave(inst->info),
+			package_name(inst->info), inst->id,
+			"delete", param,
+			deactivate_cb, instance_ref(inst));
+	return 0;
 }
 
 int instance_deactivated(struct inst_info *inst)
@@ -703,22 +685,14 @@ int instance_deactivated(struct inst_info *inst)
 		return -EINVAL;
 	}
 
-	if (inst->state == INST_ACTIVATED) {
-		DbgPrint("Call unload instance (%s)\n", package_name(inst->info));
-		slave_unload_instance(package_slave(inst->info));
-	}
+	if (inst->state == INST_DESTROYED)
+		return 0;
 
-	if (inst->lb.handle) {
+	if (inst->lb.handle)
 		script_handler_unload(inst->lb.handle, 0);
-		script_handler_destroy(inst->lb.handle);
-		inst->lb.handle = NULL;
-	}
 
-	if (inst->pd.handle) {
+	if (inst->pd.handle)
 		script_handler_unload(inst->pd.handle, 1);
-		script_handler_destroy(inst->pd.handle);
-		inst->pd.handle = NULL;
-	}
 
 	inst->state = INST_DEACTIVATED;
 	inst->requested_state = INST_DEACTIVATED;
@@ -734,33 +708,26 @@ int instance_deactivate(struct inst_info *inst)
 		return -EINVAL;
 	}
 
-	if (inst->state == INST_DEACTIVATED || inst->state == INST_REQUEST_TO_DEACTIVATE) {
-		/*!< Don't overwrite the requested state if it is INST_DESTROY. */
-		if (inst->requested_state == INST_DESTROY)
-			return 0;
-
+	switch (inst->state) {
+	case INST_REQUEST_TO_DEACTIVATE:
+	case INST_REQUEST_TO_ACTIVATE:
+	case INST_REQUEST_TO_DESTROY:
+	case INST_REQUEST_TO_REACTIVATE:
 		inst->requested_state = INST_DEACTIVATED;
 		return 0;
-	}
-
-	if (inst->state == INST_REQUEST_TO_ACTIVATE) {
-		/*!< Don't overwrite the requested state if it is INST_DESTROY. */
-		if (inst->requested_state == INST_DESTROY)
-			return 0;
-
-		inst->requested_state = INST_DEACTIVATED;
+	case INST_DEACTIVATED:
+	case INST_DESTROYED:
 		return 0;
+	default:
+		break;
 	}
 
 	param = g_variant_new("(ss)", package_name(inst->info), inst->id);
 	if (!param)
 		return -EFAULT;
 
+	inst->requested_state = INST_DEACTIVATED;
 	inst->state = INST_REQUEST_TO_DEACTIVATE;
-	/*!< Don't overwrite the requested state if it is INST_DESTROY. */
-	if (inst->requested_state != INST_DESTROY)
-		inst->requested_state = INST_DEACTIVATED;
-
 	return slave_rpc_async_request(package_slave(inst->info),
 			package_name(inst->info), inst->id,
 			"delete", param,
@@ -776,9 +743,23 @@ int instance_reactivate(struct inst_info *inst)
 		return -EINVAL;
 	}
 
-	if (inst->state != INST_ACTIVATED) {
-		ErrPrint("Re-activation is only for activated instance\n");
-		return -EINVAL;
+	if (package_is_fault(inst->info)) {
+		ErrPrint("Unable to reactivate the instance of a fault package\n");
+		return -EFAULT;
+	}
+
+	switch (inst->state) {
+	case INST_REQUEST_TO_DEACTIVATE:
+	case INST_REQUEST_TO_DESTROY:
+	case INST_REQUEST_TO_ACTIVATE:
+	case INST_REQUEST_TO_REACTIVATE:
+		inst->requested_state = INST_ACTIVATED;
+		return 0;
+	case INST_ACTIVATED:
+	case INST_DESTROYED:
+		return 0;
+	default:
+		break;
 	}
 
 	param = g_variant_new("(sssiidssiiis)",
@@ -798,11 +779,10 @@ int instance_reactivate(struct inst_info *inst)
 		return -EFAULT;
 	}
 
-	inst->state = INST_REQUEST_TO_ACTIVATE;
 	inst->requested_state = INST_ACTIVATED;
+	inst->state = INST_REQUEST_TO_REACTIVATE;
 
 	slave_activate(package_slave(inst->info));
-	DbgPrint("Reactivate: %s\n", package_name(inst->info));
 	return slave_rpc_async_request(package_slave(inst->info),
 			package_name(inst->info), inst->id,
 			"renew", param,
@@ -818,22 +798,23 @@ int instance_activate(struct inst_info *inst)
 		return -EINVAL;
 	}
 
-	if (inst->state == INST_ACTIVATED || inst->state == INST_REQUEST_TO_ACTIVATE) {
-		/*!
-		 * \note
-		 * overwrite the requested state.
-		 */
-		inst->requested_state = INST_ACTIVATED;
-		return 0;
+	if (package_is_fault(inst->info)) {
+		ErrPrint("Unable to activate the instance of a fault package\n");
+		return -EFAULT;
 	}
 
-	if (inst->state == INST_REQUEST_TO_DEACTIVATE) {
-		/*!
-		 * \note
-		 * ok, let's recreate this from delete return callback.
-		 */
+	switch (inst->state) {
+	case INST_REQUEST_TO_REACTIVATE:
+	case INST_REQUEST_TO_ACTIVATE:
+	case INST_REQUEST_TO_DESTROY:
+	case INST_REQUEST_TO_DEACTIVATE:
 		inst->requested_state = INST_ACTIVATED;
 		return 0;
+	case INST_ACTIVATED:
+	case INST_DESTROYED:
+		return 0;
+	default:
+		break;
 	}
 
 	param = g_variant_new("(sssiidssiis)",
@@ -871,7 +852,7 @@ void instance_lb_updated(const char *pkgname, const char *id)
 {
 	struct inst_info *inst;
 
-	inst = instance_find_by_id(pkgname, id);
+	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst)
 		return;
 
@@ -913,7 +894,7 @@ void instance_pd_updated(const char *pkgname, const char *id, const char *descfi
 {
 	struct inst_info *inst;
 
-	inst = instance_find_by_id(pkgname, id);
+	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst)
 		return;
 
@@ -1009,7 +990,7 @@ static void resize_cb(struct slave_node *slave, const char *funcname, GVariant *
 		cbdata->inst->lb.width = cbdata->w;
 		cbdata->inst->lb.height = cbdata->h;
 	} else {
-		ErrPrint("Failed to change the size of a livebox\n");
+		ErrPrint("Failed to change the size of a livebox (%d)\n", ret);
 	}
 
 	instance_unref(cbdata->inst);
@@ -1304,14 +1285,104 @@ double const instance_timestamp(struct inst_info *inst)
 	return inst->timestamp;
 }
 
-void instance_set_state(struct inst_info *inst, enum instance_state state)
-{
-	inst->state = state;
-}
-
 enum instance_state const instance_state(struct inst_info *inst)
 {
 	return inst->state;
+}
+
+void instance_faulted(struct inst_info *inst)
+{
+	switch (inst->state) {
+	case INST_REQUEST_TO_ACTIVATE:
+		DbgPrint("Deactivated instance of %s is destroyed\n",
+						package_name(instance_package(inst)));
+		instance_unicast_deleted_event(inst);
+		instance_deactivated(inst);
+		instance_destroy(inst);
+		break;
+	case INST_REQUEST_TO_DEACTIVATE:
+	case INST_REQUEST_TO_REACTIVATE:
+	case INST_REQUEST_TO_DESTROY:
+	case INST_ACTIVATED:
+		DbgPrint("Activated instance of %s is destroyed\n",
+						package_name(instance_package(inst)));
+		slave_unload_instance(package_slave(inst->info));
+		instance_deactivated(inst);
+		instance_broadcast_deleted_event(inst);
+	case INST_DEACTIVATED:
+		instance_destroy(inst);
+		break;
+	case INST_DESTROYED:
+	default:
+		DbgPrint("Package is already destroyed: %s\n",
+					package_name(instance_package(inst)));
+		break;
+	}
+}
+
+void instance_recover_state(struct inst_info *inst)
+{
+	switch (inst->state) {
+	case INST_ACTIVATED:
+	case INST_REQUEST_TO_DEACTIVATE:
+	case INST_REQUEST_TO_REACTIVATE:
+	case INST_REQUEST_TO_DESTROY:
+		switch (inst->requested_state) {
+		case INST_ACTIVATED:
+			instance_deactivated(inst);
+			instance_reactivate(inst);
+			break;
+		case INST_DEACTIVATED:
+			slave_unload_instance(package_slave(inst->info));
+			instance_deactivated(inst);
+			break;
+		case INST_DESTROYED:
+			slave_unload_instance(package_slave(inst->info));
+			instance_deactivated(inst);
+			instance_destroy(inst);
+			break;
+		default:
+			break;
+		}
+		break;
+	case INST_REQUEST_TO_ACTIVATE:
+		switch (inst->requested_state) {
+		case INST_ACTIVATED:
+			instance_deactivated(inst);
+			instance_activate(inst);
+			break;
+		case INST_DEACTIVATED:
+			instance_deactivated(inst);
+			break;
+		case INST_DESTROYED:
+			instance_deactivated(inst);
+			instance_destroy(inst);
+			break;
+		default:
+			break;
+		}
+		break;
+	case INST_DEACTIVATED:
+		switch (inst->requested_state) {
+		case INST_ACTIVATED:
+			instance_deactivated(inst);
+			instance_activate(inst);
+			break;
+		case INST_DEACTIVATED:
+			instance_deactivated(inst);
+			break;
+		case INST_DESTROYED:
+			instance_deactivated(inst);
+			instance_destroy(inst);
+			break;
+		default:
+			break;
+		}
+		break;
+	case INST_DESTROYED:
+	default:
+		break;
+	}
 }
 
 /* End of a file */

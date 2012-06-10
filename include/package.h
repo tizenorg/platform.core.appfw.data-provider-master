@@ -22,6 +22,8 @@ extern struct pkg_info *package_create(const char *pkgname);
 extern int package_destroy(struct pkg_info *info);
 extern struct pkg_info *package_find(const char *pkgname);
 extern const char *package_find_by_secured_slave(struct slave_node *slave);
+extern struct inst_info *package_find_instance_by_id(const char *pkgname, const char *id);
+extern struct inst_info *package_find_instance_by_timestamp(const char *pkgname, double timestamp);
 extern int package_dump_fault_info(struct pkg_info *info);
 extern int package_set_fault_info(struct pkg_info *info, double timestamp, const char *filename, const char *function);
 extern int package_get_fault_info(struct pkg_info *info, double *timestmap, const char **filename, const char **function);

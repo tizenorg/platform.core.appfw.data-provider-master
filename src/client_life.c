@@ -249,19 +249,29 @@ static inline void invoke_deactivated_cb(struct client_node *client)
 
 int client_deactivated_by_fault(struct client_node *client)
 {
-	if (client->pid != (pid_t)-1) {
-		client->pid = (pid_t)-1;
-		invoke_deactivated_cb(client);
-	}
+	if (client->faulted)
+		return 0;
 
-	client_unref(client);
+	DbgPrint("Client is faulted! refcnt(%d), pid(%d)\n", client_refcnt(client), client->pid);
+	client->faulted = 1;
+
+	client->pid = (pid_t)-1;
+	invoke_deactivated_cb(client);
+	client_destroy(client);
 	return 0;
 }
 
 int client_fault(struct client_node *client)
 {
-	DbgPrint("Client is faulted! %d\n", client_refcnt(client));
+	if (client->faulted)
+		return 0;
+
+	DbgPrint("Client is faulted(%d), pid(%d)\n", client_refcnt(client), client->pid);
 	client->faulted = 1;
+
+	client->pid = (pid_t)-1;
+	invoke_deactivated_cb(client);
+	client_destroy(client);
 	/*!
 	 * \todo
 	 * Who invokes this function has to care the reference counter of a client

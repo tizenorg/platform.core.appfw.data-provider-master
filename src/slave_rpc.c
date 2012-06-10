@@ -148,8 +148,8 @@ static void slave_async_cb(GDBusProxy *proxy, GAsyncResult *result, void *data)
 	err = NULL;
 	param = g_dbus_proxy_call_finish(proxy, result, &err);
 	if (!param) {
-		char *filename;
 		char *cmd;
+		struct slave_rpc *rpc;
 
 		cmd = packet->cmd ? packet->cmd : "";
 
@@ -161,6 +161,8 @@ static void slave_async_cb(GDBusProxy *proxy, GAsyncResult *result, void *data)
 		if (packet->ret_cb)
 			packet->ret_cb(packet->slave, cmd, NULL, packet->cbdata);
 
+		#if 0
+		char *filename;
 		if (!fault_is_occured() && packet->pkgname) {
 			/*!
 			 * \note
@@ -172,6 +174,7 @@ static void slave_async_cb(GDBusProxy *proxy, GAsyncResult *result, void *data)
 			filename = packet->filename ? packet->filename : "";
 			fault_func_call(packet->slave, packet->pkgname, filename, cmd);
 		}
+		#endif
 
 		/*!
 		 * \note
@@ -181,7 +184,9 @@ static void slave_async_cb(GDBusProxy *proxy, GAsyncResult *result, void *data)
 		 * then the dead signal callback will check the fault package.
 		 * So we don't need to check the fault package from here.
 		 */
-		slave_faulted(packet->slave);
+		rpc = slave_data(packet->slave, "rpc");
+		if (rpc && rpc->proxy == proxy)
+			slave_faulted(packet->slave);
 
 		goto out;
 	}
@@ -514,6 +519,7 @@ int slave_rpc_update_proxy(struct slave_node *slave, GDBusProxy *proxy)
 		ErrPrint("RPC proxy is already exists\n");
 
 	rpc->proxy = proxy;
+	slave_reset_fault(slave);
 
 	EINA_LIST_FREE(rpc->pending_request_list, packet) {
 		push_packet(packet);

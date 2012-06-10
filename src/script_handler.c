@@ -188,8 +188,10 @@ int script_handler_load(struct script_info *info, int is_pd)
 {
 	int ret;
 
-	if (!info || !info->port)
+	if (!info || !info->port) {
+		ErrPrint("Script handler is not created\n");
 		return -EINVAL;
+	}
 
 	if (info->loaded > 0) {
 		info->loaded++;
@@ -350,7 +352,7 @@ struct fb_info *script_handler_fb(struct script_info *info)
 
 void *script_handler_evas(struct script_info *info)
 {
-	return ecore_evas_get(info->ee);
+	return info ? ecore_evas_get(info->ee) : NULL;
 }
 
 static int update_script_text(struct inst_info *inst, struct block *block, int is_pd)
@@ -451,7 +453,7 @@ static int update_script_drag(struct inst_info *inst, struct block *block, int i
 
 int script_handler_resize(struct script_info *info, int w, int h)
 {
-	if (info->w == w && info->h == h)
+	if (!info || (info->w == w && info->h == h))
 		return 0;
 
 	fb_resize(script_handler_fb(info), w, h);
@@ -578,7 +580,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 	};
 
 	block = NULL;
-	inst = instance_find_by_id(pkgname, filename);
+	inst = package_find_instance_by_id(pkgname, filename);
 	if (!inst)
 		return -EINVAL;
 
@@ -1069,6 +1071,9 @@ int script_fini(void)
 
 int script_handler_update_pointer(struct script_info *info, double x, double y, int down)
 {
+	if (!info)
+		return 0;
+
 	info->x = x;
 	info->y = y;
 

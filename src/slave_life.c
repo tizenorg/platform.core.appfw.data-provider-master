@@ -273,10 +273,10 @@ int slave_activate(struct slave_node *slave)
 	 * To prevent from making an orphan(slave).
 	 */
 	slave_ref(slave);
+
 	invoke_activate_cb(slave);
 	slave_check_pause_or_resume();
 
-	slave->faulted = 0;
 	return 0;
 }
 
@@ -310,7 +310,7 @@ int slave_deactivate(struct slave_node *slave)
 {
 	pid_t pid;
 
-	if (!slave_is_activated(slave)) {
+	if (!slave_is_activated(slave) || slave->faulted) {
 		ErrPrint("Slave is already deactivated\n");
 		return -EALREADY;
 	}
@@ -322,6 +322,7 @@ int slave_deactivate(struct slave_node *slave)
 	 */
 	pid = slave->pid;
 	slave->pid = (pid_t)-1;
+	DbgPrint("Terminate PDI: %d\n", pid);
 	if (aul_terminate_pid(pid) < 0)
 		ErrPrint("Terminate failed. pid %d\n", pid);
 
@@ -333,34 +334,42 @@ int slave_deactivate(struct slave_node *slave)
 
 void slave_faulted(struct slave_node *slave)
 {
-	/*!
-	 * \note
-	 * Now the dead signal will be raised up
-	 */
-	if (!slave_is_activated(slave))
+	pid_t pid;
+	if (slave->faulted || !slave_is_activated(slave))
 		return;
 
-	/*!
-	 * \note
-	 * Without reset the slave->pid, dead callback will handle
-	 * this as a fault status.
-	 */
-	if (aul_terminate_pid(slave->pid) < 0) {
-		ErrPrint("Terminate failed. pid %d\n", slave->pid);
-		slave_deactivated_by_fault(slave);
-	}
+	slave->faulted = 1;
+
+	fault_check_pkgs(slave);
+	pid = slave->pid;
+	slave->pid = (pid_t)-1;
+	slave->fault_count++;
+
+	invoke_deactivate_cb(slave);
+	slave_unref(slave);
+
+	DbgPrint("Terminate PDI: %d\n", pid);
+	aul_terminate_pid(pid);
+}
+
+void slave_reset_fault(struct slave_node *slave)
+{
+	slave->faulted = 0;
 }
 
 void slave_deactivated_by_fault(struct slave_node *slave)
 {
+	if (slave->faulted || !slave_is_activated(slave))
+		return;
+
+	slave->faulted = 1;
+
 	(void)fault_check_pkgs(slave);
 
 	slave->pid = (pid_t)-1;
 	slave->fault_count++;
-	slave->faulted = 1;
 
 	invoke_deactivate_cb(slave);
-
 	slave_unref(slave);
 }
 

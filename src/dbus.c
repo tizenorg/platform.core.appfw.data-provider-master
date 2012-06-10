@@ -46,6 +46,7 @@ static struct info {
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='clicked'>"
+	"  <arg type='i' name='client_id' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
 	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='s' name='event' direction='in' />"
@@ -55,6 +56,7 @@ static struct info {
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='text_signal'>"
+	"  <arg type='i' name='client_id' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
 	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='s' name='emission' direction='in' />"
@@ -66,11 +68,13 @@ static struct info {
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='delete'>"
+	"  <arg type='i' name='client_id' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
 	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='resize'>"
+	"  <arg type='i' name='client_id' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
 	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='w' direction='in' />"
@@ -78,6 +82,7 @@ static struct info {
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='new'>"
+	"  <arg type='i' name='client_id' direction='in' />"
 	"  <arg type='d' name='timestamp' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
 	"  <arg type='s' name='content' direction='in' />"
@@ -87,12 +92,14 @@ static struct info {
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='set_period'>"
+	"  <arg type='i' name='client_id' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
 	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='d' name='period' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='change_group'>"
+	"  <arg type='i' name='client_id' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
 	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='s' name='cluster' direction='in' />"
@@ -100,6 +107,7 @@ static struct info {
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='pd_mouse_down'>"
+	"  <arg type='i' name='client_id' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
 	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='width' direction='in' />"
@@ -110,6 +118,7 @@ static struct info {
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='pd_mouse_up'>"
+	"  <arg type='i' name='client_id' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
 	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='width' direction='in' />"
@@ -120,6 +129,7 @@ static struct info {
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='pd_mouse_move'>"
+	"  <arg type='i' name='client_id' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
 	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='width' direction='in' />"
@@ -130,6 +140,7 @@ static struct info {
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='lb_mouse_move'>"
+	"  <arg type='i' name='client_id' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
 	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='width' direction='in' />"
@@ -140,6 +151,7 @@ static struct info {
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='lb_mouse_down'>"
+	"  <arg type='i' name='client_id' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
 	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='width' direction='in' />"
@@ -150,6 +162,7 @@ static struct info {
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='lb_mouse_up'>"
+	"  <arg type='i' name='client_id' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
 	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='width' direction='in' />"
@@ -160,26 +173,31 @@ static struct info {
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='pinup_changed'>"
+	"  <arg type='i' name='client_id' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
 	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='pinup' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='create_pd'>"
+	"  <arg type='i' name='client_id' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
 	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='destroy_pd'>"
+	"  <arg type='i' name='client_id' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
 	"  <arg type='s' name='id' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='activate_package'>"
+	"  <arg type='i' name='client_id' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
 	" <method name='livebox_is_exists'>"
+	"  <arg type='i' name='client_id' direction='in' />"
 	"  <arg type='s' name='pkgname' direction='in' />"
 	"  <arg type='i' name='result' direction='out' />"
 	" </method>"
@@ -323,36 +341,27 @@ static void method_text_signal(GDBusMethodInvocation *inv, GVariant *param)
 	double ex;
 	double ey;
 	struct client_node *client;
-	GDBusConnection *conn;
 	int ret;
+	pid_t pid;
 	struct inst_info *inst;
 
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		/*! NOTE: Ignoring this and
-		 *        blocking the main loop of the client if it waiting this result!
-		 */
-		return;
-	}
-
-	client = client_rpc_find_by_conn(conn);
+	g_variant_get(param, "(i&s&s&s&sdddd)", &pid, &pkgname, &id, &emission, &source, &sx, &sy, &ex, &ey);
+	client = client_find_by_pid(pid);
 	if (!client) {
-		ErrPrint("Failed to find a client\n");
-		/*! NOTE: Ignoring this and
-		 *        blocking the main loop of the client if it waiting this result!
-		 */
-		return;
+		ErrPrint("Failed to find a connected client\n");
+		ret = -EINVAL;
+		goto out;
 	}
 
-	g_variant_get(param, "(&s&s&s&sdddd)", &pkgname, &id, &emission, &source, &sx, &sy, &ex, &ey);
-	inst = instance_find_by_id(pkgname, id);
-	if (!inst) {
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst)
 		ret = -ENOENT;
-	} else {
+	else if (package_is_fault(instance_package(inst)))
+		ret = -EAGAIN;
+	else
 		ret = instance_text_signal_emit(inst, emission, source, sx, sy, ex, ey);
-	}
 
+out:
 	param = g_variant_new("(i)", ret);
 	if (!param)
 		ErrPrint("Failed to create a varian\n");
@@ -369,30 +378,28 @@ static void method_clicked(GDBusMethodInvocation *inv, GVariant *param)
 	double x;
 	double y;
 	int ret;
+	pid_t pid;
 	struct client_node *client;
-	GDBusConnection *conn;
 	struct inst_info *inst;
 
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		return;
-	}
+	g_variant_get(param, "(i&s&s&sddd)", &pid, &pkgname, &id, &event, &timestamp, &x, &y);
 
-	client = client_rpc_find_by_conn(conn);
+	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
-		return;
+		ret = -EINVAL;
+		goto out;
 	}
 
-	g_variant_get(param, "(&s&s&sddd)", &pkgname, &id, &event, &timestamp, &x, &y);
-	inst = instance_find_by_id(pkgname, id);
-	if (!inst) {
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst)
 		ret = -ENOENT;
-	} else {
+	else if (package_is_fault(instance_package(inst)))
+		ret = -EFAULT;
+	else
 		ret = instance_clicked(inst, event, timestamp, x, y);
-	}
 
+out:
 	param = g_variant_new("(i)", ret);
 	if (!param)
 		ErrPrint("Failed to create a variant\n");
@@ -490,9 +497,15 @@ static void method_desc_updated(GDBusMethodInvocation *inv, GVariant *param)
 	} else {
 		struct inst_info *inst;
 
-		inst = instance_find_by_id(pkgname, id);
+		inst = package_find_instance_by_id(pkgname, id);
 		if (!inst) {
 			ret = -ENOENT;
+		} else if (package_is_fault(instance_package(inst))) {
+			ErrPrint("Faulted package cannot make event\n");
+			ret = -EAGAIN;
+		} else if (instance_state(inst) == INST_DESTROYED) {
+			ErrPrint("Instance is already destroyed\n");
+			ret = -EINVAL;
 		} else if (package_pd_type(instance_package(inst)) == PD_TYPE_TEXT) {
 			instance_set_pd_info(inst, 0, 0);
 			instance_pd_updated(pkgname, id, descfile);
@@ -531,8 +544,16 @@ static void method_updated(GDBusMethodInvocation *inv, GVariant *param)
 	} else {
 		struct inst_info *inst;
 
-		inst = instance_find_by_id(pkgname, id);
-		if (inst) {
+		inst = package_find_instance_by_id(pkgname, id);
+		if (!inst) {
+			ret = -ENOENT;
+		} else if (package_is_fault(instance_package(inst))) {
+			ErrPrint("Faulted instance cannot make any event.\n");
+			ret = -EAGAIN;
+		} else if (instance_state(inst) == INST_DESTROYED) {
+			ErrPrint("Instance is already destroyed\n");
+			ret = -EINVAL;
+		} else {
 			instance_set_lb_info(inst, w, h, priority);
 
 			if (package_lb_type(instance_package(inst)) == LB_TYPE_SCRIPT) {
@@ -546,8 +567,6 @@ static void method_updated(GDBusMethodInvocation *inv, GVariant *param)
 				instance_lb_updated(pkgname, id);
 				ret = 0;
 			}
-		} else {
-			ret = -ENOENT;
 		}
 	}
 
@@ -575,9 +594,11 @@ static void method_deleted(GDBusMethodInvocation *inv, GVariant *param)
 	} else {
 		struct inst_info *inst;
 
-		inst = instance_find_by_id(pkgname, id);
+		inst = package_find_instance_by_id(pkgname, id);
 		if (!inst)
 			ret = -ENOENT;
+		else if (package_is_fault(instance_package(inst)))
+			ret = -EAGAIN;
 		else
 			ret = instance_destroyed(inst);
 	}
@@ -607,6 +628,7 @@ static void client_proxy_prepared_cb(GObject *obj, GAsyncResult *res, gpointer c
 			g_error_free(err);
 		}
 
+		client_fault(client);
 		return;
 	}
 
@@ -619,32 +641,26 @@ static void client_proxy_prepared_cb(GObject *obj, GAsyncResult *res, gpointer c
 
 static void method_acquire(GDBusMethodInvocation *inv, GVariant *param)
 {
-	int pid;
+	pid_t pid;
 	int ret;
 	struct client_node *client;
-	GDBusConnection *conn;
-
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		return;
-	}
-
-	client = client_rpc_find_by_conn(conn);
-	if (client) {
-		ErrPrint("Client is already registered\n");
-		return;
-	}
 
 	g_variant_get(param, "(i)", &pid);
-	ret = 0;
+	client = client_find_by_pid(pid);
+	if (client) {
+		ErrPrint("Client is already exists\n");
+		ret = -EEXIST;
+		goto out;
+	}
 
+	ret = 0;
 	client = client_create(pid);
 	if (!client) {
 		ErrPrint("Failed to create client: %d\n", pid);
 		ret = -EFAULT;
 	}
 
+out:
 	param = g_variant_new("(i)", ret);
 	if (!param)
 		ErrPrint("Failed to create variant\n");
@@ -679,32 +695,19 @@ static void method_release(GDBusMethodInvocation *inv, GVariant *param)
 {
 	int pid;
 	struct client_node *client;
-	GDBusConnection *conn;
-
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		return;
-	}
-
-	client = client_rpc_find_by_conn(conn);
-	if (!client) {
-		ErrPrint("Failed to find a client\n");
-		return;
-	}
 
 	g_variant_get(param, "(i)", &pid);
-	if (pid != client_pid(client)) {
-		ErrPrint("PID is not matched (%d - %d)\n", pid, client_pid(client));
-		return;
+	client = client_find_by_pid(pid);
+	if (!client) {
+		ErrPrint("Failed to find a client\n");
+		param = g_variant_new("(i)", -EINVAL);
+	} else {
+		param = g_variant_new("(i)", 0);
 	}
-
-	param = g_variant_new("(i)", 0);
 	if (!param)
 		ErrPrint("Failed to create variant\n");
 
 	g_dbus_method_invocation_return_value(inv, param);
-
 	client_destroy(client);
 }
 
@@ -718,25 +721,19 @@ static void method_lb_mouse_up(GDBusMethodInvocation *inv, GVariant *param)
 	double x;
 	double y;
 	int ret;
+	pid_t pid;
 	struct client_node *client;
-	GDBusConnection *conn;
 	struct inst_info *inst;
 
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		return;
-	}
-
-	client = client_rpc_find_by_conn(conn);
+	g_variant_get(param, "(i&s&siiddd)", &pid, &pkgname, &id, &w, &h, &timestamp, &x, &y);
+	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
-		return;
+		ret = -EINVAL;
+		goto out;
 	}
 
-	g_variant_get(param, "(&s&siiddd)", &pkgname, &id, &w, &h, &timestamp, &x, &y);
-
-	inst = instance_find_by_id(pkgname, id);
+	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ret = -ENOENT;
 	} else if (package_is_fault(instance_package(inst))) {
@@ -782,24 +779,18 @@ static void method_create_pd(GDBusMethodInvocation *inv, GVariant *param)
 	const char *id;
 	struct inst_info *inst;
 	int ret;
+	pid_t pid;
 	struct client_node *client;
-	GDBusConnection *conn;
 
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		return;
-	}
-
-	client = client_rpc_find_by_conn(conn);
+	g_variant_get(param, "(i&s&s)", &pid, &pkgname, &id);
+	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
-		return;
+		ret = -EINVAL;
+		goto out;
 	}
 
-	g_variant_get(param, "(&s&s)", &pkgname, &id);
-
-	inst = instance_find_by_id(pkgname, id);
+	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst)
 		ret = -ENOENT;
 	else if (package_is_fault(instance_package(inst)))
@@ -807,6 +798,7 @@ static void method_create_pd(GDBusMethodInvocation *inv, GVariant *param)
 	else
 		ret = script_handler_load(instance_pd_handle(inst), 1);
 
+out:
 	param = g_variant_new("(i)", ret);
 	if (!param)
 		ErrPrint("Failed to create variant\n");
@@ -819,25 +811,20 @@ static void method_livebox_is_exists(GDBusMethodInvocation *inv, GVariant *param
 {
 	const char *pkgname;
 	int ret;
+	pid_t pid;
 	struct client_node *client;
-	GDBusConnection *conn;
 
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		return;
-	}
-
-	client = client_rpc_find_by_conn(conn);
+	g_variant_get(param, "(i&s)", &pid, &pkgname);
+	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
-		return;
+		ret = -EINVAL;
+		goto out;
 	}
-
-	g_variant_get(param, "(&s)", &pkgname);
 
 	ret = util_validate_livebox_package(pkgname);
 
+out:
 	param = g_variant_new("(i)", ret);
 	if (!param)
 		ErrPrint("Failed to create variant\n");
@@ -849,23 +836,17 @@ static void method_activate_pkg(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *pkgname;
 	int ret;
+	pid_t pid;
 	struct client_node *client;
-	GDBusConnection *conn;
 	struct pkg_info *info;
 
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		return;
-	}
-
-	client = client_rpc_find_by_conn(conn);
+	g_variant_get(param, "(i&s)", &pid, &pkgname);
+	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
-		return;
+		ret = -EINVAL;
+		goto out;
 	}
-
-	g_variant_get(param, "(&s)", &pkgname);
 
 	info = package_find(pkgname);
 	if (!info)
@@ -873,6 +854,7 @@ static void method_activate_pkg(GDBusMethodInvocation *inv, GVariant *param)
 	else
 		ret = package_clear_fault(info);
 
+out:
 	param = g_variant_new("(i)", ret);
 	if (!param)
 		ErrPrint("Failed to create variant\n");
@@ -886,24 +868,18 @@ static void method_destroy_pd(GDBusMethodInvocation *inv, GVariant *param)
 	const char *id;
 	struct inst_info *inst;
 	int ret;
+	pid_t pid;
 	struct client_node *client;
-	GDBusConnection *conn;
 
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		return;
-	}
-
-	client = client_rpc_find_by_conn(conn);
+	g_variant_get(param, "(i&s&s)", &pid, &pkgname, &id);
+	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
-		return;
+		ret = -EINVAL;
+		goto out;
 	}
 
-	g_variant_get(param, "(&s&s)", &pkgname, &id);
-
-	inst = instance_find_by_id(pkgname, id);
+	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst)
 		ret = -ENOENT;
 	else if (package_is_fault(instance_package(inst)))
@@ -911,6 +887,7 @@ static void method_destroy_pd(GDBusMethodInvocation *inv, GVariant *param)
 	else
 		ret = script_handler_unload(instance_pd_handle(inst), 1);
 
+out:
 	param = g_variant_new("(i)", ret);
 	if (!param)
 		ErrPrint("Failed to create variant\n");
@@ -924,30 +901,27 @@ static void method_pinup_changed(GDBusMethodInvocation *inv, GVariant *param)
 	const char *id;
 	int pinup;
 	int ret;
+	pid_t pid;
 	struct client_node *client;
-	GDBusConnection *conn;
 	struct inst_info *inst;
 
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		return;
-	}
-
-	client = client_rpc_find_by_conn(conn);
+	g_variant_get(param, "(i&s&si)", &pid, &pkgname, &id, &pinup);
+	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
-		return;
+		ret = -EINVAL;
+		goto out;
 	}
 
-	g_variant_get(param, "(&s&si)", &pkgname, &id, &pinup);
-
-	inst = instance_find_by_id(pkgname, id);
+	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst)
 		ret = -ENOENT;
+	else if (package_is_fault(instance_package(inst)))
+		ret = -EFAULT;
 	else
 		ret = instance_set_pinup(inst, pinup);
 
+out:
 	param = g_variant_new("(i)", ret);
 	if (!param)
 		ErrPrint("Failed to create variant\n");
@@ -965,25 +939,19 @@ static void method_lb_mouse_down(GDBusMethodInvocation *inv, GVariant *param)
 	double x;
 	double y;
 	int ret;
+	pid_t pid;
 	struct client_node *client;
-	GDBusConnection *conn;
 	struct inst_info *inst;
 
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		return;
-	}
-
-	client = client_rpc_find_by_conn(conn);
+	g_variant_get(param, "(i&s&siiddd)", &pid, &pkgname, &id, &w, &h, &timestamp, &x, &y);
+	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
-		return;
+		ret = -EINVAL;
+		goto out;
 	}
 
-	g_variant_get(param, "(&s&siiddd)", &pkgname, &id, &w, &h, &timestamp, &x, &y);
-
-	inst = instance_find_by_id(pkgname, id);
+	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ret = -ENOENT;
 	} else if (package_is_fault(instance_package(inst))) {
@@ -1015,6 +983,7 @@ static void method_lb_mouse_down(GDBusMethodInvocation *inv, GVariant *param)
 		evas_event_feed_mouse_down(e, 1, EVAS_BUTTON_NONE, timestamp + 0.01f, NULL);
 		ret = 0;
 	}
+
 out:
 	param = g_variant_new("(i)", ret);
 	if (!param)
@@ -1032,26 +1001,20 @@ static void method_lb_mouse_move(GDBusMethodInvocation *inv, GVariant *param)
 	double timestamp;
 	double x;
 	double y;
+	pid_t pid;
 	int ret;
 	struct client_node *client;
-	GDBusConnection *conn;
 	struct inst_info *inst;
 
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		return;
-	}
-
-	client = client_rpc_find_by_conn(conn);
+	g_variant_get(param, "(i&s&siiddd)", &pid, &pkgname, &id, &w, &h, &timestamp, &x, &y);
+	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
-		return;
+		ret = -EINVAL;
+		goto out;
 	}
 
-	g_variant_get(param, "(&s&siiddd)", &pkgname, &id, &w, &h, &timestamp, &x, &y);
-
-	inst = instance_find_by_id(pkgname, id);
+	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ret = -ENOENT;
 	} else if (package_is_fault(instance_package(inst))) {
@@ -1099,25 +1062,19 @@ static void method_pd_mouse_move(GDBusMethodInvocation *inv, GVariant *param)
 	double x;
 	double y;
 	int ret;
+	pid_t pid;
 	struct client_node *client;
-	GDBusConnection *conn;
 	struct inst_info *inst;
 
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		return;
-	}
-
-	client = client_rpc_find_by_conn(conn);
+	g_variant_get(param, "(i&s&siiddd)", &pid, &pkgname, &id, &w, &h, &timestamp, &x, &y);
+	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
-		return;
+		ret = -EINVAL;
+		goto out;
 	}
 
-	g_variant_get(param, "(&s&siiddd)", &pkgname, &id, &w, &h, &timestamp, &x, &y);
-
-	inst = instance_find_by_id(pkgname, id);
+	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ret = -ENOENT;
 	} else if (package_is_fault(instance_package(inst))) {
@@ -1165,25 +1122,19 @@ static void method_pd_mouse_up(GDBusMethodInvocation *inv, GVariant *param)
 	double x;
 	double y;
 	int ret;
+	pid_t pid;
 	struct client_node *client;
-	GDBusConnection *conn;
 	struct inst_info *inst;
 
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		return;
-	}
-
-	client = client_rpc_find_by_conn(conn);
+	g_variant_get(param, "(i&s&siiddd)", &pid, &pkgname, &id, &w, &h, &timestamp, &x, &y);
+	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
-		return;
+		ret = -EINVAL;
+		goto out;
 	}
 
-	g_variant_get(param, "(&s&siiddd)", &pkgname, &id, &w, &h, &timestamp, &x, &y);
-
-	inst = instance_find_by_id(pkgname, id);
+	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ret = -ENOENT;
 	} else if (package_is_fault(instance_package(inst))) {
@@ -1233,25 +1184,19 @@ static void method_pd_mouse_down(GDBusMethodInvocation *inv, GVariant *param)
 	double x;
 	double y;
 	int ret;
+	pid_t pid;
 	struct client_node *client;
-	GDBusConnection *conn;
 	struct inst_info *inst;
 
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		return;
-	}
-
-	client = client_rpc_find_by_conn(conn);
+	g_variant_get(param, "(i&s&siiddd)", &pid, &pkgname, &id, &w, &h, &timestamp, &x, &y);
+	client = client_find_by_pid(pid);
 	if (!client) {
+		ret = -EINVAL;
 		ErrPrint("Failed to find a client\n");
-		return;
+		goto out;
 	}
 
-	g_variant_get(param, "(&s&siiddd)", &pkgname, &id, &w, &h, &timestamp, &x, &y);
-
-	inst = instance_find_by_id(pkgname, id);
+	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ret = -ENOENT;
 	} else if (package_is_fault(instance_package(inst))) {
@@ -1299,31 +1244,27 @@ static void method_change_group(GDBusMethodInvocation *inv, GVariant *param)
 	const char *cluster;
 	const char *category;
 	int ret;
+	pid_t pid;
 	struct client_node *client;
-	GDBusConnection *conn;
 	struct inst_info *inst;
 
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		return;
-	}
-
-	client = client_rpc_find_by_conn(conn);
+	g_variant_get(param, "(i&s&s&s&s)", &pid, &pkgname, &id, &cluster, &category);
+	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
-		return;
+		ret = -EINVAL;
+		goto out;
 	}
 
-	g_variant_get(param, "(&s&s&s&s)", &pkgname, &id, &cluster, &category);
-
-	inst = instance_find_by_id(pkgname, id);
-	if (!inst) {
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst)
 		ret = -ENOENT;
-	} else {
+	else if (package_is_fault(instance_package(inst)))
+		ret = -EAGAIN;
+	else
 		ret = instance_change_group(inst, cluster, category);
-	}
 
+out:
 	param = g_variant_new("(i)", ret);
 	if (!param)
 		ErrPrint("Failed to create variant\n");
@@ -1336,27 +1277,23 @@ static void method_delete(GDBusMethodInvocation *inv, GVariant *param)
 	const char *pkgname;
 	const char *id;
 	int ret;
+	pid_t pid;
 	struct client_node *client;
-	GDBusConnection *conn;
 	struct inst_info *inst;
 
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		return;
-	}
-
-	client = client_rpc_find_by_conn(conn);
+	g_variant_get(param, "(i&s&s)", &pid, &pkgname, &id);
+	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
-		return;
+		ret = -EINVAL;
+		goto out;
 	}
 
-	g_variant_get(param, "(&s&s)", &pkgname, &id);
-
-	inst = instance_find_by_id(pkgname, id);
+	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ret = -ENOENT;
+	} else if (package_is_fault(instance_package(inst))) {
+		ret = -EAGAIN;
 	} else {
 		if (instance_state(inst) == INST_DEACTIVATED)
 			instance_broadcast_deleted_event(inst);
@@ -1364,6 +1301,7 @@ static void method_delete(GDBusMethodInvocation *inv, GVariant *param)
 		ret = instance_destroy(inst);
 	}
 
+out:
 	param = g_variant_new("(i)", ret);
 	if (!param)
 		ErrPrint("Failed to create a variant\n");
@@ -1378,31 +1316,28 @@ static void method_resize(GDBusMethodInvocation *inv, GVariant *param)
 	int w;
 	int h;
 	int ret;
+	pid_t pid;
 	struct client_node *client;
-	GDBusConnection *conn;
 	struct inst_info *inst;
 
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		return;
-	}
-
-	client = client_rpc_find_by_conn(conn);
+	g_variant_get(param, "(i&s&sii)", &pid, &pkgname, &id, &w, &h);
+	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
-		return;
+		ret = -EINVAL;
+		goto out;
 	}
 
-	g_variant_get(param, "(&s&sii)", &pkgname, &id, &w, &h);
 
-	inst = instance_find_by_id(pkgname, id);
-	if (!inst) {
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst)
 		ret = -ENOENT;
-	} else {
+	else if (package_is_fault(instance_package(inst)))
+		ret = -EAGAIN;
+	else
 		ret = instance_resize(inst, w, h);
-	}
 
+out:
 	param = g_variant_new("(i)", ret);
 	if (!param)
 		ErrPrint("Failed to create a variant\n");
@@ -1416,31 +1351,27 @@ static void method_set_period(GDBusMethodInvocation *inv, GVariant *param)
 	const char *id;
 	double period;
 	int ret;
-	GDBusConnection *conn;
+	pid_t pid;
 	struct client_node *client;
 	struct inst_info *inst;
 
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		return;
-	}
-
-	client = client_rpc_find_by_conn(conn);
+	g_variant_get(param, "(i&s&sd)", &pid, &pkgname, &id, &period);
+	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
-		return;
+		ret = -EINVAL;
+		goto out;
 	}
 
-	g_variant_get(param, "(&s&sd)", &pkgname, &id, &period);
-
-	inst = instance_find_by_id(pkgname, id);
-	if (!inst) {
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst)
 		ret = -ENOENT;
-	} else {
+	else if (package_is_fault(instance_package(inst)))
+		ret = -EFAULT;
+	else
 		ret = instance_set_period(inst, period);
-	}
 
+out:
 	param = g_variant_new("(i)", ret);
 	if (!param)
 		ErrPrint("Failed to make a return variant\n");
@@ -1456,36 +1387,30 @@ static void method_new(GDBusMethodInvocation *inv, GVariant *param)
 	const char *category;
 	double period;
 	int ret;
+	pid_t pid;
 	double timestamp;
 	struct client_node *client;
-	GDBusConnection *conn;
 	struct pkg_info *info;
-	struct inst_info *inst;
 
-	conn = g_dbus_method_invocation_get_connection(inv);
-	if (!conn) {
-		ErrPrint("Failed to get connection\n");
-		return;
-	}
-
-	client = client_rpc_find_by_conn(conn);
+	g_variant_get(param, "(id&s&s&s&sd)", &pid, &timestamp, &pkgname, &content, &cluster, &category, &period);
+	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");
-		return;
+		ret = -EINVAL;
+		goto out;
 	}
-
-	g_variant_get(param, "(d&s&s&s&sd)", &timestamp, &pkgname, &content, &cluster, &category, &period);
 
 	info = package_find(pkgname);
 	if (!info)
 		info = package_create(pkgname);
 
-	inst = NULL;
 	if (!info) {
 		ret = -EFAULT;
 	} else if (package_is_fault(info)) {
 		ret = -EAGAIN;
 	} else {
+		struct inst_info *inst;
+
 		if (period > 0.0f && period < MINIMUM_PERIOD)
 			period = MINIMUM_PERIOD;
 
@@ -1497,6 +1422,7 @@ static void method_new(GDBusMethodInvocation *inv, GVariant *param)
 		ret = instance_activate(inst);
 	}
 
+out:
 	param = g_variant_new("(i)", ret);
 	if (!param)
 		ErrPrint("Failed to create a variant\n");

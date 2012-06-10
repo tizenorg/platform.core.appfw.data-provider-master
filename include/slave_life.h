@@ -44,7 +44,10 @@ extern int slave_event_callback_del(struct slave_node *slave, enum slave_event e
 extern int slave_set_data(struct slave_node *slave, const char *tag, void *data);
 extern void *slave_del_data(struct slave_node *slave, const char *tag);
 extern void *slave_data(struct slave_node *slave, const char *tag);
+
 extern void slave_faulted(struct slave_node *slave);
+extern void slave_reset_fault(struct slave_node *slave);
+extern int const slave_is_faulted(struct slave_node *slave);
 
 extern struct slave_node *slave_find_by_pid(pid_t pid);
 extern struct slave_node *slave_find_by_name(const char *name);
@@ -52,7 +55,6 @@ extern struct slave_node *slave_find_by_name(const char *name);
 extern void slave_dead_handler(struct slave_node *slave);
 extern void slave_check_pause_or_resume(void);
 extern int const slave_is_secured(struct slave_node *slave);
-extern int const slave_is_faulted(struct slave_node *slave);
 extern const char * const slave_name(struct slave_node *slave);
 extern pid_t const slave_pid(struct slave_node *slave);
 

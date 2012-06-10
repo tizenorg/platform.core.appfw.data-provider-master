@@ -1,13 +1,13 @@
 enum instance_state {
 	INST_DEACTIVATED = 0x0, /*!< Only keeps in the master */
-
-	INST_REQUEST_TO_ACTIVATE, /*!< Load this to the slave */
-	INST_ACTIVATED, /*!< This is loaded to the slave */
-
 	INST_REQUEST_TO_DEACTIVATE, /*!< Unload this from the slave */
 
-	INST_DESTROY, /*!< Delete this instance */
+	INST_ACTIVATED, /*!< This is loaded to the slave */
+	INST_REQUEST_TO_ACTIVATE, /*!< Load this to the slave */
+	INST_REQUEST_TO_REACTIVATE, /*!< Reload this to the slave */
+
 	INST_DESTROYED, /*!< Deleted by the slave automatically */
+	INST_REQUEST_TO_DESTROY, /*!< Delete this instance */
 };
 
 struct inst_info;
@@ -20,15 +20,13 @@ extern int instance_destroy(struct inst_info *inst);
 extern struct inst_info * instance_ref(struct inst_info *inst);
 extern struct inst_info * instance_unref(struct inst_info *inst);
 
-extern void instance_set_state(struct inst_info *inst, enum instance_state state);
-
-extern struct inst_info *instance_find_by_id(const char *pkgname, const char *id);
-extern struct inst_info *instance_find_by_timestamp(const char *pkgname, double timestamp);
-
+extern int instance_deactivated(struct inst_info *inst);
+extern int instance_destroyed(struct inst_info *inst);
 extern int instance_deactivate(struct inst_info *inst);
 extern int instance_reactivate(struct inst_info *inst);
-extern int instance_deactivated(struct inst_info *inst);
 extern int instance_activate(struct inst_info *inst);
+extern void instance_recover_state(struct inst_info *inst);
+extern void instance_faulted(struct inst_info *inst);
 
 extern void instance_set_lb_info(struct inst_info *inst, int w, int h, double priority);
 extern void instance_set_pd_info(struct inst_info *inst, int w, int h);
@@ -37,8 +35,6 @@ extern void instance_pd_updated(const char *pkgname, const char *id, const char 
 extern void instance_lb_updated(const char *pkgname, const char *id);
 extern void instance_lb_updated_by_instance(struct inst_info *inst);
 extern void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfile);
-
-extern int instance_destroyed(struct inst_info *inst);
 
 extern int instance_set_pinup(struct inst_info *inst, int pinup);
 extern int instance_resize(struct inst_info *inst, int w, int h);

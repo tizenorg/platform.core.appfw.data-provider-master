@@ -103,32 +103,20 @@ static int slave_activated_cb(struct slave_node *slave, void *data)
 	struct inst_info *inst;
 	Eina_List *l;
 	Eina_List *n;
+	int cnt;
 
-	if (!slave_is_faulted(slave))
+	if (!slave_is_faulted(slave)) {
+		DbgPrint("No need to recover state of instances of %s\n", package_name(info));
 		return 0;
-
-	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
-		switch (instance_state(inst)) {
-		case INST_ACTIVATED:
-			DbgPrint("REAL Reactivate: %s\n", package_name(instance_package(inst)));
-			instance_reactivate(inst);
-			break;
-		case INST_REQUEST_TO_ACTIVATE:
-			DbgPrint("REAL Activate: %s\n", package_name(instance_package(inst)));
-			instance_deactivated(inst);
-			instance_activate(inst);
-			break;
-		case INST_DESTROY:
-		case INST_DESTROYED:
-			DbgPrint("REAL Destroy: %s\n", package_name(instance_package(inst)));
-			instance_deactivated(inst);
-			instance_destroy(inst);
-		case INST_DEACTIVATED:
-		default:
-			break;
-		}
 	}
 
+	cnt = 0;
+	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
+		instance_recover_state(inst);
+		cnt++;
+	}
+
+	DbgPrint("Recover state for %d instances of %s\n", cnt, package_name(info));
 	return 0;
 }
 
@@ -142,27 +130,7 @@ static int slave_deactivated_cb(struct slave_node *slave, void *data)
 
 	if (info->fault_info) {
 		EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
-			DbgPrint("Call instance deactivated (Destroy)\n");
-			switch (instance_state(inst)) {
-			case INST_REQUEST_TO_ACTIVATE:
-				instance_unicast_deleted_event(inst);
-				instance_deactivated(inst);
-				instance_destroy(inst);
-				break;
-			case INST_REQUEST_TO_DEACTIVATE:
-			case INST_ACTIVATED:
-				instance_broadcast_deleted_event(inst);
-				instance_deactivated(inst);
-				instance_destroy(inst);
-				break;
-			case INST_DEACTIVATED:
-			case INST_DESTROY:
-			case INST_DESTROYED:
-			default:
-				DbgPrint("Package is already destroyed: %s\n",
-							package_name(instance_package(inst)));
-				break;
-			}
+			instance_faulted(inst);
 		}
 	} else {
 		EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
@@ -175,7 +143,6 @@ static int slave_deactivated_cb(struct slave_node *slave, void *data)
 			 *
 			 * activate slave when the slave is reactivated
 			 */
-			DbgPrint("Reactivate[%d] instance %s\n", cnt, package_name(instance_package(inst)));
 			cnt++;
 		}
 	}
@@ -433,6 +400,46 @@ struct pkg_info *package_find(const char *pkgname)
 	EINA_LIST_FOREACH(s_info.pkg_list, l, info) {
 		if (!strcmp(info->pkgname, pkgname))
 			return info;
+	}
+
+	return NULL;
+}
+
+struct inst_info *package_find_instance_by_id(const char *pkgname, const char *id)
+{
+	Eina_List *l;
+	struct inst_info *inst;
+	struct pkg_info *info;
+
+	info = package_find(pkgname);
+	if (!info) {
+		ErrPrint("Package %s is not exists\n", pkgname);
+		return NULL;
+	}
+
+	EINA_LIST_FOREACH(info->inst_list, l, inst) {
+		if (!strcmp(instance_id(inst), id))
+			return inst;
+	}
+
+	return NULL;
+}
+
+struct inst_info *package_find_instance_by_timestamp(const char *pkgname, double timestamp)
+{
+	Eina_List *l;
+	struct inst_info *inst;
+	struct pkg_info *info;
+
+	info = package_find(pkgname);
+	if (!info) {
+		ErrPrint("Package %s is not exists\n", pkgname);
+		return NULL;
+	}
+
+	EINA_LIST_FOREACH(info->inst_list, l, inst) {
+		if (instance_timestamp(inst) == timestamp)
+			return inst;
 	}
 
 	return NULL;
