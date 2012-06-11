@@ -31,7 +31,13 @@ struct slave_node {
 	int secured;	/* Only A package(livebox) is loaded for security requirements */
 	int refcnt;
 	int fault_count;
-	int paused;
+	enum pause_state {
+		SLAVE_REQUEST_TO_PAUSE,
+		SLAVE_REQUEST_TO_RESUME,
+
+		SLAVE_PAUSED,
+		SLAVE_RESUMED,
+	} state;
 
 	int loaded_instance;
 	int loaded_package;
@@ -86,6 +92,7 @@ static inline struct slave_node *create_slave_node(const char *name, int is_secu
 
 	slave->secured = is_secured;
 	slave->pid = (pid_t)-1;
+	slave->state = SLAVE_RESUMED;
 
 	s_info.slave_list = eina_list_append(s_info.slave_list, slave);
 	DbgPrint("slave data is created %p\n", slave);
@@ -277,6 +284,7 @@ int slave_activate(struct slave_node *slave)
 	invoke_activate_cb(slave);
 	slave_check_pause_or_resume();
 
+	slave->state = SLAVE_RESUMED;
 	return 0;
 }
 
@@ -322,12 +330,13 @@ int slave_deactivate(struct slave_node *slave)
 	 */
 	pid = slave->pid;
 	slave->pid = (pid_t)-1;
-	DbgPrint("Terminate PDI: %d\n", pid);
+	DbgPrint("Terminate PID: %d\n", pid);
 	if (aul_terminate_pid(pid) < 0)
 		ErrPrint("Terminate failed. pid %d\n", pid);
 
 	invoke_deactivate_cb(slave);
 
+	slave->state = SLAVE_PAUSED;
 	slave_unref(slave);
 	return 0;
 }
@@ -345,11 +354,13 @@ void slave_faulted(struct slave_node *slave)
 	slave->pid = (pid_t)-1;
 	slave->fault_count++;
 
-	invoke_deactivate_cb(slave);
-	slave_unref(slave);
+	DbgPrint("Terminate PID: %d\n", pid);
+	if (aul_terminate_pid(pid) < 0)
+		ErrPrint("Terminate failed, pid %d\n", pid);
 
-	DbgPrint("Terminate PDI: %d\n", pid);
-	aul_terminate_pid(pid);
+	invoke_deactivate_cb(slave);
+	slave->state = SLAVE_PAUSED;
+	slave_unref(slave);
 }
 
 void slave_reset_fault(struct slave_node *slave)
@@ -370,6 +381,7 @@ void slave_deactivated_by_fault(struct slave_node *slave)
 	slave->fault_count++;
 
 	invoke_deactivate_cb(slave);
+	slave->state = SLAVE_PAUSED;
 	slave_unref(slave);
 }
 
@@ -635,24 +647,33 @@ static void resume_cb(struct slave_node *slave, const char *func, GVariant *resu
 {
 	int ret;
 
-	if (!result)
+	if (!result) {
+		ErrPrint("Failed to change the state of the slave\n");
+		slave->state = SLAVE_PAUSED;
 		return;
+	}
 
 	g_variant_get(result, "(i)", &ret);
+	g_variant_unref(result);
 	if (ret == 0)
-		slave->paused = 0;
+		slave->state = SLAVE_RESUMED;
 }
 
 static void pause_cb(struct slave_node *slave, const char *func, GVariant *result, void *data)
 {
 	int ret;
 
-	if (!result)
+	if (!result) {
+		ErrPrint("Failed to change the state of the slave\n");
+		slave->state = SLAVE_RESUMED;
 		return;
+	}
 
 	g_variant_get(result, "(i)", &ret);
+	g_variant_unref(result);
+
 	if (ret == 0)
-		slave->paused = 1;
+		slave->state = SLAVE_PAUSED;
 }
 
 int slave_resume(struct slave_node *slave)
@@ -660,7 +681,7 @@ int slave_resume(struct slave_node *slave)
 	double timestamp;
 	GVariant *param;
 
-	if (!slave->paused)
+	if (slave->state == SLAVE_RESUMED || slave->state == SLAVE_REQUEST_TO_RESUME)
 		return 0;
 
 	timestamp = util_timestamp();
@@ -671,6 +692,7 @@ int slave_resume(struct slave_node *slave)
 		return -EFAULT;
 	}
 
+	slave->state = SLAVE_REQUEST_TO_RESUME;
 	return slave_rpc_async_request(slave, NULL, NULL, "resume", param, resume_cb, NULL);
 }
 
@@ -679,7 +701,7 @@ int slave_pause(struct slave_node *slave)
 	double timestamp;
 	GVariant *param;
 
-	if (slave->paused)
+	if (slave->state == SLAVE_PAUSED || slave->state == SLAVE_REQUEST_TO_PAUSE)
 		return 0;
 
 	timestamp = util_timestamp();
@@ -690,6 +712,7 @@ int slave_pause(struct slave_node *slave)
 		return -EFAULT;
 	}
 
+	slave->state = SLAVE_REQUEST_TO_PAUSE;
 	return slave_rpc_async_request(slave, NULL, NULL, "pause", param, pause_cb, NULL);
 }
 

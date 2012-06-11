@@ -1,38 +1,26 @@
 <manifest>
 	<!-- Provider master label -->
 	<define>
-		<domain name="provider-master" policy="restricted" />
+		<domain name="provider" policy="shared" />
 		<provide>
-			<label name="provider-master::bin" />
-		</provide>
-	</define>
-
-	<!-- Provider common label (Log, ...) -->
-	<define>
-		<domain name="provider" policy="restricted" plist="provider-master, provider-slave" />
-		<provide>
+			<label name="provider::bin" />
 			<label name="provider::log" />
+			<label name="provider::data" />
 		</provide>
 	</define>
-
-	<!-- Home screen label -->
-	<define>
-		<domain name="homescreen" policy="shared" />
-		<provide>
-			<label name="homescreen::data" />
-		</provide>
-	</define>
-
-	<!-- Request the "_" -->
-	<request>
-		<domain name="_" />
-	</request>
 
 	<assign>
-		<filesystem path="/opt/share/live_magazine" label="homescreen::data" />
+		<!-- Executable file -->
+		<filesystem path="/opt/apps/com.samsung.data-provider-master/bin/data-provider-master" label="provider::bin" />
+		<filesystem path="/opt/apps/com.samsung.data-provider-master/bin/data-provider-master" exec_label="provider::bin" />
+
+		<!-- Shared folder home, providers(master, slave) -->
+		<filesystem path="/opt/share/live_magazine" label="provider::data" />
+
+		<!-- Shared folder providers(master, slave) -->
 		<filesystem path="/opt/share/live_magazine/log" label="provider::log" />
-		<filesystem path="/opt/apps/com.samsung.data-provider-master/bin/data-provider-master" exec_label="provider-master::bin" />
-		<filesystem path="/opt/apps/com.samsung.data-provider-master/bin/data-provider-master" label="provider-master::bin" />
+
+		<!-- Package manager & Init script -->
 		<filesystem path="/opt/share/applications/com.samsung.data-provider-master.desktop" label="_" />
 		<filesystem path="/etc/rc.d/init.d/data-provider-master" label="_" />
 	</assign>
