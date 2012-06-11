@@ -77,7 +77,8 @@ done
 #
 # aul_test launch com.samsung.data-provider-master
 
-%files
+%files -n com.samsung.data-provider-master
+#%manifest com.samsung.data-provider-master.manifest
 %defattr(-,root,root,-)
 /opt/apps/com.samsung.data-provider-master/bin/data-provider-master
 /opt/share/applications/com.samsung.data-provider-master.desktop

@@ -1,0 +1,39 @@
+<manifest>
+	<!-- Provider master label -->
+	<define>
+		<domain name="provider-master" policy="restricted" />
+		<provide>
+			<label name="provider-master::bin" />
+		</provide>
+	</define>
+
+	<!-- Provider common label (Log, ...) -->
+	<define>
+		<domain name="provider" policy="restricted" plist="provider-master, provider-slave" />
+		<provide>
+			<label name="provider::log" />
+		</provide>
+	</define>
+
+	<!-- Home screen label -->
+	<define>
+		<domain name="homescreen" policy="shared" />
+		<provide>
+			<label name="homescreen::data" />
+		</provide>
+	</define>
+
+	<!-- Request the "_" -->
+	<request>
+		<domain name="_" />
+	</request>
+
+	<assign>
+		<filesystem path="/opt/share/live_magazine" label="homescreen::data" />
+		<filesystem path="/opt/share/live_magazine/log" label="provider::log" />
+		<filesystem path="/opt/apps/com.samsung.data-provider-master/bin/data-provider-master" exec_label="provider-master::bin" />
+		<filesystem path="/opt/apps/com.samsung.data-provider-master/bin/data-provider-master" label="provider-master::bin" />
+		<filesystem path="/opt/share/applications/com.samsung.data-provider-master.desktop" label="_" />
+		<filesystem path="/etc/rc.d/init.d/data-provider-master" label="_" />
+	</assign>
+</manifest>
