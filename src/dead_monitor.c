@@ -25,7 +25,7 @@ static int dead_cb(int pid, void *cb_data)
 		struct client_node *client;
 		client = client_find_by_pid(pid);
 		if (client) {
-			DbgPrint("Client %d is deactivated\n");
+			DbgPrint("Client %d is deactivated\n", client_pid(client));
 			client_deactivated_by_fault(client);
 		} else {
 			ErrPrint("Unknown PID:%d is terminated\n", pid);

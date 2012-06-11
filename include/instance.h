@@ -1,13 +1,91 @@
+/*!
+ * \note
+ * An instance has three states.
+ * ACTIVATED, DEACTIVATED, DESTROYED
+ *
+ * When the master is launched and someone requiers to create this instance,
+ * The master just allocate a heap for new instance.
+ * We defined this as "DEACTIVATED" state.
+ *
+ * After master successfully allocate heap for an instance,
+ * It will send a load request to a specified slave
+ * (The slave will be specified when a package informaion is
+ * prepared via configuration file of each livebox packages.)
+ * We defined this as "REQUEST_TO_ACTIVATE" state.
+ *
+ * After the slave create a new instance, it will sends back
+ * "created" event to the master.
+ * Then the master will change the state of the instance to
+ * "ACTIVATED".
+ *
+ * Sometimes, slaves can meet some unexpected problems then
+ * it will tries to clear all problems and tries to keep them in safe env.
+ * To do this, master or slave can be terminated.
+ * In this case, the master has to find the fault module(crashed livebox)
+ * and prevent it from loading at the slave.
+ * And it will send requests for re-creating all other normal liveboxes.
+ * We defined this as "REQUEST_TO_REACTIVATE".
+ *
+ * After slave is launched again(recovered from fault situation), it will
+ * receives "re-create" event from the master, then it will create all
+ * instances of requested liveboxes.
+ *
+ * When the master receives "created" event from the slaves,
+ * It will change the instance's state to "ACTIVATED"
+ * But now, the master will not send "created" event to the clients.
+ *
+ * Because the clients don't watn to know the re-created liveboxes.
+ * They just want to know about fault liveboxes to display deactivated
+ * message.
+ *
+ * Sometimes the master can send requests to the slave to unload instances.
+ * We defined this as "REQUEST_TO_DEACTIVATE".
+ *
+ * After the slave successfully destroy instances,
+ * The master will change the instance's state to "DEACTIVATED"
+ * It is same state with the first time when it is created in the master.
+ *
+ * Sometimes, the instances can be deleted permanently from the master and slave.
+ * We called this "destorying an instance".
+ * So we defined its states as "DESTROYED".
+ * It can make confusing us, the "DESTROYED" means like the instance is already deleted from the
+ * heap,. 
+ * Yes, it is right. But the instance cannot be deleted directly.
+ * Because some callbacks still reference it to complete its job.
+ * So the instance needs to keep this DESTROYED state for a while
+ * until all callbacks are done to their jobs.
+ *
+ * To unload the instance from the slave,
+ * The master should send a request to the slave,
+ * And the master should keep the instance until it receives "deleted" event from the slave.
+ * We defined this state as "REQUEST_TO_DESTROY".
+ * 
+ * After master receives "deleted" event from the slave,
+ * It will change the state of an master to "DESTROYED"
+ *
+ * There is one more event to change the state of an instance to "DESTROYED".
+ * In case of system created livebox, it could be destroyed itself.
+ * So the slave will send "deleted" event to the master directly.
+ * Even if the master doesn't requests to delete it.
+ *
+ * In this case, the master will change the state of an instance to
+ * "DESTROYED" state. but it will wait to delete it from the heap until
+ * reference count of an instance reaches to ZERO.
+ */
 enum instance_state {
 	INST_DEACTIVATED = 0x0, /*!< Only keeps in the master */
-	INST_REQUEST_TO_DEACTIVATE, /*!< Unload this from the slave */
+	INST_REQUEST_TO_DEACTIVATE, /*!< Sent a request to a slave to unload this */
 
-	INST_ACTIVATED, /*!< This is loaded to the slave */
-	INST_REQUEST_TO_ACTIVATE, /*!< Load this to the slave */
-	INST_REQUEST_TO_REACTIVATE, /*!< Reload this to the slave */
+	/*!
+	 */
+	INST_ACTIVATED, /*!< This instance is loaded to the slave */
+	INST_REQUEST_TO_ACTIVATE, /*!< Sent a request to a slave to load this */
+	INST_REQUEST_TO_REACTIVATE, /*!< Sent a request to a slave to load this without "created" event for clients(viewer) */
 
-	INST_DESTROYED, /*!< Deleted by the slave automatically */
-	INST_REQUEST_TO_DESTROY, /*!< Delete this instance */
+	/*!
+	 */
+	INST_DESTROYED, /*!< Instance is unloaded and also it requires to be deleted from the master */
+	INST_REQUEST_TO_DESTROY, /*!< Sent a request to a slave, when the master receives deleted event, the master will delete this */
 };
 
 struct inst_info;

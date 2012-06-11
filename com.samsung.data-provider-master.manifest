@@ -9,6 +9,10 @@
 		</provide>
 	</define>
 
+	<request>
+		<domain name="provider" />
+	</request>
+
 	<assign>
 		<!-- Executable file -->
 		<filesystem path="/opt/apps/com.samsung.data-provider-master/bin/data-provider-master" label="provider::bin" />

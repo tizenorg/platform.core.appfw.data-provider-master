@@ -21,6 +21,8 @@ pkg_check_modules(pkg REQUIRED
 
 SET(PACKAGE "${PROJECT_NAME}")
 SET(LOCALEDIR "/opt/apps/com.samsung.${PROJECT_NAME}/res/locale")
+SET(CMAKE_C_FLAGS "-Wall -fpie -Winline -Werror")
+SET(CMAKE_EXE_LINKER_FLAGS "-pie")
 
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
@@ -39,8 +41,9 @@ ADD_DEFINITIONS("-DSLAVE_PKGNAME=\"com.samsung.data-provider-slave\"")
 ADD_DEFINITIONS("-DNDEBUG")
 #ADD_DEFINITIONS("-DFLOG")
 ADD_DEFINITIONS("-DLOG_TAG=\"${PROJECT_NAME}\"")
-ADD_DEFINITIONS(${pkg_CFLAGS} "-Wall -fpie -Winline -Werror")
-ADD_DEFINITIONS(${pkg_LDFLAGS} "-pie")
+ADD_DEFINITIONS(${pkg_CFLAGS})
+ADD_DEFINITIONS(${pkg_LDFLAGS})
+
 
 ADD_EXECUTABLE(${PROJECT_NAME}
 	src/main.c

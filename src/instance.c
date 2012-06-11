@@ -1333,12 +1333,12 @@ void instance_recover_state(struct inst_info *inst)
 			instance_reactivate(inst);
 			break;
 		case INST_DEACTIVATED:
-			slave_unload_instance(package_slave(inst->info));
 			instance_deactivated(inst);
+			slave_unload_instance(package_slave(inst->info));
 			break;
 		case INST_DESTROYED:
-			slave_unload_instance(package_slave(inst->info));
 			instance_deactivated(inst);
+			slave_unload_instance(package_slave(inst->info));
 			instance_destroy(inst);
 			break;
 		default:

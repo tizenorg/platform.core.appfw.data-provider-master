@@ -29,7 +29,7 @@ Manage the slave data provider and communicate with client applications.
 cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix}
 
 %build
-make %{?jobs:-j%jobs}
+CFLAGS="${CFLAGS} -Wall -fpie -Winline -Werror" LDFLAGS="${LDFLAGS} -pie" make %{?jobs:-j%jobs}
 
 %install
 rm -rf %{buildroot}
