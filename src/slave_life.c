@@ -32,9 +32,34 @@ struct slave_node {
 	int refcnt;
 	int fault_count;
 	enum pause_state {
+		/*!
+		 * Launch the slave but not yet receives "hello" packet
+		 */
+		SLAVE_REQUEST_TO_LAUNCH,
+
+		/*!
+		 * \note
+		 * Terminate the slave but not yet receives dead signal
+		 */
+		SLAVE_REQUEST_TO_TERMINATE,
+
+		/*!
+		 * \note
+		 * No slave process exists, just slave object created
+		 */
+		SLAVE_TERMINATED,
+
+		/*!
+		 * \note
+		 * State change request is sent,
+		 */
 		SLAVE_REQUEST_TO_PAUSE,
 		SLAVE_REQUEST_TO_RESUME,
 
+		/*!
+		 * \note
+		 * SLAVE_ACTIVATED = { SLAVE_PAUSED, SLAVE_RESUMED }
+		 */
 		SLAVE_PAUSED,
 		SLAVE_RESUMED,
 	} state;
@@ -92,7 +117,7 @@ static inline struct slave_node *create_slave_node(const char *name, int is_secu
 
 	slave->secured = is_secured;
 	slave->pid = (pid_t)-1;
-	slave->state = SLAVE_RESUMED;
+	slave->state = SLAVE_TERMINATED;
 
 	s_info.slave_list = eina_list_append(s_info.slave_list, slave);
 	DbgPrint("slave data is created %p\n", slave);
@@ -269,11 +294,13 @@ int slave_activate(struct slave_node *slave)
 	bundle_free(param);
 
 	if (slave->pid < 0) {
-		ErrPrint("Failed to launch a new slave %s\n", slave->name);
+		ErrPrint("Failed to launch a new slave %s (%d)\n", slave->name, slave->pid);
+		slave->pid = (pid_t)-1;
 		return -EFAULT;
 	}
 	DbgPrint("Slave launched %d\n", slave->pid);
 
+	slave->state = SLAVE_REQUEST_TO_LAUNCH;
 	/*!
 	 * \note
 	 * Increase the refcnt of a slave,
@@ -281,10 +308,14 @@ int slave_activate(struct slave_node *slave)
 	 */
 	slave_ref(slave);
 
+	return 0;
+}
+
+int slave_activated(struct slave_node *slave)
+{
+	slave->state = SLAVE_RESUMED;
 	invoke_activate_cb(slave);
 	slave_check_pause_or_resume();
-
-	slave->state = SLAVE_RESUMED;
 	return 0;
 }
 
@@ -330,6 +361,7 @@ int slave_deactivate(struct slave_node *slave)
 	 */
 	pid = slave->pid;
 	slave->pid = (pid_t)-1;
+
 	DbgPrint("Terminate PID: %d\n", pid);
 	if (aul_terminate_pid(pid) < 0)
 		ErrPrint("Terminate failed. pid %d\n", pid);
@@ -363,7 +395,7 @@ void slave_faulted(struct slave_node *slave)
 	slave_rpc_reset_proxy(slave);
 
 	invoke_deactivate_cb(slave);
-	slave->state = SLAVE_PAUSED;
+	slave->state = SLAVE_TERMINATED;
 	slave_unref(slave);
 }
 
@@ -386,7 +418,7 @@ void slave_deactivated_by_fault(struct slave_node *slave)
 	slave_rpc_reset_proxy(slave);
 
 	invoke_deactivate_cb(slave);
-	slave->state = SLAVE_PAUSED;
+	slave->state = SLAVE_TERMINATED;
 	slave_unref(slave);
 }
 
@@ -559,10 +591,9 @@ struct slave_node *slave_find_available(void)
 		if (slave->secured)
 			continue;
 
-		if (slave->loaded_package == g_conf.slave_max_load)
-			continue;
-
-		return slave;
+		DbgPrint("slave[%s] %d\n", slave_name(slave), slave->loaded_package);
+		if (slave->loaded_package < g_conf.slave_max_load)
+			return slave;
 	}
 
 	return NULL;

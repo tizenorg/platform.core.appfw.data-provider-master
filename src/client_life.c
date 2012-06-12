@@ -252,7 +252,7 @@ int client_deactivated_by_fault(struct client_node *client)
 	if (client->faulted)
 		return 0;
 
-	DbgPrint("Client is faulted! refcnt(%d), pid(%d)\n", client_refcnt(client), client->pid);
+	DbgPrint("Client is faulted! refcnt(%d), pid(%d)\n", client->refcnt, client->pid);
 	client->faulted = 1;
 
 	client->pid = (pid_t)-1;
@@ -268,7 +268,7 @@ int client_fault(struct client_node *client)
 	if (client->faulted)
 		return 0;
 
-	DbgPrint("Client is faulted(%d), pid(%d)\n", client_refcnt(client), client->pid);
+	DbgPrint("Client is faulted(%d), pid(%d)\n", client->refcnt, client->pid);
 	client->faulted = 1;
 
 	client->pid = (pid_t)-1;

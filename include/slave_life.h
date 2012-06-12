@@ -32,6 +32,7 @@ extern int slave_deactivate(struct slave_node *slave);
  * To check the slave's activation state
  */
 extern int slave_is_activated(struct slave_node *slave);
+extern int slave_activated(struct slave_node *slave);
 
 /*!
  * To mangage the unexpected termination of a slave

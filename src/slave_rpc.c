@@ -530,10 +530,11 @@ int slave_rpc_update_proxy(struct slave_node *slave, GDBusProxy *proxy)
 	}
 
 	if (rpc->proxy)
-		ErrPrint("RPC proxy is already exists\n");
+		ErrPrint("proxy %p is already exists (%s %d) (replaced with %p)\n", rpc->proxy, slave_name(slave), slave_pid(slave), proxy);
+	else
+		ErrPrint("proxy %p is updated (%s %d)\n", proxy, slave_name(slave), slave_pid(slave));
 
 	rpc->proxy = proxy;
-	slave_reset_fault(slave);
 
 	EINA_LIST_FREE(rpc->pending_request_list, packet) {
 		push_packet(packet);
@@ -542,10 +543,16 @@ int slave_rpc_update_proxy(struct slave_node *slave, GDBusProxy *proxy)
 	rpc->ping_count = 0;
 	rpc->next_ping_count = 1;
 
+	if (rpc->pong_timer)
+		ecore_timer_del(rpc->pong_timer);
+
 	rpc->pong_timer = ecore_timer_add(g_conf.ping_time, ping_timeout_cb, slave);
 	if (!rpc->pong_timer)
 		ErrPrint("Failed to add ping timer\n");
 
+	slave_activated(slave);
+
+	slave_reset_fault(slave);
 	return 0;
 }
 

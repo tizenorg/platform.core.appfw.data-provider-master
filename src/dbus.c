@@ -33,8 +33,8 @@ static struct info {
 } s_info = {
 	.node_info = NULL,
 	.owner_id = 0,
-	.xml_data = "<node name ='" OBJECT_PATH "'>"
-	"<interface name='" SERVICE_INTERFACE "'>"
+	.xml_data = "<node name ='" MASTER_OBJECT_PATH "'>"
+	"<interface name='" MASTER_SERVICE_INTERFACE "'>"
 
 	/* From client */
 	" <method name='acquire'>"
@@ -456,26 +456,28 @@ static void method_hello(GDBusMethodInvocation *inv, GVariant *param)
 
 		sender = g_dbus_method_invocation_get_sender(inv);
 
-		param = g_variant_new("(i)", 0);
-		if (!param)
-			ErrPrint("Failed to create variant\n");
-
-		g_dbus_method_invocation_return_value(inv, param);
-
 		conn = g_dbus_method_invocation_get_connection(inv);
 		if (!conn) {
 			ErrPrint("Failed to get connection object\n");
 			return;
 		}
 
+		DbgPrint("sender: %s\n", sender);
 		g_dbus_proxy_new(conn,
 			G_DBUS_PROXY_FLAGS_NONE,
 			NULL, 
 			sender,
-			OBJECT_PATH,
-			SERVICE_INTERFACE,
+			SLAVE_OBJECT_PATH,
+			SLAVE_SERVICE_INTERFACE,
 			NULL,
 			slave_proxy_prepared_cb, slave);
+
+		param = g_variant_new("(i)", 0);
+		if (!param)
+			ErrPrint("Failed to create variant\n");
+
+		g_dbus_method_invocation_return_value(inv, param);
+
 	}
 }
 
@@ -512,6 +514,7 @@ static void method_desc_updated(GDBusMethodInvocation *inv, GVariant *param)
 			ret = 0;
 		} else if (script_handler_is_loaded(instance_pd_handle(inst))) {
 			ret = script_handler_parse_desc(pkgname, id, descfile, 1);
+			DbgPrint("DESC for PD is updated (%d - %s)\n", ret, pkgname);
 		} else {
 			ret = 0;
 		}
@@ -559,6 +562,7 @@ static void method_updated(GDBusMethodInvocation *inv, GVariant *param)
 			if (package_lb_type(instance_package(inst)) == LB_TYPE_SCRIPT) {
 				script_handler_resize(instance_lb_handle(inst), w, h);
 				ret = script_handler_parse_desc(pkgname, id, id, 0);
+				DbgPrint("DESC for LB is updated (%d - %s)\n", ret, pkgname);
 			} else {
 				/*!
 				 * \check
@@ -661,12 +665,6 @@ static void method_acquire(GDBusMethodInvocation *inv, GVariant *param)
 	}
 
 out:
-	param = g_variant_new("(i)", ret);
-	if (!param)
-		ErrPrint("Failed to create variant\n");
-
-	g_dbus_method_invocation_return_value(inv, param);
-
 	if (ret == 0) {
 		GDBusConnection *conn;
 		const char *sender;
@@ -678,15 +676,23 @@ out:
 		}
 
 		sender = g_dbus_method_invocation_get_sender(inv);
+		DbgPrint("sender: %s\n", sender);
 		g_dbus_proxy_new(conn,
 			G_DBUS_PROXY_FLAGS_NONE,
 			NULL,
 			sender,
-			OBJECT_PATH,
-			SERVICE_INTERFACE,
+			CLIENT_OBJECT_PATH,
+			CLIENT_SERVICE_INTERFACE,
 			NULL,
 			client_proxy_prepared_cb, client);
 	}
+
+	param = g_variant_new("(i)", ret);
+	if (!param)
+		ErrPrint("Failed to create variant\n");
+
+	g_dbus_method_invocation_return_value(inv, param);
+
 }
 
 static void method_release(GDBusMethodInvocation *inv, GVariant *param)
@@ -1592,7 +1598,7 @@ static void on_bus_acquired(GDBusConnection *conn,
 
 	err = NULL;
 	s_info.reg_id = g_dbus_connection_register_object(conn,
-			OBJECT_PATH,
+			MASTER_OBJECT_PATH,
 			s_info.node_info->interfaces[0],
 			&iface_vtable,
 			NULL,
@@ -1601,7 +1607,7 @@ static void on_bus_acquired(GDBusConnection *conn,
 
 	if (s_info.reg_id <= 0) {
 		if (err) {
-			ErrPrint("register %s - %s\n", OBJECT_PATH, err->message);
+			ErrPrint("register %s - %s\n", MASTER_OBJECT_PATH, err->message);
 			g_error_free(err);
 		}
 		g_dbus_node_info_unref(s_info.node_info);
@@ -1622,7 +1628,7 @@ int dbus_init(void)
 	int r;
 
 	r = g_bus_own_name(BUS_TYPE,
-			SERVICE_NAME,
+			MASTER_SERVICE_NAME,
 			G_BUS_NAME_OWNER_FLAGS_NONE,
 			on_bus_acquired,
 			on_name_acquired,
@@ -1630,7 +1636,7 @@ int dbus_init(void)
 			NULL, /* user_data */
 			NULL /* GDestroyNotify */ );
 	if (r <= 0) {
-		ErrPrint("Failed to get a name: %s\n", SERVICE_NAME);
+		ErrPrint("Failed to get a name: %s\n", MASTER_SERVICE_NAME);
 		return -EFAULT;
 	}
 

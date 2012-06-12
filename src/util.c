@@ -107,4 +107,13 @@ int util_unlink(const char *filename)
 	return 0;
 }
 
+char *util_slavename(void)
+{
+	char slavename[BUFSIZ];
+	static unsigned long idx = 0;
+
+	snprintf(slavename, sizeof(slavename), "%lu_%lf", idx++, util_timestamp());
+	return strdup(slavename);
+}
+
 /* End of a file */

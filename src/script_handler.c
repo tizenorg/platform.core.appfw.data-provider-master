@@ -180,6 +180,7 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double sx,
 		return -EFAULT;
 	}
 
+	DbgPrint("send %s %s %s\n", "script", signal, part);
 	ret = slave_rpc_async_request(slave, pkgname, filename, "script", param, NULL, NULL); 
 	return ret;
 }
@@ -581,14 +582,18 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 
 	block = NULL;
 	inst = package_find_instance_by_id(pkgname, filename);
-	if (!inst)
-		return -EINVAL;
+	if (!inst) {
+		ErrPrint("Instance is not exists\n");
+		return -ENOENT;
+	}
 
 	fp = fopen(descfile, "rt");
 	if (!fp) {
 		ErrPrint("Error: %s\n", strerror(errno));
 		return -EIO;
 	}
+
+	DbgPrint("descfile: %s\n", descfile);
 
 	state = UNKNOWN;
 	field_idx = 0;
@@ -607,7 +612,8 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 				break;
 			}
 
-			if (!isspace(ch)) {
+			if (!isspace(ch) && ch != EOF) {
+				ErrPrint("%d: Syntax error: Desc is not started with '{' or space - (%c = 0x%x)\n", lineno, ch, ch);
 				fclose(fp);
 				return -EINVAL;
 			}
@@ -618,7 +624,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 				break;
 
 			if (ch != '\n') {
-				ErrPrint("Syntax error: New line must has to be started right after '{'\n");
+				ErrPrint("%d: Syntax error: New line must has to be started right after '{'\n", lineno);
 				goto errout;
 			}
 
@@ -645,7 +651,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 
 			if (ch == '=') {
 				if (field_name[field_idx][idx] != '\0') {
-					ErrPrint("Syntax error: Unrecognized field\n");
+					ErrPrint("%d: Syntax error: Unrecognized field\n", lineno);
 					goto errout;
 				}
 
@@ -705,7 +711,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 					idx = 0;
 					break;
 				default:
-					ErrPrint("Syntax error: Unrecognized field\n");
+					ErrPrint("%d: Syntax error: Unrecognized field\n", lineno);
 					goto errout;
 				}
 
@@ -725,7 +731,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 
 				field_idx++;
 				if (field_name[field_idx] == NULL) {
-					ErrPrint("Syntax error: Unrecognized field\n");
+					ErrPrint("%d: Syntax error: Unrecognized field\n", lineno);
 					goto errout;
 				}
 
@@ -742,7 +748,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 				block->type =
 					realloc(block->type, block->type_len);
 				if (!block->type) {
-					ErrPrint("Failed to allocate memory\n");
+					ErrPrint("Heap: %s\n", strerror(errno));
 					goto errout;
 				}
 			}
@@ -765,7 +771,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 				block->part =
 					realloc(block->part, block->part_len);
 				if (!block->part) {
-					ErrPrint("Failed to allocate memory\n");
+					ErrPrint("Heap: %s\n", strerror(errno));
 					goto errout;
 				}
 			}
@@ -788,7 +794,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 				block->data =
 					realloc(block->data, block->data_len);
 				if (!block->data) {
-					ErrPrint("Failed to allocate memory\n");
+					ErrPrint("Heap: %s\n", strerror(errno));
 					goto errout;
 				}
 			}
@@ -811,7 +817,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 				block->file =
 					realloc(block->file, block->file_len);
 				if (!block->file) {
-					ErrPrint("Failed to allocate memory\n");
+					ErrPrint("Heap: %s\n", strerror(errno));
 					goto errout;
 				}
 			}
@@ -834,7 +840,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 				block->group = realloc(block->group,
 							block->group_len);
 				if (!block->group) {
-					ErrPrint("Failed to allocate memory\n");
+					ErrPrint("Heap: %s\n", strerror(errno));
 					goto errout;
 				}
 			}
@@ -855,7 +861,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 				block->id_len += 256;
 				block->id = realloc(block->id, block->id_len);
 				if (!block->id) {
-					ErrPrint("Failed to allocate memory\n");
+					ErrPrint("Heap: %s\n", strerror(errno));
 					goto errout;
 				}
 			}
@@ -875,7 +881,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 			if (!block->file) {
 				block->file = strdup(filename);
 				if (!block->file) {
-					ErrPrint("Failed to allocate memory\n");
+					ErrPrint("Heap: %s\n", strerror(errno));
 					goto errout;
 				}
 			}
@@ -890,7 +896,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 			}
 
 			if (!handlers[i].type)
-				ErrPrint("Unknown block type: %s\n", block->type);
+				ErrPrint("%d: Unknown block type: %s\n", lineno, block->type);
 
 			free(block->file);
 			free(block->type);
@@ -909,7 +915,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 	} /* while */
 
 	if (state != UNKNOWN) {
-		ErrPrint("Unknown state\n");
+		ErrPrint("%d: Unknown state\n", lineno);
 		goto errout;
 	}
 

@@ -169,8 +169,13 @@ static inline void destroy_package(struct pkg_info *info)
 	free(info->script);
 	free(info->abi);
 	free(info->pkgname);
-	slave_event_callback_del(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
-	slave_event_callback_del(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
+
+	if (info->slave) {
+		slave_unload_package(info->slave);
+		slave_event_callback_del(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
+		slave_event_callback_del(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
+	}
+
 	free(info);
 }
 
@@ -356,14 +361,25 @@ struct pkg_info *package_create(const char *pkgname)
 	if (!info->secured)
 		info->slave = slave_find_available();
 
+	package_ref(info);
+
 	if (!info->slave) {
-		char slavename[BUFSIZ];
-		snprintf(slavename, sizeof(slavename), "%lf", util_timestamp());
+		char *slavename;
+		slavename = util_slavename();
+		if (!slavename) {
+			package_destroy(info);
+			return NULL;
+		}
+
+		DbgPrint("New slave name is %s assigned for %s\n", slavename, pkgname);
 		info->slave = slave_create(slavename, info->secured);
+		free(slavename);
 		/*!
 		 * \note
 		 * Slave is not activated yet.
 		 */
+	} else {
+		DbgPrint("Slave %s is assigned for %s\n", slave_name(info->slave), pkgname);
 	}
 
 	if (!info->slave) {
@@ -378,10 +394,10 @@ struct pkg_info *package_create(const char *pkgname)
 		return NULL;
 	}
 
+	slave_load_package(info->slave);
 	slave_event_callback_add(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
 	slave_event_callback_add(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
 
-	package_ref(info);
 	s_info.pkg_list = eina_list_append(s_info.pkg_list, info);
 	return info;
 }
