@@ -421,12 +421,18 @@ void *client_del_data(struct client_node *client, const char *tag)
 
 void client_paused(struct client_node *client)
 {
+	if (client->paused)
+		return;
+
 	client->paused = 1;
 	s_info.nr_of_paused_clients++;
 }
 
 void client_resumed(struct client_node *client)
 {
+	if (client->paused == 0)
+		return;
+
 	client->paused = 0;
 	s_info.nr_of_paused_clients--;
 }

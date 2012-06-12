@@ -43,9 +43,6 @@ static inline int app_create(void *data)
 		return 0;
 	}
 
-	ret = ctx_client_init();
-	DbgPrint("Context engine is initialized: %d\n", ret);
-
 	conf_update_size();
 
 	ret = dbus_init();
@@ -75,6 +72,9 @@ static inline int app_create(void *data)
 	if (access(g_conf.path.slave_log, R_OK|W_OK) != 0) {
 		mkdir(g_conf.path.slave_log, 755);
 	}
+
+	ret = ctx_client_init();
+	DbgPrint("Context engine is initialized: %d\n", ret);
 
 	initialized = 1;
 

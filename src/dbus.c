@@ -259,8 +259,8 @@ static void method_ping(GDBusMethodInvocation *inv, GVariant *param)
 	int ret;
 
 	g_variant_get(param, "(&s)", &slavename);
-
 	slave = slave_find_by_name(slavename);
+
 	if (!slave) {
 		ErrPrint("Unknown slave! %s\n", slavename);
 		ret = -EINVAL;
@@ -288,8 +288,8 @@ static void method_call(GDBusMethodInvocation *inv, GVariant *param)
 	int ret;
 
 	g_variant_get(param, "(&s&s&s&s)", &slave_name, &pkgname, &id, &funcname);
-
 	node = slave_find_by_name(slave_name);
+
 	if (!node) {
 		ErrPrint("Failed to find a correct slave: %s\n", slave_name);
 		ret = -EFAULT;
@@ -437,6 +437,7 @@ static void slave_proxy_prepared_cb(GObject *obj, GAsyncResult *res, gpointer sl
 static void method_hello(GDBusMethodInvocation *inv, GVariant *param)
 {
 	const char *slavename;
+	const char *sender;
 	struct slave_node *slave;
 	GDBusConnection *conn;
 
@@ -451,34 +452,31 @@ static void method_hello(GDBusMethodInvocation *inv, GVariant *param)
 			ErrPrint("Failed to create variant\n");
 
 		g_dbus_method_invocation_return_value(inv, param);
-	} else {
-		const char *sender;
+		return;
+	} 
 
-		sender = g_dbus_method_invocation_get_sender(inv);
+	sender = g_dbus_method_invocation_get_sender(inv);
 
-		conn = g_dbus_method_invocation_get_connection(inv);
-		if (!conn) {
-			ErrPrint("Failed to get connection object\n");
-			return;
-		}
-
-		DbgPrint("sender: %s\n", sender);
-		g_dbus_proxy_new(conn,
-			G_DBUS_PROXY_FLAGS_NONE,
-			NULL, 
-			sender,
-			SLAVE_OBJECT_PATH,
-			SLAVE_SERVICE_INTERFACE,
-			NULL,
-			slave_proxy_prepared_cb, slave);
-
-		param = g_variant_new("(i)", 0);
-		if (!param)
-			ErrPrint("Failed to create variant\n");
-
-		g_dbus_method_invocation_return_value(inv, param);
-
+	conn = g_dbus_method_invocation_get_connection(inv);
+	if (!conn) {
+		ErrPrint("Failed to get connection object\n");
+		return;
 	}
+
+	g_dbus_proxy_new(conn,
+		G_DBUS_PROXY_FLAGS_NONE,
+		NULL, 
+		sender,
+		SLAVE_OBJECT_PATH,
+		SLAVE_SERVICE_INTERFACE,
+		NULL,
+		slave_proxy_prepared_cb, slave);
+
+	param = g_variant_new("(i)", 0);
+	if (!param)
+		ErrPrint("Failed to create variant\n");
+
+	g_dbus_method_invocation_return_value(inv, param);
 }
 
 static void method_desc_updated(GDBusMethodInvocation *inv, GVariant *param)
@@ -514,7 +512,6 @@ static void method_desc_updated(GDBusMethodInvocation *inv, GVariant *param)
 			ret = 0;
 		} else if (script_handler_is_loaded(instance_pd_handle(inst))) {
 			ret = script_handler_parse_desc(pkgname, id, descfile, 1);
-			DbgPrint("DESC for PD is updated (%d - %s)\n", ret, pkgname);
 		} else {
 			ret = 0;
 		}
@@ -562,7 +559,6 @@ static void method_updated(GDBusMethodInvocation *inv, GVariant *param)
 			if (package_lb_type(instance_package(inst)) == LB_TYPE_SCRIPT) {
 				script_handler_resize(instance_lb_handle(inst), w, h);
 				ret = script_handler_parse_desc(pkgname, id, id, 0);
-				DbgPrint("DESC for LB is updated (%d - %s)\n", ret, pkgname);
 			} else {
 				/*!
 				 * \check
@@ -650,6 +646,7 @@ static void method_acquire(GDBusMethodInvocation *inv, GVariant *param)
 	struct client_node *client;
 
 	g_variant_get(param, "(i)", &pid);
+
 	client = client_find_by_pid(pid);
 	if (client) {
 		ErrPrint("Client is already exists\n");
@@ -676,7 +673,6 @@ out:
 		}
 
 		sender = g_dbus_method_invocation_get_sender(inv);
-		DbgPrint("sender: %s\n", sender);
 		g_dbus_proxy_new(conn,
 			G_DBUS_PROXY_FLAGS_NONE,
 			NULL,
@@ -701,6 +697,7 @@ static void method_release(GDBusMethodInvocation *inv, GVariant *param)
 	struct client_node *client;
 
 	g_variant_get(param, "(i)", &pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Failed to find a client\n");

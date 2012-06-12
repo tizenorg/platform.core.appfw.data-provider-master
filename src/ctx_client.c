@@ -29,10 +29,14 @@ static struct info {
 	int updated;
 	unsigned long pending_mask;
 	int enabled;
+	pthread_mutex_t ctx_lock;
+	Ecore_Timer *ctx_event_consumer;
 } s_info = {
 	.updated = 0,
 	.pending_mask = CONTEXT_NOTI_LOCATION | CONTEXT_NOTI_CONTACTS | CONTEXT_NOTI_APPS | CONTEXT_NOTI_MUSIC | CONTEXT_NOTI_PHOTOS,
 	.enabled = 0,
+	.ctx_lock = PTHREAD_MUTEX_INITIALIZER,
+	.ctx_event_consumer = NULL,
 };
 
 static int update_pkg_cb(struct category *category, const char *pkgname, void *data)
@@ -212,58 +216,34 @@ static inline void update_photo(void)
 		group_list_category_pkgs(category, update_pkg_cb, NULL);
 }
 
-void ctx_update(void)
+void ctx_update(unsigned long mask)
 {
-	if (s_info.pending_mask & CONTEXT_NOTI_LOCATION)
+	if (!mask)
+		return;
+
+	if (mask & CONTEXT_NOTI_LOCATION)
 		update_location();
 
-	if (s_info.pending_mask & CONTEXT_NOTI_CONTACTS)
+	if (mask & CONTEXT_NOTI_CONTACTS)
 		update_contacts();
 
-	if (s_info.pending_mask & CONTEXT_NOTI_APPS)
+	if (mask & CONTEXT_NOTI_APPS)
 		update_apps();
 
-	if (s_info.pending_mask & CONTEXT_NOTI_MUSIC)
+	if (mask & CONTEXT_NOTI_MUSIC)
 		update_music();
 
-	if (s_info.pending_mask & CONTEXT_NOTI_PHOTOS)
+	if (mask & CONTEXT_NOTI_PHOTOS)
 		update_photo();
 
-	s_info.pending_mask = 0;
 	return;
 }
 
 static bool ctx_changed_cb(context_type_e type, void *user_data)
 {
-	if (!s_info.enabled)
-		return false;
-
-	if ((client_count() && client_is_all_paused()) || setting_is_locked()) {
-		s_info.pending_mask |= type;
-		return false;
-	}
-
-	switch (type) {
-	case CONTEXT_NOTI_LOCATION:
-		update_location();
-		break;
-	case CONTEXT_NOTI_CONTACTS:
-		update_contacts();
-		break;
-	case CONTEXT_NOTI_APPS:
-		update_apps();
-		break;
-	case CONTEXT_NOTI_MUSIC:
-		update_music();
-		break;
-	case CONTEXT_NOTI_PHOTOS:
-		update_photo();
-		break;
-	default:
-		DbgPrint("Processing events: Unknown\n");
-		break;
-	}
-
+	pthread_mutex_lock(&s_info.ctx_lock);
+	s_info.pending_mask |= type;
+	pthread_mutex_unlock(&s_info.ctx_lock);
 	return false;
 }
 
@@ -278,16 +258,38 @@ static void ctx_vconf_cb(keynode_t *node, void *data)
 	}
 }
 
+static Eina_Bool event_consumer_cb(void *data)
+{
+	unsigned long mask;
+
+	pthread_mutex_lock(&s_info.ctx_lock);
+	mask = s_info.pending_mask;
+	s_info.pending_mask = 0;
+	pthread_mutex_unlock(&s_info.ctx_lock);
+
+	if (!s_info.enabled || (client_count() && client_is_all_paused()) || setting_is_locked())
+		return ECORE_CALLBACK_RENEW;
+
+	ctx_update(mask);
+
+	return ECORE_CALLBACK_RENEW;
+}
+
 static Eina_Bool delayed_ctx_init_cb(void *data)
 {
-	context_set_context_changed_cb(ctx_changed_cb,
-		CONTEXT_NOTI_LOCATION | CONTEXT_NOTI_CONTACTS | CONTEXT_NOTI_APPS |
-		CONTEXT_NOTI_MUSIC | CONTEXT_NOTI_PHOTOS, NULL);
+	s_info.ctx_event_consumer = ecore_timer_add(10.0f, event_consumer_cb, NULL);
+	if (!s_info.ctx_event_consumer) {
+		ErrPrint("Failed to add event consumer\n");
+	} else {
+		context_set_context_changed_cb(ctx_changed_cb,
+			CONTEXT_NOTI_LOCATION | CONTEXT_NOTI_CONTACTS | CONTEXT_NOTI_APPS |
+			CONTEXT_NOTI_MUSIC | CONTEXT_NOTI_PHOTOS, NULL);
+	}
 
 	/*!
 	 * Triggering all events first
 	 */
-	ctx_update();
+	ctx_update(0xFFFFFFFF);
 
 	return ECORE_CALLBACK_CANCEL;
 }
@@ -314,6 +316,22 @@ int ctx_client_fini(void)
 {
 	vconf_ignore_key_changed(SYS_CLUSTER_KEY, ctx_vconf_cb);
 	return 0;
+}
+
+void ctx_pause(void)
+{
+	if (!s_info.ctx_event_consumer)
+		return;
+
+	ecore_timer_freeze(s_info.ctx_event_consumer);
+}
+
+void ctx_resume(void)
+{
+	if (!s_info.ctx_event_consumer)
+		return;
+
+	ecore_timer_thaw(s_info.ctx_event_consumer);
 }
 
 /* End of a file */

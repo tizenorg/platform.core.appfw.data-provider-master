@@ -4,6 +4,7 @@
 #include <unistd.h> /* pid_t */
 #include <stdlib.h> /* free */
 #include <libgen.h> /* basename */
+#include <pthread.h>
 
 #include <Eina.h>
 #include <Ecore.h>
@@ -298,7 +299,7 @@ int slave_activate(struct slave_node *slave)
 		slave->pid = (pid_t)-1;
 		return -EFAULT;
 	}
-	DbgPrint("Slave launched %d\n", slave->pid);
+	DbgPrint("Slave launched %d for %s\n", slave->pid, slave->name);
 
 	slave->state = SLAVE_REQUEST_TO_LAUNCH;
 	/*!
@@ -644,7 +645,7 @@ void slave_check_pause_or_resume(void)
 	Eina_List *l;
 	struct slave_node *slave;
 
-	paused = (client_count() && client_is_all_paused()) || setting_is_locked();
+	paused = client_is_all_paused() || setting_is_locked();
 
 	if (s_info.paused == paused)
 		return;
@@ -655,12 +656,14 @@ void slave_check_pause_or_resume(void)
 		EINA_LIST_FOREACH(s_info.slave_list, l, slave) {
 			slave_pause(slave);
 		}
+
+		ctx_pause();
 	} else {
 		EINA_LIST_FOREACH(s_info.slave_list, l, slave) {
 			slave_resume(slave);
 		}
 
-		ctx_update();
+		ctx_resume();
 	}
 }
 

@@ -31,12 +31,13 @@
 #include <Ecore.h>
 
 #include <gio/gio.h>
+#include <dlog.h>
 
 #include "conf.h"
 #include "xmonitor.h"
-#include "dlog.h"
 #include "debug.h"
 #include "client_life.h"
+#include "slave_life.h"
 #include "io.h"
 #include "main.h"
 #include "util.h"
@@ -129,10 +130,13 @@ static Eina_Bool client_cb(void *data, int type, void *event)
 	if (!name)
 		return ECORE_CALLBACK_RENEW;
 
-	if (!strcmp(name, "_X_ILLUME_DEACTIVATE_WINDOW"))
+	if (!strcmp(name, "_X_ILLUME_DEACTIVATE_WINDOW")) {
 		client_paused(client);
-	else if (!strcmp(name, "_X_ILLUME_ACTIVATE_WINDOW"))
+		slave_check_pause_or_resume();
+	} else if (!strcmp(name, "_X_ILLUME_ACTIVATE_WINDOW")) {
 		client_resumed(client);
+		slave_check_pause_or_resume();
+	}
 
 	free(name);
 	return ECORE_CALLBACK_RENEW;
