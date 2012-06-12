@@ -334,6 +334,8 @@ int slave_deactivate(struct slave_node *slave)
 	if (aul_terminate_pid(pid) < 0)
 		ErrPrint("Terminate failed. pid %d\n", pid);
 
+	slave_rpc_reset_proxy(slave);
+
 	invoke_deactivate_cb(slave);
 
 	slave->state = SLAVE_PAUSED;
@@ -358,6 +360,8 @@ void slave_faulted(struct slave_node *slave)
 	if (aul_terminate_pid(pid) < 0)
 		ErrPrint("Terminate failed, pid %d\n", pid);
 
+	slave_rpc_reset_proxy(slave);
+
 	invoke_deactivate_cb(slave);
 	slave->state = SLAVE_PAUSED;
 	slave_unref(slave);
@@ -379,6 +383,7 @@ void slave_deactivated_by_fault(struct slave_node *slave)
 
 	slave->pid = (pid_t)-1;
 	slave->fault_count++;
+	slave_rpc_reset_proxy(slave);
 
 	invoke_deactivate_cb(slave);
 	slave->state = SLAVE_PAUSED;

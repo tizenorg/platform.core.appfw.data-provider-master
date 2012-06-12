@@ -504,6 +504,20 @@ int slave_rpc_ping(struct slave_node *slave)
 	return 0;
 }
 
+int slave_rpc_reset_proxy(struct slave_node *slave)
+{
+	struct slave_rpc *rpc;
+
+	rpc = slave_data(slave, "rpc");
+	if (!rpc) {
+		ErrPrint("Failed to get RPC info\n");
+		return -EINVAL;
+	}
+
+	rpc->proxy = NULL;
+	return 0;
+}
+
 int slave_rpc_update_proxy(struct slave_node *slave, GDBusProxy *proxy)
 {
 	struct slave_rpc *rpc;

@@ -256,6 +256,8 @@ int client_deactivated_by_fault(struct client_node *client)
 	client->faulted = 1;
 
 	client->pid = (pid_t)-1;
+	client_rpc_reset_proxy(client);
+
 	invoke_deactivated_cb(client);
 	client_destroy(client);
 	return 0;
@@ -270,6 +272,8 @@ int client_fault(struct client_node *client)
 	client->faulted = 1;
 
 	client->pid = (pid_t)-1;
+	client_rpc_reset_proxy(client);
+
 	invoke_deactivated_cb(client);
 	client_destroy(client);
 	/*!

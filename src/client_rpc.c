@@ -29,7 +29,6 @@ static struct info {
 
 struct client_rpc {
 	GDBusProxy *proxy; /*!< Proxy object for this client */
-	GDBusConnection *conn; /*!< Connection object for this client */
 	Eina_List *pending_request_list; /*!< Before making connection, this Q will be used for keeping the request packets */
 	struct client_node *client; /*!< client_life object */
 };
@@ -267,6 +266,20 @@ int client_rpc_sync_request(struct client_node *client, const char *funcname, GV
 	return ret;
 }
 
+int client_rpc_reset_proxy(struct client_node *client)
+{
+	struct client_rpc *rpc;
+
+	rpc = client_data(client, "rpc");
+	if (!rpc) {
+		ErrPrint("Client has no rpc info\n");
+		return -EINVAL;
+	}
+
+	rpc->proxy = NULL;
+	return 0;
+}
+
 int client_rpc_update_proxy(struct client_node *client, GDBusProxy *proxy)
 {
 	struct client_rpc *rpc;
@@ -287,23 +300,6 @@ int client_rpc_update_proxy(struct client_node *client, GDBusProxy *proxy)
 		push_packet(packet);
 	}
 
-	return 0;
-}
-
-int client_rpc_update_conn(struct client_node *client, GDBusConnection *conn)
-{
-	struct client_rpc *rpc;
-
-	rpc = client_data(client, "rpc");
-	if (!rpc) {
-		ErrPrint("client has no \"rpc\" info\n");
-		return -EINVAL;
-	}
-
-	if (rpc->conn)
-		ErrPrint("Connection is already exists, overwrite it\n");
-
-	rpc->conn = conn;
 	return 0;
 }
 
@@ -328,7 +324,6 @@ static int deactivated_cb(struct client_node *client, void *data)
 	g_object_unref(rpc->proxy);
 
 	rpc->proxy = NULL;
-	rpc->conn = NULL;
 
 	EINA_LIST_FOREACH_SAFE(s_info.packet_list, l, n, packet) {
 		if (packet->client != client)
@@ -380,6 +375,7 @@ int client_rpc_initialize(struct client_node *client)
 
 	ret = client_set_data(client, "rpc", rpc);
 	if (ret < 0) {
+		ErrPrint("Failed to set \"rpc\" for client\n");
 		free(rpc);
 		return ret;
 	}
@@ -399,21 +395,6 @@ struct client_node *client_rpc_find_by_proxy(GDBusProxy *proxy)
 
 	EINA_LIST_FOREACH(s_info.rpc_list, l, rpc) {
 		if (rpc->proxy != proxy)
-			continue;
-
-		return rpc->client;
-	}
-
-	return NULL;
-}
-
-struct client_node *client_rpc_find_by_conn(GDBusConnection *conn)
-{
-	Eina_List *l;
-	struct client_rpc *rpc;
-
-	EINA_LIST_FOREACH(s_info.rpc_list, l, rpc) {
-		if (rpc->conn != conn)
 			continue;
 
 		return rpc->client;

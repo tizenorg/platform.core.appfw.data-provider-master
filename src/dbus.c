@@ -677,8 +677,6 @@ out:
 			return;
 		}
 
-		client_rpc_update_conn(client, conn);
-
 		sender = g_dbus_method_invocation_get_sender(inv);
 		g_dbus_proxy_new(conn,
 			G_DBUS_PROXY_FLAGS_NONE,
