@@ -20,7 +20,6 @@
  */
 
 #include <stdio.h>
-#include <libgen.h>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -33,6 +32,7 @@
 #include "virtual_canvas.h"
 #include "debug.h"
 #include "conf.h"
+#include "util.h"
 
 Evas *virtual_canvas_create(int w, int h)
 {

@@ -1,17 +1,17 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h> /* free */
-#include <libgen.h> /* basename */
 
 #include <gio/gio.h>
 
 #include <dlog.h>
 #include <Eina.h>
 
+#include "util.h"
 #include "debug.h"
+#include "packet.h"
 #include "slave_life.h"
 #include "slave_rpc.h"
-#include "util.h"
 #include "client_life.h"
 #include "client_rpc.h"
 #include "package.h"
@@ -90,27 +90,27 @@ static char *check_log_file(struct slave_node *slave)
 
 void fault_unicast_info(struct client_node *client, const char *pkgname, const char *filename, const char *func)
 {
-	GVariant *param;
+	struct packet *packet;
 
-	param = g_variant_new("(sss)", pkgname, filename, func);
-	if (!param)
+	packet = packet_create("fault_packet", "sss", pkgname, filename, func);
+	if (!packet)
 		return;
 
-	client_rpc_async_request(client, "fault_package", param);
+	client_rpc_async_request(client, packet);
 	DbgPrint("Fault package: %s\n", pkgname);
 }
 
 void fault_broadcast_info(const char *pkgname, const char *filename, const char *func)
 {
-	GVariant *param;
+	struct packet *packet;
 
-	param = g_variant_new("(sss)", pkgname, filename, func);
-	if (!param) {
+	packet = packet_create("fault_packet", "sss", pkgname, filename, func);
+	if (!packet) {
 		ErrPrint("Failed to create a param\n");
 		return;
 	}
 
-	client_rpc_broadcast("fault_package", param);
+	client_rpc_broadcast(packet);
 	DbgPrint("Fault package: %s\n", pkgname);
 }
 

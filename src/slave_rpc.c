@@ -3,16 +3,14 @@
 #include <errno.h> /* errno */
 #include <unistd.h> /* pid_t */
 #include <stdlib.h> /* free */
-#include <libgen.h> /* basename */
 
 #include <Eina.h>
 #include <Ecore.h>
 
 #include <dlog.h>
 
-#include <gio/gio.h> /* GDBusProxy */
-
 #include "debug.h"
+#include "packet.h"
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"
@@ -20,242 +18,193 @@
 #include "fault_manager.h"
 #include "util.h"
 #include "conf.h"
+#include "connector_packet.h"
 
 struct slave_rpc {
 	Ecore_Timer *pong_timer;
-	GDBusProxy *proxy;
-
-	Eina_List *pending_request_list;
+	int handle;
 
 	unsigned long ping_count;
 	unsigned long next_ping_count;
+	Eina_List *pending_list;
+
+	struct slave_node *slave;
 };
 
-struct packet {
-	/* create_packet, destroy_packet will care these varaibles */
+struct command {
+	/* create_command, destroy_command will care these varaibles */
 	char *pkgname;
-	char *filename;
-	char *cmd;
-	GVariant *param;
+	struct packet *packet;
 	struct slave_node *slave;
 
 	/* Don't need to care these data */
-	void (*ret_cb)(struct slave_node *slave, const char *funcname, GVariant *result, void *cbdata);
+	void (*ret_cb)(struct slave_node *slave, const struct packet *packet, void *cbdata);
 	void *cbdata;
 };
 
 static struct info {
-	Eina_List *packet_list;
-	Ecore_Timer *packet_consuming_timer;
+	Eina_List *command_list;
+	Eina_List *rpc_list;
+	Ecore_Timer *command_consuming_timer;
 } s_info = {
-	.packet_list = NULL,
-	.packet_consuming_timer = NULL,
+	.command_list = NULL,
+	.command_consuming_timer = NULL,
+	.rpc_list = NULL,
 };
 
-static inline struct packet *create_packet(struct slave_node *slave, const char *pkgname, const char *filename, const char *cmd, GVariant *param)
+static inline struct command *create_command(struct slave_node *slave, const char *pkgname, struct packet *packet)
 {
-	struct packet *packet;
+	struct command *command;
 
-	packet = calloc(1, sizeof(*packet));
-	if (!packet) {
+	command = calloc(1, sizeof(*command));
+	if (!command) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		return NULL;
 	}
 
 	if (pkgname) {
-		packet->pkgname = strdup(pkgname);
-		if (!packet->pkgname) {
+		command->pkgname = strdup(pkgname);
+		if (!command->pkgname) {
 			ErrPrint("Heap: %s\n", strerror(errno));
-			free(packet);
+			free(command);
 			return NULL;
 		}
 	}
 
-	if (filename) {
-		packet->filename = strdup(filename);
-		if (!packet->filename) {
-			ErrPrint("Heap: %s\n", strerror(errno));
-			free(packet->pkgname);
-			free(packet);
-			return NULL;
-		}
-	}
+	command->slave = slave_ref(slave); /*!< To prevent from destroying of the slave while communicating with the slave */
+	command->packet = packet_ref(packet);
 
-	if (cmd) {
-		packet->cmd = strdup(cmd);
-		if (!packet->cmd) {
-			ErrPrint("Heap: %s\n", strerror(errno));
-			free(packet->pkgname);
-			free(packet->filename);
-			free(packet);
-			return NULL;
-		}
-	}
-
-	packet->slave = slave_ref(slave); /*!< To prevent from destroying of the slave while communicating with the slave */
-	packet->param = g_variant_ref(param);
-
-	return packet;
+	return command;
 }
 
-static inline void destroy_packet(struct packet *packet)
+static inline void destroy_command(struct command *command)
 {
-	slave_unref(packet->slave);
-	g_variant_unref(packet->param);
-	free(packet->pkgname);
-	free(packet->filename);
-	free(packet->cmd);
-	free(packet);
+	slave_unref(command->slave);
+	packet_unref(command->packet);
+	free(command->pkgname);
+	free(command);
 }
 
-static inline struct packet *pop_packet(void)
+static inline struct command *pop_command(void)
 {
-	struct packet *packet;
+	struct command *command;
 
-	packet = eina_list_nth(s_info.packet_list, 0);
-	if (!packet)
+	command = eina_list_nth(s_info.command_list, 0);
+	if (!command)
 		return NULL;
 
-	s_info.packet_list = eina_list_remove(s_info.packet_list, packet);
-	return packet;
+	s_info.command_list = eina_list_remove(s_info.command_list, command);
+	return command;
 }
 
-static void slave_async_cb(GDBusProxy *proxy, GAsyncResult *result, void *data)
+static int slave_async_cb(pid_t pid, int handle, const struct packet *packet, void *data)
 {
-	struct packet *packet;
-	GError *err;
-	GVariant *param;
+	struct command *command = data;
 
-	packet = data;
-
-	if (!packet) {
+	if (!command) {
 		ErrPrint("Packet is NIL\n");
-		return;
+		return 0;
 	}
 
 	/*!
 	 * \note
-	 * packet->param is not valid from here.
+	 * command->packet is not valid from here.
 	 */
-	if (!slave_is_activated(packet->slave)) {
+	if (!slave_is_activated(command->slave)) {
 		ErrPrint("Slave is not activated (accidently dead)\n");
-		if (packet->ret_cb)
-			packet->ret_cb(packet->slave, packet->cmd, NULL, packet->cbdata);
-		goto out;
-	}
-
-	err = NULL;
-	param = g_dbus_proxy_call_finish(proxy, result, &err);
-	if (!param) {
-		char *cmd;
-		//struct slave_rpc *rpc;
-
-		cmd = packet->cmd ? packet->cmd : "";
-
-		if (err) {
-			ErrPrint("package[%s], cmd[%s]: %s\n", packet->pkgname, cmd, err->message);
-			g_error_free(err);
-		}
-
-		if (packet->ret_cb)
-			packet->ret_cb(packet->slave, cmd, NULL, packet->cbdata);
-
-		#if 0
-		char *filename;
-		if (!fault_is_occured() && packet->pkgname) {
-			/*!
-			 * \note
-			 * Recording the fault information.
-			 * slave cannot detect its crash if a livebox
-			 * uses callback, not only update_content but also other functions.
-			 * To fix that case, mark the fault again from here.
-			 */
-			filename = packet->filename ? packet->filename : "";
-			fault_func_call(packet->slave, packet->pkgname, filename, cmd);
-		}
-		#endif
-
-		/*!
-		 * \note
-		 * Something is goging wrong.
-		 * Try to deactivate this.
-		 * And it will raise up the dead signal.
-		 * then the dead signal callback will check the fault package.
-		 * So we don't need to check the fault package from here.
-		 */
-		//rpc = slave_data(packet->slave, "rpc");
-		//if (rpc && rpc->proxy == proxy)
-		slave_faulted(packet->slave);
+		if (command->ret_cb)
+			command->ret_cb(command->slave, packet, command->cbdata);
 
 		goto out;
 	}
 
-	if (packet->ret_cb)
-		packet->ret_cb(packet->slave, packet->cmd, param, packet->cbdata);
-	else
-		g_variant_unref(param);
+	if (!packet) {
+		if (command->ret_cb)
+			command->ret_cb(command->slave, packet, command->cbdata);
+
+		slave_faulted(command->slave);
+		goto out;
+	}
+
+	if (command->ret_cb)
+		command->ret_cb(command->slave, packet, command->cbdata);
 
 out:
-	destroy_packet(packet);
+	destroy_command(command);
+	return 0;
 }
 
-static Eina_Bool packet_consumer_cb(void *data)
+static Eina_Bool command_consumer_cb(void *data)
 {
-	struct packet *packet;
-	struct pkg_info *info = NULL;
+	struct command *command;
+	struct slave_rpc *rpc;
 
-	packet = pop_packet();
-	if (!packet) {
-		s_info.packet_consuming_timer = NULL;
+	command = pop_command();
+	if (!command) {
+		s_info.command_consuming_timer = NULL;
 		return ECORE_CALLBACK_CANCEL;
 	}
 
-	if (packet->pkgname)
-		info = package_find(packet->pkgname);
-
-	if ((info && package_is_fault(info)) || !slave_is_activated(packet->slave)) {
-		if (packet->ret_cb)
-			packet->ret_cb(packet->slave, packet->cmd, NULL, packet->cbdata);
-		destroy_packet(packet);
-	} else {
-		struct slave_rpc *rpc;
-
-		rpc = slave_data(packet->slave, "rpc");
-		if (!rpc) {
-			ErrPrint("Slave has no rpc info\n");
-			if (packet->ret_cb)
-				packet->ret_cb(packet->slave, packet->cmd, NULL, packet->cbdata);
-			destroy_packet(packet);
-			return ECORE_CALLBACK_RENEW;
-		}
-
-		g_dbus_proxy_call(rpc->proxy, packet->cmd, packet->param,
-				G_DBUS_CALL_FLAGS_NO_AUTO_START,
-				-1, NULL, (GAsyncReadyCallback)slave_async_cb, packet);
+	if (!slave_is_activated(command->slave)) {
+		ErrPrint("Slave is not activated: %s(%d)\n",
+				slave_name(command->slave), slave_pid(command->slave));
+		goto errout;
 	}
 
+	if (!command->pkgname) {
+		/*!
+		 * \note
+		 * pause or resume command has no package name
+		 */
+		DbgPrint("Package name is not specified: command(%s)\n",
+						packet_command(command->packet));
+	} else {
+		struct pkg_info *info;
+
+		info = package_find(command->pkgname);
+		if (info && package_is_fault(info)) {
+			ErrPrint("info: %p (%s) is fault package\n", info, command->pkgname);
+			goto errout;
+		}
+	}
+
+	rpc = slave_data(command->slave, "rpc");
+	if (!rpc) {
+		ErrPrint("Slave has no rpc info\n");
+		goto errout;
+	}
+
+	if (connector_packet_async_send(rpc->handle, command->packet, slave_async_cb, command) == 0)
+		return ECORE_CALLBACK_RENEW;
+
+errout:
+	if (command->ret_cb)
+		command->ret_cb(command->slave, NULL, command->cbdata);
+	destroy_command(command);
 	return ECORE_CALLBACK_RENEW;
 }
 
-static inline void push_packet(struct packet *packet)
+static inline void push_command(struct command *command)
 {
-	s_info.packet_list = eina_list_append(s_info.packet_list, packet);
+	s_info.command_list = eina_list_append(s_info.command_list, command);
 
-	if (s_info.packet_consuming_timer)
+	if (s_info.command_consuming_timer)
 		return;
 
-	s_info.packet_consuming_timer = ecore_timer_add(PACKET_TIME, packet_consumer_cb, NULL);
-	if (!s_info.packet_consuming_timer) {
-		ErrPrint("Failed to add packet consumer\n");
-		s_info.packet_list = eina_list_remove(s_info.packet_list, packet);
-		destroy_packet(packet);
+	s_info.command_consuming_timer = ecore_timer_add(PACKET_TIME, command_consumer_cb, NULL);
+	if (!s_info.command_consuming_timer) {
+		ErrPrint("Failed to add command consumer\n");
+		s_info.command_list = eina_list_remove(s_info.command_list, command);
+		destroy_command(command);
 	}
 }
 
 static int slave_deactivate_cb(struct slave_node *slave, void *data)
 {
 	struct slave_rpc *rpc;
-	struct packet *packet;
+	struct command *command;
+	Eina_List *l;
+	Eina_List *n;
 
 	rpc = slave_data(slave, "rpc");
 	if (!rpc) {
@@ -266,27 +215,15 @@ static int slave_deactivate_cb(struct slave_node *slave, void *data)
 		return -EINVAL;
 	}
 
-	if (rpc->proxy) {
-		Eina_List *l;
-		Eina_List *n;
+	if (rpc->pong_timer)
+		ecore_timer_del(rpc->pong_timer);
+	else
+		ErrPrint("slave has no pong timer\n");
 
-		g_object_unref(rpc->proxy);
-		rpc->proxy = NULL;
-
-		if (rpc->pong_timer)
-			ecore_timer_del(rpc->pong_timer);
-		else
-			ErrPrint("slave has no pong timer\n");
-
-		EINA_LIST_FOREACH_SAFE(s_info.packet_list, l, n, packet) {
-			if (packet->slave == slave) {
-				s_info.packet_list = eina_list_remove(s_info.packet_list, packet);
-				destroy_packet(packet);
-			}
-		}
-	} else {
-		EINA_LIST_FREE(rpc->pending_request_list, packet) {
-			destroy_packet(packet);
+	EINA_LIST_FOREACH_SAFE(s_info.command_list, l, n, command) {
+		if (command->slave == slave) {
+			s_info.command_list = eina_list_remove(s_info.command_list, command);
+			destroy_command(command);
 		}
 	}
 
@@ -310,20 +247,12 @@ static int slave_del_cb(struct slave_node *slave, void *data)
 	if (!rpc)
 		return 0;
 
-	if (rpc->proxy) {
-		g_object_unref(rpc->proxy);
+	if (rpc->pong_timer)
+		ecore_timer_del(rpc->pong_timer);
+	else
+		ErrPrint("Pong timer is not exists\n");
 
-		if (rpc->pong_timer)
-			ecore_timer_del(rpc->pong_timer);
-		else
-			ErrPrint("Pong timer is not exists\n");
-	} else {
-		struct packet *packet;
-		EINA_LIST_FREE(rpc->pending_request_list, packet) {
-			destroy_packet(packet);
-		}
-	}
-
+	s_info.rpc_list = eina_list_remove(s_info.rpc_list, rpc);
 	free(rpc);
 	return 0;
 }
@@ -351,107 +280,63 @@ static Eina_Bool ping_timeout_cb(void *data)
 	return ECORE_CALLBACK_CANCEL;
 }
 
-int slave_rpc_async_request(struct slave_node *slave,
-			const char *pkgname, const char *filename,
-			const char *cmd, GVariant *param, void (*ret_cb)(struct slave_node *slave, const char *func, GVariant *result, void *data),
-			void *data)
+static inline int slave_rpc_is_valid(struct slave_rpc *rpc)
 {
-	struct packet *packet;
+	return rpc && rpc->handle > 0;
+}
+
+int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, struct packet *packet, void (*ret_cb)(struct slave_node *slave, const struct packet *packet, void *data), void *data)
+{
+	struct command *command;
 	struct slave_rpc *rpc;
 
-	rpc = slave_data(slave, "rpc");
-	if (!rpc) {
-		ErrPrint("RPC info is not valid\n");
+	command = create_command(slave, pkgname, packet);
+	if (!command) {
 		if (ret_cb)
-			ret_cb(slave, cmd, NULL, data);
+			ret_cb(slave, NULL, data);
 
-		g_variant_unref(param);
-		return -EINVAL;
-	}
-
-	packet = create_packet(slave, pkgname, filename, cmd, param);
-	if (!packet) {
-		if (ret_cb)
-			ret_cb(slave, cmd, NULL, data);
-
-		g_variant_unref(param);
+		packet_unref(packet);
 		return -ENOMEM;
 	}
 
-	packet->ret_cb = ret_cb;
-	packet->cbdata = data;
+	command->ret_cb = ret_cb;
+	command->cbdata = data;
 
-	if (!rpc->proxy)
-		rpc->pending_request_list = eina_list_append(rpc->pending_request_list, packet);
-	else
-		push_packet(packet);
+	rpc = slave_data(slave, "rpc");
+	if (!slave_rpc_is_valid(rpc)) {
+		DbgPrint("RPC info is not ready to use, push this to pending list\n");
+		rpc->pending_list = eina_list_append(rpc->pending_list, command);
+		return 0;
+	}
 
+	push_command(command);
 	return 0;
 }
 
-int slave_rpc_sync_request(struct slave_node *slave,
-			const char *pkgname, const char *filename,
-			const char *cmd, GVariant *param)
+int slave_rpc_update_handle(struct slave_node *slave, int handle)
 {
-	GVariant *result;
-	GError *err = NULL;
 	struct slave_rpc *rpc;
-
-	if (!slave_is_activated(slave)) {
-		g_variant_unref(param);
-		return -EINVAL;
-	}
+	struct command *command;
 
 	rpc = slave_data(slave, "rpc");
-	if (!rpc) {
-		ErrPrint("Slave has no rpc info\n");
-		g_variant_unref(param);
+	if (!rpc)
 		return -EINVAL;
+
+	rpc->handle = handle;
+	if (rpc->pong_timer)
+		ecore_timer_del(rpc->pong_timer);
+
+	rpc->pong_timer = ecore_timer_add(g_conf.ping_time, ping_timeout_cb, slave);
+	if (!rpc->pong_timer)
+		ErrPrint("Failed to add ping timer\n");
+
+	slave_activated(slave);
+	slave_reset_fault(slave);
+
+	EINA_LIST_FREE(rpc->pending_list, command) {
+		push_command(command);
 	}
 
-	if (!rpc->proxy) {
-		ErrPrint("Slave is not ready to talk with master\n");
-		g_variant_unref(param);
-		return -EFAULT;
-	}
-
-	result = g_dbus_proxy_call_sync(rpc->proxy, cmd, param,
-				G_DBUS_CALL_FLAGS_NO_AUTO_START, -1, NULL, &err);
-	if (!result) {
-		cmd = cmd ? cmd : "";
-
-		if (err) {
-			ErrPrint("Package[%s], cmd[%s]: %s\n", pkgname, cmd, err->message);
-			g_error_free(err);
-		}
-
-		if (!fault_is_occured() && pkgname) {
-			/*!
-			 * \note
-			 * Recording the fault information.
-			 * slave cannot detect its crash if a livebox
-			 * uses callback, not only update_content but also other functions.
-			 * To fix that case, mark the fault again from here.
-			 */
-			filename = filename ? filename : "";
-			fault_func_call(slave, pkgname, filename, cmd);
-		}
-
-		/*!
-		 * \note
-		 *
-		 * Something is goging wrong.
-		 * Try to deactivate this.
-		 * And it will raise up the dead signal.
-		 * then the dead signal callback will check the fault package.
-		 * So we don't need to check the fault package from here.
-		 */
-		slave_faulted(slave);
-		ErrPrint("Failed to send sync request: %s\n", cmd);
-		return -EIO;
-	}
-
-	g_variant_unref(result);
 	return 0;
 }
 
@@ -465,8 +350,6 @@ int slave_rpc_initialize(struct slave_node *slave)
 		return -ENOMEM;
 	}
 
-	rpc->proxy = NULL;
-
 	if (slave_set_data(slave, "rpc", rpc) < 0) {
 		free(rpc);
 		return -ENOMEM;
@@ -474,6 +357,13 @@ int slave_rpc_initialize(struct slave_node *slave)
 
 	slave_event_callback_add(slave, SLAVE_EVENT_DELETE, slave_del_cb, NULL);
 	slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivate_cb, NULL);
+
+	rpc->ping_count = 0;
+	rpc->next_ping_count = 1;
+	rpc->handle = -1;
+	rpc->slave = slave;
+
+	s_info.rpc_list = eina_list_append(s_info.rpc_list, rpc);
 	return 0;
 }
 
@@ -503,63 +393,11 @@ int slave_rpc_ping(struct slave_node *slave)
 	return 0;
 }
 
-int slave_rpc_reset_proxy(struct slave_node *slave)
-{
-	struct slave_rpc *rpc;
-
-	rpc = slave_data(slave, "rpc");
-	if (!rpc) {
-		ErrPrint("Failed to get RPC info\n");
-		return -EINVAL;
-	}
-
-	rpc->proxy = NULL;
-	return 0;
-}
-
-int slave_rpc_update_proxy(struct slave_node *slave, GDBusProxy *proxy)
-{
-	struct slave_rpc *rpc;
-	struct packet *packet;
-
-	rpc = slave_data(slave, "rpc");
-	if (!rpc) {
-		ErrPrint("Failed to get RPC info\n");
-		return -EINVAL;
-	}
-
-	if (rpc->proxy)
-		ErrPrint("proxy %p is already exists (%s %d) (replaced with %p)\n", rpc->proxy, slave_name(slave), slave_pid(slave), proxy);
-	else
-		ErrPrint("proxy %p is updated (%s %d)\n", proxy, slave_name(slave), slave_pid(slave));
-
-	rpc->proxy = proxy;
-
-	EINA_LIST_FREE(rpc->pending_request_list, packet) {
-		push_packet(packet);
-	}
-
-	rpc->ping_count = 0;
-	rpc->next_ping_count = 1;
-
-	if (rpc->pong_timer)
-		ecore_timer_del(rpc->pong_timer);
-
-	rpc->pong_timer = ecore_timer_add(g_conf.ping_time, ping_timeout_cb, slave);
-	if (!rpc->pong_timer)
-		ErrPrint("Failed to add ping timer\n");
-
-	slave_activated(slave);
-
-	slave_reset_fault(slave);
-	return 0;
-}
-
 void slave_rpc_request_update(const char *pkgname, const char *cluster, const char *category)
 {
 	struct slave_node *slave;
 	struct pkg_info *info;
-	GVariant *param;
+	struct packet *packet;
 
 	info = package_find(pkgname);
 	if (!info) {
@@ -573,13 +411,26 @@ void slave_rpc_request_update(const char *pkgname, const char *cluster, const ch
 		return;
 	}
 
-	param = g_variant_new("(sss)", pkgname, cluster, category);
-	if (!param) {
+	packet = packet_create("update_content", "sss", pkgname, cluster, category);
+	if (!packet) {
 		ErrPrint("Failed to create a new param\n");
 		return;
 	}
 
-	(void)slave_rpc_async_request(slave, pkgname, NULL, "update_content", param, NULL, NULL);
+	(void)slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+}
+
+struct slave_node *slave_rpc_find_by_handle(int handle)
+{
+	Eina_List *l;
+	struct slave_rpc *rpc;
+
+	EINA_LIST_FOREACH(s_info.rpc_list, l, rpc) {
+		if (rpc->handle == handle)
+			return rpc->slave;
+	}
+
+	return NULL;
 }
 
 /* End of a file */

@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdbool.h>
-#include <libgen.h>
 #include <unistd.h>
 
 #include <Ecore.h>
@@ -11,6 +10,7 @@
 #include <context_subscribe.h>
 
 #include "debug.h"
+#include "packet.h"
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"

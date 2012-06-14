@@ -32,23 +32,23 @@ extern int package_get_fault_info(struct pkg_info *info, double *timestmap, cons
  * \brief
  * Readonly functions
  */
-extern int const package_is_fault(struct pkg_info *info);
-extern struct slave_node * const package_slave(struct pkg_info *info);
-extern int const package_timeout(struct pkg_info *info);
-extern double const package_period(struct pkg_info *info);
-extern int const package_secured(struct pkg_info *info);
-extern const char * const package_script(struct pkg_info *info);
-extern const char * const package_abi(struct pkg_info *info);
-extern const char * const package_lb_path(struct pkg_info *info);
-extern const char * const package_lb_group(struct pkg_info *info);
-extern const char * const package_pd_path(struct pkg_info *info);
-extern const char * const package_pd_group(struct pkg_info *info);
-extern int const package_pinup(struct pkg_info *info);
-extern int const package_auto_launch(struct pkg_info *info);
-extern unsigned int const package_size_list(struct pkg_info *info);
-extern int const package_pd_width(struct pkg_info *info);
-extern int const package_pd_height(struct pkg_info *info);
-extern const char * const package_name(struct pkg_info *info);
+extern const int const package_is_fault(const struct pkg_info *info);
+extern struct slave_node * const package_slave(const struct pkg_info *info);
+extern const int const package_timeout(const struct pkg_info *info);
+extern const double const package_period(const struct pkg_info *info);
+extern const int const package_secured(const struct pkg_info *info);
+extern const char * const package_script(const struct pkg_info *info);
+extern const char * const package_abi(const struct pkg_info *info);
+extern const char * const package_lb_path(const struct pkg_info *info);
+extern const char * const package_lb_group(const struct pkg_info *info);
+extern const char * const package_pd_path(const struct pkg_info *info);
+extern const char * const package_pd_group(const struct pkg_info *info);
+extern const int const package_pinup(const struct pkg_info *info);
+extern const int const package_auto_launch(const struct pkg_info *info);
+extern const unsigned int const package_size_list(const struct pkg_info *info);
+extern const int const package_pd_width(const struct pkg_info *info);
+extern const int const package_pd_height(const struct pkg_info *info);
+extern const char * const package_name(const struct pkg_info *info);
 
 /*!
  * \brief
@@ -56,10 +56,10 @@ extern const char * const package_name(struct pkg_info *info);
  */
 extern struct pkg_info * const package_ref(struct pkg_info *info);
 extern struct pkg_info * const package_unref(struct pkg_info *info);
-extern int const package_refcnt(struct pkg_info *info);
+extern const int const package_refcnt(const struct pkg_info *info);
 
-extern enum pd_type package_pd_type(struct pkg_info *info);
-extern enum lb_type package_lb_type(struct pkg_info *info);
+extern const enum pd_type const package_pd_type(const struct pkg_info *info);
+extern const enum lb_type const package_lb_type(const struct pkg_info *info);
 
 extern int package_add_instance(struct pkg_info *info, struct inst_info *inst);
 extern int package_del_instance(struct pkg_info *info, struct inst_info *inst);

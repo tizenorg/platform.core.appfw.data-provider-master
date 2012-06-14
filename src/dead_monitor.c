@@ -1,17 +1,21 @@
 #include <stdio.h>
 #include <unistd.h>
-#include <libgen.h>
 
-#include <aul.h>
 #include <dlog.h>
 
 #include <gio/gio.h>
 
+#include "packet.h"
+#include "connector.h"
 #include "slave_life.h"
+#include "slave_rpc.h"
 #include "client_life.h"
+#include "client_rpc.h"
 #include "fault_manager.h"
+#include "util.h"
 #include "debug.h"
 
+#if 0
 int aul_listen_app_dead_signal(int (*)(int, void *), void *);
 
 static int dead_cb(int pid, void *cb_data)
@@ -38,15 +42,39 @@ static int dead_cb(int pid, void *cb_data)
 
 	return 0;
 }
+#endif
+static int evt_cb(int handle, void *data)
+{
+	struct slave_node *slave;
+	struct client_node *client;
+
+	slave = slave_rpc_find_by_handle(handle);
+	if (slave) {
+		DbgPrint("Slave is disconnected\n");
+		slave_deactivated_by_fault(slave);
+		return 0;
+	}
+
+	client = client_rpc_find_by_handle(handle);
+	if (client) {
+		DbgPrint("Client is disconnected\n");
+		client_deactivated_by_fault(client);
+		return 0;
+	}
+
+	return 0;
+}
 
 int dead_init(void)
 {
-	aul_listen_app_dead_signal(dead_cb, NULL);
+	connector_add_event_callback(CONNECTOR_DISCONNECTED, evt_cb, NULL);
+//	aul_listen_app_dead_signal(dead_cb, NULL);
 	return 0;
 }
 
 int dead_fini(void)
 {
+	connector_del_event_callback(CONNECTOR_DISCONNECTED, evt_cb, NULL);
 	return 0;
 }
 

@@ -3,7 +3,6 @@
 #include <errno.h> /* errno */
 #include <unistd.h> /* pid_t */
 #include <stdlib.h> /* free */
-#include <libgen.h> /* basename */
 #include <pthread.h>
 
 #include <Eina.h>
@@ -15,6 +14,7 @@
 
 #include <gio/gio.h> /* GDBusProxy */
 
+#include "packet.h"
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"
@@ -221,7 +221,7 @@ struct slave_node *slave_unref(struct slave_node *slave)
 	return slave;
 }
 
-int const slave_refcnt(struct slave_node *slave)
+const int const slave_refcnt(struct slave_node *slave)
 {
 	return slave->refcnt;
 }
@@ -240,7 +240,6 @@ struct slave_node *slave_create(const char *name, int is_secured)
 	slave = create_slave_node(name, is_secured);
 	slave_ref(slave);
 
-	slave_rpc_initialize(slave);
 	return slave;
 }
 
@@ -272,7 +271,7 @@ static inline void invoke_activate_cb(struct slave_node *slave)
 	}
 }
 
-int const slave_is_faulted(struct slave_node *slave)
+const int const slave_is_faulted(const struct slave_node *slave)
 {
 	return slave->faulted;
 }
@@ -367,8 +366,6 @@ int slave_deactivate(struct slave_node *slave)
 	if (aul_terminate_pid(pid) < 0)
 		ErrPrint("Terminate failed. pid %d\n", pid);
 
-	slave_rpc_reset_proxy(slave);
-
 	invoke_deactivate_cb(slave);
 
 	slave->state = SLAVE_PAUSED;
@@ -393,8 +390,6 @@ void slave_faulted(struct slave_node *slave)
 	if (aul_terminate_pid(pid) < 0)
 		ErrPrint("Terminate failed, pid %d\n", pid);
 
-	slave_rpc_reset_proxy(slave);
-
 	invoke_deactivate_cb(slave);
 	slave->state = SLAVE_TERMINATED;
 	slave_unref(slave);
@@ -416,14 +411,13 @@ void slave_deactivated_by_fault(struct slave_node *slave)
 
 	slave->pid = (pid_t)-1;
 	slave->fault_count++;
-	slave_rpc_reset_proxy(slave);
 
 	invoke_deactivate_cb(slave);
 	slave->state = SLAVE_TERMINATED;
 	slave_unref(slave);
 }
 
-int slave_is_activated(struct slave_node *slave)
+const int const slave_is_activated(struct slave_node *slave)
 {
 	return slave->pid != (pid_t)-1;
 }
@@ -667,49 +661,54 @@ void slave_check_pause_or_resume(void)
 	}
 }
 
-int const slave_is_secured(struct slave_node *slave)
+const int const slave_is_secured(const struct slave_node *slave)
 {
 	return slave->secured;
 }
 
-const char * const slave_name(struct slave_node *slave)
+const char * const slave_name(const struct slave_node *slave)
 {
 	return slave->name;
 }
 
-pid_t const slave_pid(struct slave_node *slave)
+const pid_t const slave_pid(const struct slave_node *slave)
 {
 	return slave->pid;
 }
 
-static void resume_cb(struct slave_node *slave, const char *func, GVariant *result, void *data)
+static void resume_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	int ret;
 
-	if (!result) {
+	if (!packet) {
 		ErrPrint("Failed to change the state of the slave\n");
 		slave->state = SLAVE_PAUSED;
 		return;
 	}
 
-	g_variant_get(result, "(i)", &ret);
-	g_variant_unref(result);
+	if (packet_get(packet, "i", &ret) != 1) {
+		ErrPrint("Invalid parameter\n");
+		return;
+	}
+
 	if (ret == 0)
 		slave->state = SLAVE_RESUMED;
 }
 
-static void pause_cb(struct slave_node *slave, const char *func, GVariant *result, void *data)
+static void pause_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	int ret;
 
-	if (!result) {
+	if (!packet) {
 		ErrPrint("Failed to change the state of the slave\n");
 		slave->state = SLAVE_RESUMED;
 		return;
 	}
 
-	g_variant_get(result, "(i)", &ret);
-	g_variant_unref(result);
+	if (packet_get(packet, "i", &ret) != 1) {
+		ErrPrint("Invalid parameter\n");
+		return;
+	}
 
 	if (ret == 0)
 		slave->state = SLAVE_PAUSED;
@@ -718,41 +717,41 @@ static void pause_cb(struct slave_node *slave, const char *func, GVariant *resul
 int slave_resume(struct slave_node *slave)
 {
 	double timestamp;
-	GVariant *param;
+	struct packet *packet;
 
 	if (slave->state == SLAVE_RESUMED || slave->state == SLAVE_REQUEST_TO_RESUME)
 		return 0;
 
 	timestamp = util_timestamp();
 
-	param = g_variant_new("(d)", timestamp);
-	if (!param) {
+	packet = packet_create("resume", "d", timestamp);
+	if (!packet) {
 		ErrPrint("Failed to prepare param\n");
 		return -EFAULT;
 	}
 
 	slave->state = SLAVE_REQUEST_TO_RESUME;
-	return slave_rpc_async_request(slave, NULL, NULL, "resume", param, resume_cb, NULL);
+	return slave_rpc_async_request(slave, NULL, packet, resume_cb, NULL);
 }
 
 int slave_pause(struct slave_node *slave)
 {
 	double timestamp;
-	GVariant *param;
+	struct packet *packet;
 
 	if (slave->state == SLAVE_PAUSED || slave->state == SLAVE_REQUEST_TO_PAUSE)
 		return 0;
 
 	timestamp = util_timestamp();
 
-	param = g_variant_new("(d)", timestamp);
-	if (!param) {
+	packet = packet_create("pause", "d", timestamp);
+	if (!packet) {
 		ErrPrint("Failed to prepare param\n");
 		return -EFAULT;
 	}
 
 	slave->state = SLAVE_REQUEST_TO_PAUSE;
-	return slave_rpc_async_request(slave, NULL, NULL, "pause", param, pause_cb, NULL);
+	return slave_rpc_async_request(slave, NULL, packet, pause_cb, NULL);
 }
 
 /* End of a file */

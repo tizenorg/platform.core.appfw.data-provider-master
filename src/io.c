@@ -2,7 +2,6 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <dirent.h>
-#include <libgen.h>
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>

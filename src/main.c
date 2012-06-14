@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <libgen.h>
+#include <unistd.h>
 
 #include <Ecore.h>
 #include <Ecore_X.h>
@@ -8,13 +8,11 @@
 #include <Ecore_Evas.h>
 #include <glib.h>
 #include <glib-object.h>
-#include <gio/gio.h>
 #include <aul.h>
 
 #include <dlog.h>
 
-#include "debug.h"
-#include "dbus.h"
+#include "packet.h"
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"
@@ -28,20 +26,20 @@
 #include "io.h"
 #include "xmonitor.h"
 #include "setting.h"
+#include "server.h"
+#include "util.h"
+#include "debug.h"
 
 #if defined(FLOG)
 FILE *__file_log_fp;
 #endif
 
-static void do_more_init()
+static Eina_Bool lazy_init_cb(void *data)
 {
 	int ret;
 
-	ret = client_init();
-	DbgPrint("Client initialized: %d\n", ret);
-
-	ret = package_init();
-	DbgPrint("pkgmgr initialized: %d\n", ret);
+	ret = dead_init();
+	DbgPrint("Dead callback is registered: %d\n", ret);
 
 	ret = group_init();
 	DbgPrint("group init: %d\n", ret);
@@ -49,14 +47,13 @@ static void do_more_init()
 	ret = io_init();
 	DbgPrint("Init I/O: %d\n", ret);
 
-	ret = xmonitor_init();
-	DbgPrint("XMonitor init is done: %d\n", ret);
-
-	ret = setting_init();
-	DbgPrint("Setting initialized: %d\n", ret);
+	ret = package_init();
+	DbgPrint("pkgmgr initialized: %d\n", ret);
 
 	ret = ctx_client_init();
 	DbgPrint("Context engine is initialized: %d\n", ret);
+
+	return ECORE_CALLBACK_CANCEL;
 }
 
 static inline int app_create(void *data)
@@ -71,6 +68,10 @@ static inline int app_create(void *data)
 
 	conf_update_size();
 
+	if (access(g_conf.path.slave_log, R_OK|W_OK) != 0) {
+		mkdir(g_conf.path.slave_log, 755);
+	}
+
 	/*!
 	 * \note
 	 * Dead signal handler has to be initialized before
@@ -84,14 +85,20 @@ static inline int app_create(void *data)
 	 * To enable the dead signal handler,
 	 * dead_init should be done before other components are initiated.
 	 */
-	ret = dead_init();
-	DbgPrint("Dead callback is registered: %d\n", ret);
+	ret = server_init();
+	DbgPrint("Server initialized: %d\n", ret);
 
-	ret = dbus_init(do_more_init);
+	ret = xmonitor_init();
+	DbgPrint("XMonitor init is done: %d\n", ret);
 
-	if (access(g_conf.path.slave_log, R_OK|W_OK) != 0) {
-		mkdir(g_conf.path.slave_log, 755);
-	}
+	ret = setting_init();
+	DbgPrint("Setting initialized: %d\n", ret);
+
+	ret = client_init();
+	DbgPrint("Client initialized: %d\n", ret);
+
+	if (!ecore_timer_add(0.1f, lazy_init_cb, NULL))
+		lazy_init_cb(NULL);
 
 	DbgPrint("dbus initialized: %d\n", ret);
 	initialized = 1;
@@ -114,7 +121,10 @@ static inline int app_terminate(void *data)
 	ret = package_fini();
 	DbgPrint("Finalize package info: %d\n", ret);
 
-	ret = dbus_fini();
+	ret = client_fini();
+	DbgPrint("Finalize client connections : %d\n", ret);
+
+	ret = server_fini();
 	DbgPrint("Finalize dbus: %d\n", ret);
 
 	ret = dead_fini();
@@ -126,13 +136,11 @@ static inline int app_terminate(void *data)
 	ret = group_fini();
 	DbgPrint("Group finalized: %d\n", ret);
 
-	ret = client_fini();
-	DbgPrint("Finalize client connections : %d\n", ret);
-
 	DbgPrint("Terminated\n");
 	return 0;
 }
 
+/*
 static int aul_handler_cb(aul_type type, bundle *kb, void *data)
 {
 	int ret;
@@ -154,6 +162,7 @@ static int aul_handler_cb(aul_type type, bundle *kb, void *data)
 
 	return ret;
 }
+*/
 
 int main(int argc, char *argv[])
 {
@@ -181,10 +190,12 @@ int main(int argc, char *argv[])
 
 	script_init();
 
-	aul_launch_init(aul_handler_cb, NULL);
-	aul_launch_argv_handler(argc, argv);
+//	aul_launch_init(aul_handler_cb, NULL);
+//	aul_launch_argv_handler(argc, argv);
 
+	app_create(NULL);
 	ecore_main_loop_begin();
+	app_terminate(NULL);
 
 	script_fini();
 

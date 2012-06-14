@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <libgen.h> /* basename */
 #include <errno.h>
 #include <stdlib.h> /* free */
 #include <ctype.h>
@@ -12,10 +11,10 @@
 #include <Ecore.h>
 #include <Evas.h>
 
-#include <gio/gio.h>
 #include <dlog.h>
 
 #include "slave_life.h"
+#include "packet.h"
 #include "slave_rpc.h"
 #include "client_life.h"
 #include "package.h"
@@ -125,7 +124,7 @@ static void render_post_cb(void *data, Evas *e, void *event_info)
 
 	inst = data;
 
-	DbgPrint("Render post invoked (%s)[%s]\n", package_name(instance_package(inst)), basename(instance_id(inst)));
+	DbgPrint("Render post invoked (%s)[%s]\n", package_name(instance_package(inst)), util_basename(instance_id(inst)));
 	evas_image_cache_flush(e);
 	evas_font_cache_flush(e);
 	evas_render_dump(e);
@@ -155,7 +154,7 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double sx,
 	const char *pkgname;
 	const char *filename;
 	struct slave_node *slave;
-	GVariant *param;
+	struct packet *packet;
 	int ret;
 
 	ee = ecore_evas_ecore_evas_get(e);
@@ -179,17 +178,17 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double sx,
 	pkgname = package_name(instance_package(info->inst));
 	filename = instance_id(info->inst);
 	slave = package_slave(instance_package(info->inst));
-	param = g_variant_new("(ssssddddddi)",
+	packet = packet_create("script", "ssssddddddi",
 			pkgname, filename,
 			signal, part,
 			sx, sy, ex, ey,
 			info->x, info->y, info->down);
-	if (!param) {
+	if (!packet) {
 		ErrPrint("Failed to create param\n");
 		return -EFAULT;
 	}
 
-	ret = slave_rpc_async_request(slave, pkgname, filename, "script", param, NULL, NULL); 
+	ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL); 
 	return ret;
 }
 
@@ -284,7 +283,7 @@ struct script_info *script_handler_create(struct inst_info *inst, const char *fi
 	if (!file)
 		return NULL;
 
-	fname_len = strlen(g_conf.path.image) + strlen(basename((char*)file)) + 30;
+	fname_len = strlen(g_conf.path.image) + strlen(util_basename(file)) + 30;
 
 	filename = malloc(fname_len);
 	if (!filename) {
@@ -293,7 +292,7 @@ struct script_info *script_handler_create(struct inst_info *inst, const char *fi
 	}
 
 	snprintf(filename, fname_len, "%s%s.%lf",
-			g_conf.path.image, basename((char*)file), util_timestamp());
+			g_conf.path.image, util_basename(file), util_timestamp());
 
 	info = calloc(1, sizeof(*info));
 	if (!info) {
@@ -655,7 +654,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 		return -EIO;
 	}
 
-	DbgPrint("descfile: %s\n", basename((char *)descfile));
+	DbgPrint("descfile: %s\n", util_basename(descfile));
 
 	state = UNKNOWN;
 	field_idx = 0;
@@ -806,13 +805,14 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 
 		case VALUE_TYPE:
 			if (idx == block->type_len) {
+				char *tmp;
 				block->type_len += ADDEND;
-				block->type =
-					realloc(block->type, block->type_len);
-				if (!block->type) {
+				tmp = realloc(block->type, block->type_len);
+				if (!tmp) {
 					ErrPrint("Heap: %s\n", strerror(errno));
 					goto errout;
 				}
+				block->type = tmp;
 			}
 
 			if (ch == '\n') {
@@ -829,13 +829,14 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 
 		case VALUE_PART:
 			if (idx == block->part_len) {
+				char *tmp;
 				block->part_len += ADDEND;
-				block->part =
-					realloc(block->part, block->part_len);
-				if (!block->part) {
+				tmp = realloc(block->part, block->part_len);
+				if (!tmp) {
 					ErrPrint("Heap: %s\n", strerror(errno));
 					goto errout;
 				}
+				block->part = tmp;
 			}
 
 			if (ch == '\n') {
@@ -852,13 +853,14 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 
 		case VALUE_DATA:
 			if (idx == block->data_len) {
+				char *tmp;
 				block->data_len += ADDEND;
-				block->data =
-					realloc(block->data, block->data_len);
-				if (!block->data) {
+				tmp = realloc(block->data, block->data_len);
+				if (!tmp) {
 					ErrPrint("Heap: %s\n", strerror(errno));
 					goto errout;
 				}
+				block->data = tmp;
 			}
 
 			if (ch == '\n') {
@@ -875,13 +877,14 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 
 		case VALUE_FILE:
 			if (idx == block->file_len) {
+				char *tmp;
 				block->file_len += ADDEND;
-				block->file =
-					realloc(block->file, block->file_len);
-				if (!block->file) {
+				tmp = realloc(block->file, block->file_len);
+				if (!tmp) {
 					ErrPrint("Heap: %s\n", strerror(errno));
 					goto errout;
 				}
+				block->file = tmp;
 			}
 
 			if (ch == '\n') {
@@ -898,13 +901,14 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 
 		case VALUE_GROUP:
 			if (idx == block->group_len) {
+				char *tmp;
 				block->group_len += ADDEND;
-				block->group = realloc(block->group,
-							block->group_len);
-				if (!block->group) {
+				tmp = realloc(block->group, block->group_len);
+				if (!tmp) {
 					ErrPrint("Heap: %s\n", strerror(errno));
 					goto errout;
 				}
+				block->group = tmp;
 			}
 
 			if (ch == '\n') {
@@ -920,12 +924,14 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 			break;
 		case VALUE_ID:
 			if (idx == block->id_len) {
+				char *tmp;
 				block->id_len += ADDEND;
-				block->id = realloc(block->id, block->id_len);
-				if (!block->id) {
+				tmp = realloc(block->id, block->id_len);
+				if (!tmp) {
 					ErrPrint("Heap: %s\n", strerror(errno));
 					goto errout;
 				}
+				block->id = tmp;
 			}
 
 			if (ch == '\n') {
@@ -1001,7 +1007,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 	return 0;
 
 errout:
-	ErrPrint("Parse error at %d file %s\n", lineno, basename((char *)descfile));
+	ErrPrint("Parse error at %d file %s\n", lineno, util_basename(descfile));
 	if (block) {
 		free(block->file);
 		free(block->type);

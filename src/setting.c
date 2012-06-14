@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include <unistd.h>
-#include <libgen.h>
 
 #include <vconf.h>
 #include <dlog.h>
 
 #include "setting.h"
+#include "util.h"
 #include "debug.h"
 #include "slave_life.h"
 

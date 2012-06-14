@@ -22,13 +22,13 @@
 #include <stdio.h>
 #include <stdlib.h> /* strtod */
 #include <errno.h>
-#include <libgen.h> /* basename */
 #include <ctype.h> /* isspace */
 
 #include <Eina.h>
 
 #include <dlog.h>
 
+#include "util.h"
 #include "debug.h"
 #include "conf.h"
 #include "parser.h"

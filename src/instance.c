@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
-#include <libgen.h>
 
 #include <dlog.h>
 #include <Ecore_Evas.h>
@@ -11,6 +10,7 @@
 #include "conf.h"
 #include "util.h"
 #include "debug.h"
+#include "packet.h"
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"
@@ -19,6 +19,7 @@
 #include "instance.h"
 #include "fb.h"
 #include "script_handler.h"
+#include "connector_packet.h"
 
 int errno;
 
@@ -70,6 +71,7 @@ struct inst_info {
 		int width;
 		int height;
 		struct script_info *handle;
+		int is_opened_for_reactivate;
 	} pd;
 
 	int timeout;
@@ -81,12 +83,12 @@ struct inst_info {
 
 int instance_unicast_created_event(struct inst_info *inst, struct client_node *client)
 {
-	GVariant *param;
+	struct packet *packet;
 
 	if (!inst->client && !client)
 		return 0;
 
-	param = g_variant_new("(dsssiiiissssidiiiiid)", 
+	packet = packet_create("created", "dsssiiiissssidiiiiid", 
 			inst->timestamp,
 			package_name(inst->info), inst->id, inst->content,
 			inst->lb.width, inst->lb.height,
@@ -102,8 +104,7 @@ int instance_unicast_created_event(struct inst_info *inst, struct client_node *c
 			package_lb_type(inst->info) == LB_TYPE_TEXT,
 			package_pd_type(inst->info) == PD_TYPE_TEXT,
 			inst->period);
-
-	if (!param) {
+	if (!packet) {
 		ErrPrint("Failed to create a param\n");
 		return -EFAULT;
 	}
@@ -111,14 +112,14 @@ int instance_unicast_created_event(struct inst_info *inst, struct client_node *c
 	if (!client)
 		client = inst->client;
 
-	return client_rpc_async_request(client, "created", param);
+	return client_rpc_async_request(client, packet);
 }
 
 int instance_broadcast_created_event(struct inst_info *inst)
 {
-	GVariant *param;
+	struct packet *packet;
 
-	param = g_variant_new("(dsssiiiissssidiiiiid)", 
+	packet = packet_create("created", "dsssiiiissssidiiiiid", 
 			inst->timestamp,
 			package_name(inst->info), inst->id, inst->content,
 			inst->lb.width, inst->lb.height,
@@ -135,69 +136,50 @@ int instance_broadcast_created_event(struct inst_info *inst)
 			package_pd_type(inst->info) == PD_TYPE_TEXT,
 			inst->period);
 
-	if (!param)
+	if (!packet)
 		return -EFAULT;
 
-	return client_rpc_broadcast("created", param);
+	return client_rpc_broadcast(packet);
 }
 
 int instance_unicast_deleted_event(struct inst_info *inst)
 {
-	GVariant *param;
+	struct packet *packet;
 
 	if (!inst->client)
 		return -EINVAL;
 
-	param = g_variant_new("(ssd)", package_name(inst->info), inst->id, inst->timestamp);
-	if (!param) {
+	packet = packet_create("deleted", "ssd", package_name(inst->info), inst->id, inst->timestamp);
+	if (!packet) {
 		ErrPrint("Failed to create a param\n");
 		return -EFAULT;
 	}
 		
-	return client_rpc_async_request(inst->client, "deleted", param);
+	return client_rpc_async_request(inst->client, packet);
 }
 
 int instance_broadcast_deleted_event(struct inst_info *inst)
 {
-	GVariant *param;
+	struct packet *packet;
 
-	param = g_variant_new("(ssd)", package_name(inst->info), inst->id, inst->timestamp);
-	if (!param) {
+	packet = packet_create("deleted", "ssd", package_name(inst->info), inst->id, inst->timestamp);
+	if (!packet) {
 		ErrPrint("Failed to create a param\n");
 		return -EFAULT;
 	}
 		
-	return client_rpc_broadcast("deleted", param);
+	return client_rpc_broadcast(packet);
 }
 
 static int client_deactivated_cb(struct client_node *client, void *data)
 {
 	struct inst_info *inst = data;
-
-	switch (inst->state) {
-	case INST_ACTIVATED:
-	case INST_DEACTIVATED:
-		DbgPrint("Destroy\n");
-		instance_destroy(inst);
-		break;
-	case INST_REQUEST_TO_ACTIVATE:
-	case INST_REQUEST_TO_DEACTIVATE:
-	case INST_REQUEST_TO_REACTIVATE:
-	case INST_REQUEST_TO_DESTROY:
-		DbgPrint("Requested state is changed to INST_DESTROYED\n");
-		inst->requested_state = INST_DESTROYED;
-		break;
-	default:
-		break;
-	}
-
+	instance_destroy(inst);
 	return 0;
 }
 
 static inline void destroy_instance(struct inst_info *inst)
 {
-	DbgPrint("%s\n", package_name(inst->info));
-
 	if (inst->lb.handle) {
 		script_handler_unload(inst->lb.handle, 0);
 		script_handler_destroy(inst->lb.handle);
@@ -323,7 +305,7 @@ struct inst_info * instance_ref(struct inst_info *inst)
 	return inst;
 }
 
-struct inst_info * instance_unref(struct inst_info *inst)
+struct inst_info *instance_unref(struct inst_info *inst)
 {
 	if (!inst)
 		return NULL;
@@ -342,13 +324,13 @@ struct inst_info * instance_unref(struct inst_info *inst)
 	return inst;
 }
 
-static void deactivate_cb(struct slave_node *slave, const char *funcname, GVariant *result, void *data)
+static void deactivate_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	struct inst_info *inst = data;
 	int ret;
 
-	if (!result) {
-		ErrPrint("Failed to deactivate an instance: %s\n", inst->id);
+	if (!packet) {
+		DbgPrint("Consuming a request of a dead process\n");
 		/*!
 		 * \note
 		 * The instance_reload will care this.
@@ -358,8 +340,11 @@ static void deactivate_cb(struct slave_node *slave, const char *funcname, GVaria
 		return;
 	}
 
-	g_variant_get(result, "(i)", &ret);
-	g_variant_unref(result);
+	if (packet_get(packet, "i", &ret) != 1) {
+		ErrPrint("Invalid argument\n");
+		instance_unref(inst);
+		return;
+	}
 
 	if (inst->state == INST_DESTROYED) {
 		/*!
@@ -426,7 +411,7 @@ static void deactivate_cb(struct slave_node *slave, const char *funcname, GVaria
 		 * This is not possible, slave will always return -ENOENT, -EINVAL, or 0.
 		 * but care this exceptional case.
 		 */
-		ErrPrint("Destroy function returns invalid value: %d\n", ret);
+		DbgPrint("[%s] instance destroying ret(%d)\n", package_name(inst->info), ret);
 		slave_unload_instance(package_slave(inst->info));
 		instance_broadcast_deleted_event(inst);
 		instance_deactivated(inst);
@@ -437,13 +422,13 @@ static void deactivate_cb(struct slave_node *slave, const char *funcname, GVaria
 	instance_unref(inst);
 }
 
-static void reactivate_cb(struct slave_node *slave, const char *funcname, GVariant *result, void *data)
+static void reactivate_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	struct inst_info *inst = data;
 	int ret;
 
-	if (!result) {
-		ErrPrint("Failed to activate an instance: %s\n", inst->id);
+	if (!packet) {
+		DbgPrint("Consuming a request of a dead process\n");
 		/*!
 		 * \note
 		 * instance_reload function will care this.
@@ -453,8 +438,11 @@ static void reactivate_cb(struct slave_node *slave, const char *funcname, GVaria
 		return;
 	}
 
-	g_variant_get(result, "(i)", &ret);
-	g_variant_unref(result);
+	if (packet_get(packet, "i", &ret) != 1) {
+		ErrPrint("Invalid parameter\n");
+		instance_unref(inst);
+		return;
+	}
 
 	if (inst->state == INST_DESTROYED) {
 		/*!
@@ -477,12 +465,17 @@ static void reactivate_cb(struct slave_node *slave, const char *funcname, GVaria
 			instance_destroy(inst);
 			break;
 		case INST_ACTIVATED:
+			if (inst->lb.handle)
+				script_handler_load(inst->lb.handle, 0);
+
+			if (inst->pd.handle && inst->pd.is_opened_for_reactivate)
+				script_handler_load(inst->pd.handle, 1);
 		default:
 			break;
 		}
 		break;
 	default:
-		DbgPrint("Failed to activate an instance: %d\n", ret);
+		DbgPrint("[%s] instance destroying ret(%d)\n", package_name(inst->info), ret);
 		slave_unload_instance(package_slave(inst->info));
 		instance_broadcast_deleted_event(inst);
 		instance_deactivated(inst);
@@ -493,7 +486,7 @@ static void reactivate_cb(struct slave_node *slave, const char *funcname, GVaria
 	instance_unref(inst);
 }
 
-static void activate_cb(struct slave_node *slave, const char *funcname, GVariant *result, void *data)
+static void activate_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	struct inst_info *inst = data;
 	struct inst_info *new_inst;
@@ -502,8 +495,8 @@ static void activate_cb(struct slave_node *slave, const char *funcname, GVariant
 	int h;
 	double priority;
 
-	if (!result) {
-		ErrPrint("Failed to activate an instance: %s\n", inst->id);
+	if (!packet) {
+		DbgPrint("Consuming a request of a dead process\n");
 		/*!
 		 * \note
 		 * instance_reload will care this
@@ -513,8 +506,11 @@ static void activate_cb(struct slave_node *slave, const char *funcname, GVariant
 		return;
 	}
 
-	g_variant_get(result, "(iiid)", &ret, &w, &h, &priority);
-	g_variant_unref(result);
+	if (packet_get(packet, "iiid", &ret, &w, &h, &priority) != 4) {
+		ErrPrint("Invalid parameter\n");
+		instance_unref(inst);
+		return;
+	}
 
 	if (inst->state == INST_DESTROYED) {
 		/*!
@@ -589,7 +585,7 @@ static void activate_cb(struct slave_node *slave, const char *funcname, GVariant
 		}
 		break;
 	default:
-		DbgPrint("Failed to activate an instance: %d\n", ret);
+		DbgPrint("[%s] instance destroying ret(%d)\n", package_name(inst->info), ret);
 		instance_unicast_deleted_event(inst);
 		instance_deactivated(inst);
 		instance_destroy(inst);
@@ -639,7 +635,7 @@ int instance_destroyed(struct inst_info *inst)
 
 int instance_destroy(struct inst_info *inst)
 {
-	GVariant *param;
+	struct packet *packet;
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
@@ -663,19 +659,15 @@ int instance_destroy(struct inst_info *inst)
 		break;
 	}
 
-	param = g_variant_new("(ss)", package_name(inst->info), inst->id);
-	if (!param) {
+	packet = packet_create("delete", "ss", package_name(inst->info), inst->id);
+	if (!packet) {
 		ErrPrint("Failed to build a delete param\n");
 		return -EFAULT;
 	}
 
 	inst->requested_state = INST_DESTROYED;
 	inst->state = INST_REQUEST_TO_DESTROY;
-	return slave_rpc_async_request(package_slave(inst->info),
-			package_name(inst->info), inst->id,
-			"delete", param,
-			deactivate_cb, instance_ref(inst));
-	return 0;
+	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, deactivate_cb, instance_ref(inst));
 }
 
 int instance_deactivated(struct inst_info *inst)
@@ -691,8 +683,10 @@ int instance_deactivated(struct inst_info *inst)
 	if (inst->lb.handle)
 		script_handler_unload(inst->lb.handle, 0);
 
-	if (inst->pd.handle)
+	if (inst->pd.handle) {
+		inst->pd.is_opened_for_reactivate = inst->pd.handle ? script_handler_is_loaded(inst->pd.handle) : 0;
 		script_handler_unload(inst->pd.handle, 1);
+	}
 
 	inst->state = INST_DEACTIVATED;
 	inst->requested_state = INST_DEACTIVATED;
@@ -701,7 +695,7 @@ int instance_deactivated(struct inst_info *inst)
 
 int instance_deactivate(struct inst_info *inst)
 {
-	GVariant *param;
+	struct packet *packet;
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
@@ -722,21 +716,18 @@ int instance_deactivate(struct inst_info *inst)
 		break;
 	}
 
-	param = g_variant_new("(ss)", package_name(inst->info), inst->id);
-	if (!param)
+	packet = packet_create("delete", "ss", package_name(inst->info), inst->id);
+	if (!packet)
 		return -EFAULT;
 
 	inst->requested_state = INST_DEACTIVATED;
 	inst->state = INST_REQUEST_TO_DEACTIVATE;
-	return slave_rpc_async_request(package_slave(inst->info),
-			package_name(inst->info), inst->id,
-			"delete", param,
-			deactivate_cb, instance_ref(inst));
+	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, deactivate_cb, instance_ref(inst));
 }
 
 int instance_reactivate(struct inst_info *inst)
 {
-	GVariant *param;
+	struct packet *packet;
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
@@ -762,7 +753,7 @@ int instance_reactivate(struct inst_info *inst)
 		break;
 	}
 
-	param = g_variant_new("(sssiidssiiis)",
+	packet = packet_create("renew", "sssiidssiiis",
 			package_name(inst->info),
 			inst->id,
 			inst->content,
@@ -774,7 +765,7 @@ int instance_reactivate(struct inst_info *inst)
 			inst->lb.is_pinned_up,
 			inst->lb.width, inst->lb.height,
 			package_abi(inst->info));
-	if (!param) {
+	if (!packet) {
 		ErrPrint("Failed to create a param\n");
 		return -EFAULT;
 	}
@@ -783,15 +774,12 @@ int instance_reactivate(struct inst_info *inst)
 	inst->state = INST_REQUEST_TO_REACTIVATE;
 
 	slave_activate(package_slave(inst->info));
-	return slave_rpc_async_request(package_slave(inst->info),
-			package_name(inst->info), inst->id,
-			"renew", param,
-			reactivate_cb, instance_ref(inst));
+	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, reactivate_cb, instance_ref(inst));
 }
 
 int instance_activate(struct inst_info *inst)
 {
-	GVariant *param;
+	struct packet *packet;
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
@@ -817,7 +805,7 @@ int instance_activate(struct inst_info *inst)
 		break;
 	}
 
-	param = g_variant_new("(sssiidssiis)",
+	packet = packet_create("new", "sssiidssiis",
 			package_name(inst->info),
 			inst->id,
 			inst->content,
@@ -829,7 +817,7 @@ int instance_activate(struct inst_info *inst)
 			inst->lb.is_pinned_up,
 			!!inst->client,
 			package_abi(inst->info));
-	if (!param) {
+	if (!packet) {
 		ErrPrint("Failed to create a param\n");
 		return -EFAULT;
 	}
@@ -842,10 +830,7 @@ int instance_activate(struct inst_info *inst)
 	 * Try to activate a slave if it is not activated
 	 */
 	slave_activate(package_slave(inst->info));
-	return slave_rpc_async_request(package_slave(inst->info),
-				package_name(inst->info), inst->id,
-				"new", param,
-				activate_cb, instance_ref(inst));
+	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, activate_cb, instance_ref(inst));
 }
 
 void instance_lb_updated(const char *pkgname, const char *id)
@@ -861,33 +846,31 @@ void instance_lb_updated(const char *pkgname, const char *id)
 
 void instance_lb_updated_by_instance(struct inst_info *inst)
 {
-	GVariant *param;
+	struct packet *packet;
 
-	param = g_variant_new("(ssiid)", package_name(inst->info), inst->id,
-				inst->lb.width, inst->lb.height, inst->lb.priority);
-	if (!param) {
+	packet = packet_create("lb_updated", "ssiid", package_name(inst->info), inst->id, inst->lb.width, inst->lb.height, inst->lb.priority);
+	if (!packet) {
 		ErrPrint("Failed to create param (%s - %s)\n", package_name(inst->info), inst->id);
 		return;
 	}
 
-	client_rpc_broadcast("lb_updated", param);
+	client_rpc_broadcast(packet);
 }
 
 void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfile)
 {
-	GVariant *param;
+	struct packet *packet;
 
 	if (!descfile)
 		descfile = inst->id;
 
-	param = g_variant_new("(sssii)", package_name(inst->info), inst->id, descfile,
-						inst->pd.width, inst->pd.height);
-	if (!param) {
+	packet = packet_create("pd_updated", "sssii", package_name(inst->info), inst->id, descfile, inst->pd.width, inst->pd.height);
+	if (!packet) {
 		ErrPrint("Failed to create param (%s - %s)\n", package_name(inst->info), inst->id);
 		return;
 	}
 
-	client_rpc_broadcast("pd_updated", param);
+	client_rpc_broadcast(packet);
 }
 
 void instance_pd_updated(const char *pkgname, const char *id, const char *descfile)
@@ -916,19 +899,22 @@ void instance_set_pd_info(struct inst_info *inst, int w, int h)
 	inst->pd.height = h;
 }
 
-static void pinup_cb(struct slave_node *slave, const char *funcnane, GVariant *result, void *data)
+static void pinup_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	struct set_pinup_cbdata *cbdata = data;
 	int ret;
 
-	if (!result) {
+	if (!packet) {
 		instance_unref(cbdata->inst);
 		free(cbdata);
 		return;
 	}
 
-	g_variant_get(result, "(i)", &ret);
-	g_variant_unref(result);
+	if (packet_get(packet, "i", &ret) != 1) {
+		instance_unref(cbdata->inst);
+		free(cbdata);
+		return;
+	}
 
 	if (ret == 0)
 		cbdata->inst->lb.is_pinned_up = cbdata->pinup;
@@ -940,7 +926,7 @@ static void pinup_cb(struct slave_node *slave, const char *funcnane, GVariant *r
 int instance_set_pinup(struct inst_info *inst, int pinup)
 {
 	struct set_pinup_cbdata *cbdata;
-	GVariant *param;
+	struct packet *packet;
 
 	if (package_is_fault(inst->info))
 		return -EFAULT;
@@ -958,33 +944,33 @@ int instance_set_pinup(struct inst_info *inst, int pinup)
 	cbdata->inst = instance_ref(inst);
 	cbdata->pinup = pinup;
 
-	param = g_variant_new("(ssi)", package_name(inst->info), inst->id, pinup);
-	if (!param) {
+	packet = packet_create("pinup", "ssi", package_name(inst->info), inst->id, pinup);
+	if (!packet) {
 		ErrPrint("Failed to create a param\n");
 		instance_unref(cbdata->inst);
 		free(cbdata);
 		return -EFAULT;
 	}
 
-	return slave_rpc_async_request(package_slave(inst->info),
-					package_name(inst->info), inst->id,
-					"pinup", param,
-					pinup_cb, cbdata);
+	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, pinup_cb, cbdata);
 }
 
-static void resize_cb(struct slave_node *slave, const char *funcname, GVariant *result, void *data)
+static void resize_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	struct resize_cbdata *cbdata = data;
 	int ret;
 
-	if (!result) {
+	if (!packet) {
 		instance_unref(cbdata->inst);
 		free(cbdata);
 		return;
 	}
 
-	g_variant_get(result, "(i)", &ret);
-	g_variant_unref(result);
+	if (packet_get(packet, "i", &ret) != 1) {
+		ErrPrint("Invalid parameter\n");
+		free(cbdata);
+		return;
+	}
 
 	if (ret == 0) {
 		cbdata->inst->lb.width = cbdata->w;
@@ -1000,11 +986,13 @@ static void resize_cb(struct slave_node *slave, const char *funcname, GVariant *
 int instance_resize(struct inst_info *inst, int w, int h)
 {
 	struct resize_cbdata *cbdata;
-	GVariant *param;
+	struct packet *packet;
 	int ret;
 
-	if (package_is_fault(inst->info))
+	if (package_is_fault(inst->info)) {
+		ErrPrint("Fault package: %s\n", package_name(inst->info));
 		return -EFAULT;
+	}
 
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
@@ -1017,35 +1005,35 @@ int instance_resize(struct inst_info *inst, int w, int h)
 	cbdata->h = h;
 
 	/* NOTE: param is resued from here */
-	param = g_variant_new("(ssii)", package_name(inst->info), inst->id, w, h);
-	if (!param) {
+	packet = packet_create("resize", "ssii", package_name(inst->info), inst->id, w, h);
+	if (!packet) {
+		DbgPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		ret = -EFAULT;
 		instance_unref(cbdata->inst);
 		free(cbdata);
 	} else {
-		ret = slave_rpc_async_request(
-				package_slave(inst->info),
-				package_name(inst->info), inst->id,
-				"resize", param,
-				resize_cb, cbdata);
+		ret = slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, resize_cb, cbdata);
 	}
 
 	return ret;
 }
 
-static void set_period_cb(struct slave_node *slave, const char *funcname, GVariant *result, void *data)
+static void set_period_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	int ret;
 	struct period_cbdata *cbdata = data;
 
-	if (!result) {
+	if (!packet) {
 		instance_unref(cbdata->inst);
 		free(cbdata);
 		return;
 	}
 
-	g_variant_get(result, "(i)", &ret);
-	g_variant_unref(result);
+	if (packet_get(packet, "i", &ret) != 1) {
+		instance_unref(cbdata->inst);
+		free(cbdata);
+		return;
+	}
 
 	if (ret == 0)
 		cbdata->inst->period = cbdata->period;
@@ -1059,7 +1047,7 @@ static void set_period_cb(struct slave_node *slave, const char *funcname, GVaria
 
 int instance_set_period(struct inst_info *inst, double period)
 {
-	GVariant *param;
+	struct packet *packet;
 	struct period_cbdata *cbdata;
 
 	if (package_is_fault(inst->info))
@@ -1080,60 +1068,51 @@ int instance_set_period(struct inst_info *inst, double period)
 	cbdata->period = period;
 	cbdata->inst = instance_ref(inst);
 
-	param = g_variant_new("(ssd)", package_name(inst->info), inst->id, period);
-	if (!param) {
+	packet = packet_create("set_period", "ssd", package_name(inst->info), inst->id, period);
+	if (!packet) {
 		instance_unref(cbdata->inst);
 		free(cbdata);
 		return -EFAULT;
 	}
 
-	return slave_rpc_async_request(package_slave(inst->info),
-					package_name(inst->info), inst->id,
-					"set_period", param,
-					set_period_cb, cbdata);
+	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, set_period_cb, cbdata);
 }
 
 int instance_clicked(struct inst_info *inst, const char *event, double timestamp, double x, double y)
 {
-	GVariant *param;
+	struct packet *packet;
 
 	if (package_is_fault(inst->info))
 		return -EFAULT;
 
 	/* NOTE: param is resued from here */
-	param = g_variant_new("(sssddd)", package_name(inst->info), inst->id, event, timestamp, x, y);
-	if (!param)
+	packet = packet_create("clicked", "sssddd", package_name(inst->info), inst->id, event, timestamp, x, y);
+	if (!packet)
 		return -EFAULT;
 
-	return slave_rpc_async_request(package_slave(inst->info),
-					package_name(inst->info), inst->id,
-					"clicked", param,
-					NULL, NULL);
+	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, NULL, NULL);
 }
 
 int instance_text_signal_emit(struct inst_info *inst, const char *emission, const char *source, double sx, double sy, double ex, double ey)
 {
-	GVariant *param;
+	struct packet *packet;
 
 	if (package_is_fault(inst->info))
 		return -EFAULT;
 
-	param = g_variant_new("(ssssdddd)", package_name(inst->info), inst->id, emission, source, sx, sy, ex, ey);
-	if (!param)
+	packet = packet_create("text_signal", "ssssdddd", package_name(inst->info), inst->id, emission, source, sx, sy, ex, ey);
+	if (!packet)
 		return -EFAULT;
 
-	return slave_rpc_async_request(package_slave(inst->info),
-				package_name(inst->info), inst->id,
-				"text_signal", param,
-				NULL, NULL);
+	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, NULL, NULL);
 }
 
-static void change_group_cb(struct slave_node *slave, const char *funcname, GVariant *result, void *data)
+static void change_group_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	struct change_group_cbdata *cbdata = data;
 	int ret;
 
-	if (!result) {
+	if (!packet) {
 		instance_unref(cbdata->inst);
 		free(cbdata->cluster);
 		free(cbdata->category);
@@ -1141,8 +1120,13 @@ static void change_group_cb(struct slave_node *slave, const char *funcname, GVar
 		return;
 	}
 
-	g_variant_get(result, "(i)", &ret);
-	g_variant_unref(result);
+	if (packet_get(packet, "i", &ret) != 1) {
+		instance_unref(cbdata->inst);
+		free(cbdata->cluster);
+		free(cbdata->category);
+		free(cbdata);
+		return;
+	}
 
 	if (ret == 0) {
 		free(cbdata->inst->cluster);
@@ -1161,7 +1145,7 @@ static void change_group_cb(struct slave_node *slave, const char *funcname, GVar
 
 int instance_change_group(struct inst_info *inst, const char *cluster, const char *category)
 {
-	GVariant *param;
+	struct packet *packet;
 	struct change_group_cbdata *cbdata;
 
 	if (package_is_fault(inst->info))
@@ -1190,8 +1174,8 @@ int instance_change_group(struct inst_info *inst, const char *cluster, const cha
 
 	cbdata->inst = instance_ref(inst);
 
-	param = g_variant_new("(ssss)", package_name(inst->info), inst->id, cluster, category);
-	if (!param) {
+	packet = packet_create("change_group","ssss", package_name(inst->info), inst->id, cluster, category);
+	if (!packet) {
 		instance_unref(cbdata->inst);
 		free(cbdata->category);
 		free(cbdata->cluster);
@@ -1199,103 +1183,100 @@ int instance_change_group(struct inst_info *inst, const char *cluster, const cha
 		return -EFAULT;
 	}
 
-	return slave_rpc_async_request(package_slave(inst->info),
-					package_name(inst->info), inst->id,
-					"change_group", param,
-					change_group_cb, cbdata);
+	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, change_group_cb, cbdata);
 }
 
-int const instance_auto_launch(struct inst_info *inst)
+const int const instance_auto_launch(const struct inst_info *inst)
 {
 	return inst->lb.auto_launch;
 }
 
-int const instance_priority(struct inst_info *inst)
+const int const instance_priority(const struct inst_info *inst)
 {
 	return inst->lb.priority;
 }
 
-struct client_node *const instance_client(struct inst_info *inst)
+const struct client_node *const instance_client(const struct inst_info *inst)
 {
 	return inst->client;
 }
 
-double const instance_period(struct inst_info *inst)
+const double const instance_period(const struct inst_info *inst)
 {
 	return inst->period;
 }
 
-int const instance_lb_width(struct inst_info *inst)
+const int const instance_lb_width(const struct inst_info *inst)
 {
 	return inst->lb.width;
 }
 
-int const instance_lb_height(struct inst_info *inst)
+const int const instance_lb_height(const struct inst_info *inst)
 {
 	return inst->lb.height;
 }
 
-int const instance_pd_width(struct inst_info *inst)
+const int const instance_pd_width(const struct inst_info *inst)
 {
 	return inst->pd.width;
 }
 
-int const instance_pd_height(struct inst_info *inst)
+const int const instance_pd_height(const struct inst_info *inst)
 {
 	return inst->pd.height;
 }
 
-struct pkg_info *const instance_package(struct inst_info *inst)
+const struct pkg_info *const instance_package(const struct inst_info *inst)
 {
 	return inst->info;
 }
 
-struct script_info *const instance_lb_handle(struct inst_info *inst)
+struct script_info *const instance_lb_handle(const struct inst_info *inst)
 {
 	return inst->lb.handle;
 }
 
-struct script_info * const instance_pd_handle(struct inst_info *inst)
+struct script_info * const instance_pd_handle(const struct inst_info *inst)
 {
 	return inst->pd.handle;
 }
 
-char *const instance_id(struct inst_info *inst)
+const char *const instance_id(const struct inst_info *inst)
 {
 	return inst->id;
 }
 
-char *const instance_content(struct inst_info *inst)
+const char *const instance_content(const struct inst_info *inst)
 {
 	return inst->content;
 }
 
-char *const instance_category(struct inst_info *inst)
+const char *const instance_category(const struct inst_info *inst)
 {
 	return inst->category;
 }
 
-char *const instance_cluster(struct inst_info *inst)
+const char *const instance_cluster(const struct inst_info *inst)
 {
 	return inst->cluster;
 }
 
-double const instance_timestamp(struct inst_info *inst)
+const double const instance_timestamp(const struct inst_info *inst)
 {
 	return inst->timestamp;
 }
 
-enum instance_state const instance_state(struct inst_info *inst)
+const enum instance_state const instance_state(const struct inst_info *inst)
 {
 	return inst->state;
 }
 
 void instance_faulted(struct inst_info *inst)
 {
+	DbgPrint("Fault. DESTROYING (%s)\n", package_name(inst->info));
+
 	switch (inst->state) {
 	case INST_REQUEST_TO_ACTIVATE:
-		DbgPrint("Deactivated instance of %s is destroyed\n",
-						package_name(instance_package(inst)));
 		instance_unicast_deleted_event(inst);
 		instance_deactivated(inst);
 		instance_destroy(inst);
@@ -1304,8 +1285,6 @@ void instance_faulted(struct inst_info *inst)
 	case INST_REQUEST_TO_REACTIVATE:
 	case INST_REQUEST_TO_DESTROY:
 	case INST_ACTIVATED:
-		DbgPrint("Activated instance of %s is destroyed\n",
-						package_name(instance_package(inst)));
 		slave_unload_instance(package_slave(inst->info));
 		instance_deactivated(inst);
 		instance_broadcast_deleted_event(inst);
@@ -1314,8 +1293,6 @@ void instance_faulted(struct inst_info *inst)
 		break;
 	case INST_DESTROYED:
 	default:
-		DbgPrint("Package is already destroyed: %s\n",
-					package_name(instance_package(inst)));
 		break;
 	}
 }
@@ -1329,14 +1306,17 @@ void instance_recover_state(struct inst_info *inst)
 	case INST_REQUEST_TO_DESTROY:
 		switch (inst->requested_state) {
 		case INST_ACTIVATED:
+			DbgPrint("Req. to RE-ACTIVATED (%s)\n", package_name(inst->info));
 			instance_deactivated(inst);
 			instance_reactivate(inst);
 			break;
 		case INST_DEACTIVATED:
+			DbgPrint("Req. to DEACTIVATED (%s)\n", package_name(inst->info));
 			instance_deactivated(inst);
 			slave_unload_instance(package_slave(inst->info));
 			break;
 		case INST_DESTROYED:
+			DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
 			instance_deactivated(inst);
 			slave_unload_instance(package_slave(inst->info));
 			instance_destroy(inst);
@@ -1348,13 +1328,16 @@ void instance_recover_state(struct inst_info *inst)
 	case INST_REQUEST_TO_ACTIVATE:
 		switch (inst->requested_state) {
 		case INST_ACTIVATED:
+			DbgPrint("Req. to ACTIVATED (%s)\n", package_name(inst->info));
 			instance_deactivated(inst);
 			instance_activate(inst);
 			break;
 		case INST_DEACTIVATED:
+			DbgPrint("Req. to DEACTIVATED (%s)\n", package_name(inst->info));
 			instance_deactivated(inst);
 			break;
 		case INST_DESTROYED:
+			DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
 			instance_deactivated(inst);
 			instance_destroy(inst);
 			break;
@@ -1365,13 +1348,17 @@ void instance_recover_state(struct inst_info *inst)
 	case INST_DEACTIVATED:
 		switch (inst->requested_state) {
 		case INST_ACTIVATED:
+			DbgPrint("Req. to ACTIVATED (%s)\n", package_name(inst->info));
 			instance_deactivated(inst);
 			instance_activate(inst);
 			break;
 		case INST_DEACTIVATED:
+			DbgPrint("(DEACTIVATED) AUTO Req. to ACTIVATED (%s)\n", package_name(inst->info));
 			instance_deactivated(inst);
+			instance_activate(inst);
 			break;
 		case INST_DESTROYED:
+			DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
 			instance_deactivated(inst);
 			instance_destroy(inst);
 			break;
@@ -1383,6 +1370,77 @@ void instance_recover_state(struct inst_info *inst)
 	default:
 		break;
 	}
+}
+
+int instance_need_slave(struct inst_info *inst)
+{
+	int ret = 0;
+	switch (inst->state) {
+	case INST_ACTIVATED:
+	case INST_REQUEST_TO_DEACTIVATE:
+	case INST_REQUEST_TO_REACTIVATE:
+	case INST_REQUEST_TO_DESTROY:
+		switch (inst->requested_state) {
+		case INST_ACTIVATED:
+			DbgPrint("Req. to ACTIVATED (%s)\n", package_name(inst->info));
+			ret = 1;
+			break;
+		case INST_DEACTIVATED:
+			DbgPrint("Req. to DEACTIVATED (%s)\n", package_name(inst->info));
+			instance_deactivated(inst);
+			slave_unload_instance(package_slave(inst->info));
+			break;
+		case INST_DESTROYED:
+			DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
+			instance_deactivated(inst);
+			slave_unload_instance(package_slave(inst->info));
+			instance_destroy(inst);
+			break;
+		default:
+			break;
+		}
+		break;
+	case INST_REQUEST_TO_ACTIVATE:
+		switch (inst->requested_state) {
+		case INST_ACTIVATED:
+			DbgPrint("Req. to ACTIVATED (%s)\n", package_name(inst->info));
+			ret = 1;
+			break;
+		case INST_DEACTIVATED:
+			DbgPrint("Req. to DEACTIVATED (%s)\n", package_name(inst->info));
+			instance_deactivated(inst);
+			break;
+		case INST_DESTROYED:
+			DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
+			instance_deactivated(inst);
+			instance_destroy(inst);
+			break;
+		default:
+			break;
+		}
+		break;
+	case INST_DEACTIVATED:
+		switch (inst->requested_state) {
+		case INST_ACTIVATED:
+			DbgPrint("Req. to ACTIVATED (%s)\n", package_name(inst->info));
+			ret = 1;
+			break;
+		case INST_DESTROYED:
+			DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
+			instance_deactivated(inst);
+			instance_destroy(inst);
+			break;
+		case INST_DEACTIVATED:
+		default:
+			break;
+		}
+		break;
+	case INST_DESTROYED:
+	default:
+		break;
+	}
+
+	return ret;
 }
 
 /* End of a file */

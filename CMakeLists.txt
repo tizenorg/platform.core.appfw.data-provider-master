@@ -56,7 +56,6 @@ ADD_DEFINITIONS(${pkg_LDFLAGS})
 
 ADD_EXECUTABLE(${PROJECT_NAME}
 	src/main.c
-	src/dbus.c
 	src/util.c
 	src/fault_manager.c
 	src/parser.c
@@ -76,11 +75,18 @@ ADD_EXECUTABLE(${PROJECT_NAME}
 	src/setting.c
 	src/package.c
 	src/instance.c
+	src/secom_socket.c
+	src/packet.c
+	src/connector.c
+	src/connector_packet.c
+	src/dlist.c
+	src/server.c
 )
 
 TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${pkg_LDFLAGS} "-ldl")
-INSTALL(FILES ${CMAKE_SOURCE_DIR}/com.samsung.data-provider-master.desktop DESTINATION /opt/share/applications)
-INSTALL(TARGETS ${PROJECT_NAME} DESTINATION /opt/apps/com.samsung.${PROJECT_NAME}/bin PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+#INSTALL(FILES ${CMAKE_SOURCE_DIR}/com.samsung.data-provider-master.desktop DESTINATION /opt/share/applications)
+#INSTALL(TARGETS ${PROJECT_NAME} DESTINATION /opt/apps/com.samsung.${PROJECT_NAME}/bin PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+INSTALL(TARGETS ${PROJECT_NAME} DESTINATION /usr/bin PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 
 # INCLUDE FOR BUILD & INSTALL .PO FILES
 ADD_SUBDIRECTORY(res)

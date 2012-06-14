@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <libgen.h>
 #include <ctype.h>
 #include <stdlib.h> /* malloc */
 #include <errno.h>
@@ -8,6 +7,7 @@
 #include <dlog.h>
 #include <Eina.h>
 
+#include "util.h"
 #include "debug.h"
 #include "group.h"
 

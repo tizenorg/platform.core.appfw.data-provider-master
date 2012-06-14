@@ -1,3 +1,4 @@
-/opt/apps/com.samsung.data-provider-master/*
-/opt/share/applications/*
+#/opt/apps/com.samsung.data-provider-master/*
+#/opt/share/applications/*
+/usr/bin/data-provider-master
 /etc/rc.d/init.d/data-provider-master

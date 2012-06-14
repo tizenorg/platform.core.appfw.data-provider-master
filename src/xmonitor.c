@@ -24,7 +24,6 @@
 #include <sys/shm.h>
 #include <assert.h>
 #include <errno.h>
-#include <libgen.h>
 
 #include <Evas.h>
 #include <Ecore_X.h>

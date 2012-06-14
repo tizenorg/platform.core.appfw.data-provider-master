@@ -22,20 +22,20 @@ extern int client_destroy(struct client_node *client);
  */
 extern struct client_node *client_ref(struct client_node *client);
 extern struct client_node *client_unref(struct client_node *client);
-extern int client_refcnt(struct client_node *client);
+extern const int const client_refcnt(const struct client_node *client);
 
 /*!
  * \note
  * Information of client PID
  */
-extern pid_t client_pid(struct client_node *client);
+extern const pid_t const client_pid(const struct client_node *client);
 extern struct client_node *client_find_by_pid(pid_t pid);
 
 /*!
  * \note
  * Statistics for state of client
  */
-extern int const client_count_paused(void);
+extern const int const client_count_paused(void);
 extern int client_is_all_paused(void);
 extern int client_count(void);
 
@@ -46,9 +46,9 @@ extern int client_count(void);
 extern int client_deactivated_by_fault(struct client_node *client);
 extern int client_fault(struct client_node *client);
 extern void client_reset_fault(struct client_node *client);
-extern int client_is_faulted(struct client_node *client);
+extern const int const client_is_faulted(const struct client_node *client);
 
-extern int client_is_activated(struct client_node *client);
+extern const int const client_is_activated(const struct client_node *client);
 
 /*!
  * \note

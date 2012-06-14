@@ -1,6 +1,6 @@
 Name: com.samsung.data-provider-master
 Summary: Master data provider
-Version: 0.3.2
+Version: 0.4.0
 Release: 1
 Group: main/app
 License: Samsung Proprietary License
@@ -45,7 +45,7 @@ chown 5000:5000 /opt/share/live_magazine/log
 #	rm -f /etc/rc.d/rc3.d/S41data-provider-master
 #fi
 
-#ln -sf /etc/rc.d/init.d/data-provider-master /etc/rc.d/rc3.d/S41data-provider-master
+ln -sf /etc/rc.d/init.d/data-provider-master /etc/rc.d/rc3.d/S99data-provider-master
 
 TMP=`which ps`
 if [ $? -ne 0 ]; then
@@ -80,6 +80,7 @@ done
 %files -n com.samsung.data-provider-master
 #%manifest com.samsung.data-provider-master.manifest
 %defattr(-,root,root,-)
-/opt/apps/com.samsung.data-provider-master/bin/data-provider-master
-/opt/share/applications/com.samsung.data-provider-master.desktop
+#/opt/apps/com.samsung.data-provider-master/bin/data-provider-master
+#/opt/share/applications/com.samsung.data-provider-master.desktop
 /etc/rc.d/init.d/data-provider-master
+/usr/bin/data-provider-master

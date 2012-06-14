@@ -1,15 +1,28 @@
 #!/bin/sh
 
+launch_provider()
+{
+	while [ ! -f "/tmp/.stop.provider" ]; do
+		/usr/bin/data-provider-master 
+	done
+	rm /tmp/.stop.provider
+}
+
 start ()
 {
-	aul_test launch com.samsung.data-provider-master
+	launch_provider &
 }
 
 stop ()
 {
-	PID=`ps ax | grep 'data-provider-master' | grep -v 'grep' | grep -v 'dlogutil' | awk '{print $1}'`
+	touch /tmp/.stop.provider
+	PID=`ps ax | grep 'data-provider-master' | grep -v 'grep' | grep -v 'rpm' | grep -v 'dlogutil' | awk '{print $1}'`
 	if [ x"$PID" != x"" ]; then
-		aul_test term_pid $PID
+		KIL=`kill -9 $PID 2>&1 > /dev/null`
+		KIL_RET=$?
+		if [ $KIL_RET -ne 0 ]; then
+			echo "Data provider is already stopped ($KIL_RET)"
+		fi
 		sleep 1
 	fi
 }

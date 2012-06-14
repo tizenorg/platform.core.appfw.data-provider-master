@@ -2,7 +2,6 @@
 #include <sys/time.h>
 #include <string.h>
 #include <errno.h>
-#include <libgen.h>
 #include <unistd.h>
 #include <stdlib.h>
 
@@ -114,6 +113,18 @@ char *util_slavename(void)
 
 	snprintf(slavename, sizeof(slavename), "%lu_%lf", idx++, util_timestamp());
 	return strdup(slavename);
+}
+
+const char *util_basename(const char *name)
+{
+	int length;
+	length = name ? strlen(name) : 0;
+	if (!length)
+		return ".";
+
+	while (--length > 0 && name[length] != '/');
+
+	return length <= 0 ? name : name + length;
 }
 
 /* End of a file */

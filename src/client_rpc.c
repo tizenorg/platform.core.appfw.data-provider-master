@@ -1,312 +1,203 @@
 #include <stdio.h>
-#include <libgen.h>
 #include <errno.h>
 
 #include <Eina.h>
 #include <Ecore.h>
 
-#include <gio/gio.h>
 #include <dlog.h>
 
+#include "connector_packet.h"
+#include "packet.h"
 #include "client_life.h"
 #include "client_rpc.h"
 #include "debug.h"
 #include "conf.h"
+#include "util.h"
 
 /*!
  * \note
  * Static component information structure.
  */
 static struct info {
-	Eina_List *packet_list; /*!< Packet Q: Before sending the request, all request packets will stay here */
-	Ecore_Timer *packet_consumer; /*!< This timer will consuming the packet Q. sending them to the specified client */
+	Eina_List *command_list; /*!< Packet Q: Before sending the request, all request commands will stay here */
+	Ecore_Timer *command_consumer; /*!< This timer will consuming the command Q. sending them to the specified client */
 	Eina_List *rpc_list; /*!< Create RPC object list, to find a client using given RPC info (such as GDBusConnection*, GDBusProxy*) */
 } s_info = {
-	.packet_list = NULL,
-	.packet_consumer = NULL,
+	.command_list = NULL,
+	.command_consumer = NULL,
 	.rpc_list = NULL,
 };
 
 struct client_rpc {
-	GDBusProxy *proxy; /*!< Proxy object for this client */
-	Eina_List *pending_request_list; /*!< Before making connection, this Q will be used for keeping the request packets */
+	int handle; /*!< Handler for communication with client */
 	struct client_node *client; /*!< client_life object */
 };
 
-struct packet {
-	char *funcname; /*!< Method name which is supported by the livebox-viewer/dbus.c */
-	GVariant *param; /*!< Parameter object */
-	struct client_node *client; /*!< Target client. who should receive this packet */
+struct command {
+	struct packet *packet;
+	struct client_node *client; /*!< Target client. who should receive this command */
 };
 
 /*!
  * \brief
- * Creating or Destroying packet object
+ * Creating or Destroying command object
  */
-static inline struct packet *create_packet(struct client_node *client, const char *func, GVariant *param)
+static inline struct command *create_command(struct client_node *client, struct packet *packet)
 {
-	struct packet *packet;
+	struct command *command;
 
-	packet = calloc(1, sizeof(*packet));
+	command = calloc(1, sizeof(*command));
+	if (!command) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return NULL;
+	}
+
+	command->packet = packet_ref(packet);
+	command->client = client_ref(client);
+
+	return command;
+}
+
+static inline void destroy_command(struct command *command)
+{
+	client_unref(command->client);
+	packet_unref(command->packet);
+	free(command);
+}
+
+static inline int count_command(void)
+{
+	return eina_list_count(s_info.command_list);
+}
+
+static int recv_cb(pid_t pid, int handle, const struct packet *packet, void *data)
+{
+	struct command *command = data;
+
 	if (!packet) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		return NULL;
-	}
-
-	packet->funcname = strdup(func);
-	if (!packet->funcname) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		free(packet);
-		return NULL;
-	}
-
-	packet->param = g_variant_ref(param);
-	packet->client = client_ref(client);
-
-	return packet;
-}
-
-static inline void destroy_packet(struct packet *packet)
-{
-	client_unref(packet->client);
-	free(packet->funcname);
-	g_variant_unref(packet->param);
-	free(packet);
-}
-
-static inline int count_packet(void)
-{
-	return eina_list_count(s_info.packet_list);
-}
-
-/*!
- */
-static void client_cmd_done(GDBusProxy *proxy, GAsyncResult *res, void *item)
-{
-	GVariant *result;
-	GError *err = NULL;
-	struct packet *packet = item;
-
-	result = g_dbus_proxy_call_finish(proxy, res, &err);
-	if (result) {
+		DbgPrint("Client fault?\n");
+		client_fault(command->client);
+	} else {
 		int ret;
 
-		g_variant_get(result, "(i)", &ret);
-		g_variant_unref(result);
-	} else {
-		if (err) {
-			ErrPrint("Error: %s\n", err->message);
-			g_error_free(err);
-		}
-
-		client_fault(packet->client);
+		packet_get(packet, "i", &ret);
+		DbgPrint("returns %d\n", ret);
 	}
 
-	destroy_packet(packet);
+	destroy_command(command);
+	return 0;
 }
 
-static inline struct packet *pop_packet(void)
+static inline struct command *pop_command(void)
 {
-	struct packet *packet;
+	struct command *command;
 
-	packet = eina_list_nth(s_info.packet_list, 0);
-	if (!packet)
+	command = eina_list_nth(s_info.command_list, 0);
+	if (!command)
 		return NULL;
 
-	s_info.packet_list = eina_list_remove(s_info.packet_list, packet);
-	return packet;
+	s_info.command_list = eina_list_remove(s_info.command_list, command);
+	return command;
 }
 
-static Eina_Bool packet_consumer_cb(void *data)
+static Eina_Bool command_consumer_cb(void *data)
 {
-	struct packet *packet;
+	struct command *command;
 	struct client_rpc *rpc;
 
-	packet = pop_packet();
-	if (!packet) {
-		s_info.packet_consumer = NULL;
+	command = pop_command();
+	if (!command) {
+		s_info.command_consumer = NULL;
 		return ECORE_CALLBACK_CANCEL;
 	}
 
-	if (!client_is_activated(packet->client)) {
-		ErrPrint("Client is not activated, destroy this packet\n");
-		destroy_packet(packet);
+	if (!client_is_activated(command->client)) {
+		ErrPrint("Client is not activated, destroy this command\n");
+		destroy_command(command);
 		return ECORE_CALLBACK_RENEW;
 	}
 
-	if (client_is_faulted(packet->client)) {
-		ErrPrint("Client is faulted, discard packet\n");
-		destroy_packet(packet);
+	if (client_is_faulted(command->client)) {
+		ErrPrint("Client is faulted, discard command\n");
+		destroy_command(command);
 		return ECORE_CALLBACK_RENEW;
 	}
 
-	rpc = client_data(packet->client, "rpc");
+	rpc = client_data(command->client, "rpc");
 	if (!rpc) {
-		ErrPrint("Invalid packet\n");
-		destroy_packet(packet);
+		ErrPrint("Invalid command\n");
+		destroy_command(command);
 		return ECORE_CALLBACK_RENEW;
 	}
 
-	g_dbus_proxy_call(rpc->proxy,
-		packet->funcname, packet->param,
-		G_DBUS_CALL_FLAGS_NO_AUTO_START, -1, NULL,
-		(GAsyncReadyCallback)client_cmd_done, packet);
+	DbgPrint("Send a packet to client [%s]\n", packet_command(command->packet));
+	if (connector_packet_async_send(rpc->handle, command->packet, recv_cb, command) < 0)
+		destroy_command(command);
 
 	return ECORE_CALLBACK_RENEW;
 }
 
-static inline void push_packet(struct packet *packet)
+static inline void push_command(struct command *command)
 {
-	s_info.packet_list = eina_list_append(s_info.packet_list, packet);
+	s_info.command_list = eina_list_append(s_info.command_list, command);
 
-	if (s_info.packet_consumer)
+	if (s_info.command_consumer)
 		return;
 
-	s_info.packet_consumer = ecore_timer_add(PACKET_TIME, packet_consumer_cb, NULL);
-	if (!s_info.packet_consumer) {
-		ErrPrint("Failed to add packet consumer\n");
-		s_info.packet_list = eina_list_remove(s_info.packet_list, packet);
-		destroy_packet(packet);
+	s_info.command_consumer = ecore_timer_add(PACKET_TIME, command_consumer_cb, NULL);
+	if (!s_info.command_consumer) {
+		ErrPrint("Failed to add command consumer\n");
+		s_info.command_list = eina_list_remove(s_info.command_list, command);
+		destroy_command(command);
 	}
 }
 
-int client_rpc_async_request(struct client_node *client, const char *funcname, GVariant *param)
+int client_rpc_async_request(struct client_node *client, struct packet *packet)
 {
-	struct packet *packet;
+	struct command *command;
 	struct client_rpc *rpc;
 
 	if (client_is_faulted(client)) {
 		ErrPrint("Client is faulted\n");
-		g_variant_unref(param);
+		packet_unref(packet);
 		return -EFAULT;
 	}
 
 	rpc = client_data(client, "rpc");
 	if (!rpc) {
-		ErrPrint("Client rpc data is not valid (%s)\n", funcname);
-		g_variant_unref(param);
+		ErrPrint("Client rpc data is not valid (%s)\n", packet_command(packet));
+		packet_unref(packet);
 		return -EINVAL;
 	}
 
-	packet = create_packet(client, funcname, param);
-	if (!packet) {
-		g_variant_unref(param);
+	command = create_command(client, packet);
+	if (!command) {
+		packet_unref(packet);
 		return -ENOMEM;
 	}
 
-	if (!rpc->proxy)
-		rpc->pending_request_list = eina_list_append(rpc->pending_request_list, packet);
-	else
-		push_packet(packet);
-
+	push_command(command);
+	packet_unref(packet);
 	return 0;
 }
 
-int client_rpc_broadcast(const char *funcname, GVariant *param)
+int client_rpc_broadcast(struct packet *packet)
 {
 	Eina_List *l;
 	struct client_rpc *rpc;
 
 	EINA_LIST_FOREACH(s_info.rpc_list, l, rpc) {
-		(void)client_rpc_async_request(rpc->client, funcname, g_variant_ref(param));
+		(void)client_rpc_async_request(rpc->client, packet_ref(packet));
 	}
 
-	g_variant_unref(param);
-	return 0;
-}
-
-int client_rpc_sync_request(struct client_node *client, const char *funcname, GVariant *param)
-{
-	struct client_rpc *rpc;
-	GError *err;
-	GVariant *result;
-	int ret;
-
-	if (!client_is_activated(client)) {
-		ErrPrint("Client is not activated (%s)\n", funcname);
-		g_variant_unref(param);
-		return -EINVAL;
-	}
-
-	if (client_is_faulted(client)) {
-		ErrPrint("Client is faulted\n");
-		g_variant_unref(param);
-		return -EFAULT;
-	}
-
-	rpc = client_data(client, "rpc");
-	if (!rpc) {
-		ErrPrint("Client has no \"rpc\" info (%s)\n", funcname);
-		g_variant_unref(param);
-		return -EINVAL;
-	}
-
-	if (!rpc->proxy) {
-		ErrPrint("Client is not ready to communicate (%s)\n", funcname);
-		g_variant_unref(param);
-		return -EINVAL;
-	}
-
-	err = NULL;
-	result = g_dbus_proxy_call_sync(rpc->proxy, funcname, param,
-				G_DBUS_CALL_FLAGS_NO_AUTO_START, -1, NULL, &err);
-
-	if (!result) {
-		if (err) {
-			ErrPrint("(%s) Error: %s\n", funcname, err->message);
-			g_error_free(err);
-		}
-
-		client_fault(client);
-		return -EIO;
-	}
-
-	g_variant_get(result, "(i)", &ret);
-	g_variant_unref(result);
-	return ret;
-}
-
-int client_rpc_reset_proxy(struct client_node *client)
-{
-	struct client_rpc *rpc;
-
-	rpc = client_data(client, "rpc");
-	if (!rpc) {
-		ErrPrint("Client has no rpc info\n");
-		return -EINVAL;
-	}
-
-	rpc->proxy = NULL;
-	return 0;
-}
-
-int client_rpc_update_proxy(struct client_node *client, GDBusProxy *proxy)
-{
-	struct client_rpc *rpc;
-	struct packet *packet;
-
-	rpc = client_data(client, "rpc");
-	if (!rpc) {
-		ErrPrint("Client has no rpc info\n");
-		return -EINVAL;
-	}
-
-	if (rpc->proxy)
-		DbgPrint("Proxy is overwritten\n");
-
-	rpc->proxy = proxy;
-
-	EINA_LIST_FREE(rpc->pending_request_list, packet) {
-		push_packet(packet);
-	}
-
+	packet_unref(packet);
 	return 0;
 }
 
 static int deactivated_cb(struct client_node *client, void *data)
 {
 	struct client_rpc *rpc;
-	struct packet *packet;
+	struct command *command;
 
 	rpc = client_data(client, "rpc");
 	if (!rpc) {
@@ -314,16 +205,8 @@ static int deactivated_cb(struct client_node *client, void *data)
 		return 0;
 	}
 
-	if (!rpc->proxy) {
-		ErrPrint("RPC has no proxy\n");
-		return 0;
-	}
-
-	g_object_unref(rpc->proxy);
-	rpc->proxy = NULL;
-
-	while ((packet = pop_packet()))
-		destroy_packet(packet);
+	while ((command = pop_command()))
+		destroy_command(command);
 
 	return 0;
 }
@@ -331,7 +214,6 @@ static int deactivated_cb(struct client_node *client, void *data)
 static int del_cb(struct client_node *client, void *data)
 {
 	struct client_rpc *rpc;
-	struct packet *packet;
 
 	rpc = client_del_data(client, "rpc");
 	if (!rpc) {
@@ -340,21 +222,13 @@ static int del_cb(struct client_node *client, void *data)
 	}
 
 	s_info.rpc_list = eina_list_remove(s_info.rpc_list, rpc);
-
-	EINA_LIST_FREE(rpc->pending_request_list, packet) {
-		destroy_packet(packet);
-	}
-
-	if (rpc->proxy)
-		g_object_unref(rpc->proxy);
-
 	free(rpc);
 
 	client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, deactivated_cb, NULL);
 	return -1; /* Return <0, Delete this callback */
 }
 
-int client_rpc_initialize(struct client_node *client)
+int client_rpc_initialize(struct client_node *client, int handle)
 {
 	struct client_rpc *rpc;
 	int ret;
@@ -372,6 +246,8 @@ int client_rpc_initialize(struct client_node *client)
 		return ret;
 	}
 
+	rpc->handle = handle;
+
 	client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, deactivated_cb, NULL);
 	client_event_callback_add(client, CLIENT_EVENT_DESTROY, del_cb, NULL);
 	rpc->client = client;
@@ -380,13 +256,13 @@ int client_rpc_initialize(struct client_node *client)
 	return 0;
 }
 
-struct client_node *client_rpc_find_by_proxy(GDBusProxy *proxy)
+struct client_node *client_rpc_find_by_handle(int handle)
 {
 	Eina_List *l;
 	struct client_rpc *rpc;
 
 	EINA_LIST_FOREACH(s_info.rpc_list, l, rpc) {
-		if (rpc->proxy != proxy)
+		if (rpc->handle != handle)
 			continue;
 
 		return rpc->client;

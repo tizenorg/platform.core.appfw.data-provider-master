@@ -1,15 +1,15 @@
 #include <stdio.h>
-#include <libgen.h>
 #include <errno.h>
 
 #include <Eina.h>
 
 #include <dlog.h>
-#include <gio/gio.h>
 
+#include "packet.h"
 #include "client_life.h"
 #include "client_rpc.h"
 #include "debug.h"
+#include "util.h"
 
 int errno;
 
@@ -133,6 +133,7 @@ static inline struct client_node *create_client_data(pid_t pid)
 	}
 
 	client->pid = pid;
+	client->refcnt = 1;
 
 	s_info.client_list = eina_list_append(s_info.client_list, client);
 	return client;
@@ -153,9 +154,6 @@ struct client_node *client_create(pid_t pid)
 		ErrPrint("Failed to create a new client (%d)\n", pid);
 		return NULL;
 	}
-
-	client_ref(client);
-	client_rpc_initialize(client);
 
 	invoke_global_create_cb(client);
 	return client;
@@ -195,12 +193,12 @@ struct client_node *client_unref(struct client_node *client)
 	return client;
 }
 
-int client_refcnt(struct client_node *client)
+const int const client_refcnt(const struct client_node *client)
 {
 	return client->refcnt;
 }
 
-pid_t client_pid(struct client_node *client)
+const pid_t const client_pid(const struct client_node *client)
 {
 	return client ? client->pid : (pid_t)-1;
 }
@@ -218,7 +216,7 @@ struct client_node *client_find_by_pid(pid_t pid)
 	return NULL;
 }
 
-int const client_count_paused(void)
+const int const client_count_paused(void)
 {
 	return s_info.nr_of_paused_clients;
 }
@@ -260,7 +258,6 @@ int client_deactivated_by_fault(struct client_node *client)
 	client->faulted = 1;
 
 	client->pid = (pid_t)-1;
-	client_rpc_reset_proxy(client);
 
 	invoke_deactivated_cb(client);
 	client_destroy(client);
@@ -276,7 +273,6 @@ int client_fault(struct client_node *client)
 	client->faulted = 1;
 
 	client->pid = (pid_t)-1;
-	client_rpc_reset_proxy(client);
 
 	invoke_deactivated_cb(client);
 	client_destroy(client);
@@ -290,7 +286,7 @@ int client_fault(struct client_node *client)
 	return 0;
 }
 
-int client_is_faulted(struct client_node *client)
+const int const client_is_faulted(const struct client_node *client)
 {
 	/*!
 	 * \note
@@ -459,7 +455,7 @@ int client_fini(void)
 	return 0;
 }
 
-int client_is_activated(struct client_node *client)
+const int const client_is_activated(const struct client_node *client)
 {
 	return client ? (client->pid != (pid_t)-1) : 1;
 }

@@ -14,7 +14,7 @@ enum slave_event {
 
 extern struct slave_node *slave_ref(struct slave_node *slave);
 extern struct slave_node *slave_unref(struct slave_node *slave);
-extern int const slave_refcnt(struct slave_node *slave);
+extern const int const slave_refcnt(struct slave_node *slave);
 
 /*!
  * Create a new slave object or destroy it
@@ -31,7 +31,7 @@ extern int slave_deactivate(struct slave_node *slave);
 /*!
  * To check the slave's activation state
  */
-extern int slave_is_activated(struct slave_node *slave);
+extern const int const slave_is_activated(struct slave_node *slave);
 extern int slave_activated(struct slave_node *slave);
 
 /*!
@@ -48,16 +48,16 @@ extern void *slave_data(struct slave_node *slave, const char *tag);
 
 extern void slave_faulted(struct slave_node *slave);
 extern void slave_reset_fault(struct slave_node *slave);
-extern int const slave_is_faulted(struct slave_node *slave);
+extern const int const slave_is_faulted(const struct slave_node *slave);
 
 extern struct slave_node *slave_find_by_pid(pid_t pid);
 extern struct slave_node *slave_find_by_name(const char *name);
 
 extern void slave_dead_handler(struct slave_node *slave);
 extern void slave_check_pause_or_resume(void);
-extern int const slave_is_secured(struct slave_node *slave);
-extern const char * const slave_name(struct slave_node *slave);
-extern pid_t const slave_pid(struct slave_node *slave);
+extern const int const slave_is_secured(const struct slave_node *slave);
+extern const char * const slave_name(const struct slave_node *slave);
+extern const pid_t const slave_pid(const struct slave_node *slave);
 
 /*!
  * \note

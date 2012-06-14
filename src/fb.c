@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <libgen.h> /* basename */
 #include <unistd.h> /* access */
 #include <sys/mman.h>
 #include <errno.h>
