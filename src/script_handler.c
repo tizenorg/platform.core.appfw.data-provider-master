@@ -33,6 +33,7 @@
 #define TYPE_DRAG "drag"
 #define INFO_SIZE "size"
 #define INFO_CATEGORY "category"
+#define ADDEND 256
 
 int errno;
 
@@ -121,6 +122,8 @@ static void render_post_cb(void *data, Evas *e, void *event_info)
 
 	inst = data;
 
+	DbgPrint("Render post invoked (%s)[%s]\n", package_name(instance_package(inst)), basename(instance_id(inst)));
+
 	info = instance_lb_handle(inst);
 	if (info && script_handler_evas(info) == e) {
 		fb_sync(script_handler_fb(info));
@@ -180,7 +183,6 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double sx,
 		return -EFAULT;
 	}
 
-	DbgPrint("send %s %s %s\n", "script", signal, part);
 	ret = slave_rpc_async_request(slave, pkgname, filename, "script", param, NULL, NULL); 
 	return ret;
 }
@@ -307,6 +309,7 @@ struct script_info *script_handler_create(struct inst_info *inst, const char *fi
 		return NULL;
 	}
 
+	DbgPrint("Update info [%dx%d]\n", w, h);
 	info->w = w;
 	info->h = h;
 
@@ -360,15 +363,23 @@ static int update_script_text(struct inst_info *inst, struct block *block, int i
 {
 	struct script_info *info;
 
-	if (!block || !block->part || !block->data)
+	DbgPrint("block[%p] block->part[%s] block->data[%s]\n", block, block ? block->part : "", block ? block->data : "");
+
+	if (!block || !block->part || !block->data) {
+		ErrPrint("Block or part or data is not valid\n");
 		return -EINVAL;
+	}
 
 	info = is_pd ? instance_pd_handle(inst) : instance_lb_handle(inst);
-	if (!info)
+	if (!info) {
+		ErrPrint("info is NIL\n");
 		return -EFAULT;
+	}
 
-	if (!info->port)
+	if (!info->port) {
+		ErrPrint("info->port is NIL\n");
 		return -EINVAL;
+	}
 
 	info->port->update_text(info->port_data, script_handler_evas(info), block->id, block->part, block->data);
 	return 0;
@@ -378,15 +389,23 @@ static int update_script_image(struct inst_info *inst, struct block *block, int 
 {
 	struct script_info *info;
 
-	if (!block || !block->part)
+	DbgPrint("block[%p] block->part[%s] block->data[%s]\n", block, block ? block->part : "", block ? block->data : "");
+
+	if (!block || !block->part) {
+		ErrPrint("Block or part is not valid\n");
 		return -EINVAL;
+	}
 
 	info = is_pd ? instance_pd_handle(inst) : instance_lb_handle(inst);
-	if (!info)
+	if (!info) {
+		ErrPrint("info is NIL\n");
 		return -EFAULT;
+	}
 
-	if (!info->port)
+	if (!info->port) {
+		ErrPrint("info->port is NIL\n");
 		return -EINVAL;
+	}
 
 	info->port->update_image(info->port_data, script_handler_evas(info), block->id, block->part, block->data);
 	return 0;
@@ -396,15 +415,23 @@ static int update_script_script(struct inst_info *inst, struct block *block, int
 {
 	struct script_info *info;
 
-	if (!block || !block->part)
+	DbgPrint("block[%p] block->part[%s] block->data[%s]\n", block, block ? block->part : "", block ? block->data : "");
+
+	if (!block || !block->part) {
+		ErrPrint("Block or part is NIL\n");
 		return -EINVAL;
+	}
 
 	info = is_pd ? instance_pd_handle(inst) : instance_lb_handle(inst);
-	if (!info)
+	if (!info) {
+		ErrPrint("info is NIL\n");
 		return -EFAULT;
+	}
 
-	if (!info->port)
+	if (!info->port) {
+		ErrPrint("info->port is NIL\n");
 		return -EINVAL;
+	}
 
 	info->port->update_script(info->port_data, script_handler_evas(info), block->id, block->part, block->data, block->group);
 	return 0;
@@ -414,15 +441,23 @@ static int update_script_signal(struct inst_info *inst, struct block *block, int
 {
 	struct script_info *info;
 
-	if (!block)
+	DbgPrint("block[%p] block->part[%s] block->data[%s]\n", block, block ? block->part : "", block ? block->data : "");
+
+	if (!block) {
+		ErrPrint("block is NIL\n");
 		return -EINVAL;
+	}
 
 	info = is_pd ? instance_pd_handle(inst) : instance_lb_handle(inst);
-	if (!info)
+	if (!info) {
+		ErrPrint("info is NIL\n");
 		return -EFAULT;
+	}
 
-	if (!info->port)
+	if (!info->port) {
+		ErrPrint("info->port is NIL\n");
 		return -EINVAL;
+	}
 
 	info->port->update_signal(info->port_data, script_handler_evas(info), block->id, block->part, block->data);
 	return 0;
@@ -433,20 +468,28 @@ static int update_script_drag(struct inst_info *inst, struct block *block, int i
 	struct script_info *info;
 	double dx, dy;
 
-	if (!block || !block->data || !block->part)
+	DbgPrint("block[%p] block->part[%s] block->data[%s]\n", block, block ? block->part : "", block ? block->data : "");
+
+	if (!block || !block->data || !block->part) {
+		ErrPrint("block or block->data or block->part is NIL\n");
 		return -EINVAL;
+	}
 
 	info = is_pd ? instance_pd_handle(inst) : instance_lb_handle(inst);
-	if (!info)
+	if (!info) {
+		ErrPrint("info is NIL\n");
 		return -EFAULT;
+	}
 
 	if (sscanf(block->data, "%lfx%lf", &dx, &dy) != 2) {
 		ErrPrint("Invalid format of data (DRAG data [%s])\n", block->data);
 		return -EINVAL;
 	}
 
-	if (!info->port)
+	if (!info->port) {
+		ErrPrint("info->port is NIL\n");
 		return -EINVAL;
+	}
 
 	info->port->update_drag(info->port_data, script_handler_evas(info), block->id, block->part, dx, dy);
 	return 0;
@@ -454,11 +497,14 @@ static int update_script_drag(struct inst_info *inst, struct block *block, int i
 
 int script_handler_resize(struct script_info *info, int w, int h)
 {
-	if (!info || (info->w == w && info->h == h))
+	if (!info || (info->w == w && info->h == h)) {
+		ErrPrint("info[%p] resize is not changed\n", info);
 		return 0;
+	}
 
 	fb_resize(script_handler_fb(info), w, h);
 
+	DbgPrint("Update info [%dx%d]\n", w, h);
 	info->w = w;
 	info->h = h;
 
@@ -477,15 +523,23 @@ static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 {
 	struct script_info *info;
 
-	if (!block || !block->part || !block->data)
+	DbgPrint("block[%p] block->part[%s] block->data[%s]\n", block, block ? block->part : "", block ? block->data : "");
+
+	if (!block || !block->part || !block->data) {
+		ErrPrint("block or block->part or block->data is NIL\n");
 		return -EINVAL;
+	}
 
 	info = is_pd ? instance_pd_handle(inst) : instance_lb_handle(inst);
-	if (!info)
+	if (!info) {
+		ErrPrint("info is NIL\n");
 		return -EFAULT;
+	}
 
-	if (!info->port)
+	if (!info->port) {
+		ErrPrint("info->port is NIL\n");
 		return -EINVAL;
+	}
 
 	if (!strcasecmp(block->part, INFO_SIZE)) {
 		Evas_Coord w, h;
@@ -593,7 +647,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 		return -EIO;
 	}
 
-	DbgPrint("descfile: %s\n", descfile);
+	DbgPrint("descfile: %s\n", basename((char *)descfile));
 
 	state = UNKNOWN;
 	field_idx = 0;
@@ -744,7 +798,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 
 		case VALUE_TYPE:
 			if (idx == block->type_len) {
-				block->type_len += 256;
+				block->type_len += ADDEND;
 				block->type =
 					realloc(block->type, block->type_len);
 				if (!block->type) {
@@ -767,7 +821,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 
 		case VALUE_PART:
 			if (idx == block->part_len) {
-				block->part_len += 256;
+				block->part_len += ADDEND;
 				block->part =
 					realloc(block->part, block->part_len);
 				if (!block->part) {
@@ -790,7 +844,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 
 		case VALUE_DATA:
 			if (idx == block->data_len) {
-				block->data_len += 256;
+				block->data_len += ADDEND;
 				block->data =
 					realloc(block->data, block->data_len);
 				if (!block->data) {
@@ -813,7 +867,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 
 		case VALUE_FILE:
 			if (idx == block->file_len) {
-				block->file_len += 256;
+				block->file_len += ADDEND;
 				block->file =
 					realloc(block->file, block->file_len);
 				if (!block->file) {
@@ -836,7 +890,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 
 		case VALUE_GROUP:
 			if (idx == block->group_len) {
-				block->group_len += 256;
+				block->group_len += ADDEND;
 				block->group = realloc(block->group,
 							block->group_len);
 				if (!block->group) {
@@ -858,7 +912,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 			break;
 		case VALUE_ID:
 			if (idx == block->id_len) {
-				block->id_len += 256;
+				block->id_len += ADDEND;
 				block->id = realloc(block->id, block->id_len);
 				if (!block->id) {
 					ErrPrint("Heap: %s\n", strerror(errno));
@@ -920,10 +974,26 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 	}
 
 	fclose(fp);
+
+	if (inst) {
+		struct script_info *info;
+		Evas *e;
+		if (is_pd)
+			info = instance_pd_handle(inst);
+		else
+			info = instance_lb_handle(inst);
+
+		if (info) {
+			e = script_handler_evas(info);
+			if (e)
+				evas_damage_rectangle_add(e, 0, 0, info->w, info->h);
+		}
+	}
+
 	return 0;
 
 errout:
-	ErrPrint("Parse error at %d file %s\n", lineno, descfile);
+	ErrPrint("Parse error at %d file %s\n", lineno, basename((char *)descfile));
 	if (block) {
 		free(block->file);
 		free(block->type);

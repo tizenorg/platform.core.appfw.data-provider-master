@@ -33,26 +33,15 @@
 FILE *__file_log_fp;
 #endif
 
-static inline int app_create(void *data)
+static void do_more_init()
 {
-	static int initialized = 0;
 	int ret;
 
-	if (initialized == 1) {
-		DbgPrint("Already initialized\n");
-		return 0;
-	}
-
-	conf_update_size();
-
-	ret = dbus_init();
-	DbgPrint("dbus initialized: %d\n", ret);
+	ret = client_init();
+	DbgPrint("Client initialized: %d\n", ret);
 
 	ret = package_init();
 	DbgPrint("pkgmgr initialized: %d\n", ret);
-
-	ret = dead_init();
-	DbgPrint("Dead callback is registered: %d\n", ret);
 
 	ret = group_init();
 	DbgPrint("group init: %d\n", ret);
@@ -66,16 +55,45 @@ static inline int app_create(void *data)
 	ret = setting_init();
 	DbgPrint("Setting initialized: %d\n", ret);
 
-	ret = client_init();
-	DbgPrint("Client initialized: %d\n", ret);
+	ret = ctx_client_init();
+	DbgPrint("Context engine is initialized: %d\n", ret);
+}
+
+static inline int app_create(void *data)
+{
+	static int initialized = 0;
+	int ret;
+
+	if (initialized == 1) {
+		DbgPrint("Already initialized\n");
+		return 0;
+	}
+
+	conf_update_size();
+
+	/*!
+	 * \note
+	 * Dead signal handler has to be initialized before
+	 * initate package or client (slave and client).
+	 *
+	 * Because while creating slaves for packages.
+	 * It could be crashed before complete the initation stage.
+	 *
+	 * Then the dead callback should be invoked to handle it properly.
+	 *
+	 * To enable the dead signal handler,
+	 * dead_init should be done before other components are initiated.
+	 */
+	ret = dead_init();
+	DbgPrint("Dead callback is registered: %d\n", ret);
+
+	ret = dbus_init(do_more_init);
 
 	if (access(g_conf.path.slave_log, R_OK|W_OK) != 0) {
 		mkdir(g_conf.path.slave_log, 755);
 	}
 
-	ret = ctx_client_init();
-	DbgPrint("Context engine is initialized: %d\n", ret);
-
+	DbgPrint("dbus initialized: %d\n", ret);
 	initialized = 1;
 
 	return 0;

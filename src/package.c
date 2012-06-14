@@ -698,14 +698,20 @@ static int client_created_cb(struct client_node *client, void *data)
 		}
 
 		EINA_LIST_FOREACH(info->inst_list, i_l, inst) {
-			if (instance_state(inst) != INST_ACTIVATED) {
+			switch (instance_state(inst)) {
+			case INST_ACTIVATED: /*!< This instance is actiavted, and used */
+			case INST_REQUEST_TO_REACTIVATE: /*!< This instance will be reactivated soon */
+			case INST_REQUEST_TO_DEACTIVATE: /*!< This instance will be deactivated soon */
+			case INST_REQUEST_TO_DESTROY: /*!< This instance will be destroy soon */
+				instance_unicast_created_event(inst, client);
+				DbgPrint("Created package: %s\n", info->pkgname);
+				break;
+			default:
 				DbgPrint("%s(%s) is not activated (%d)\n",
-						package_name(info), instance_id(inst), instance_state(inst));
-				continue;
+						package_name(info), instance_id(inst),
+						instance_state(inst));
+				break;
 			}
-
-			instance_unicast_created_event(inst, client);
-			DbgPrint("Created package: %s\n", info->pkgname);
 		}
 	}
 

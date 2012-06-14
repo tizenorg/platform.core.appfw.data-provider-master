@@ -137,7 +137,6 @@ static void slave_async_cb(GDBusProxy *proxy, GAsyncResult *result, void *data)
 	 * \note
 	 * packet->param is not valid from here.
 	 */
-
 	if (!slave_is_activated(packet->slave)) {
 		ErrPrint("Slave is not activated (accidently dead)\n");
 		if (packet->ret_cb)
@@ -149,7 +148,7 @@ static void slave_async_cb(GDBusProxy *proxy, GAsyncResult *result, void *data)
 	param = g_dbus_proxy_call_finish(proxy, result, &err);
 	if (!param) {
 		char *cmd;
-		struct slave_rpc *rpc;
+		//struct slave_rpc *rpc;
 
 		cmd = packet->cmd ? packet->cmd : "";
 
@@ -184,9 +183,9 @@ static void slave_async_cb(GDBusProxy *proxy, GAsyncResult *result, void *data)
 		 * then the dead signal callback will check the fault package.
 		 * So we don't need to check the fault package from here.
 		 */
-		rpc = slave_data(packet->slave, "rpc");
-		if (rpc && rpc->proxy == proxy)
-			slave_faulted(packet->slave);
+		//rpc = slave_data(packet->slave, "rpc");
+		//if (rpc && rpc->proxy == proxy)
+		slave_faulted(packet->slave);
 
 		goto out;
 	}

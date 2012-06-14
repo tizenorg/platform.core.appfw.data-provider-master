@@ -1581,6 +1581,7 @@ static void on_bus_acquired(GDBusConnection *conn,
 		gpointer user_data)
 {
 	GError *err;
+	void (*more_init)(void) = user_data;
 
 	err = NULL;
 	s_info.node_info = g_dbus_node_info_new_for_xml(s_info.xml_data, &err);
@@ -1609,7 +1610,11 @@ static void on_bus_acquired(GDBusConnection *conn,
 		}
 		g_dbus_node_info_unref(s_info.node_info);
 		s_info.node_info = NULL;
+		return;
 	}
+
+	if (more_init)
+		more_init();
 }
 
 static void on_name_acquired(GDBusConnection *conn, const gchar *name, gpointer user_data)
@@ -1620,7 +1625,7 @@ static void on_name_lost(GDBusConnection *conn, const gchar *name, gpointer user
 {
 }
 
-int dbus_init(void)
+int dbus_init(void (*more_init)(void))
 {
 	int r;
 
@@ -1630,7 +1635,7 @@ int dbus_init(void)
 			on_bus_acquired,
 			on_name_acquired,
 			on_name_lost,
-			NULL, /* user_data */
+			more_init, /* user_data */
 			NULL /* GDestroyNotify */ );
 	if (r <= 0) {
 		ErrPrint("Failed to get a name: %s\n", MASTER_SERVICE_NAME);

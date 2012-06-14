@@ -143,12 +143,16 @@ struct client_node *client_create(pid_t pid)
 	struct client_node *client;
 
 	client = client_find_by_pid(pid);
-	if (client)
+	if (client) {
+		ErrPrint("Client %d is already exists\n", pid);
 		return client;
+	}
 
 	client = create_client_data(pid);
-	if (!client)
+	if (!client) {
+		ErrPrint("Failed to create a new client (%d)\n", pid);
 		return NULL;
+	}
 
 	client_ref(client);
 	client_rpc_initialize(client);

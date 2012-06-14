@@ -307,8 +307,6 @@ static int deactivated_cb(struct client_node *client, void *data)
 {
 	struct client_rpc *rpc;
 	struct packet *packet;
-	Eina_List *l;
-	Eina_List *n;
 
 	rpc = client_data(client, "rpc");
 	if (!rpc) {
@@ -322,16 +320,10 @@ static int deactivated_cb(struct client_node *client, void *data)
 	}
 
 	g_object_unref(rpc->proxy);
-
 	rpc->proxy = NULL;
 
-	EINA_LIST_FOREACH_SAFE(s_info.packet_list, l, n, packet) {
-		if (packet->client != client)
-			continue;
-
-		s_info.packet_list = eina_list_remove(s_info.packet_list, packet);
+	while ((packet = pop_packet()))
 		destroy_packet(packet);
-	}
 
 	return 0;
 }
