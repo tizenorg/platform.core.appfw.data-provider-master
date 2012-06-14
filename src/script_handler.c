@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include <Ecore_Evas.h>
+#include <Ecore.h>
 #include <Evas.h>
 
 #include <gio/gio.h>
@@ -52,7 +53,7 @@ struct script_port {
 	int (*update_script)(void *handle, Evas *e, const char *id, const char *part, const char *path, const char *group);
 	int (*update_signal)(void *handle, Evas *e, const char *id, const char *part, const char *signal);
 	int (*update_drag)(void *handle, Evas *e, const char *id, const char *part, double x, double y);
-	int (*update_size)(void *handle, Evas *e, const char *id, double w, double h);
+	int (*update_size)(void *handle, Evas *e, const char *id, int w, int h);
 	int (*update_category)(void *handle, Evas *e, const char *id, const char *category);
 
 	void *(*create)(const char *file, const char *group);
@@ -102,6 +103,8 @@ struct script_info {
 	void *port_data;
 };
 
+static void render_post_cb(void *data, Evas *e, void *event_info);
+
 static inline struct script_port *find_port(const char *magic_id)
 {
 	Eina_List *l;
@@ -123,6 +126,9 @@ static void render_post_cb(void *data, Evas *e, void *event_info)
 	inst = data;
 
 	DbgPrint("Render post invoked (%s)[%s]\n", package_name(instance_package(inst)), basename(instance_id(inst)));
+	evas_image_cache_flush(e);
+	evas_font_cache_flush(e);
+	evas_render_dump(e);
 
 	info = instance_lb_handle(inst);
 	if (info && script_handler_evas(info) == e) {
@@ -190,6 +196,7 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double sx,
 int script_handler_load(struct script_info *info, int is_pd)
 {
 	int ret;
+	Evas *e;
 
 	if (!info || !info->port) {
 		ErrPrint("Script handler is not created\n");
@@ -212,14 +219,14 @@ int script_handler_load(struct script_info *info, int is_pd)
 		return -EFAULT;
 	}
 
+	e = script_handler_evas(info);
+
 	ecore_evas_data_set(info->ee, "script,info", info);
 
-	evas_event_callback_add(script_handler_evas(info),
-			EVAS_CALLBACK_RENDER_FLUSH_POST, render_post_cb, info->inst);
-
-	if (info->port->load(info->port_data, script_handler_evas(info), info->w, info->h) < 0) {
+	evas_event_callback_add(e, EVAS_CALLBACK_RENDER_FLUSH_POST, render_post_cb, info->inst);
+	if (info->port->load(info->port_data, e, info->w, info->h) < 0) {
 		ErrPrint("Failed to add new script object\n");
-		evas_event_callback_del(script_handler_evas(info), EVAS_CALLBACK_RENDER_FLUSH_POST, render_post_cb);
+		evas_event_callback_del(e, EVAS_CALLBACK_RENDER_FLUSH_POST, render_post_cb);
 		fb_destroy_buffer(info->fb);
 		return -EFAULT;
 	}
@@ -229,13 +236,14 @@ int script_handler_load(struct script_info *info, int is_pd)
 	fb_sync(info->fb);
 	info->loaded = 1;
 
-	script_signal_emit(script_handler_evas(info), instance_id(info->inst), is_pd ? "pd,show" : "lb,show", 0.0f, 0.0f, 0.0f, 0.0f);
+	script_signal_emit(e, instance_id(info->inst), is_pd ? "pd,show" : "lb,show", 0.0f, 0.0f, 0.0f, 0.0f);
 	return 0;
 }
 
 int script_handler_unload(struct script_info *info, int is_pd)
 {
 	Ecore_Evas *ee;
+	Evas *e;
 
 	if (!info || !info->port)
 		return -EINVAL;
@@ -249,12 +257,15 @@ int script_handler_unload(struct script_info *info, int is_pd)
 		return 0;
 	}
 
-	script_signal_emit(script_handler_evas(info), instance_id(info->inst), is_pd ? "pd,hide" : "lb,hide", 0.0f, 0.0f, 0.0f, 0.0f);
 
-	if (info->port->unload(info->port_data, script_handler_evas(info)) < 0)
+	e = script_handler_evas(info);
+
+	script_signal_emit(e, instance_id(info->inst), is_pd ? "pd,hide" : "lb,hide", 0.0f, 0.0f, 0.0f, 0.0f);
+
+	if (info->port->unload(info->port_data, e) < 0)
 		ErrPrint("Failed to unload script object. but go ahead\n");
 
-	evas_event_callback_del(script_handler_evas(info), EVAS_CALLBACK_RENDER_FLUSH_POST, render_post_cb);
+	evas_event_callback_del(e, EVAS_CALLBACK_RENDER_FLUSH_POST, render_post_cb);
 
 	ee = fb_canvas(info->fb);
 	if (ee)
@@ -497,24 +508,21 @@ static int update_script_drag(struct inst_info *inst, struct block *block, int i
 
 int script_handler_resize(struct script_info *info, int w, int h)
 {
-	if (!info || (info->w == w && info->h == h)) {
+	if (!info) {
+	//|| (info->w == w && info->h == h)) {
 		ErrPrint("info[%p] resize is not changed\n", info);
 		return 0;
 	}
 
+	DbgPrint("Resize to %dx%d\n", w, h);
+
 	fb_resize(script_handler_fb(info), w, h);
 
-	DbgPrint("Update info [%dx%d]\n", w, h);
+	if (info->port->update_size)
+		info->port->update_size(info->port_data, script_handler_evas(info), NULL , w, h);
+
 	info->w = w;
 	info->h = h;
-
-	if (info->loaded > 0) {
-		if (info->port->unload(info->port_data, script_handler_evas(info)) < 0)
-			ErrPrint("Failed to unload\n");
-
-		if (info->port->load(info->port_data, script_handler_evas(info), w, h) < 0)
-			ErrPrint("Failed to load\n");
-	}
 
 	return 0;
 }
