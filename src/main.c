@@ -58,13 +58,7 @@ static Eina_Bool lazy_init_cb(void *data)
 
 static inline int app_create(void *data)
 {
-	static int initialized = 0;
 	int ret;
-
-	if (initialized == 1) {
-		DbgPrint("Already initialized\n");
-		return 0;
-	}
 
 	conf_update_size();
 
@@ -99,9 +93,6 @@ static inline int app_create(void *data)
 
 	if (!ecore_timer_add(0.1f, lazy_init_cb, NULL))
 		lazy_init_cb(NULL);
-
-	DbgPrint("dbus initialized: %d\n", ret);
-	initialized = 1;
 
 	return 0;
 }
@@ -172,11 +163,11 @@ int main(int argc, char *argv[])
 		__file_log_fp = fdopen(1, "w+t");
 #endif
 	/* appcore_agent_terminate */
-	if (ecore_init() < 0) {
+	if (ecore_init() <= 0) {
 		ErrPrint("Failed to initiate ecore\n");
 		return -EFAULT;
 	}
-	if (ecore_x_init(NULL) < 0) {
+	if (ecore_x_init(NULL) <= 0) {
 		ErrPrint("Failed to ecore x init\n");
 		ecore_shutdown();
 		return -EFAULT;
@@ -184,8 +175,21 @@ int main(int argc, char *argv[])
 
 	ecore_app_args_set(argc, (const char **)argv);
 
-        evas_init();
-	ecore_evas_init();
+	if (evas_init() <= 0) {
+		ErrPrint("Failed to init evas return count is below than 0\n");
+		ecore_x_shutdown();
+		ecore_shutdown();
+		return -EFAULT;
+	}
+
+	if (ecore_evas_init() <= 0) {
+		ErrPrint("Failed to init ecore_evas\n");
+		evas_shutdown();
+		ecore_x_shutdown();
+		ecore_shutdown();
+		return -EFAULT;
+	}
+
 	g_type_init();
 
 	script_init();
