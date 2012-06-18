@@ -4,8 +4,8 @@
 #include <Eina.h>
 
 #include <dlog.h>
+#include <packet.h>
 
-#include "packet.h"
 #include "client_life.h"
 #include "client_rpc.h"
 #include "debug.h"

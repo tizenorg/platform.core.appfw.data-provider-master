@@ -8,9 +8,9 @@
 #include <dlog.h>
 #include <vconf.h>
 #include <context_subscribe.h>
+#include <packet.h>
 
 #include "debug.h"
-#include "packet.h"
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"

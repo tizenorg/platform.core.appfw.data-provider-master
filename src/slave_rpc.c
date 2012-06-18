@@ -9,8 +9,10 @@
 
 #include <dlog.h>
 
+#include <packet.h>
+#include <connector_packet.h>
+
 #include "debug.h"
-#include "packet.h"
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"
@@ -18,7 +20,6 @@
 #include "fault_manager.h"
 #include "util.h"
 #include "conf.h"
-#include "connector_packet.h"
 
 struct slave_rpc {
 	Ecore_Timer *pong_timer;

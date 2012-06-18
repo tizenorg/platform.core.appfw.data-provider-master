@@ -12,7 +12,8 @@
 
 #include <dlog.h>
 
-#include "packet.h"
+#include <packet.h>
+
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"

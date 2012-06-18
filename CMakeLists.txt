@@ -17,6 +17,7 @@ pkg_check_modules(pkg REQUIRED
 	evas
 	ecore-evas
 	capi-context-engine
+	connector
 )
 
 SET(PACKAGE "${PROJECT_NAME}")
@@ -75,11 +76,6 @@ ADD_EXECUTABLE(${PROJECT_NAME}
 	src/setting.c
 	src/package.c
 	src/instance.c
-	src/secom_socket.c
-	src/packet.c
-	src/connector.c
-	src/connector_packet.c
-	src/dlist.c
 	src/server.c
 )
 

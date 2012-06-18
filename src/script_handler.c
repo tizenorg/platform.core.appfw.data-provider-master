@@ -12,9 +12,9 @@
 #include <Evas.h>
 
 #include <dlog.h>
+#include <packet.h>
 
 #include "slave_life.h"
-#include "packet.h"
 #include "slave_rpc.h"
 #include "client_life.h"
 #include "package.h"
@@ -124,11 +124,11 @@ static void render_post_cb(void *data, Evas *e, void *event_info)
 
 	inst = data;
 
-	DbgPrint("Render post invoked (%s)[%s]\n", package_name(instance_package(inst)), util_basename(instance_id(inst)));
 	evas_image_cache_flush(e);
 	evas_font_cache_flush(e);
 	evas_render_dump(e);
 
+	DbgPrint("Render post invoked (%s)[%s]\n", package_name(instance_package(inst)), util_basename(instance_id(inst)));
 	info = instance_lb_handle(inst);
 	if (info && script_handler_evas(info) == e) {
 		fb_sync(script_handler_fb(info));

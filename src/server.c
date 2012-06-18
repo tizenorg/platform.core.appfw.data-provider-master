@@ -5,11 +5,12 @@
 #include <dlog.h>
 #include <Evas.h>
 
+#include <packet.h>
+#include <connector_packet.h>
+
 #include "conf.h"
 #include "debug.h"
 #include "server.h"
-#include "packet.h"
-#include "connector_packet.h"
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"

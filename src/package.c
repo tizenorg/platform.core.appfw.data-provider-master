@@ -7,11 +7,12 @@
 #include <Eina.h>
 #include <Ecore_Evas.h>
 
+#include <packet.h>
+
 #include "debug.h"
 #include "util.h"
 #include "parser.h"
 #include "conf.h"
-#include "packet.h"
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"

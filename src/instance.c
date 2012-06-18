@@ -7,10 +7,12 @@
 #include <Eina.h>
 #include <gio/gio.h>
 
+#include <packet.h>
+#include <connector_packet.h>
+
 #include "conf.h"
 #include "util.h"
 #include "debug.h"
-#include "packet.h"
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"
@@ -19,7 +21,6 @@
 #include "instance.h"
 #include "fb.h"
 #include "script_handler.h"
-#include "connector_packet.h"
 
 int errno;
 

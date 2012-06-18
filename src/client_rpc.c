@@ -5,9 +5,9 @@
 #include <Ecore.h>
 
 #include <dlog.h>
+#include <connector_packet.h>
+#include <packet.h>
 
-#include "connector_packet.h"
-#include "packet.h"
 #include "client_life.h"
 #include "client_rpc.h"
 #include "debug.h"

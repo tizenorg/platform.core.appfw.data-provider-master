@@ -4,9 +4,9 @@
 #include <dlog.h>
 
 #include <gio/gio.h>
+#include <packet.h>
+#include <connector.h>
 
-#include "packet.h"
-#include "connector.h"
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"
