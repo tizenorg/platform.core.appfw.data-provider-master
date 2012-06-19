@@ -373,8 +373,6 @@ static int update_script_text(struct inst_info *inst, struct block *block, int i
 {
 	struct script_info *info;
 
-	DbgPrint("block[%p] block->part[%s] block->data[%s]\n", block, block ? block->part : "", block ? block->data : "");
-
 	if (!block || !block->part || !block->data) {
 		ErrPrint("Block or part or data is not valid\n");
 		return -EINVAL;
@@ -398,8 +396,6 @@ static int update_script_text(struct inst_info *inst, struct block *block, int i
 static int update_script_image(struct inst_info *inst, struct block *block, int is_pd)
 {
 	struct script_info *info;
-
-	DbgPrint("block[%p] block->part[%s] block->data[%s]\n", block, block ? block->part : "", block ? block->data : "");
 
 	if (!block || !block->part) {
 		ErrPrint("Block or part is not valid\n");
@@ -425,8 +421,6 @@ static int update_script_script(struct inst_info *inst, struct block *block, int
 {
 	struct script_info *info;
 
-	DbgPrint("block[%p] block->part[%s] block->data[%s]\n", block, block ? block->part : "", block ? block->data : "");
-
 	if (!block || !block->part) {
 		ErrPrint("Block or part is NIL\n");
 		return -EINVAL;
@@ -450,8 +444,6 @@ static int update_script_script(struct inst_info *inst, struct block *block, int
 static int update_script_signal(struct inst_info *inst, struct block *block, int is_pd)
 {
 	struct script_info *info;
-
-	DbgPrint("block[%p] block->part[%s] block->data[%s]\n", block, block ? block->part : "", block ? block->data : "");
 
 	if (!block) {
 		ErrPrint("block is NIL\n");
@@ -477,8 +469,6 @@ static int update_script_drag(struct inst_info *inst, struct block *block, int i
 {
 	struct script_info *info;
 	double dx, dy;
-
-	DbgPrint("block[%p] block->part[%s] block->data[%s]\n", block, block ? block->part : "", block ? block->data : "");
 
 	if (!block || !block->data || !block->part) {
 		ErrPrint("block or block->data or block->part is NIL\n");
@@ -513,8 +503,6 @@ int script_handler_resize(struct script_info *info, int w, int h)
 		return 0;
 	}
 
-	DbgPrint("Resize to %dx%d\n", w, h);
-
 	fb_resize(script_handler_fb(info), w, h);
 
 	if (info->port->update_size)
@@ -529,8 +517,6 @@ int script_handler_resize(struct script_info *info, int w, int h)
 static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 {
 	struct script_info *info;
-
-	DbgPrint("block[%p] block->part[%s] block->data[%s]\n", block, block ? block->part : "", block ? block->data : "");
 
 	if (!block || !block->part || !block->data) {
 		ErrPrint("block or block->part or block->data is NIL\n");
