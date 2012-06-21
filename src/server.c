@@ -209,9 +209,6 @@ static struct packet *client_delete(pid_t pid, int handle, struct packet *packet
 	} else if (package_is_fault(instance_package(inst))) {
 		ret = -EAGAIN;
 	} else {
-		if (instance_state(inst) == INST_DEACTIVATED)
-			instance_broadcast_deleted_event(inst);
-
 		ret = instance_destroy(inst);
 	}
 
@@ -310,7 +307,7 @@ static struct packet *client_new(pid_t pid, int handle, struct packet *packet) /
 		 * \note
 		 * Using the "inst" without validate its value is at my disposal. ;)
 		 */
-		ret = instance_activate(inst);
+		ret = inst ? 0 : -EFAULT;
 	}
 
 out:

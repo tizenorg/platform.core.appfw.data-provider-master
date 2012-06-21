@@ -216,10 +216,12 @@ static int slave_deactivate_cb(struct slave_node *slave, void *data)
 		return -EINVAL;
 	}
 
-	if (rpc->pong_timer)
+	if (rpc->pong_timer) {
 		ecore_timer_del(rpc->pong_timer);
-	else
+		rpc->pong_timer = NULL;
+	} else {
 		ErrPrint("slave has no pong timer\n");
+	}
 
 	EINA_LIST_FOREACH_SAFE(s_info.command_list, l, n, command) {
 		if (command->slave == slave) {

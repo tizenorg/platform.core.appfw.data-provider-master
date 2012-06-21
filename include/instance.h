@@ -73,8 +73,7 @@
  * reference count of an instance reaches to ZERO.
  */
 enum instance_state {
-	INST_DEACTIVATED = 0x0, /*!< Only keeps in the master */
-	INST_REQUEST_TO_DEACTIVATE, /*!< Sent a request to a slave to unload this */
+	INST_INIT = 0x0, /*!< Only keeps in the master */
 
 	/*!
 	 */
@@ -98,9 +97,8 @@ extern int instance_destroy(struct inst_info *inst);
 extern struct inst_info * instance_ref(struct inst_info *inst);
 extern struct inst_info * instance_unref(struct inst_info *inst);
 
-extern int instance_deactivated(struct inst_info *inst);
+extern int instance_state_reset(struct inst_info *inst);
 extern int instance_destroyed(struct inst_info *inst);
-extern int instance_deactivate(struct inst_info *inst);
 extern int instance_reactivate(struct inst_info *inst);
 extern int instance_activate(struct inst_info *inst);
 extern void instance_recover_state(struct inst_info *inst);

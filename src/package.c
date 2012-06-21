@@ -705,9 +705,9 @@ static int client_created_cb(struct client_node *client, void *data)
 
 		EINA_LIST_FOREACH(info->inst_list, i_l, inst) {
 			switch (instance_state(inst)) {
+			case INST_INIT:
 			case INST_ACTIVATED: /*!< This instance is actiavted, and used */
 			case INST_REQUEST_TO_REACTIVATE: /*!< This instance will be reactivated soon */
-			case INST_REQUEST_TO_DEACTIVATE: /*!< This instance will be deactivated soon */
 			case INST_REQUEST_TO_DESTROY: /*!< This instance will be destroy soon */
 				instance_unicast_created_event(inst, client);
 				DbgPrint("Created package: %s\n", info->pkgname);

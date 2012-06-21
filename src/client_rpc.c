@@ -164,11 +164,9 @@ int client_rpc_async_request(struct client_node *client, struct packet *packet)
 	}
 
 	rpc = client_data(client, "rpc");
-	if (!rpc) {
-		ErrPrint("Client rpc data is not valid (%s)\n", packet_command(packet));
-		packet_unref(packet);
-		return -EINVAL;
-	}
+	if (!rpc)
+		ErrPrint("Client is not ready for communication (%s)\n",
+							packet_command(packet));
 
 	command = create_command(client, packet);
 	if (!command) {
