@@ -54,6 +54,9 @@ static Eina_Bool lazy_init_cb(void *data)
 	ret = ctx_client_init();
 	DbgPrint("Context engine is initialized: %d\n", ret);
 
+	ret = xmonitor_init();
+	DbgPrint("XMonitor init is done: %d\n", ret);
+
 	return ECORE_CALLBACK_CANCEL;
 }
 
@@ -82,9 +85,6 @@ static inline int app_create(void *data)
 	 */
 	ret = server_init();
 	DbgPrint("Server initialized: %d\n", ret);
-
-	ret = xmonitor_init();
-	DbgPrint("XMonitor init is done: %d\n", ret);
 
 	ret = setting_init();
 	DbgPrint("Setting initialized: %d\n", ret);

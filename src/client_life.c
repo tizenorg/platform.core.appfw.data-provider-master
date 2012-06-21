@@ -223,6 +223,7 @@ const int const client_count_paused(void)
 
 int client_is_all_paused(void)
 {
+	DbgPrint("%d, %d\n", eina_list_count(s_info.client_list), s_info.nr_of_paused_clients);
 	return eina_list_count(s_info.client_list) == s_info.nr_of_paused_clients;
 }
 

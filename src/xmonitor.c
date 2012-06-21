@@ -78,15 +78,15 @@ static inline int get_pid(Ecore_X_Window win)
 static Eina_Bool create_cb(void *data, int type, void *event)
 {
 	Ecore_X_Event_Window_Create *info = event;
-
+	DbgPrint("Window created: 0x%X of %d\n", info->win, get_pid(info->win));
 	ecore_x_window_client_sniff(info->win);
-
 	return ECORE_CALLBACK_RENEW;
 }
 
 static Eina_Bool destroy_cb(void *data, int type, void *event)
 {
-	Ecore_X_Event_Window_Destroy * info __attribute__((unused)) = event;
+	Ecore_X_Event_Window_Destroy * info = event;
+	DbgPrint("Window destroyed: 0x%X of %d\n", info->win, get_pid(info->win));
 	return ECORE_CALLBACK_RENEW;
 }
 
@@ -130,9 +130,11 @@ static Eina_Bool client_cb(void *data, int type, void *event)
 		return ECORE_CALLBACK_RENEW;
 
 	if (!strcmp(name, "_X_ILLUME_DEACTIVATE_WINDOW")) {
+		DbgPrint("PAUSE EVENT\n");
 		client_paused(client);
 		slave_check_pause_or_resume();
 	} else if (!strcmp(name, "_X_ILLUME_ACTIVATE_WINDOW")) {
+		DbgPrint("RESUME EVENT\n");
 		client_resumed(client);
 		slave_check_pause_or_resume();
 	}
@@ -148,7 +150,7 @@ static inline void sniff_all_windows(void)
 	struct stack_item *new_item;
 	struct stack_item *item;
 	Eina_List *win_stack;
-	int pid;
+	//int pid;
 	struct stack_item {
 		Ecore_X_Window *wins;
 		int nr_of_wins;
@@ -192,9 +194,7 @@ static inline void sniff_all_windows(void)
 			 * just check whether it is registered or not.
 			 * (ecore_x_window_visible_get(ret))
 			 */
-			pid = get_pid(ret);
-			if (pid > 0 && client_find_by_pid(pid))
-				ecore_x_window_client_sniff(ret);
+			ecore_x_window_client_sniff(ret);
 
 			new_item = malloc(sizeof(*new_item));
 			if (!new_item) {
