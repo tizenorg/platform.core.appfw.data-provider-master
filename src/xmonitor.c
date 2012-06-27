@@ -78,15 +78,14 @@ static inline int get_pid(Ecore_X_Window win)
 static Eina_Bool create_cb(void *data, int type, void *event)
 {
 	Ecore_X_Event_Window_Create *info = event;
-	DbgPrint("Window created: 0x%X of %d\n", info->win, get_pid(info->win));
 	ecore_x_window_client_sniff(info->win);
 	return ECORE_CALLBACK_RENEW;
 }
 
 static Eina_Bool destroy_cb(void *data, int type, void *event)
 {
-	Ecore_X_Event_Window_Destroy * info = event;
-	DbgPrint("Window destroyed: 0x%X of %d\n", info->win, get_pid(info->win));
+	Ecore_X_Event_Window_Destroy * info;
+	info = event;
 	return ECORE_CALLBACK_RENEW;
 }
 

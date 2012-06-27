@@ -5,7 +5,7 @@
 
 #include <gio/gio.h>
 #include <packet.h>
-#include <connector.h>
+#include <com-core.h>
 
 #include "slave_life.h"
 #include "slave_rpc.h"
@@ -51,14 +51,16 @@ static int evt_cb(int handle, void *data)
 	slave = slave_rpc_find_by_handle(handle);
 	if (slave) {
 		DbgPrint("Slave is disconnected\n");
-		slave_deactivated_by_fault(slave);
+		if (slave_pid(slave) != (pid_t)-1)
+			slave_deactivated_by_fault(slave);
 		return 0;
 	}
 
 	client = client_rpc_find_by_handle(handle);
 	if (client) {
 		DbgPrint("Client is disconnected\n");
-		client_deactivated_by_fault(client);
+		if (client_pid(client) != (pid_t)-1)
+			client_deactivated_by_fault(client);
 		return 0;
 	}
 
@@ -67,14 +69,14 @@ static int evt_cb(int handle, void *data)
 
 int dead_init(void)
 {
-	connector_add_event_callback(CONNECTOR_DISCONNECTED, evt_cb, NULL);
+	com_core_add_event_callback(CONNECTOR_DISCONNECTED, evt_cb, NULL);
 //	aul_listen_app_dead_signal(dead_cb, NULL);
 	return 0;
 }
 
 int dead_fini(void)
 {
-	connector_del_event_callback(CONNECTOR_DISCONNECTED, evt_cb, NULL);
+	com_core_del_event_callback(CONNECTOR_DISCONNECTED, evt_cb, NULL);
 	return 0;
 }
 

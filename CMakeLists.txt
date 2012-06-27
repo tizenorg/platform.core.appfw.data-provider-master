@@ -17,7 +17,7 @@ pkg_check_modules(pkg REQUIRED
 	evas
 	ecore-evas
 	capi-context-engine
-	connector
+	com-core
 )
 
 SET(PACKAGE "${PROJECT_NAME}")

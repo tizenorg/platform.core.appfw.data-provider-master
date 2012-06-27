@@ -126,8 +126,8 @@ extern int instance_change_group(struct inst_info *inst, const char *cluster, co
  */
 extern const double const instance_timestamp(const struct inst_info *inst);
 extern const struct pkg_info * const instance_package(const struct inst_info *inst);
-extern struct script_info * const instance_lb_handle(const struct inst_info *inst);
-extern struct script_info * const instance_pd_handle(const struct inst_info *inst);
+extern struct script_info * const instance_lb_script(const struct inst_info *inst);
+extern struct script_info * const instance_pd_script(const struct inst_info *inst);
 extern const char * const instance_id(const struct inst_info *inst);
 extern const char * const instance_content(const struct inst_info *inst);
 extern const char * const instance_category(const struct inst_info *inst);

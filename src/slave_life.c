@@ -369,7 +369,7 @@ int slave_deactivate(struct slave_node *slave)
 
 	invoke_deactivate_cb(slave);
 
-	slave->state = SLAVE_PAUSED;
+	slave->state = SLAVE_TERMINATED;
 	slave_unref(slave);
 	return 0;
 }
@@ -388,7 +388,7 @@ void slave_faulted(struct slave_node *slave)
 	slave->fault_count++;
 
 	DbgPrint("Terminate PID: %d\n", pid);
-	if (aul_terminate_pid(pid) < 0)
+	if (pid > 0 && aul_terminate_pid(pid) < 0)
 		ErrPrint("Terminate failed, pid %d\n", pid);
 
 	invoke_deactivate_cb(slave);

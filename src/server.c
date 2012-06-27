@@ -6,7 +6,7 @@
 #include <Evas.h>
 
 #include <packet.h>
-#include <connector_packet.h>
+#include <com-core_packet.h>
 
 #include "conf.h"
 #include "debug.h"
@@ -41,7 +41,12 @@ static struct packet *client_acquire(pid_t pid, int handle, struct packet *packe
 		goto out;
 	}
 
-	packet_get(packet, "d", &timestamp);
+	if (packet_get(packet, "d", &timestamp) != 1) {
+		ErrPrint("Invalid arguemnt\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
 	DbgPrint("Acquired %lf\n", timestamp);
 
 	/*!
@@ -332,6 +337,7 @@ static struct packet *client_set_period(pid_t pid, int handle, struct packet *pa
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
 		ret = -ENOENT;
+		period = -1.0f;
 		goto out;
 	}
 
@@ -351,7 +357,7 @@ static struct packet *client_set_period(pid_t pid, int handle, struct packet *pa
 		ret = instance_set_period(inst, period);
 
 out:
-	result = packet_create_reply(packet, "i", ret);
+	result = packet_create_reply(packet, "id", ret, period);
 	if (!result)
 		ErrPrint("Failed to create a packet\n");
 
@@ -441,7 +447,7 @@ static struct packet *client_pd_mouse_down(pid_t pid, int handle, struct packet 
 		struct script_info *script;
 		Evas *e;
 
-		script = instance_pd_handle(inst);
+		script = instance_pd_script(inst);
 		if (!script) {
 			ret = -EFAULT;
 			goto out;
@@ -510,7 +516,7 @@ static struct packet *client_pd_mouse_up(pid_t pid, int handle, struct packet *p
 		struct script_info *script;
 		Evas *e;
 
-		script = instance_pd_handle(inst);
+		script = instance_pd_script(inst);
 		if (!script) {
 			ret = -EFAULT;
 			goto out;
@@ -578,7 +584,7 @@ static struct packet *client_pd_mouse_move(pid_t pid, int handle, struct packet 
 		struct script_info *script;
 		Evas *e;
 
-		script = instance_pd_handle(inst);
+		script = instance_pd_script(inst);
 		if (!script) {
 			ret = -EFAULT;
 			goto out;
@@ -645,7 +651,7 @@ static struct packet *client_lb_mouse_move(pid_t pid, int handle, struct packet 
 		struct script_info *script;
 		Evas *e;
 
-		script = instance_lb_handle(inst);
+		script = instance_lb_script(inst);
 		if (!script) {
 			ret = -EFAULT;
 			goto out;
@@ -712,7 +718,7 @@ static struct packet *client_lb_mouse_down(pid_t pid, int handle, struct packet 
 		struct script_info *script;
 		Evas *e;
 
-		script = instance_lb_handle(inst);
+		script = instance_lb_script(inst);
 		if (!script) {
 			ret = -EFAULT;
 			goto out;
@@ -781,7 +787,7 @@ static struct packet *client_lb_mouse_up(pid_t pid, int handle, struct packet *p
 		struct script_info *script;
 		Evas *e;
 
-		script = instance_lb_handle(inst);
+		script = instance_lb_script(inst);
 		if (!script) {
 			ret = -EFAULT;
 			goto out;
@@ -822,6 +828,7 @@ static struct packet *client_pinup_changed(pid_t pid, int handle, struct packet 
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
 		ret = -ENOENT;
+		pinup = 0;
 		goto out;
 	}
 
@@ -829,6 +836,7 @@ static struct packet *client_pinup_changed(pid_t pid, int handle, struct packet 
 	if (ret != 3) {
 		ErrPrint("Parameter is not matched\n");
 		ret = -EINVAL;
+		pinup = 0;
 		goto out;
 	}
 
@@ -841,7 +849,7 @@ static struct packet *client_pinup_changed(pid_t pid, int handle, struct packet 
 		ret = instance_set_pinup(inst, pinup);
 
 out:
-	result = packet_create_reply(packet, "i", ret);
+	result = packet_create_reply(packet, "ii", ret, pinup);
 	if (!result)
 		ErrPrint("Failed to create a packet\n");
 
@@ -877,7 +885,7 @@ static struct packet *client_create_pd(pid_t pid, int handle, struct packet *pac
 	else if (package_is_fault(instance_package(inst)))
 		ret = -EFAULT;
 	else
-		ret = script_handler_load(instance_pd_handle(inst), 1);
+		ret = script_handler_load(instance_pd_script(inst), 1);
 
 out:
 	result = packet_create_reply(packet, "i", ret);
@@ -916,7 +924,7 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, struct packet *pa
 	else if (package_is_fault(instance_package(inst)))
 		ret = -EFAULT;
 	else
-		ret = script_handler_unload(instance_pd_handle(inst), 1);
+		ret = script_handler_unload(instance_pd_script(inst), 1);
 
 out:
 	result = packet_create_reply(packet, "i", ret);
@@ -938,6 +946,7 @@ static struct packet *client_activate_package(pid_t pid, int handle, struct pack
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
 		ret = -ENOENT;
+		pkgname = "";
 		goto out;
 	}
 
@@ -945,6 +954,7 @@ static struct packet *client_activate_package(pid_t pid, int handle, struct pack
 	if (ret != 1) {
 		ErrPrint("Parameter is not matched\n");
 		ret = -EINVAL;
+		pkgname = "";
 		goto out;
 	}
 
@@ -955,7 +965,7 @@ static struct packet *client_activate_package(pid_t pid, int handle, struct pack
 		ret = package_clear_fault(info);
 
 out:
-	result = packet_create_reply(packet, "i", ret);
+	result = packet_create_reply(packet, "is", ret, pkgname);
 	if (!result)
 		ErrPrint("Failed to create a packet\n");
 
@@ -1106,7 +1116,7 @@ static struct packet *slave_ret(pid_t pid, int handle, struct packet *packet) /*
 
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
-		ErrPrint("Client %d is not exists\n", pid);
+		ErrPrint("Slave %d is not exists\n", pid);
 		ret = -ENOENT;
 		goto out;
 	}
@@ -1168,7 +1178,7 @@ static struct packet *slave_updated(pid_t pid, int handle, struct packet *packet
 		instance_set_lb_info(inst, w, h, priority);
 
 		if (package_lb_type(instance_package(inst)) == LB_TYPE_SCRIPT) {
-			script_handler_resize(instance_lb_handle(inst), w, h);
+			script_handler_resize(instance_lb_script(inst), w, h);
 			ret = script_handler_parse_desc(pkgname, id, id, 0);
 		} else {
 			/*!
@@ -1226,7 +1236,7 @@ static struct packet *slave_desc_updated(pid_t pid, int handle, struct packet *p
 		instance_set_pd_info(inst, 0, 0);
 		instance_pd_updated(pkgname, id, descfile);
 		ret = 0;
-	} else if (script_handler_is_loaded(instance_pd_handle(inst))) {
+	} else if (script_handler_is_loaded(instance_pd_script(inst))) {
 		ret = script_handler_parse_desc(pkgname, id, descfile, 1);
 	} else {
 		ret = 0;
@@ -1238,6 +1248,16 @@ out:
 		ErrPrint("Failed to create a packet\n");
 
 	return result;
+}
+
+static struct packet *slave_acquire_buffer(pid_t pid, int handle, struct packet *packet) /* id, w, h, size */
+{
+	return NULL;
+}
+
+static struct packet *slave_release_buffer(pid_t pid, int handle, struct packet *packet)
+{
+	return NULL;
 }
 
 static struct packet *slave_deleted(pid_t pid, int handle, struct packet *packet) /* slave_name, pkgname, id, ret */
@@ -1252,7 +1272,7 @@ static struct packet *slave_deleted(pid_t pid, int handle, struct packet *packet
 
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
-		ErrPrint("Client %d is not exists\n", pid);
+		ErrPrint("Slave %d is not exists\n", pid);
 		ret = -ENOENT;
 		goto out;
 	}
@@ -1315,7 +1335,7 @@ static struct method s_table[] = {
 	},
 	{
 		.cmd = "set_period",
-		.handler = client_set_period, /* pid, pkgname, filename, period, ret */
+		.handler = client_set_period, /* pid, pkgname, filename, period, ret, period */
 	},
 	{
 		.cmd = "change_group",
@@ -1397,6 +1417,14 @@ static struct method s_table[] = {
 		.handler = slave_deleted, /* slave_name, pkgname, filename, ret */
 	},
 	{
+		.cmd = "acquire_buffer",
+		.handler = slave_acquire_buffer, /* slave_name, id, w, h, size, - out - type, shmid */
+	},
+	{
+		.cmd = "release_buffer",
+		.handler = slave_release_buffer, /* slave_name, id - ret */
+	},
+	{
 		.cmd = NULL,
 		.handler = NULL,
 	},
@@ -1407,7 +1435,7 @@ int server_init(void)
 	if (unlink("/tmp/.live.socket") < 0)
 		ErrPrint("unlink: %s\n", strerror(errno));
 
-	s_info.fd = connector_packet_server_init("/tmp/.live.socket", s_table);
+	s_info.fd = com_core_packet_server_init("/tmp/.live.socket", s_table);
 	if (s_info.fd < 0) {
 		ErrPrint("Failed to create a server socket\n");
 		return s_info.fd;
@@ -1419,7 +1447,7 @@ int server_init(void)
 
 int server_fini(void)
 {
-	connector_packet_server_fini(s_info.fd);
+	com_core_packet_server_fini(s_info.fd);
 	return 0;
 }
 

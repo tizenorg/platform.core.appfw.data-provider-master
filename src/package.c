@@ -53,6 +53,10 @@ struct pkg_info {
 			struct {
 				/*!< Reserved for future use */
 			} text;
+
+			struct {
+				/*!< Reserved for future use */
+			} buffer;
 		} info;
 
 		unsigned int size_list;
@@ -72,6 +76,10 @@ struct pkg_info {
 			struct {
 				/*!< Reserved for future use */
 			} text;
+
+			struct {
+				/*!< Reserved for future use */
+			} buffer;
 		} info;
 
 		unsigned int width;

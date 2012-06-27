@@ -8,7 +8,7 @@
 #include <gio/gio.h>
 
 #include <packet.h>
-#include <connector_packet.h>
+#include <com-core_packet.h>
 
 #include "conf.h"
 #include "util.h"
@@ -63,7 +63,8 @@ struct inst_info {
 		int height;
 		double priority;
 		int is_pinned_up;
-		struct script_info *handle;
+		struct script_info *script;
+		struct buffer_info *buffer;
 
 		int auto_launch;
 	} lb;
@@ -71,7 +72,9 @@ struct inst_info {
 	struct {
 		int width;
 		int height;
-		struct script_info *handle;
+		struct script_info *script;
+		struct buffer_info *buffer;
+
 		int is_opened_for_reactivate;
 	} pd;
 
@@ -95,8 +98,8 @@ int instance_unicast_created_event(struct inst_info *inst, struct client_node *c
 			inst->lb.width, inst->lb.height,
 			inst->pd.width, inst->pd.height,
 			inst->cluster, inst->category,
-			fb_filename(script_handler_fb(inst->lb.handle)),
-			fb_filename(script_handler_fb(inst->pd.handle)),
+			fb_filename(script_handler_fb(inst->lb.script)),
+			fb_filename(script_handler_fb(inst->pd.script)),
 			inst->lb.auto_launch,
 			inst->lb.priority,
 			package_size_list(inst->info),
@@ -126,8 +129,8 @@ int instance_broadcast_created_event(struct inst_info *inst)
 			inst->lb.width, inst->lb.height,
 			inst->pd.width, inst->pd.height,
 			inst->cluster, inst->category,
-			fb_filename(script_handler_fb(inst->lb.handle)),
-			fb_filename(script_handler_fb(inst->pd.handle)),
+			fb_filename(script_handler_fb(inst->lb.script)),
+			fb_filename(script_handler_fb(inst->pd.script)),
 			inst->lb.auto_launch,
 			inst->lb.priority,
 			package_size_list(inst->info),
@@ -181,14 +184,14 @@ static int client_deactivated_cb(struct client_node *client, void *data)
 
 static inline void destroy_instance(struct inst_info *inst)
 {
-	if (inst->lb.handle) {
-		script_handler_unload(inst->lb.handle, 0);
-		script_handler_destroy(inst->lb.handle);
+	if (inst->lb.script) {
+		script_handler_unload(inst->lb.script, 0);
+		script_handler_destroy(inst->lb.script);
 	}
 
-	if (inst->pd.handle) {
-		script_handler_unload(inst->pd.handle, 1);
-		script_handler_destroy(inst->pd.handle);
+	if (inst->pd.script) {
+		script_handler_unload(inst->pd.script, 1);
+		script_handler_destroy(inst->pd.script);
 	}
 
 	if (inst->client) {
@@ -328,6 +331,7 @@ struct inst_info *instance_unref(struct inst_info *inst)
 static void deactivate_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	struct inst_info *inst = data;
+	struct pkg_info *info;
 	int ret;
 
 	if (!packet) {
@@ -365,14 +369,17 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 		 */
 		switch (inst->requested_state) {
 		case INST_ACTIVATED:
+			DbgPrint("REQ: ACTIVATED\n");
 			instance_state_reset(inst);
 			instance_reactivate(inst);
 			break;
 		case INST_DESTROYED:
-			slave_unload_instance(package_slave(inst->info));
+			DbgPrint("==\n");
+			info = inst->info;
 			instance_broadcast_deleted_event(inst);
 			instance_state_reset(inst);
 			instance_destroy(inst);
+			slave_unload_instance(package_slave(info));
 		default:
 			/*!< Unable to reach here */
 			break;
@@ -405,10 +412,11 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 		 * but care this exceptional case.
 		 */
 		DbgPrint("[%s] instance destroying ret(%d)\n", package_name(inst->info), ret);
-		slave_unload_instance(package_slave(inst->info));
+		info = inst->info;
 		instance_broadcast_deleted_event(inst);
 		instance_state_reset(inst);
 		instance_destroy(inst);
+		slave_unload_instance(package_slave(info));
 		break;
 	}
 
@@ -418,6 +426,7 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 static void reactivate_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	struct inst_info *inst = data;
+	struct pkg_info *info;
 	int ret;
 
 	if (!packet) {
@@ -455,21 +464,22 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 			instance_destroy(inst);
 			break;
 		case INST_ACTIVATED:
-			if (inst->lb.handle)
-				script_handler_load(inst->lb.handle, 0);
+			if (inst->lb.script)
+				script_handler_load(inst->lb.script, 0);
 
-			if (inst->pd.handle && inst->pd.is_opened_for_reactivate)
-				script_handler_load(inst->pd.handle, 1);
+			if (inst->pd.script && inst->pd.is_opened_for_reactivate)
+				script_handler_load(inst->pd.script, 1);
 		default:
 			break;
 		}
 		break;
 	default:
-		DbgPrint("[%s] instance destroying ret(%d)\n", package_name(inst->info), ret);
-		slave_unload_instance(package_slave(inst->info));
+		info = inst->info;
+		DbgPrint("[%s] instance destroying ret(%d)\n", package_name(info), ret);
 		instance_broadcast_deleted_event(inst);
 		instance_state_reset(inst);
 		instance_destroy(inst);
+		slave_unload_instance(package_slave(info));
 		break;
 	}
 
@@ -543,21 +553,21 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 			 * LB should be created at the create time
 			 */
 			if (package_lb_type(inst->info) == LB_TYPE_SCRIPT) {
-				inst->lb.handle = script_handler_create(inst,
+				inst->lb.script = script_handler_create(inst,
 								package_lb_path(inst->info), package_lb_group(inst->info),
 								inst->lb.width, inst->lb.height);
 
-				if (!inst->lb.handle)
+				if (!inst->lb.script)
 					ErrPrint("Failed to create LB\n");
 				else
-					script_handler_load(inst->lb.handle, 0);
+					script_handler_load(inst->lb.script, 0);
 			}
 
 			if (package_pd_type(inst->info) == PD_TYPE_SCRIPT) {
-				inst->pd.handle = script_handler_create(inst,
+				inst->pd.script = script_handler_create(inst,
 								package_pd_path(inst->info), package_pd_group(inst->info),
 								inst->pd.width, inst->pd.height);
-				if (!inst->pd.handle)
+				if (!inst->pd.script)
 					ErrPrint("Failed to create PD\n");
 			}
 
@@ -579,6 +589,8 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 
 int instance_destroyed(struct inst_info *inst)
 {
+	struct pkg_info *info;
+
 	switch (inst->state) {
 	case INST_INIT:
 	case INST_REQUEST_TO_ACTIVATE:
@@ -597,10 +609,13 @@ int instance_destroyed(struct inst_info *inst)
 	case INST_REQUEST_TO_REACTIVATE:
 	case INST_REQUEST_TO_DESTROY:
 	case INST_ACTIVATED:
-		DbgPrint("Call unload instance (%s)\n", package_name(inst->info));
-		slave_unload_instance(package_slave(inst->info));
-		DbgPrint("Broadcast deleted event\n");
+		info = inst->info;
 		instance_broadcast_deleted_event(inst);
+		instance_state_reset(inst);
+		inst->state = INST_DESTROYED;
+		inst->requested_state = INST_DESTROYED;
+		instance_unref(inst);
+		slave_unload_instance(package_slave(info));
 	case INST_DESTROYED:
 		break;
 	default:
@@ -626,9 +641,12 @@ int instance_destroy(struct inst_info *inst)
 		inst->requested_state = INST_DESTROYED;
 		return 0;
 	case INST_INIT:
+		inst->state = INST_DESTROYED;
+		inst->requested_state = INST_DESTROYED;
 		instance_unref(inst);
 		return 0;
 	case INST_DESTROYED:
+		inst->requested_state = INST_DESTROYED;
 		return 0;
 	default:
 		break;
@@ -655,12 +673,12 @@ int instance_state_reset(struct inst_info *inst)
 	if (inst->state == INST_DESTROYED)
 		return 0;
 
-	if (inst->lb.handle)
-		script_handler_unload(inst->lb.handle, 0);
+	if (inst->lb.script)
+		script_handler_unload(inst->lb.script, 0);
 
-	if (inst->pd.handle) {
-		inst->pd.is_opened_for_reactivate = inst->pd.handle ? script_handler_is_loaded(inst->pd.handle) : 0;
-		script_handler_unload(inst->pd.handle, 1);
+	if (inst->pd.script) {
+		inst->pd.is_opened_for_reactivate = inst->pd.script ? script_handler_is_loaded(inst->pd.script) : 0;
+		script_handler_unload(inst->pd.script, 1);
 	}
 
 	inst->state = INST_INIT;
@@ -791,7 +809,9 @@ void instance_lb_updated_by_instance(struct inst_info *inst)
 {
 	struct packet *packet;
 
-	packet = packet_create("lb_updated", "ssiid", package_name(inst->info), inst->id, inst->lb.width, inst->lb.height, inst->lb.priority);
+	packet = packet_create("lb_updated", "sssiid",
+			package_name(inst->info), inst->id, fb_filename(script_handler_fb(inst->lb.script)),
+			inst->lb.width, inst->lb.height, inst->lb.priority);
 	if (!packet) {
 		ErrPrint("Failed to create param (%s - %s)\n", package_name(inst->info), inst->id);
 		return;
@@ -807,7 +827,10 @@ void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfil
 	if (!descfile)
 		descfile = inst->id;
 
-	packet = packet_create("pd_updated", "sssii", package_name(inst->info), inst->id, descfile, inst->pd.width, inst->pd.height);
+			
+	packet = packet_create("pd_updated", "ssssii",
+			package_name(inst->info), inst->id, descfile, fb_filename(script_handler_fb(inst->pd.script)),
+			inst->pd.width, inst->pd.height);
 	if (!packet) {
 		ErrPrint("Failed to create param (%s - %s)\n", package_name(inst->info), inst->id);
 		return;
@@ -847,21 +870,16 @@ static void pinup_cb(struct slave_node *slave, const struct packet *packet, void
 	struct set_pinup_cbdata *cbdata = data;
 	int ret;
 
-	if (!packet) {
-		instance_unref(cbdata->inst);
-		free(cbdata);
-		return;
-	}
+	if (!packet)
+		goto out;
 
-	if (packet_get(packet, "i", &ret) != 1) {
-		instance_unref(cbdata->inst);
-		free(cbdata);
-		return;
-	}
+	if (packet_get(packet, "i", &ret) != 1)
+		goto out;
 
 	if (ret == 0)
 		cbdata->inst->lb.is_pinned_up = cbdata->pinup;
 
+out:
 	instance_unref(cbdata->inst);
 	free(cbdata);
 }
@@ -911,6 +929,7 @@ static void resize_cb(struct slave_node *slave, const struct packet *packet, voi
 
 	if (packet_get(packet, "i", &ret) != 1) {
 		ErrPrint("Invalid parameter\n");
+		instance_unref(cbdata->inst);
 		free(cbdata);
 		return;
 	}
@@ -1175,14 +1194,14 @@ const struct pkg_info *const instance_package(const struct inst_info *inst)
 	return inst->info;
 }
 
-struct script_info *const instance_lb_handle(const struct inst_info *inst)
+struct script_info *const instance_lb_script(const struct inst_info *inst)
 {
-	return inst->lb.handle;
+	return inst->lb.script;
 }
 
-struct script_info * const instance_pd_handle(const struct inst_info *inst)
+struct script_info * const instance_pd_script(const struct inst_info *inst)
 {
-	return inst->pd.handle;
+	return inst->pd.script;
 }
 
 const char *const instance_id(const struct inst_info *inst)
@@ -1217,6 +1236,7 @@ const enum instance_state const instance_state(const struct inst_info *inst)
 
 void instance_faulted(struct inst_info *inst)
 {
+	struct pkg_info *info;
 	DbgPrint("Fault. DESTROYING (%s)\n", package_name(inst->info));
 
 	switch (inst->state) {
@@ -1229,10 +1249,12 @@ void instance_faulted(struct inst_info *inst)
 	case INST_REQUEST_TO_REACTIVATE:
 	case INST_REQUEST_TO_DESTROY:
 	case INST_ACTIVATED:
-		slave_unload_instance(package_slave(inst->info));
+		DbgPrint("==\n");
+		info = inst->info;
 		instance_state_reset(inst);
 		instance_broadcast_deleted_event(inst);
 		instance_destroy(inst);
+		slave_unload_instance(package_slave(info));
 		break;
 	case INST_DESTROYED:
 	default:
@@ -1240,8 +1262,12 @@ void instance_faulted(struct inst_info *inst)
 	}
 }
 
+/*!
+ * Invoked when a slave is activated
+ */
 void instance_recover_state(struct inst_info *inst)
 {
+	struct pkg_info *info;
 	switch (inst->state) {
 	case INST_ACTIVATED:
 	case INST_REQUEST_TO_REACTIVATE:
@@ -1254,9 +1280,10 @@ void instance_recover_state(struct inst_info *inst)
 			break;
 		case INST_DESTROYED:
 			DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
-			slave_unload_instance(package_slave(inst->info));
+			info = inst->info;
 			instance_state_reset(inst);
 			instance_destroy(inst);
+			slave_unload_instance(package_slave(info));
 			break;
 		default:
 			break;
@@ -1286,9 +1313,46 @@ void instance_recover_state(struct inst_info *inst)
 	}
 }
 
+/*!
+ * Invoked when a slave is deactivated
+ */
 int instance_need_slave(struct inst_info *inst)
 {
 	int ret = 0;
+	struct pkg_info *info;
+
+	if (inst->client && client_is_faulted(inst->client)) {
+		info = inst->info;
+
+		/*!
+		 * \note
+		 * In this case, the client is faulted(disconnected)
+		 * when the client is deactivated, its liveboxes should be removed too.
+		 * So if the current inst is created by the faulted client,
+		 * remove it and don't try to recover its states
+		 */
+
+		DbgPrint("CLIENT FAULT: Req. to DESTROYED (%s)\n", package_name(info));
+		switch (inst->state) {
+		case INST_ACTIVATED:
+		case INST_REQUEST_TO_REACTIVATE:
+		case INST_REQUEST_TO_DESTROY:
+			instance_state_reset(inst);
+			instance_destroy(inst);
+			slave_unload_instance(package_slave(info));
+			break;
+		case INST_INIT:
+		case INST_REQUEST_TO_ACTIVATE:
+			instance_state_reset(inst);
+			instance_destroy(inst);
+			break;
+		case INST_DESTROYED:
+			break;
+		}
+
+		return 0;
+	}
+
 	switch (inst->state) {
 	case INST_ACTIVATED:
 	case INST_REQUEST_TO_REACTIVATE:
@@ -1301,9 +1365,10 @@ int instance_need_slave(struct inst_info *inst)
 			break;
 		case INST_DESTROYED:
 			DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
+			info = inst->info;
 			instance_state_reset(inst);
-			slave_unload_instance(package_slave(inst->info));
 			instance_destroy(inst);
+			slave_unload_instance(package_slave(info));
 			break;
 		default:
 			break;

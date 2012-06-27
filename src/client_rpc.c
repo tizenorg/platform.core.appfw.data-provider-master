@@ -5,7 +5,7 @@
 #include <Ecore.h>
 
 #include <dlog.h>
-#include <connector_packet.h>
+#include <com-core_packet.h>
 #include <packet.h>
 
 #include "client_life.h"
@@ -131,7 +131,7 @@ static Eina_Bool command_consumer_cb(void *data)
 	}
 
 	DbgPrint("Send a packet to client [%s]\n", packet_command(command->packet));
-	if (connector_packet_async_send(rpc->handle, command->packet, recv_cb, command) < 0)
+	if (com_core_packet_async_send(rpc->handle, command->packet, recv_cb, command) < 0)
 		destroy_command(command);
 
 	return ECORE_CALLBACK_RENEW;
@@ -196,6 +196,8 @@ static int deactivated_cb(struct client_node *client, void *data)
 {
 	struct client_rpc *rpc;
 	struct command *command;
+	Eina_List *l;
+	Eina_List *n;
 
 	rpc = client_data(client, "rpc");
 	if (!rpc) {
@@ -203,8 +205,13 @@ static int deactivated_cb(struct client_node *client, void *data)
 		return 0;
 	}
 
-	while ((command = pop_command()))
-		destroy_command(command);
+	DbgPrint("Reset handle for %d\n", client_pid(client));
+	rpc->handle = -1;
+
+	EINA_LIST_FOREACH_SAFE(s_info.command_list, l, n, command) {
+		if (command->client == client)
+			destroy_command(command);
+	}
 
 	return 0;
 }
@@ -244,6 +251,7 @@ int client_rpc_initialize(struct client_node *client, int handle)
 		return ret;
 	}
 
+	DbgPrint("CLIENT: New handle assigned for %d, %d\n", client_pid(client), handle);
 	rpc->handle = handle;
 
 	client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, deactivated_cb, NULL);

@@ -110,8 +110,7 @@ static inline void destroy_client_data(struct client_node *client)
 		free(data);
 	}
 
-	EINA_LIST_FOREACH_SAFE(client->event_deactivate_list, l, n, event) {
-		client->event_deactivate_list = eina_list_remove(client->event_deactivate_list, event);
+	EINA_LIST_FREE(client->event_deactivate_list, event) {
 		free(event);
 	}
 

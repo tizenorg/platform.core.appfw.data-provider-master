@@ -3,12 +3,14 @@ enum lb_type {
 	LB_TYPE_SCRIPT,
 	LB_TYPE_FILE,
 	LB_TYPE_TEXT,
+	LB_TYPE_BUFFER,
 };
 
 enum pd_type {
 	PD_TYPE_NONE = 0x0,
 	PD_TYPE_SCRIPT,
 	PD_TYPE_TEXT,
+	PD_TYPE_BUFFER,
 };
 
 struct pkg_info;

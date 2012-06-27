@@ -129,14 +129,14 @@ static void render_post_cb(void *data, Evas *e, void *event_info)
 	evas_render_dump(e);
 
 	DbgPrint("Render post invoked (%s)[%s]\n", package_name(instance_package(inst)), util_basename(instance_id(inst)));
-	info = instance_lb_handle(inst);
+	info = instance_lb_script(inst);
 	if (info && script_handler_evas(info) == e) {
 		fb_sync(script_handler_fb(info));
 		instance_lb_updated_by_instance(inst);
 		return;
 	}
 
-	info = instance_pd_handle(inst);
+	info = instance_pd_script(inst);
 	if (info && script_handler_evas(info) == e) {
 		fb_sync(script_handler_fb(info));
 		instance_pd_updated_by_instance(inst, NULL);
@@ -277,32 +277,17 @@ int script_handler_unload(struct script_info *info, int is_pd)
 struct script_info *script_handler_create(struct inst_info *inst, const char *file, const char *group, int w, int h)
 {
 	struct script_info *info;
-	char *filename;
-	int fname_len;
 
 	if (!file)
 		return NULL;
 
-	fname_len = strlen(g_conf.path.image) + strlen(util_basename(file)) + 30;
-
-	filename = malloc(fname_len);
-	if (!filename) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		return NULL;
-	}
-
-	snprintf(filename, fname_len, "%s%s.%lf",
-			g_conf.path.image, util_basename(file), util_timestamp());
-
 	info = calloc(1, sizeof(*info));
 	if (!info) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(filename);
 		return NULL;
 	}
 
-	info->fb = fb_create(filename, w, h);
-	free(filename);
+	info->fb = fb_create(w, h, FB_TYPE_FILE);
 	if (!info->fb) {
 		ErrPrint("Failed to create a FB (%dx%d)\n", w, h);
 		free(info);
@@ -378,7 +363,7 @@ static int update_script_text(struct inst_info *inst, struct block *block, int i
 		return -EINVAL;
 	}
 
-	info = is_pd ? instance_pd_handle(inst) : instance_lb_handle(inst);
+	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL\n");
 		return -EFAULT;
@@ -402,7 +387,7 @@ static int update_script_image(struct inst_info *inst, struct block *block, int 
 		return -EINVAL;
 	}
 
-	info = is_pd ? instance_pd_handle(inst) : instance_lb_handle(inst);
+	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL\n");
 		return -EFAULT;
@@ -426,7 +411,7 @@ static int update_script_script(struct inst_info *inst, struct block *block, int
 		return -EINVAL;
 	}
 
-	info = is_pd ? instance_pd_handle(inst) : instance_lb_handle(inst);
+	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL\n");
 		return -EFAULT;
@@ -450,7 +435,7 @@ static int update_script_signal(struct inst_info *inst, struct block *block, int
 		return -EINVAL;
 	}
 
-	info = is_pd ? instance_pd_handle(inst) : instance_lb_handle(inst);
+	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL\n");
 		return -EFAULT;
@@ -475,7 +460,7 @@ static int update_script_drag(struct inst_info *inst, struct block *block, int i
 		return -EINVAL;
 	}
 
-	info = is_pd ? instance_pd_handle(inst) : instance_lb_handle(inst);
+	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL\n");
 		return -EFAULT;
@@ -523,7 +508,7 @@ static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 		return -EINVAL;
 	}
 
-	info = is_pd ? instance_pd_handle(inst) : instance_lb_handle(inst);
+	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL\n");
 		return -EFAULT;
@@ -979,9 +964,9 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 		struct script_info *info;
 		Evas *e;
 		if (is_pd)
-			info = instance_pd_handle(inst);
+			info = instance_pd_script(inst);
 		else
-			info = instance_lb_handle(inst);
+			info = instance_lb_script(inst);
 
 		if (info) {
 			e = script_handler_evas(info);

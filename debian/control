@@ -2,7 +2,7 @@ Source: data-provider-master
 Section: utils
 Priority: extra
 Maintainer: Sung-jae Park <nicesj.park@samsung.com>, Youngjoo Park <yjoo93.park@samsung.com>
-Build-Depends: debhelper (>= 5), libail-0-dev, dlog-dev, libaul-1-dev, libglib2.0-dev, libbundle-dev, libecore-dev, libslp-setting-dev, libecore-dev, libevas-dev, libcontext-engine-dev, libconnector-dev
+Build-Depends: debhelper (>= 5), libail-0-dev, dlog-dev, libaul-1-dev, libglib2.0-dev, libbundle-dev, libecore-dev, libslp-setting-dev, libecore-dev, libevas-dev, libcontext-engine-dev, libcom-core-dev
 Standards-Version: 0.1.0
 
 Package: com.samsung.data-provider-master

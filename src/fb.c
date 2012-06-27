@@ -5,6 +5,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <sys/shm.h>
+#include <sys/ipc.h>
 
 #include <dlog.h>
 
@@ -17,14 +19,28 @@
 
 int errno;
 
+struct buffer {
+	enum {
+		CREATED = 0x00beef00,
+		DESTROYED = 0x00dead00,
+	} state;
+	enum {
+		BUFFER_FILE = 0x0,
+		BUFFER_SHM = 0x1,
+	} type;
+	int refcnt;
+	char data[];
+};
+
 struct fb_info {
+	enum fb_type type;
+
 	Ecore_Evas *ee;
 	int w;
 	int h;
 	char *filename;
-	int fd;
 
-	void *buffer;
+	struct buffer *buffer;
 	int bufsz;
 };
 
@@ -41,55 +57,99 @@ int fb_fini(void)
 static void *alloc_fb(void *data, int size)
 {
 	struct fb_info *info;
+	int fname_len;
 
 	info = data;
 
-	info->fd = open(info->filename, O_RDWR | O_CREAT, 0644);
-	if (info->fd < 0) {
-		ErrPrint("%s open failed: %s\n", info->filename, strerror(errno));
-		if (unlink(info->filename) < 0)
-			ErrPrint("unlink: %s - %s\n", info->filename, strerror(errno));
-		return NULL;
-	}
+	if (size != info->w * info->h * sizeof(int))
+		ErrPrint("Buffer size is not matched\n");
 
-	info->buffer = calloc(1, size);
-	if (!info->buffer) {
-		close(info->fd);
-		info->fd = -EINVAL;
-		if (unlink(info->filename) < 0)
-			ErrPrint("unlink: %s - %s\n", info->filename, strerror(errno));
+	fname_len = strlen(g_conf.path.image) + 30;
 
-		return NULL;
+	if (info->type == FB_TYPE_FILE) {
+		info->buffer = calloc(1, size + sizeof(*info->buffer));
+		if (!info->buffer) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			return NULL;
+		}
+
+		info->buffer->type = BUFFER_FILE;
+
+		snprintf(info->filename, fname_len, "%s%lf", g_conf.path.image, util_timestamp());
+	} else if (info->type == FB_TYPE_SHM) {
+		int id;
+
+		id = shmget(IPC_PRIVATE, size + sizeof(*info->buffer), IPC_CREAT | 0644);
+		if (id < 0) {
+			ErrPrint("shmget: %s\n", strerror(errno));
+			return NULL;
+		}
+
+		info->buffer = shmat(id, NULL, 0);
+		if (!info->buffer) {
+			ErrPrint("%s shmat: %s\n", info->filename, strerror(errno));
+
+			if (shmctl(id, IPC_RMID, 0) < 0)
+				ErrPrint("%s shmctl: %s\n", info->filename, strerror(errno));
+
+			return NULL;
+		}
+
+		info->buffer->type = BUFFER_SHM;
+
+		snprintf(info->filename, fname_len, "shm://%d", id);
 	}
 
 	info->bufsz = size;
-	return info->buffer;
+	return info->buffer->data;
 }
 
 static void free_fb(void *data, void *ptr)
 {
 	struct fb_info *info;
+	int fname_len;
 
 	info = data;
 
-//	munmap(info->buffer, info->bufsz);
-	if (info->buffer) {
+	if (!info->buffer) {
+		ErrPrint("Buffer is not valid (maybe already released)\n");
+		return;
+	}
+
+	if (info->buffer->data != ptr)
+		ErrPrint("Buffer pointer is not matched\n");
+
+	fname_len = strlen(g_conf.path.image) + 30;
+
+	if (info->type == FB_TYPE_FILE) {
 		free(info->buffer);
 		info->buffer = NULL;
-	}
 
-	if (info->fd >= 0) {
-		close(info->fd);
-		info->fd = -EINVAL;
-	}
+		strncpy(info->filename, "undefined", fname_len);
+	} else if (info->type == FB_TYPE_SHM) {
+		int id;
 
-	if (unlink(info->filename) < 0)
-		ErrPrint("Unlink: %s - %s\n", info->filename, strerror(errno));
+		if (sscanf(info->filename, "shm://%d", &id) != 1) {
+			ErrPrint("Unable to get the SHMID\n");
+			return;
+		}
+
+		if (shmdt(info->buffer) < 0)
+			ErrPrint("Failed to detatch: %s\n", strerror(errno));
+
+		info->buffer = NULL;
+
+		if (shmctl(id, IPC_RMID, 0) < 0)
+			ErrPrint("%s shmctl: %s\n", info->filename, strerror(errno));
+
+		strncpy(info->filename, "undefined", fname_len);
+	}
 }
 
-struct fb_info *fb_create(const char *filename, int w, int h)
+struct fb_info *fb_create(int w, int h, enum fb_type type)
 {
 	struct fb_info *info;
+	int fname_len;
 
 	info = calloc(1, sizeof(*info));
 	if (!info) {
@@ -97,19 +157,21 @@ struct fb_info *fb_create(const char *filename, int w, int h)
 		return NULL;
 	}
 
+	fname_len = strlen(g_conf.path.image) + 30;
+
 	info->w = w;
 	info->h = h;
-
-	info->filename = strdup(filename);
+	info->type = type;
+	info->filename = malloc(fname_len);
 	if (!info->filename) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		free(info);
 		return NULL;
 	}
-
-	info->fd = -EINVAL;
+	info->buffer = NULL;
 	info->ee = NULL;
 
+	strncpy(info->filename, "undefined", fname_len);
 	return info;
 }
 
@@ -171,7 +233,10 @@ Ecore_Evas * const fb_canvas(struct fb_info *info)
 
 const char *fb_filename(struct fb_info *fb)
 {
-	return (fb && fb->filename) ? fb->filename : "";
+	if (!fb)
+		return "";
+
+	return fb->filename;
 }
 
 int fb_resize(struct fb_info *info, int w, int h)
@@ -207,23 +272,26 @@ static inline struct flock *file_lock(short type, short whence)
 
 void fb_sync(struct fb_info *info)
 {
-	if (info->fd < 0 || !info->buffer)
+	int fd;
+	if (!info->buffer || info->type != FB_TYPE_FILE)
 		return;
 
-//	fcntl(info->fd, F_SETLKW, file_lock(F_WRLCK, SEEK_SET));
-
-	if (lseek(info->fd, 0l, SEEK_SET) != 0) {
-		ErrPrint("Failed to do seek : %s\n", strerror(errno));
-//		fcntl(info->fd, F_SETLKW, file_lock(F_UNLCK, SEEK_SET));
+	fd = open(info->filename, O_WRONLY | O_CREAT, 0644);
+	if (fd < 0) {
+		ErrPrint("%s open falied: %s\n", info->filename, strerror(errno));
 		return;
 	}
 
-	if (write(info->fd, info->buffer, info->bufsz) != info->bufsz)
+//	fcntl(fd, F_SETLKW, file_lock(F_WRLCK, SEEK_SET));
+	if (write(fd, info->buffer, info->bufsz) != info->bufsz) {
 		ErrPrint("Write is not completed: %s\n", strerror(errno));
+//		fcntl(fd, F_SETLKW, file_lock(F_UNLCK, SEEK_SET));
+		close(fd);
+		return;
+	}
+//	fcntl(fd, F_SETLKW, file_lock(F_UNLCK, SEEK_SET));
 
-//	fcntl(info->fd, F_SETLKW, file_lock(F_UNLCK, SEEK_SET));
-//	if (msync(info->buffer, info->bufsz, MS_SYNC) < 0)
-//		ErrPrint("Sync: %s\n", strerror(errno));
+	close(fd);
 }
 
 /* End of a file */

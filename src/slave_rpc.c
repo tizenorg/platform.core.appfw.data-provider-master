@@ -10,7 +10,7 @@
 #include <dlog.h>
 
 #include <packet.h>
-#include <connector_packet.h>
+#include <com-core_packet.h>
 
 #include "debug.h"
 #include "slave_life.h"
@@ -120,6 +120,7 @@ static int slave_async_cb(pid_t pid, int handle, const struct packet *packet, vo
 	}
 
 	if (!packet) {
+		DbgPrint("packet == NULL\n");
 		if (command->ret_cb)
 			command->ret_cb(command->slave, packet, command->cbdata);
 
@@ -135,6 +136,11 @@ out:
 	return 0;
 }
 
+static inline void prepend_command(struct command *command)
+{
+	s_info.command_list = eina_list_prepend(s_info.command_list, command);
+}
+
 static Eina_Bool command_consumer_cb(void *data)
 {
 	struct command *command;
@@ -146,7 +152,7 @@ static Eina_Bool command_consumer_cb(void *data)
 		return ECORE_CALLBACK_CANCEL;
 	}
 
-	if (!slave_is_activated(command->slave)) {
+	if (!slave_is_activated(command->slave) || slave_is_faulted(command->slave)) {
 		ErrPrint("Slave is not activated: %s(%d)\n",
 				slave_name(command->slave), slave_pid(command->slave));
 		goto errout;
@@ -175,8 +181,18 @@ static Eina_Bool command_consumer_cb(void *data)
 		goto errout;
 	}
 
-	if (connector_packet_async_send(rpc->handle, command->packet, slave_async_cb, command) == 0)
+	if (com_core_packet_async_send(rpc->handle, command->packet, slave_async_cb, command) == 0)
 		return ECORE_CALLBACK_RENEW;
+
+	/*!
+	 * \WARN
+	 * What happens at here?
+	 * We are failed to send a packet!!!
+	 * Let's try to send this again
+	 */
+	DbgPrint("Send this packet again\n");
+	prepend_command(command);
+	return ECORE_CALLBACK_RENEW;
 
 errout:
 	if (command->ret_cb)
@@ -229,6 +245,13 @@ static int slave_deactivate_cb(struct slave_node *slave, void *data)
 			destroy_command(command);
 		}
 	}
+
+	/*!
+	 * \note
+	 * Reset handle
+	 */
+	DbgPrint("Reset handle for %d\n", slave_pid(slave));
+	rpc->handle = -1;
 
 	/*!
 	 * \todo
@@ -325,6 +348,7 @@ int slave_rpc_update_handle(struct slave_node *slave, int handle)
 	if (!rpc)
 		return -EINVAL;
 
+	DbgPrint("SLAVE: New handle assigned for %d, %d\n", slave_pid(slave), handle);
 	rpc->handle = handle;
 	if (rpc->pong_timer)
 		ecore_timer_del(rpc->pong_timer);
@@ -333,6 +357,12 @@ int slave_rpc_update_handle(struct slave_node *slave, int handle)
 	if (!rpc->pong_timer)
 		ErrPrint("Failed to add ping timer\n");
 
+	/*!
+	 * \note
+	 * slave_activated will call the activated callback.
+	 * activated callback will try to recover the normal instances state.
+	 * so the reset_fault should be called after slave_activated function.
+	 */
 	slave_activated(slave);
 	slave_reset_fault(slave);
 
