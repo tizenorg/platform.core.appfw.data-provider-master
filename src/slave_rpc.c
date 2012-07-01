@@ -332,10 +332,12 @@ int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, struc
 	if (!slave_rpc_is_valid(rpc)) {
 		DbgPrint("RPC info is not ready to use, push this to pending list\n");
 		rpc->pending_list = eina_list_append(rpc->pending_list, command);
+		packet_unref(packet);
 		return 0;
 	}
 
 	push_command(command);
+	packet_unref(packet);
 	return 0;
 }
 
