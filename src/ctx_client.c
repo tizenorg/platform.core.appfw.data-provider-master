@@ -288,7 +288,8 @@ static Eina_Bool delayed_ctx_init_cb(void *data)
 	/*!
 	 * Triggering all events first
 	 */
-	ctx_update(0xFFFFFFFF);
+	if (s_info.enabled)
+		ctx_update(0xFFFFFFFF);
 
 	return ECORE_CALLBACK_CANCEL;
 }

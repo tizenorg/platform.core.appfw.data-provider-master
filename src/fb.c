@@ -256,20 +256,6 @@ void fb_get_size(struct fb_info *info, int *w, int *h)
 	*h = info->h;
 }
 
-/*
-static inline struct flock *file_lock(short type, short whence)
-{
-	static struct flock ret;
-
-	ret.l_type = type;
-	ret.l_start = 0;
-	ret.l_whence = whence;
-	ret.l_len = 0;
-	ret.l_pid = getpid();
-	return &ret;
-}
-*/
-
 void fb_sync(struct fb_info *info)
 {
 	int fd;
@@ -282,14 +268,11 @@ void fb_sync(struct fb_info *info)
 		return;
 	}
 
-//	fcntl(fd, F_SETLKW, file_lock(F_WRLCK, SEEK_SET));
 	if (write(fd, info->buffer, info->bufsz) != info->bufsz) {
 		ErrPrint("Write is not completed: %s\n", strerror(errno));
-//		fcntl(fd, F_SETLKW, file_lock(F_UNLCK, SEEK_SET));
 		close(fd);
 		return;
 	}
-//	fcntl(fd, F_SETLKW, file_lock(F_UNLCK, SEEK_SET));
 
 	close(fd);
 }
