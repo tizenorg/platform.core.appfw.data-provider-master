@@ -12,8 +12,6 @@
 #include <dlog.h>
 #include <bundle.h>
 
-#include <gio/gio.h> /* GDBusProxy */
-
 #include <packet.h>
 
 #include "slave_life.h"

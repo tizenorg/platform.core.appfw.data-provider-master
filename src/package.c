@@ -539,7 +539,7 @@ int package_set_fault_info(struct pkg_info *info, double timestamp, const char *
 int package_clear_fault(struct pkg_info *info)
 {
 	if (!info->fault_info)
-		return 0;
+		return -EINVAL;
 	
 	package_dump_fault_info(info);
 

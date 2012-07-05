@@ -393,7 +393,7 @@ static struct packet *client_change_group(pid_t pid, int handle, struct packet *
 	if (!inst)
 		ret = -ENOENT;
 	else if (package_is_fault(instance_package(inst)))
-		ret = -EAGAIN;
+		ret = -EFAULT;
 	else
 		ret = instance_change_group(inst, cluster, category);
 
@@ -442,7 +442,7 @@ static struct packet *client_pd_mouse_down(pid_t pid, int handle, struct packet 
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
-		ret = -EAGAIN;
+		ret = -EFAULT;
 	} else {
 		struct script_info *script;
 		Evas *e;
@@ -511,7 +511,7 @@ static struct packet *client_pd_mouse_up(pid_t pid, int handle, struct packet *p
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
-		ret = -EAGAIN;
+		ret = -EFAULT;
 	} else {
 		struct script_info *script;
 		Evas *e;
@@ -579,7 +579,7 @@ static struct packet *client_pd_mouse_move(pid_t pid, int handle, struct packet 
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
-		ret = -EAGAIN;
+		ret = -EFAULT;
 	} else {
 		struct script_info *script;
 		Evas *e;
@@ -646,7 +646,7 @@ static struct packet *client_lb_mouse_move(pid_t pid, int handle, struct packet 
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
-		ret = -EAGAIN;
+		ret = -EFAULT;
 	} else {
 		struct script_info *script;
 		Evas *e;
@@ -713,7 +713,7 @@ static struct packet *client_lb_mouse_down(pid_t pid, int handle, struct packet 
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
-		ret = -EAGAIN;
+		ret = -EFAULT;
 	} else {
 		struct script_info *script;
 		Evas *e;
@@ -782,7 +782,7 @@ static struct packet *client_lb_mouse_up(pid_t pid, int handle, struct packet *p
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
-		ret = -EAGAIN;
+		ret = -EFAULT;
 	} else {
 		struct script_info *script;
 		Evas *e;
@@ -1012,7 +1012,7 @@ static struct packet *slave_hello(pid_t pid, int handle, struct packet *packet) 
 
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
-		ErrPrint("Client %d is not exists\n", pid);
+		ErrPrint("Slave[%d] is not exists\n", pid);
 		ret = -ENOENT;
 		goto out;
 	}
@@ -1048,7 +1048,7 @@ static struct packet *slave_ping(pid_t pid, int handle, struct packet *packet) /
 
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
-		ErrPrint("Client %d is not exists\n", pid);
+		ErrPrint("Slave %d is not exists\n", pid);
 		ret = -ENOENT;
 		goto out;
 	}
@@ -1082,7 +1082,7 @@ static struct packet *slave_call(pid_t pid, int handle, struct packet *packet) /
 
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
-		ErrPrint("Client %d is not exists\n", pid);
+		ErrPrint("Slave %d is not exists\n", pid);
 		ret = -ENOENT;
 		goto out;
 	}
@@ -1153,7 +1153,7 @@ static struct packet *slave_updated(pid_t pid, int handle, struct packet *packet
 
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
-		ErrPrint("Client %d is not exists\n", pid);
+		ErrPrint("Slave %d is not exists\n", pid);
 		ret = -ENOENT;
 		goto out;
 	}
@@ -1211,7 +1211,7 @@ static struct packet *slave_desc_updated(pid_t pid, int handle, struct packet *p
 
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
-		ErrPrint("Client %d is not exists\n", pid);
+		ErrPrint("Slave %d is not exists\n", pid);
 		ret = -ENOENT;
 		goto out;
 	}
