@@ -64,6 +64,7 @@ extern void conf_update_size(void);
 #define DEFAULT_ABI	"c"
 #define DEFAULT_GROUP	"disclosure"
 #define BUNDLE_SLAVE_NAME "name"
+#define BUNDLE_SLAVE_SECURED "secured"
 #define PACKET_TIME 0.01f
 #define NO_CHANGE -1.0f
 

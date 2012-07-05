@@ -181,6 +181,12 @@ static Eina_Bool command_consumer_cb(void *data)
 		goto errout;
 	}
 
+	if (rpc->handle < 0) {
+		DbgPrint("(handle is not valid) Send this packet again\n");
+		prepend_command(command);
+		return ECORE_CALLBACK_RENEW;
+	}
+
 	if (com_core_packet_async_send(rpc->handle, command->packet, slave_async_cb, command) == 0)
 		return ECORE_CALLBACK_RENEW;
 

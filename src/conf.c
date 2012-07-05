@@ -58,7 +58,7 @@ struct conf g_conf = {
 	.max_size_type = 4,
 	.quality = "quality=100 compress=1",
 	.error = "/opt/apps/com.samsung."PACKAGE"/res/images/error.png",
-	.ping_time = 60.0f,
+	.ping_time = 240.0f,
 	.slave_max_load = 10,
 	.delayed_ctx_init_time = 1.0f,
 };

@@ -291,6 +291,7 @@ int slave_activate(struct slave_node *slave)
 	}
 
 	bundle_add(param, BUNDLE_SLAVE_NAME, slave->name);
+	bundle_add(param, BUNDLE_SLAVE_SECURED, slave->secured ? "true" : "false");
 	slave->pid = (pid_t)aul_launch_app(SLAVE_PKGNAME, param);
 	bundle_free(param);
 
