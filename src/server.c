@@ -27,7 +27,7 @@ static struct info {
 	.fd = -1,
 };
 
-static struct packet *client_acquire(pid_t pid, int handle, struct packet *packet) /*!< timestamp, ret */
+static struct packet *client_acquire(pid_t pid, int handle, const struct packet *packet) /*!< timestamp, ret */
 {
 	struct client_node *client;
 	struct packet *result;
@@ -71,7 +71,7 @@ out:
 	return result;
 }
 
-static struct packet *cilent_release(pid_t pid, int handle, struct packet *packet) /*!< pid, ret */
+static struct packet *cilent_release(pid_t pid, int handle, const struct packet *packet) /*!< pid, ret */
 {
 	struct client_node *client;
 	struct packet *result;
@@ -96,7 +96,7 @@ out:
 }
 
 /*!< pid, pkgname, filename, event, timestamp, x, y, ret */
-static struct packet *client_clicked(pid_t pid, int handle, struct packet *packet)
+static struct packet *client_clicked(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
 	struct packet *result;
@@ -140,7 +140,7 @@ out:
 }
 
 /* pid, pkgname, filename, emission, source, s, sy, ex, ey, ret */
-static struct packet *client_text_signal(pid_t pid, int handle, struct packet *packet)
+static struct packet *client_text_signal(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
 	struct packet *result;
@@ -185,7 +185,7 @@ out:
 	return result;
 }
 
-static struct packet *client_delete(pid_t pid, int handle, struct packet *packet) /* pid, pkgname, filename, ret */
+static struct packet *client_delete(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, ret */
 {
 	struct client_node *client;
 	struct packet *result;
@@ -225,7 +225,7 @@ out:
 	return result;
 }
 
-static struct packet *client_resize(pid_t pid, int handle, struct packet *packet) /* pid, pkgname, filename, w, h, ret */
+static struct packet *client_resize(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, w, h, ret */
 {
 	struct client_node *client;
 	struct packet *result;
@@ -266,7 +266,7 @@ out:
 	return result;
 }
 
-static struct packet *client_new(pid_t pid, int handle, struct packet *packet) /* pid, timestamp, pkgname, content, cluster, category, period, ret */
+static struct packet *client_new(pid_t pid, int handle, const struct packet *packet) /* pid, timestamp, pkgname, content, cluster, category, period, ret */
 {
 	struct client_node *client;
 	struct packet *result;
@@ -323,7 +323,7 @@ out:
 	return result;
 }
 
-static struct packet *client_set_period(pid_t pid, int handle, struct packet *packet) /* pid, pkgname, filename, period, ret */
+static struct packet *client_set_period(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, period, ret */
 {
 	struct client_node *client;
 	struct packet *result;
@@ -364,7 +364,7 @@ out:
 	return result;
 }
 
-static struct packet *client_change_group(pid_t pid, int handle, struct packet *packet) /* pid, pkgname, filename, cluster, category, ret */
+static struct packet *client_change_group(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, cluster, category, ret */
 {
 	struct client_node *client;
 	struct packet *result;
@@ -405,7 +405,7 @@ out:
 	return result;
 }
 
-static struct packet *client_pd_mouse_down(pid_t pid, int handle, struct packet *packet) /* pid, pkgname, id, width, height, timestamp, x, y, ret */
+static struct packet *client_pd_mouse_down(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, id, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
 	struct packet *result;
@@ -474,7 +474,7 @@ out:
 	return result;
 }
 
-static struct packet *client_pd_mouse_up(pid_t pid, int handle, struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+static struct packet *client_pd_mouse_up(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
 	struct packet *result;
@@ -542,7 +542,7 @@ out:
 	return result;
 }
 
-static struct packet *client_pd_mouse_move(pid_t pid, int handle, struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+static struct packet *client_pd_mouse_move(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
 	struct packet *result;
@@ -609,7 +609,7 @@ out:
 	return result;
 }
 
-static struct packet *client_lb_mouse_move(pid_t pid, int handle, struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+static struct packet *client_lb_mouse_move(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
 	struct packet *result;
@@ -676,7 +676,7 @@ out:
 	return result;
 }
 
-static struct packet *client_lb_mouse_down(pid_t pid, int handle, struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+static struct packet *client_lb_mouse_down(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
 	struct packet *result;
@@ -745,7 +745,7 @@ out:
 	return result;
 }
 
-static struct packet *client_lb_mouse_up(pid_t pid, int handle, struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+static struct packet *client_lb_mouse_up(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
 	struct packet *result;
@@ -814,7 +814,7 @@ out:
 	return result;
 }
 
-static struct packet *client_pinup_changed(pid_t pid, int handle, struct packet *packet) /* pid, pkgname, filename, pinup, ret */
+static struct packet *client_pinup_changed(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, pinup, ret */
 {
 	struct client_node *client;
 	struct packet *result;
@@ -856,7 +856,7 @@ out:
 	return result;
 }
 
-static struct packet *client_create_pd(pid_t pid, int handle, struct packet *packet) /* pid, pkgname, filename, ret */
+static struct packet *client_create_pd(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, ret */
 {
 	struct client_node *client;
 	struct packet *result;
@@ -895,7 +895,7 @@ out:
 	return result;
 }
 
-static struct packet *client_destroy_pd(pid_t pid, int handle, struct packet *packet) /* pid, pkgname, filename, ret */
+static struct packet *client_destroy_pd(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, ret */
 {
 	struct client_node *client;
 	struct packet *result;
@@ -934,7 +934,7 @@ out:
 	return result;
 }
 
-static struct packet *client_activate_package(pid_t pid, int handle, struct packet *packet) /* pid, pkgname, ret */
+static struct packet *client_activate_package(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, ret */
 {
 	struct client_node *client;
 	struct packet *result;
@@ -972,7 +972,7 @@ out:
 	return result;
 }
 
-static struct packet *client_livebox_is_exists(pid_t pid, int handle, struct packet *packet) /* pid, pkgname, ret */
+static struct packet *client_livebox_is_exists(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, ret */
 {
 	struct client_node *client;
 	struct packet *result;
@@ -1003,7 +1003,7 @@ out:
 	return result;
 }
 
-static struct packet *slave_hello(pid_t pid, int handle, struct packet *packet) /* slave_name, ret */
+static struct packet *slave_hello(pid_t pid, int handle, const struct packet *packet) /* slave_name, ret */
 {
 	struct slave_node *slave;
 	struct packet *result;
@@ -1039,7 +1039,7 @@ out:
 	return result;
 }
 
-static struct packet *slave_ping(pid_t pid, int handle, struct packet *packet) /* slave_name, ret */
+static struct packet *slave_ping(pid_t pid, int handle, const struct packet *packet) /* slave_name, ret */
 {
 	struct slave_node *slave;
 	struct packet *result;
@@ -1070,7 +1070,7 @@ out:
 	return result;
 }
 
-static struct packet *slave_call(pid_t pid, int handle, struct packet *packet) /* slave_name, pkgname, filename, function, ret */
+static struct packet *slave_call(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, filename, function, ret */
 {
 	struct slave_node *slave;
 	struct packet *result;
@@ -1104,7 +1104,7 @@ out:
 	return result;
 }
 
-static struct packet *slave_ret(pid_t pid, int handle, struct packet *packet) /* slave_name, pkgname, filename, function, ret */
+static struct packet *slave_ret(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, filename, function, ret */
 {
 	struct slave_node *slave;
 	struct packet *result;
@@ -1138,7 +1138,7 @@ out:
 	return result;
 }
 
-static struct packet *slave_updated(pid_t pid, int handle, struct packet *packet) /* slave_name, pkgname, filename, width, height, priority, ret */
+static struct packet *slave_updated(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, filename, width, height, priority, ret */
 {
 	struct slave_node *slave;
 	struct packet *result;
@@ -1198,7 +1198,7 @@ out:
 	return result;
 }
 
-static struct packet *slave_desc_updated(pid_t pid, int handle, struct packet *packet) /* slave_name, pkgname, filename, decsfile, ret */
+static struct packet *slave_desc_updated(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, filename, decsfile, ret */
 {
 	struct slave_node *slave;
 	struct packet *result;
@@ -1250,17 +1250,17 @@ out:
 	return result;
 }
 
-static struct packet *slave_acquire_buffer(pid_t pid, int handle, struct packet *packet) /* id, w, h, size */
+static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct packet *packet) /* id, w, h, size */
 {
 	return NULL;
 }
 
-static struct packet *slave_release_buffer(pid_t pid, int handle, struct packet *packet)
+static struct packet *slave_release_buffer(pid_t pid, int handle, const struct packet *packet)
 {
 	return NULL;
 }
 
-static struct packet *slave_deleted(pid_t pid, int handle, struct packet *packet) /* slave_name, pkgname, id, ret */
+static struct packet *slave_deleted(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, id, ret */
 {
 	struct slave_node *slave;
 	struct packet *result;

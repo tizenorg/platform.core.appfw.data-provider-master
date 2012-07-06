@@ -564,6 +564,11 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 			}
 
 			if (package_pd_type(inst->info) == PD_TYPE_SCRIPT) {
+				if (inst->pd.width == 0 && inst->pd.height == 0) {
+					inst->pd.width = package_pd_width(inst->info);
+					inst->pd.height = package_pd_height(inst->info);
+				}
+
 				inst->pd.script = script_handler_create(inst,
 								package_pd_path(inst->info), package_pd_group(inst->info),
 								inst->pd.width, inst->pd.height);

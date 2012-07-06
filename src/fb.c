@@ -62,7 +62,7 @@ static void *alloc_fb(void *data, int size)
 	info = data;
 
 	if (size != info->w * info->h * sizeof(int))
-		ErrPrint("Buffer size is not matched\n");
+		ErrPrint("Buffer size is not matched (%d <> %d)\n", size, info->w * info->h * sizeof(int));
 
 	fname_len = strlen(g_conf.path.image) + 30;
 
@@ -172,6 +172,7 @@ struct fb_info *fb_create(int w, int h, enum fb_type type)
 	info->ee = NULL;
 
 	strncpy(info->filename, "undefined", fname_len);
+	DbgPrint("FB Created [%dx%d]\n", info->w, info->h);
 	return info;
 }
 
