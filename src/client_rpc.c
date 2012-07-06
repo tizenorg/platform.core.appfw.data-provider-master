@@ -77,6 +77,7 @@ static int recv_cb(pid_t pid, int handle, const struct packet *packet, void *dat
 	if (!packet) {
 		DbgPrint("Client fault?\n");
 		client_fault(command->client);
+		command->client = NULL;
 	} else {
 		int ret;
 
