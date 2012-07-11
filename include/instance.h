@@ -128,6 +128,8 @@ extern const double const instance_timestamp(const struct inst_info *inst);
 extern const struct pkg_info * const instance_package(const struct inst_info *inst);
 extern struct script_info * const instance_lb_script(const struct inst_info *inst);
 extern struct script_info * const instance_pd_script(const struct inst_info *inst);
+extern struct buffer_info * const instance_pd_buffer(const struct inst_info *inst);
+extern struct buffer_info * const instance_lb_buffer(const struct inst_info *inst);
 extern const char * const instance_id(const struct inst_info *inst);
 extern const char * const instance_content(const struct inst_info *inst);
 extern const char * const instance_category(const struct inst_info *inst);

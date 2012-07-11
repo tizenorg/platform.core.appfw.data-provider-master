@@ -4,6 +4,7 @@
 
 #include <dlog.h>
 #include <Evas.h>
+#include <Ecore_Evas.h> /* fb.h */
 
 #include <packet.h>
 #include <com-core_packet.h>
@@ -18,13 +19,28 @@
 #include "instance.h"
 #include "package.h"
 #include "script_handler.h"
+#include "buffer_handler.h"
 #include "util.h"
 #include "fault_manager.h"
+#include "fb.h" /* fb_type */
 
 static struct info {
 	int fd;
 } s_info = {
 	.fd = -1,
+};
+
+/* Share this with provider */
+enum target_type {
+	TYPE_LB,
+	TYPE_PD,
+	TYPE_ERROR,
+};
+
+enum buffer_method {
+	BUFFER_SHM,
+	BUFFER_FILE,
+	BUFFER_ERROR,
 };
 
 static struct packet *client_acquire(pid_t pid, int handle, const struct packet *packet) /*!< timestamp, ret */
@@ -173,7 +189,7 @@ static struct packet *client_text_signal(pid_t pid, int handle, const struct pac
 	if (!inst)
 		ret = -ENOENT;
 	else if (package_is_fault(instance_package(inst)))
-		ret = -EAGAIN;
+		ret = -EFAULT;
 	else
 		ret = instance_text_signal_emit(inst, emission, source, sx, sy, ex, ey);
 
@@ -212,7 +228,7 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 	if (!inst) {
 		ret = -ENOENT;
 	} else if (package_is_fault(instance_package(inst))) {
-		ret = -EAGAIN;
+		ret = -EFAULT;
 	} else {
 		ret = instance_destroy(inst);
 	}
@@ -254,7 +270,7 @@ static struct packet *client_resize(pid_t pid, int handle, const struct packet *
 	if (!inst)
 		ret = -ENOENT;
 	else if (package_is_fault(instance_package(inst)))
-		ret = -EAGAIN;
+		ret = -EFAULT;
 	else
 		ret = instance_resize(inst, w, h);
 
@@ -300,7 +316,7 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 	if (!info) {
 		ret = -EFAULT;
 	} else if (package_is_fault(info)) {
-		ret = -EAGAIN;
+		ret = -EFAULT;
 	} else {
 		struct inst_info *inst;
 
@@ -418,6 +434,7 @@ static struct packet *client_pd_mouse_down(pid_t pid, int handle, const struct p
 	double x;
 	double y;
 	struct inst_info *inst;
+	const struct pkg_info *pkg;
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -435,15 +452,53 @@ static struct packet *client_pd_mouse_down(pid_t pid, int handle, const struct p
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
+		ErrPrint("Instance[%s] is not exists\n", id);
 		ret = -ENOENT;
-	} else if (package_is_fault(instance_package(inst))) {
+		goto out;
+	}
+
+	pkg = instance_package(inst);
+	if (!pkg) {
+		ErrPrint("Package[%s] info is not found\n", pkgname);
+		ret = -EFAULT;
+		goto out;
+	}
+
+	if (package_is_fault(pkg)) {
 		/*!
 		 * \note
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
 		ret = -EFAULT;
-	} else {
+	} else if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
+		struct buffer_info *buffer;
+		struct slave_node *slave;
+		struct packet *packet;
+
+		buffer = instance_pd_buffer(inst);
+		if (!buffer) {
+			ErrPrint("Instance[%s] has no buffer\n", id);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		slave = package_slave(pkg);
+		if (!slave) {
+			ErrPrint("Package[%s] has no slave\n", pkgname);
+			ret = -EINVAL;
+			goto out;
+		}
+
+		packet = packet_create("pd_mouse_down", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
+		if (!packet) {
+			ErrPrint("Failed to create a packet[%s]\n", pkgname);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
 
@@ -487,6 +542,7 @@ static struct packet *client_pd_mouse_up(pid_t pid, int handle, const struct pac
 	double x;
 	double y;
 	struct inst_info *inst;
+	const struct pkg_info *pkg;
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -504,15 +560,53 @@ static struct packet *client_pd_mouse_up(pid_t pid, int handle, const struct pac
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
+		ErrPrint("Instance[%s] is not exists\n", id);
 		ret = -ENOENT;
-	} else if (package_is_fault(instance_package(inst))) {
+		goto out;
+	}
+
+	pkg = instance_package(inst);
+	if (!pkg) {
+		ErrPrint("Package[%s] info is not exists\n", pkgname);
+		ret = -EFAULT;
+		goto out;
+	}
+
+	if (package_is_fault(pkg)) {
 		/*!
 		 * \note
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
 		ret = -EFAULT;
-	} else {
+	} else if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
+		struct buffer_info *buffer;
+		struct slave_node *slave;
+		struct packet *packet;
+
+		buffer = instance_pd_buffer(inst);
+		if (!buffer) {
+			ErrPrint("Instance[%s] has no buffer\n", id);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		slave = package_slave(pkg);
+		if (!slave) {
+			ErrPrint("Package[%s] has no slave\n", pkgname);
+			ret = -EINVAL;
+			goto out;
+		}
+
+		packet = packet_create("pd_mouse_up", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
+		if (!packet) {
+			ErrPrint("Failed to create a packet[%s]\n", pkgname);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
 
@@ -555,6 +649,7 @@ static struct packet *client_pd_mouse_move(pid_t pid, int handle, const struct p
 	double x;
 	double y;
 	struct inst_info *inst;
+	const struct pkg_info *pkg;
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -572,15 +667,53 @@ static struct packet *client_pd_mouse_move(pid_t pid, int handle, const struct p
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
+		ErrPrint("Instance[%s] is not exists\n");
 		ret = -ENOENT;
-	} else if (package_is_fault(instance_package(inst))) {
+		goto out;
+	}
+
+	pkg = instance_package(inst);
+	if (!pkg) {
+		ErrPrint("Package[%s] info is not exists\n");
+		ret = -EFAULT;
+		goto out;
+	}
+
+	if (package_is_fault(pkg)) {
 		/*!
 		 * \note
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
 		ret = -EFAULT;
-	} else {
+	} else if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
+		struct buffer_info *buffer;
+		struct slave_node *slave;
+		struct packet *packet;
+
+		buffer = instance_pd_buffer(inst);
+		if (!buffer) {
+			ErrPrint("Instance[%s] has no buffer\n", id);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		slave = package_slave(pkg);
+		if (!slave) {
+			ErrPrint("Package[%s] has no slave\n", pkgname);
+			ret = -EINVAL;
+			goto out;
+		}
+
+		packet = packet_create("pd_mouse_move", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
+		if (!packet) {
+			ErrPrint("Failed to create a packet[%s]\n", pkgname);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
 
@@ -622,6 +755,7 @@ static struct packet *client_lb_mouse_move(pid_t pid, int handle, const struct p
 	double x;
 	double y;
 	struct inst_info *inst;
+	const struct pkg_info *pkg;
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -639,15 +773,53 @@ static struct packet *client_lb_mouse_move(pid_t pid, int handle, const struct p
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
+		ErrPrint("Instance[%s] is not exists\n");
 		ret = -ENOENT;
-	} else if (package_is_fault(instance_package(inst))) {
+		goto out;
+	}
+
+	pkg = instance_package(inst);
+	if (!pkg) {
+		ErrPrint("Package[%s] info is not exists\n", pkgname);
+		ret = -EFAULT;
+		goto out;
+	}
+
+	if (package_is_fault(pkg)) {
 		/*!
 		 * \note
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
 		ret = -EFAULT;
-	} else {
+	} else if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
+		struct buffer_info *buffer;
+		struct slave_node *slave;
+		struct packet *packet;
+
+		buffer = instance_lb_buffer(inst);
+		if (!buffer) {
+			ErrPrint("Instance[%s] has no buffer\n", id);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		slave = package_slave(pkg);
+		if (!slave) {
+			ErrPrint("Package[%s] has no slave\n", pkgname);
+			ret = -EINVAL;
+			goto out;
+		}
+
+		packet = packet_create("lb_mouse_move", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
+		if (!packet) {
+			ErrPrint("Failed to create a packet[%s]\n", pkgname);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
 
@@ -689,6 +861,7 @@ static struct packet *client_lb_mouse_down(pid_t pid, int handle, const struct p
 	double x;
 	double y;
 	struct inst_info *inst;
+	const struct pkg_info *pkg;
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -706,15 +879,53 @@ static struct packet *client_lb_mouse_down(pid_t pid, int handle, const struct p
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
+		ErrPrint("Instance[%s] is not exists\n", id);
 		ret = -ENOENT;
-	} else if (package_is_fault(instance_package(inst))) {
+		goto out;
+	}
+
+	pkg = instance_package(inst);
+	if (!pkg) {
+		ErrPrint("Package[%s] info is not exists\n", pkgname);
+		ret = -EFAULT;
+		goto out;
+	}
+
+	if (package_is_fault(pkg)) {
 		/*!
 		 * \note
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
 		ret = -EFAULT;
-	} else {
+	} else if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
+		struct buffer_info *buffer;
+		struct slave_node *slave;
+		struct packet *packet;
+
+		buffer = instance_lb_buffer(inst);
+		if (!buffer) {
+			ErrPrint("Instance[%s] has no buffer\n", id);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		slave = package_slave(pkg);
+		if (!slave) {
+			ErrPrint("Package[%s] has no slave\n", pkgname);
+			ret = -EINVAL;
+			goto out;
+		}
+
+		packet = packet_create("lb_mouse_down", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
+		if (!packet) {
+			ErrPrint("Failed to create a packet[%s]\n", pkgname);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
 
@@ -758,6 +969,7 @@ static struct packet *client_lb_mouse_up(pid_t pid, int handle, const struct pac
 	double x;
 	double y;
 	struct inst_info *inst;
+	const struct pkg_info *pkg;
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -775,15 +987,53 @@ static struct packet *client_lb_mouse_up(pid_t pid, int handle, const struct pac
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
+		ErrPrint("Instance[%s] is not exists\n", id);
 		ret = -ENOENT;
-	} else if (package_is_fault(instance_package(inst))) {
+		goto out;
+	}
+
+	pkg = instance_package(inst);
+	if (!pkg) {
+		ErrPrint("Package[%s] info is not exists\n", pkgname);
+		ret = -EFAULT;
+		goto out;
+	}
+
+	if (package_is_fault(pkg)) {
 		/*!
 		 * \note
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
 		ret = -EFAULT;
-	} else {
+	} else if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
+		struct buffer_info *buffer;
+		struct slave_node *slave;
+		struct packet *packet;
+
+		buffer = instance_lb_buffer(inst);
+		if (!buffer) {
+			ErrPrint("Instance[%s] has no buffer\n", id);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		slave = package_slave(pkg);
+		if (!slave) {
+			ErrPrint("Package[%s] has no slave\n", pkgname);
+			ret = -EINVAL;
+			goto out;
+		}
+
+		packet = packet_create("lb_mouse_up", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
+		if (!packet) {
+			ErrPrint("Failed to create a packet[%s]\n", pkgname);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
 
@@ -1170,7 +1420,7 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 		ret = -ENOENT;
 	} else if (package_is_fault(instance_package(inst))) {
 		ErrPrint("Faulted instance cannot make any event.\n");
-		ret = -EAGAIN;
+		ret = -EFAULT;
 	} else if (instance_state(inst) == INST_DESTROYED) {
 		ErrPrint("Instance is already destroyed\n");
 		ret = -EINVAL;
@@ -1179,7 +1429,7 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 
 		if (package_lb_type(instance_package(inst)) == LB_TYPE_SCRIPT) {
 			script_handler_resize(instance_lb_script(inst), w, h);
-			ret = script_handler_parse_desc(pkgname, id, id, 0);
+			ret = script_handler_parse_desc(pkgname, id, URI_TO_PATH(id), 0);
 		} else {
 			/*!
 			 * \check
@@ -1228,7 +1478,7 @@ static struct packet *slave_desc_updated(pid_t pid, int handle, const struct pac
 		ret = -ENOENT;
 	} else if (package_is_fault(instance_package(inst))) {
 		ErrPrint("Faulted package cannot make event\n");
-		ret = -EAGAIN;
+		ret = -EFAULT;
 	} else if (instance_state(inst) == INST_DESTROYED) {
 		ErrPrint("Instance is already destroyed\n");
 		ret = -EINVAL;
@@ -1250,14 +1500,197 @@ out:
 	return result;
 }
 
-static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct packet *packet) /* id, w, h, size */
+static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct packet *packet) /* type, id, w, h, size */
 {
-	return NULL;
+	enum target_type target;
+	const char *slavename;
+	const char *pkgname;
+	const char *id;
+	int w;
+	int h;
+	int pixel_size;
+	struct packet *result;
+	struct slave_node *slave;
+	struct inst_info *inst;
+	const struct pkg_info *pkg;
+
+	slave = slave_find_by_pid(pid);
+	if (!slave) {
+		ErrPrint("Failed to find a slave\n");
+		return NULL;
+	}
+
+	if (packet_get(packet, "isssiii", &target, &slavename, &pkgname, &id, &w, &h, &pixel_size) != 7) {
+		ErrPrint("Invalid argument\n");
+		return NULL;
+	}
+
+	/* TODO: */
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst) {
+		result = packet_create_reply(packet, "is", BUFFER_ERROR, "");
+		if (!result)
+			ErrPrint("Failed to create a packet\n");
+
+		return result;
+	}
+
+	pkg = instance_package(inst);
+	id = "";
+	if (target == TYPE_LB) {
+		if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
+			struct buffer_info *info;
+			info = instance_lb_buffer(inst);
+			if (buffer_handler_load(info) == 0)
+				id = buffer_handler_id(info);
+		}
+	} else if (target == TYPE_PD) {
+		if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
+			struct buffer_info *info;
+			info = instance_pd_buffer(inst);
+			if (buffer_handler_load(info) == 0)
+				id = buffer_handler_id(info);
+		}
+	}
+
+	result = packet_create_reply(packet, "s", id);
+	if (!result)
+		ErrPrint("Failed to create a packet\n");
+
+	return result;
+}
+
+static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct packet *packet)
+{
+	struct slave_node *slave;
+	struct packet *result;
+	enum target_type type;
+	const char *slavename;
+	const char *pkgname;
+	const char *id;
+	int w;
+	int h;
+	struct inst_info *inst;
+	const struct pkg_info *pkg;
+	int ret;
+
+	slave = slave_find_by_pid(pid);
+	if (!slave) {
+		ErrPrint("Failed to find a slave\n");
+		return NULL;
+	}
+
+	if (packet_get(packet, "isssii", &type, &slavename, &pkgname, &id, &w, &h) != 6) {
+		ErrPrint("Invalid argument\n");
+		result = packet_create_reply(packet, "i", -EINVAL);
+		if (!result)
+			ErrPrint("Failed to create a packet\n");
+
+		return result;
+	}
+
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst) {
+		DbgPrint("Instance is not found[%s] [%s]\n", pkgname, id);
+		result = packet_create_reply(packet, "i", -ENOENT);
+		if (!result)
+			ErrPrint("Failed to create a packet\n");
+
+		return result;
+	}
+
+	pkg = instance_package(inst);
+	if (!pkg) {
+		/*!
+		 * \note
+		 * THIS statement should not be entered.
+		 */
+		ErrPrint("PACKAGE INFORMATION IS NOT VALID\n");
+		result = packet_create_reply(packet, "i", -EFAULT);
+		if (!result)
+			ErrPrint("Failed to create a packet\n");
+		return result;
+	}
+
+	ret = -EINVAL;
+	id = "";
+	if (type == TYPE_LB) {
+		if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
+			struct buffer_info *info;
+			info = instance_lb_buffer(inst);
+			ret = buffer_handler_resize(info, w, h);
+			/*!
+			 * \note
+			 * id is resued for newly assigned ID
+			 */
+			if (!ret)
+				id = buffer_handler_id(info);
+		}
+	} else if (type == TYPE_PD) {
+		if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
+			struct buffer_info *info;
+			info = instance_pd_buffer(inst);
+			ret = buffer_handler_resize(info, w, h);
+			/*!
+			 * \note
+			 * id is resued for newly assigned ID
+			 */
+			if (!ret)
+				id = buffer_handler_id(info);
+		}
+	}
+
+	result = packet_create_reply(packet, "is", ret, id);
+	if (!result)
+		ErrPrint("Failed to create a packet\n");
+
+	return result;
 }
 
 static struct packet *slave_release_buffer(pid_t pid, int handle, const struct packet *packet)
 {
-	return NULL;
+	enum target_type type;
+	const char *slavename;
+	const char *pkgname;
+	const char *id;
+	struct packet *result;
+	struct slave_node *slave;
+	struct inst_info *inst;
+
+	slave = slave_find_by_pid(pid);
+	if (!slave) {
+		ErrPrint("Failed to find a slave\n");
+		return NULL;
+	}
+
+	if (packet_get(packet, "isss", &type, &slavename, &pkgname, &id) != 4) {
+		ErrPrint("Inavlid argument\n");
+		result = packet_create_reply(packet, "i", -EINVAL);
+		if (!result)
+			ErrPrint("Faield to create a packet\n");
+
+		return result;
+	}
+
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst) {
+		result = packet_create_reply(packet, "i", -ENOENT);
+		if (!result)
+			ErrPrint("Failed to create a packet\n");
+
+		return result;
+	}
+
+	if (type == TYPE_LB) {
+	} else if (type == TYPE_PD) {
+	} else {
+	}
+
+	result = packet_create_reply(packet, "i", 0);
+	if (!result)
+		ErrPrint("Failed to create a packet\n");
+
+	return result;
 }
 
 static struct packet *slave_deleted(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, id, ret */
@@ -1288,7 +1721,7 @@ static struct packet *slave_deleted(pid_t pid, int handle, const struct packet *
 	if (!inst)
 		ret = -ENOENT;
 	else if (package_is_fault(instance_package(inst)))
-		ret = -EAGAIN;
+		ret = -EFAULT;
 	else
 		ret = instance_destroyed(inst);
 
@@ -1419,6 +1852,10 @@ static struct method s_table[] = {
 	{
 		.cmd = "acquire_buffer",
 		.handler = slave_acquire_buffer, /* slave_name, id, w, h, size, - out - type, shmid */
+	},
+	{
+		.cmd = "resize_buffer",
+		.handler = slave_resize_buffer,
 	},
 	{
 		.cmd = "release_buffer",

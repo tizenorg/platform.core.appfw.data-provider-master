@@ -24,10 +24,7 @@ struct buffer {
 		CREATED = 0x00beef00,
 		DESTROYED = 0x00dead00,
 	} state;
-	enum {
-		BUFFER_FILE = 0x0,
-		BUFFER_SHM = 0x1,
-	} type;
+	enum fb_type type;
 	int refcnt;
 	char data[];
 };
@@ -38,7 +35,7 @@ struct fb_info {
 	Ecore_Evas *ee;
 	int w;
 	int h;
-	char *filename;
+	char *id;
 
 	struct buffer *buffer;
 	int bufsz;
@@ -73,9 +70,9 @@ static void *alloc_fb(void *data, int size)
 			return NULL;
 		}
 
-		info->buffer->type = BUFFER_FILE;
+		info->buffer->type = FB_TYPE_FILE;
 
-		snprintf(info->filename, fname_len, "%s%lf", g_conf.path.image, util_timestamp());
+		snprintf(info->id, fname_len, "file://%s%lf", g_conf.path.image, util_timestamp());
 	} else if (info->type == FB_TYPE_SHM) {
 		int id;
 
@@ -87,17 +84,17 @@ static void *alloc_fb(void *data, int size)
 
 		info->buffer = shmat(id, NULL, 0);
 		if (!info->buffer) {
-			ErrPrint("%s shmat: %s\n", info->filename, strerror(errno));
+			ErrPrint("%s shmat: %s\n", info->id, strerror(errno));
 
 			if (shmctl(id, IPC_RMID, 0) < 0)
-				ErrPrint("%s shmctl: %s\n", info->filename, strerror(errno));
+				ErrPrint("%s shmctl: %s\n", info->id, strerror(errno));
 
 			return NULL;
 		}
 
-		info->buffer->type = BUFFER_SHM;
+		info->buffer->type = FB_TYPE_SHM;
 
-		snprintf(info->filename, fname_len, "shm://%d", id);
+		snprintf(info->id, fname_len, "shm://%d", id);
 	}
 
 	info->bufsz = size;
@@ -122,14 +119,15 @@ static void free_fb(void *data, void *ptr)
 	fname_len = strlen(g_conf.path.image) + 30;
 
 	if (info->type == FB_TYPE_FILE) {
+		unlink(URI_TO_PATH(info->id));
 		free(info->buffer);
 		info->buffer = NULL;
 
-		strncpy(info->filename, "undefined", fname_len);
+		strncpy(info->id, "", fname_len);
 	} else if (info->type == FB_TYPE_SHM) {
 		int id;
 
-		if (sscanf(info->filename, "shm://%d", &id) != 1) {
+		if (sscanf(info->id, "shm://%d", &id) != 1) {
 			ErrPrint("Unable to get the SHMID\n");
 			return;
 		}
@@ -140,9 +138,9 @@ static void free_fb(void *data, void *ptr)
 		info->buffer = NULL;
 
 		if (shmctl(id, IPC_RMID, 0) < 0)
-			ErrPrint("%s shmctl: %s\n", info->filename, strerror(errno));
+			ErrPrint("%s shmctl: %s\n", info->id, strerror(errno));
 
-		strncpy(info->filename, "undefined", fname_len);
+		strncpy(info->id, "", fname_len);
 	}
 }
 
@@ -150,6 +148,11 @@ struct fb_info *fb_create(int w, int h, enum fb_type type)
 {
 	struct fb_info *info;
 	int fname_len;
+
+	if (type != FB_TYPE_FILE && type != FB_TYPE_SHM) {
+		ErrPrint("Invalid type\n");
+		return NULL;
+	}
 
 	info = calloc(1, sizeof(*info));
 	if (!info) {
@@ -162,8 +165,8 @@ struct fb_info *fb_create(int w, int h, enum fb_type type)
 	info->w = w;
 	info->h = h;
 	info->type = type;
-	info->filename = malloc(fname_len);
-	if (!info->filename) {
+	info->id = malloc(fname_len);
+	if (!info->id) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		free(info);
 		return NULL;
@@ -171,7 +174,11 @@ struct fb_info *fb_create(int w, int h, enum fb_type type)
 	info->buffer = NULL;
 	info->ee = NULL;
 
-	strncpy(info->filename, "undefined", fname_len);
+	if (type == FB_TYPE_FILE)
+		strncpy(info->id, "file:///tmp/.live.undefined", fname_len);
+	else if (type == FB_TYPE_SHM)
+		strncpy(info->id, "shm://-1", fname_len);
+
 	DbgPrint("FB Created [%dx%d]\n", info->w, info->h);
 	return info;
 }
@@ -222,7 +229,7 @@ int fb_destroy(struct fb_info *info)
 		return -EINVAL;
 	}
 
-	free(info->filename);
+	free(info->id);
 	free(info);
 	return 0;
 }
@@ -232,12 +239,9 @@ Ecore_Evas * const fb_canvas(struct fb_info *info)
 	return info->ee;
 }
 
-const char *fb_filename(struct fb_info *fb)
+const char *fb_id(struct fb_info *fb)
 {
-	if (!fb)
-		return "";
-
-	return fb->filename;
+	return fb ? fb->id : "";
 }
 
 int fb_resize(struct fb_info *info, int w, int h)
@@ -263,9 +267,9 @@ void fb_sync(struct fb_info *info)
 	if (!info->buffer || info->type != FB_TYPE_FILE)
 		return;
 
-	fd = open(info->filename, O_WRONLY | O_CREAT, 0644);
+	fd = open(URI_TO_PATH(info->id), O_WRONLY | O_CREAT, 0644);
 	if (fd < 0) {
-		ErrPrint("%s open falied: %s\n", info->filename, strerror(errno));
+		ErrPrint("%s open falied: %s\n", URI_TO_PATH(info->id), strerror(errno));
 		return;
 	}
 
@@ -276,6 +280,11 @@ void fb_sync(struct fb_info *info)
 	}
 
 	close(fd);
+}
+
+enum fb_type fb_type(struct fb_info *info)
+{
+	return info->type;
 }
 
 /* End of a file */

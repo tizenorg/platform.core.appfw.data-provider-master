@@ -222,6 +222,8 @@ static inline int load_conf(struct pkg_info *info, const char *pkgname)
 	info->lb.type = LB_TYPE_FILE;
 	if (parser_text_lb(parser)) {
 		info->lb.type = LB_TYPE_TEXT;
+	} else if (parser_buffer_lb(parser)) {
+		info->lb.type = LB_TYPE_BUFFER;
 	} else {
 		str = parser_lb_path(parser);
 		if (str) {
@@ -249,6 +251,8 @@ static inline int load_conf(struct pkg_info *info, const char *pkgname)
 
 	if (parser_text_pd(parser)) {
 		info->pd.type = PD_TYPE_TEXT;
+	} else if (parser_buffer_pd(parser)) {
+		info->pd.type = PD_TYPE_BUFFER;
 	} else {
 		str = parser_pd_path(parser);
 		if (str) {

@@ -152,7 +152,7 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double sx,
 	Ecore_Evas *ee;
 	struct script_info *info;
 	const char *pkgname;
-	const char *filename;
+	const char *id;
 	struct slave_node *slave;
 	struct packet *packet;
 	int ret;
@@ -176,10 +176,10 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double sx,
 		part = "";
 
 	pkgname = package_name(instance_package(info->inst));
-	filename = instance_id(info->inst);
+	id = instance_id(info->inst);
 	slave = package_slave(instance_package(info->inst));
 	packet = packet_create("script", "ssssddddddi",
-			pkgname, filename,
+			pkgname, id,
 			signal, part,
 			sx, sy, ex, ey,
 			info->x, info->y, info->down);
@@ -239,7 +239,7 @@ int script_handler_load(struct script_info *info, int is_pd)
 	fb_sync(info->fb);
 
 	if (e)
-		script_signal_emit(e, instance_id(info->inst), is_pd ? "pd,show" : "lb,show", 0.0f, 0.0f, 0.0f, 0.0f);
+		script_signal_emit(e, URI_TO_PATH(instance_id(info->inst)), is_pd ? "pd,show" : "lb,show", 0.0f, 0.0f, 0.0f, 0.0f);
 	return 0;
 }
 
@@ -262,7 +262,7 @@ int script_handler_unload(struct script_info *info, int is_pd)
 
 	e = script_handler_evas(info);
 	if (e) {
-		script_signal_emit(e, instance_id(info->inst), is_pd ? "pd,hide" : "lb,hide", 0.0f, 0.0f, 0.0f, 0.0f);
+		script_signal_emit(e, URI_TO_PATH(instance_id(info->inst)), is_pd ? "pd,hide" : "lb,hide", 0.0f, 0.0f, 0.0f, 0.0f);
 		if (info->port->unload(info->port_data, e) < 0)
 			ErrPrint("Failed to unload script object. but go ahead\n");
 		evas_event_callback_del(e, EVAS_CALLBACK_RENDER_FLUSH_POST, render_post_cb);
@@ -590,7 +590,7 @@ static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 	return 0;
 }
 
-int script_handler_parse_desc(const char *pkgname, const char *filename, const char *descfile, int is_pd)
+int script_handler_parse_desc(const char *pkgname, const char *id, const char *descfile, int is_pd)
 {
 	struct inst_info *inst;
 	FILE *fp;
@@ -659,7 +659,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 	};
 
 	block = NULL;
-	inst = package_find_instance_by_id(pkgname, filename);
+	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ErrPrint("Instance is not exists\n");
 		return -ENOENT;
@@ -667,7 +667,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 
 	fp = fopen(descfile, "rt");
 	if (!fp) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("Error: %s [%s]\n", descfile, strerror(errno));
 		return -EIO;
 	}
 
@@ -964,7 +964,7 @@ int script_handler_parse_desc(const char *pkgname, const char *filename, const c
 			break;
 		case BLOCK_CLOSE:
 			if (!block->file) {
-				block->file = strdup(filename);
+				block->file = strdup(URI_TO_PATH(id));
 				if (!block->file) {
 					ErrPrint("Heap: %s\n", strerror(errno));
 					goto errout;

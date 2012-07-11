@@ -21,6 +21,7 @@
 #include "instance.h"
 #include "fb.h"
 #include "script_handler.h"
+#include "buffer_handler.h"
 
 int errno;
 
@@ -63,8 +64,11 @@ struct inst_info {
 		int height;
 		double priority;
 		int is_pinned_up;
-		struct script_info *script;
-		struct buffer_info *buffer;
+
+		union {
+			struct script_info *script;
+			struct buffer_info *buffer;
+		} canvas;
 
 		int auto_launch;
 	} lb;
@@ -72,8 +76,11 @@ struct inst_info {
 	struct {
 		int width;
 		int height;
-		struct script_info *script;
-		struct buffer_info *buffer;
+
+		union {
+			struct script_info *script;
+			struct buffer_info *buffer;
+		} canvas;
 
 		int is_opened_for_reactivate;
 	} pd;
@@ -88,9 +95,30 @@ struct inst_info {
 int instance_unicast_created_event(struct inst_info *inst, struct client_node *client)
 {
 	struct packet *packet;
+	enum lb_type lb_type;
+	enum pd_type pd_type;
+	const char *lb_file;
+	const char *pd_file;
 
 	if (!inst->client && !client)
 		return 0;
+
+	lb_type = package_lb_type(inst->info);
+	pd_type = package_pd_type(inst->info);
+
+	if (lb_type == LB_TYPE_SCRIPT)
+		lb_file = fb_id(script_handler_fb(inst->lb.canvas.script));
+	else if (lb_type == LB_TYPE_BUFFER)
+		lb_file = buffer_handler_id(inst->lb.canvas.buffer);
+	else
+		lb_file = "";
+
+	if (pd_type == PD_TYPE_SCRIPT)
+		pd_file = fb_id(script_handler_fb(inst->pd.canvas.script));
+	else if (pd_type == PD_TYPE_BUFFER)
+		pd_file = buffer_handler_id(inst->pd.canvas.buffer);
+	else
+		pd_file = "";
 
 	packet = packet_create("created", "dsssiiiissssidiiiiid", 
 			inst->timestamp,
@@ -98,15 +126,13 @@ int instance_unicast_created_event(struct inst_info *inst, struct client_node *c
 			inst->lb.width, inst->lb.height,
 			inst->pd.width, inst->pd.height,
 			inst->cluster, inst->category,
-			fb_filename(script_handler_fb(inst->lb.script)),
-			fb_filename(script_handler_fb(inst->pd.script)),
+			lb_file, pd_file,
 			inst->lb.auto_launch,
 			inst->lb.priority,
 			package_size_list(inst->info),
 			!!inst->client,
 			package_pinup(inst->info),
-			package_lb_type(inst->info) == LB_TYPE_TEXT,
-			package_pd_type(inst->info) == PD_TYPE_TEXT,
+			lb_type, pd_type,
 			inst->period);
 	if (!packet) {
 		ErrPrint("Failed to create a param\n");
@@ -122,6 +148,27 @@ int instance_unicast_created_event(struct inst_info *inst, struct client_node *c
 int instance_broadcast_created_event(struct inst_info *inst)
 {
 	struct packet *packet;
+	enum lb_type lb_type;
+	enum pd_type pd_type;
+	const char *lb_file;
+	const char *pd_file;
+
+	lb_type = package_lb_type(inst->info);
+	pd_type = package_pd_type(inst->info);
+
+	if (lb_type == LB_TYPE_SCRIPT)
+		lb_file = fb_id(script_handler_fb(inst->lb.canvas.script));
+	else if (lb_type == LB_TYPE_BUFFER)
+		lb_file = buffer_handler_id(inst->lb.canvas.buffer);
+	else
+		lb_file = "";
+
+	if (pd_type == PD_TYPE_SCRIPT)
+		pd_file = fb_id(script_handler_fb(inst->pd.canvas.script));
+	else if (pd_type == PD_TYPE_BUFFER)
+		pd_file = buffer_handler_id(inst->pd.canvas.buffer);
+	else
+		pd_file = "";
 
 	packet = packet_create("created", "dsssiiiissssidiiiiid", 
 			inst->timestamp,
@@ -129,15 +176,13 @@ int instance_broadcast_created_event(struct inst_info *inst)
 			inst->lb.width, inst->lb.height,
 			inst->pd.width, inst->pd.height,
 			inst->cluster, inst->category,
-			fb_filename(script_handler_fb(inst->lb.script)),
-			fb_filename(script_handler_fb(inst->pd.script)),
+			lb_file, pd_file,
 			inst->lb.auto_launch,
 			inst->lb.priority,
 			package_size_list(inst->info),
 			!!inst->client,
 			package_pinup(inst->info),
-			package_lb_type(inst->info) == LB_TYPE_TEXT,
-			package_pd_type(inst->info) == PD_TYPE_TEXT,
+			lb_type, pd_type,
 			inst->period);
 
 	if (!packet)
@@ -184,14 +229,29 @@ static int client_deactivated_cb(struct client_node *client, void *data)
 
 static inline void destroy_instance(struct inst_info *inst)
 {
-	if (inst->lb.script) {
-		script_handler_unload(inst->lb.script, 0);
-		script_handler_destroy(inst->lb.script);
+	struct pkg_info *pkg;
+	enum lb_type lb_type;
+	enum pd_type pd_type;
+
+	pkg = inst->info;
+
+	lb_type = package_lb_type(pkg);
+	pd_type = package_pd_type(pkg);
+
+	if (lb_type == LB_TYPE_SCRIPT) {
+		script_handler_unload(inst->lb.canvas.script, 0);
+		script_handler_destroy(inst->lb.canvas.script);
+	} else if (lb_type == LB_TYPE_BUFFER) {
+		buffer_handler_unload(inst->lb.canvas.buffer);
+		buffer_handler_destroy(inst->lb.canvas.buffer);
 	}
 
-	if (inst->pd.script) {
-		script_handler_unload(inst->pd.script, 1);
-		script_handler_destroy(inst->pd.script);
+	if (pd_type == PD_TYPE_SCRIPT) {
+		script_handler_unload(inst->pd.canvas.script, 1);
+		script_handler_destroy(inst->pd.canvas.script);
+	} else if (pd_type == PD_TYPE_BUFFER) {
+		buffer_handler_unload(inst->pd.canvas.buffer);
+		buffer_handler_destroy(inst->pd.canvas.buffer);
 	}
 
 	if (inst->client) {
@@ -243,7 +303,7 @@ struct inst_info *instance_create(struct client_node *client, double timestamp, 
 
 	inst->timestamp = timestamp;
 
-	snprintf(id, sizeof(id), "%s%s_%d_%lf.png", g_conf.path.image, pkgname, client_pid(client), inst->timestamp);
+	snprintf(id, sizeof(id), "file://%s%s_%d_%lf.png", g_conf.path.image, pkgname, client_pid(client), inst->timestamp);
 	inst->id = strdup(id);
 	if (!inst->id) {
 		ErrPrint("Heap: %s\n", strerror(errno));
@@ -427,6 +487,8 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 {
 	struct inst_info *inst = data;
 	struct pkg_info *info;
+	enum lb_type lb_type;
+	enum pd_type pd_type;
 	int ret;
 
 	if (!packet) {
@@ -464,11 +526,17 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 			instance_destroy(inst);
 			break;
 		case INST_ACTIVATED:
-			if (inst->lb.script)
-				script_handler_load(inst->lb.script, 0);
+			info = inst->info;
+			lb_type = package_lb_type(info);
+			pd_type = package_pd_type(info);
 
-			if (inst->pd.script && inst->pd.is_opened_for_reactivate)
-				script_handler_load(inst->pd.script, 1);
+			if (lb_type == LB_TYPE_SCRIPT && inst->lb.canvas.script)
+				script_handler_load(inst->lb.canvas.script, 0);
+			else if (lb_type == LB_TYPE_BUFFER && inst->lb.canvas.buffer)
+				buffer_handler_load(inst->lb.canvas.buffer);
+
+			if (pd_type == PD_TYPE_SCRIPT && inst->pd.canvas.script && inst->pd.is_opened_for_reactivate)
+				script_handler_load(inst->pd.canvas.script, 1);
 		default:
 			break;
 		}
@@ -553,14 +621,18 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 			 * LB should be created at the create time
 			 */
 			if (package_lb_type(inst->info) == LB_TYPE_SCRIPT) {
-				inst->lb.script = script_handler_create(inst,
+				inst->lb.canvas.script = script_handler_create(inst,
 								package_lb_path(inst->info), package_lb_group(inst->info),
 								inst->lb.width, inst->lb.height);
 
-				if (!inst->lb.script)
+				if (!inst->lb.canvas.script)
 					ErrPrint("Failed to create LB\n");
 				else
-					script_handler_load(inst->lb.script, 0);
+					script_handler_load(inst->lb.canvas.script, 0);
+			} else if (package_lb_type(inst->info) == LB_TYPE_BUFFER) {
+				inst->lb.canvas.buffer = buffer_handler_create(inst, BUFFER_TYPE_FILE, inst->lb.width, inst->lb.height, sizeof(int));
+				if (!inst->lb.canvas.buffer)
+					ErrPrint("Failed to create LB\n");
 			}
 
 			if (package_pd_type(inst->info) == PD_TYPE_SCRIPT) {
@@ -569,10 +641,19 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 					inst->pd.height = package_pd_height(inst->info);
 				}
 
-				inst->pd.script = script_handler_create(inst,
+				inst->pd.canvas.script = script_handler_create(inst,
 								package_pd_path(inst->info), package_pd_group(inst->info),
 								inst->pd.width, inst->pd.height);
-				if (!inst->pd.script)
+				if (!inst->pd.canvas.script)
+					ErrPrint("Failed to create PD\n");
+			} else if (package_pd_type(inst->info) == PD_TYPE_BUFFER) {
+				if (inst->pd.width == 0 && inst->pd.height == 0) {
+					inst->pd.width = package_pd_width(inst->info);
+					inst->pd.height = package_pd_height(inst->info);
+				}
+
+				inst->pd.canvas.buffer = buffer_handler_create(inst, BUFFER_TYPE_FILE, inst->pd.width, inst->pd.height, sizeof(int));
+				if (!inst->pd.canvas.buffer)
 					ErrPrint("Failed to create PD\n");
 			}
 
@@ -670,6 +751,9 @@ int instance_destroy(struct inst_info *inst)
 
 int instance_state_reset(struct inst_info *inst)
 {
+	enum lb_type lb_type;
+	enum pd_type pd_type;
+
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
 		return -EINVAL;
@@ -678,12 +762,20 @@ int instance_state_reset(struct inst_info *inst)
 	if (inst->state == INST_DESTROYED)
 		return 0;
 
-	if (inst->lb.script)
-		script_handler_unload(inst->lb.script, 0);
+	lb_type = package_lb_type(inst->info);
+	pd_type = package_pd_type(inst->info);
 
-	if (inst->pd.script) {
-		inst->pd.is_opened_for_reactivate = inst->pd.script ? script_handler_is_loaded(inst->pd.script) : 0;
-		script_handler_unload(inst->pd.script, 1);
+	if (lb_type == LB_TYPE_SCRIPT && inst->lb.canvas.script)
+		script_handler_unload(inst->lb.canvas.script, 0);
+	else if (lb_type == LB_TYPE_BUFFER && inst->lb.canvas.buffer)
+		buffer_handler_unload(inst->lb.canvas.buffer);
+
+	if (pd_type == PD_TYPE_SCRIPT && inst->pd.canvas.script) {
+		inst->pd.is_opened_for_reactivate = script_handler_is_loaded(inst->pd.canvas.script);
+		script_handler_unload(inst->pd.canvas.script, 1);
+	} else if (pd_type == PD_TYPE_BUFFER && inst->pd.canvas.buffer) {
+		inst->pd.is_opened_for_reactivate = buffer_handler_is_loaded(inst->pd.canvas.buffer);
+		buffer_handler_unload(inst->pd.canvas.buffer);
 	}
 
 	inst->state = INST_INIT;
@@ -813,9 +905,19 @@ void instance_lb_updated(const char *pkgname, const char *id)
 void instance_lb_updated_by_instance(struct inst_info *inst)
 {
 	struct packet *packet;
+	const char *id;
+	enum lb_type lb_type;
+
+	lb_type = package_lb_type(inst->info);
+	if (lb_type == LB_TYPE_SCRIPT)
+		id = fb_id(script_handler_fb(inst->lb.canvas.script));
+	else if (lb_type == LB_TYPE_BUFFER)
+		id = buffer_handler_id(inst->lb.canvas.buffer);
+	else
+		id = "";
 
 	packet = packet_create("lb_updated", "sssiid",
-			package_name(inst->info), inst->id, fb_filename(script_handler_fb(inst->lb.script)),
+			package_name(inst->info), inst->id, id,
 			inst->lb.width, inst->lb.height, inst->lb.priority);
 	if (!packet) {
 		ErrPrint("Failed to create param (%s - %s)\n", package_name(inst->info), inst->id);
@@ -828,13 +930,22 @@ void instance_lb_updated_by_instance(struct inst_info *inst)
 void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfile)
 {
 	struct packet *packet;
+	enum pd_type pd_type;
+	const char *id;
 
 	if (!descfile)
 		descfile = inst->id;
 
-			
+	pd_type = package_pd_type(inst->info);
+	if (pd_type == PD_TYPE_SCRIPT)
+		id = fb_id(script_handler_fb(inst->pd.canvas.script));
+	else if (pd_type == PD_TYPE_BUFFER)
+		id = buffer_handler_id(inst->pd.canvas.buffer);
+	else
+		id = "";
+
 	packet = packet_create("pd_updated", "ssssii",
-			package_name(inst->info), inst->id, descfile, fb_filename(script_handler_fb(inst->pd.script)),
+			package_name(inst->info), inst->id, descfile, id,
 			inst->pd.width, inst->pd.height);
 	if (!packet) {
 		ErrPrint("Failed to create param (%s - %s)\n", package_name(inst->info), inst->id);
@@ -1201,12 +1312,22 @@ const struct pkg_info *const instance_package(const struct inst_info *inst)
 
 struct script_info *const instance_lb_script(const struct inst_info *inst)
 {
-	return inst->lb.script;
+	return (package_lb_type(inst->info) == LB_TYPE_SCRIPT) ? inst->lb.canvas.script : NULL;
 }
 
 struct script_info * const instance_pd_script(const struct inst_info *inst)
 {
-	return inst->pd.script;
+	return (package_pd_type(inst->info) == PD_TYPE_SCRIPT) ? inst->pd.canvas.script : NULL;
+}
+
+struct buffer_info *const instance_lb_buffer(const struct inst_info *inst)
+{
+	return (package_lb_type(inst->info) == LB_TYPE_BUFFER) ? inst->lb.canvas.buffer : NULL;
+}
+
+struct buffer_info *const instance_pd_buffer(const struct inst_info *inst)
+{
+	return (package_pd_type(inst->info) == PD_TYPE_BUFFER) ? inst->pd.canvas.buffer : NULL;
 }
 
 const char *const instance_id(const struct inst_info *inst)

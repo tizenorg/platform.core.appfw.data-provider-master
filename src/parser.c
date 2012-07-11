@@ -56,6 +56,8 @@ struct parser {
 	int pinup;
 	int text_pd;
 	int text_lb;
+	int buffer_pd;
+	int buffer_lb;
 
 	char *abi;
 
@@ -146,6 +148,16 @@ int parser_text_lb(struct parser *handle)
 int parser_text_pd(struct parser *handle)
 {
 	return handle->text_pd;
+}
+
+int parser_buffer_lb(struct parser *handle)
+{
+	return handle->buffer_lb;
+}
+
+int parser_buffer_pd(struct parser *handle)
+{
+	return handle->buffer_pd;
 }
 
 int parser_find(const char *pkgname)
@@ -403,6 +415,21 @@ static void script_handler(struct parser *item, char *buffer)
 	item->script = dup_rtrim(buffer);
 }
 
+static void buffer_pd_handler(struct parser *item, char *buffer)
+{
+	if (!rtrim(buffer))
+		return;
+
+	item->buffer_pd = !!atoi(buffer);
+}
+
+static void buffer_lb_handler(struct parser *item, char *buffer)
+{
+	if (!rtrim(buffer))
+		return;
+	item->buffer_lb = !!atoi(buffer);
+}
+
 static void text_pd_handler(struct parser *item, char *buffer)
 {
 	if (!rtrim(buffer))
@@ -561,6 +588,14 @@ struct parser *parser_load(const char *pkgname)
 		{
 			.name = "text_pd",
 			.handler = text_pd_handler,
+		},
+		{
+			.name = "buffer_livebox",
+			.handler = buffer_lb_handler,
+		},
+		{
+			.name = "buffer_pd",
+			.handler = buffer_pd_handler,
 		},
 		{
 			.name = "script",

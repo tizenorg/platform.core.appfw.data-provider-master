@@ -52,6 +52,7 @@ ADD_EXECUTABLE(${PROJECT_NAME}
 	src/group.c
 	src/fb.c
 	src/script_handler.c
+	src/buffer_handler.c
 	src/io.c
 	src/virtual_canvas.c
 	src/xmonitor.c

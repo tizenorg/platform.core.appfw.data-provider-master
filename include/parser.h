@@ -42,6 +42,8 @@ extern const char *parser_abi(struct parser *handle);
 
 extern int parser_text_pd(struct parser *handle);
 extern int parser_text_lb(struct parser *handle);
+extern int parser_buffer_lb(struct parser *handle);
+extern int parser_buffer_pd(struct parser *handle);
 
 extern const char *parser_script(struct parser *handle);
 
