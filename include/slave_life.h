@@ -19,7 +19,7 @@ extern const int const slave_refcnt(struct slave_node *slave);
 /*!
  * Create a new slave object or destroy it
  */
-extern struct slave_node *slave_create(const char *name, int is_secured);
+extern struct slave_node *slave_create(const char *name, int is_secured, const char *abi);
 extern void slave_destroy(struct slave_node *slave);
 
 /*!

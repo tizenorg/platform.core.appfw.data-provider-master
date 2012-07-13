@@ -22,6 +22,7 @@
 #include "fb.h"
 #include "script_handler.h"
 #include "group.h"
+#include "abi.h"
 
 int errno;
 
@@ -386,7 +387,7 @@ struct pkg_info *package_create(const char *pkgname)
 		}
 
 		DbgPrint("New slave name is %s assigned for %s\n", slavename, pkgname);
-		info->slave = slave_create(slavename, info->secured);
+		info->slave = slave_create(slavename, info->secured, info->abi);
 		slave_rpc_initialize(info->slave);
 		free(slavename);
 		/*!

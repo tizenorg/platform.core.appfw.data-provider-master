@@ -64,6 +64,7 @@ ADD_EXECUTABLE(${PROJECT_NAME}
 	src/package.c
 	src/instance.c
 	src/server.c
+	src/abi.c
 )
 
 TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${pkg_LDFLAGS} "-ldl")
