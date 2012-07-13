@@ -17,8 +17,8 @@
 #include "conf.h"
 #include "util.h"
 #include "client_life.h"
-#include "client_rpc.h"
 #include "instance.h"
+#include "client_rpc.h"
 #include "buffer_handler.h"
 
 struct buffer {

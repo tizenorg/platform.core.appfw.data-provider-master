@@ -16,9 +16,9 @@
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"
+#include "instance.h"
 #include "client_rpc.h"
 #include "package.h"
-#include "instance.h"
 #include "fb.h"
 #include "script_handler.h"
 #include "buffer_handler.h"
@@ -188,7 +188,7 @@ int instance_broadcast_created_event(struct inst_info *inst)
 	if (!packet)
 		return -EFAULT;
 
-	return client_rpc_broadcast(packet);
+	return client_rpc_broadcast(inst, packet);
 }
 
 int instance_unicast_deleted_event(struct inst_info *inst)
@@ -217,7 +217,7 @@ int instance_broadcast_deleted_event(struct inst_info *inst)
 		return -EFAULT;
 	}
 		
-	return client_rpc_broadcast(packet);
+	return client_rpc_broadcast(inst, packet);
 }
 
 static int client_deactivated_cb(struct client_node *client, void *data)
@@ -924,7 +924,7 @@ void instance_lb_updated_by_instance(struct inst_info *inst)
 		return;
 	}
 
-	client_rpc_broadcast(packet);
+	client_rpc_broadcast(inst, packet);
 }
 
 void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfile)
@@ -952,7 +952,7 @@ void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfil
 		return;
 	}
 
-	client_rpc_broadcast(packet);
+	client_rpc_broadcast(inst, packet);
 }
 
 void instance_pd_updated(const char *pkgname, const char *id, const char *descfile)

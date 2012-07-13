@@ -7,6 +7,7 @@
 #include <packet.h>
 
 #include "client_life.h"
+#include "instance.h"
 #include "client_rpc.h"
 #include "debug.h"
 #include "util.h"
@@ -24,6 +25,11 @@ static struct {
 	.nr_of_paused_clients = 0,
 	.create_event_list = NULL,
 	.destroy_event_list = NULL,
+};
+
+struct subscribe_item {
+	char *cluster;
+	char *category;
 };
 
 struct global_event_handler {
@@ -50,6 +56,7 @@ struct client_node {
 	Eina_List *event_deactivate_list;
 	Eina_List *event_destroy_list;
 	Eina_List *data_list;
+	Eina_List *subscribe_list;
 
 	int faulted;
 };
@@ -508,6 +515,76 @@ int client_global_event_handler_del(enum client_global_event event_type, int (*c
 	}
 
 	return -ENOENT;
+}
+
+int client_subscribe(struct client_node *client, const char *cluster, const char *category)
+{
+	struct subscribe_item *item;
+
+	item = malloc(sizeof(*item));
+	if (!item) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
+	item->cluster = strdup(cluster);
+	if (!item->cluster) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		free(item);
+		return -ENOMEM;
+	}
+
+	item->category = strdup(category);
+	if (!item->category) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		free(item->cluster);
+		free(item);
+		return -ENOMEM;
+	}
+
+	client->subscribe_list = eina_list_append(client->subscribe_list, item);
+	return 0;
+}
+
+int client_unsubscribe(struct client_node *client, const char *cluster, const char *category)
+{
+	struct subscribe_item *item;
+	Eina_List *l;
+	Eina_List *n;
+
+	EINA_LIST_FOREACH_SAFE(client->subscribe_list, l, n, item) {
+		if (!strcasecmp(cluster, item->cluster) && !strcasecmp(category, item->category)) {
+			client->subscribe_list = eina_list_remove(client->subscribe_list, item);
+			free(item->cluster);
+			free(item->category);
+			free(item);
+			return 0;
+		}
+	}
+
+	return -ENOENT;
+}
+
+int client_is_subscribed(struct client_node *client, const char *cluster, const char *category)
+{
+	struct subscribe_item *item;
+	Eina_List *l;
+
+	EINA_LIST_FOREACH(client->subscribe_list, l, item) {
+		if (!strcmp(item->cluster, "*"))
+			return 1;
+
+		if (strcasecmp(item->cluster, cluster))
+			continue;
+
+		if (!strcmp(item->category, "*"))
+			return 1;
+
+		if (!strcmp(item->category, category))
+			return 1;
+	}
+
+	return 0;
 }
 
 /* End of a file */

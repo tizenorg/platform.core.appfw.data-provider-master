@@ -10,6 +10,7 @@
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"
+#include "instance.h"
 #include "client_rpc.h"
 #include "fault_manager.h"
 #include "util.h"

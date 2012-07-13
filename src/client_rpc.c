@@ -9,6 +9,7 @@
 #include <packet.h>
 
 #include "client_life.h"
+#include "instance.h"
 #include "client_rpc.h"
 #include "debug.h"
 #include "conf.h"
@@ -185,13 +186,27 @@ int client_rpc_async_request(struct client_node *client, struct packet *packet)
 	return 0;
 }
 
-int client_rpc_broadcast(struct packet *packet)
+int client_rpc_broadcast(struct inst_info *inst, struct packet *packet)
 {
 	Eina_List *l;
 	struct client_rpc *rpc;
 
-	EINA_LIST_FOREACH(s_info.rpc_list, l, rpc) {
-		(void)client_rpc_async_request(rpc->client, packet_ref(packet));
+	if (!inst) {
+		EINA_LIST_FOREACH(s_info.rpc_list, l, rpc) {
+			(void)client_rpc_async_request(rpc->client, packet_ref(packet));
+		}
+	} else {
+		EINA_LIST_FOREACH(s_info.rpc_list, l, rpc) {
+			if (instance_client(inst) == rpc->client) {
+				(void)client_rpc_async_request(rpc->client, packet_ref(packet));
+				continue;
+			}
+
+			if (!client_is_subscribed(rpc->client, instance_cluster(inst), instance_category(inst)))
+				continue;
+
+			(void)client_rpc_async_request(rpc->client, packet_ref(packet));
+		}
 	}
 
 	packet_unref(packet);

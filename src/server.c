@@ -15,8 +15,8 @@
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"
-#include "client_rpc.h"
 #include "instance.h"
+#include "client_rpc.h"
 #include "package.h"
 #include "script_handler.h"
 #include "buffer_handler.h"
@@ -1222,6 +1222,76 @@ out:
 	return result;
 }
 
+static struct packet *client_subscribed(pid_t pid, int handle, const struct packet *packet)
+{
+	const char *cluster;
+	const char *category;
+	struct client_node *client;
+	struct packet *result;
+	int ret;
+
+	client = client_find_by_pid(pid);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = -ENOENT;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ss", &cluster, &category);
+	if (ret != 2) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/*!
+	 * \todo
+	 * SUBSCRIBE cluster & sub-cluster for a client.
+	 */
+	ret = client_subscribe(client, cluster, category);
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a packet\n");
+	return result;
+}
+
+static struct packet *client_unsubscribed(pid_t pid, int handle, const struct packet *packet)
+{
+	const char *cluster;
+	const char *category;
+	struct client_node *client;
+	struct packet *result;
+	int ret;
+
+	client = client_find_by_pid(pid);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = -ENOENT;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ss", &cluster, &category);
+	if (ret != 2) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/*!
+	 * \todo
+	 * UNSUBSCRIBE cluster & sub-cluster for a client.
+	 */
+	ret = client_unsubscribe(client, cluster, category);
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a packet\n");
+	return result;
+}
+
 static struct packet *client_livebox_is_exists(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, ret */
 {
 	struct client_node *client;
@@ -1817,6 +1887,14 @@ static struct method s_table[] = {
 	{
 		.cmd = "livebox_is_exists",
 		.handler = client_livebox_is_exists, /* pid, pkgname, ret */
+	},
+	{
+		.cmd = "subscribe", /* pid, cluster, sub-cluster */
+		.handler = client_subscribed,
+	},
+	{
+		.cmd = "unsubscribe", /* pid, cluster, sub-cluster */
+		.handler = client_unsubscribed,
 	},
 	/*!
 	 * \note services for slave

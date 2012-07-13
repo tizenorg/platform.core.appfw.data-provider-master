@@ -13,6 +13,7 @@
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"
+#include "instance.h"
 #include "client_rpc.h"
 #include "package.h"
 
@@ -110,7 +111,7 @@ void fault_broadcast_info(const char *pkgname, const char *filename, const char 
 		return;
 	}
 
-	client_rpc_broadcast(packet);
+	client_rpc_broadcast(NULL, packet);
 	DbgPrint("Fault package: %s\n", pkgname);
 }
 
