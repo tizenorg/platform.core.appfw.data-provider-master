@@ -1091,15 +1091,16 @@ static struct packet *client_pinup_changed(pid_t pid, int handle, const struct p
 	}
 
 	inst = package_find_instance_by_id(pkgname, id);
-	if (!inst)
+	if (!inst) {
 		ret = -ENOENT;
-	else if (package_is_fault(instance_package(inst)))
+	} else if (package_is_fault(instance_package(inst))) {
 		ret = -EFAULT;
-	else
+	} else {
 		ret = instance_set_pinup(inst, pinup);
+	}
 
 out:
-	result = packet_create_reply(packet, "ii", ret, pinup);
+	result = packet_create_reply(packet, "i", ret);
 	if (!result)
 		ErrPrint("Failed to create a packet\n");
 

@@ -984,18 +984,61 @@ void instance_set_pd_info(struct inst_info *inst, int w, int h)
 static void pinup_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	struct set_pinup_cbdata *cbdata = data;
+	const char *content;
+	struct packet *result;
 	int ret;
 
-	if (!packet)
+	if (!packet) {
+		/*!
+		 * \todo
+		 * Send pinup failed event to client.
+		 */
+		ret = -EINVAL;
 		goto out;
+	}
 
-	if (packet_get(packet, "i", &ret) != 1)
+	if (packet_get(packet, "is", &ret, &content) != 2) {
+		/*!
+		 * \todo
+		 * Send pinup failed event to client
+		 */
+		ret = -EINVAL;
 		goto out;
+	}
 
-	if (ret == 0)
+	if (ret == 0) {
+		char *new_content;
+
+		new_content = strdup(content);
+		if (!new_content) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			/*!
+			 * \note
+			 * send pinup failed event to client
+			 */
+			ret = -ENOMEM;
+			goto out;
+		}
+	
 		cbdata->inst->lb.is_pinned_up = cbdata->pinup;
+		free(cbdata->inst->content);
+
+		cbdata->inst->content = new_content;
+	}
 
 out:
+	/*!
+	 * \node
+	 * Send PINUP Result to client.
+	 * Client should wait this event.
+	 */
+	result = packet_create("pinup", "iisss", ret, cbdata->inst->lb.is_pinned_up,
+							package_name(cbdata->inst->info), cbdata->inst->id, cbdata->inst->content);
+	if (result)
+		client_rpc_broadcast(cbdata->inst, result);
+	else
+		ErrPrint("Failed to send pinup result packet\n");
+
 	instance_unref(cbdata->inst);
 	free(cbdata);
 }
@@ -1012,7 +1055,7 @@ int instance_set_pinup(struct inst_info *inst, int pinup)
 		return -EINVAL;
 
 	if (pinup == inst->lb.is_pinned_up)
-		return 0;
+		return -EINVAL;
 
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata)
