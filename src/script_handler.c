@@ -124,6 +124,11 @@ static void render_post_cb(void *data, Evas *e, void *event_info)
 
 	inst = data;
 
+	if (instance_state(inst) != INST_ACTIVATED) {
+		DbgPrint("Render post invoked but instance is not activated\n");
+		return;
+	}
+
 	evas_image_cache_flush(e);
 	evas_font_cache_flush(e);
 	evas_render_dump(e);
