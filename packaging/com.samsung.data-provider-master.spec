@@ -21,6 +21,7 @@ BuildRequires: pkgconfig(evas)
 BuildRequires: pkgconfig(ecore-evas)
 BuildRequires: pkgconfig(capi-context-engine)
 BuildRequires: pkgconfig(com-core)
+BuildRequires: pkgconfig(heynoti)
 
 %description
 Manage the slave data provider and communicate with client applications.

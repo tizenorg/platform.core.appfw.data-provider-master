@@ -621,6 +621,11 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 			 * LB should be created at the create time
 			 */
 			if (package_lb_type(inst->info) == LB_TYPE_SCRIPT) {
+				if (inst->lb.width == 0 && inst->lb.height == 0) {
+					inst->lb.width = g_conf.size[0].width;
+					inst->lb.height = g_conf.size[0].height;
+				}
+
 				inst->lb.canvas.script = script_handler_create(inst,
 								package_lb_path(inst->info), package_lb_group(inst->info),
 								inst->lb.width, inst->lb.height);

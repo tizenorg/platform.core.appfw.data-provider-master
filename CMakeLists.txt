@@ -18,6 +18,7 @@ pkg_check_modules(pkg REQUIRED
 	ecore-evas
 	capi-context-engine
 	com-core
+	heynoti
 )
 
 SET(PACKAGE "${PROJECT_NAME}")
