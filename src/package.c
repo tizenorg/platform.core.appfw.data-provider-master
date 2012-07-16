@@ -724,8 +724,11 @@ static int client_created_cb(struct client_node *client, void *data)
 			case INST_ACTIVATED: /*!< This instance is actiavted, and used */
 			case INST_REQUEST_TO_REACTIVATE: /*!< This instance will be reactivated soon */
 			case INST_REQUEST_TO_DESTROY: /*!< This instance will be destroy soon */
-				instance_unicast_created_event(inst, client);
-				DbgPrint("Created package: %s\n", info->pkgname);
+				if (client_is_subscribed(client, instance_cluster(inst), instance_category(inst))) {
+					instance_unicast_created_event(inst, client);
+					DbgPrint("(Subscribed) Created package: %s\n", info->pkgname);
+				}
+
 				break;
 			default:
 				DbgPrint("%s(%s) is not activated (%d)\n",
@@ -770,6 +773,41 @@ const char *package_find_by_secured_slave(struct slave_node *slave)
 const char * const package_name(const struct pkg_info *info)
 {
 	return info->pkgname;
+}
+
+int package_alter_instances_to_client(struct client_node *client)
+{
+	struct pkg_info *info;
+	Eina_List *l;
+
+	struct inst_info *inst;
+	Eina_List *i_l;
+
+	EINA_LIST_FOREACH(s_info.pkg_list, l, info) {
+		EINA_LIST_FOREACH(info->inst_list, i_l, inst) {
+			switch (instance_state(inst)) {
+			case INST_INIT:
+				/* Will be send a created event after the instance gets created event */
+				break;
+			case INST_ACTIVATED: /*!< This instance is actiavted, and used */
+			case INST_REQUEST_TO_REACTIVATE: /*!< This instance will be reactivated soon */
+			case INST_REQUEST_TO_DESTROY: /*!< This instance will be destroy soon */
+				if (client_is_subscribed(client, instance_cluster(inst), instance_category(inst))) {
+					instance_unicast_created_event(inst, client);
+					DbgPrint("(Subscribed) Created package: %s\n", info->pkgname);
+				}
+
+				break;
+			default:
+				DbgPrint("%s(%s) is not activated (%d)\n",
+						package_name(info), instance_id(inst),
+						instance_state(inst));
+				break;
+			}
+		}
+	}
+
+	return 0;
 }
 
 /* End of a file */

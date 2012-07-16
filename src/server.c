@@ -1251,10 +1251,14 @@ static struct packet *client_subscribed(pid_t pid, int handle, const struct pack
 	 */
 	ret = client_subscribe(client, cluster, category);
 
+	if (ret == 0)
+		package_alter_instances_to_client(client);
+
 out:
 	result = packet_create_reply(packet, "i", ret);
 	if (!result)
 		ErrPrint("Failed to create a packet\n");
+
 	return result;
 }
 

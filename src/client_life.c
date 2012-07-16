@@ -472,8 +472,10 @@ int client_global_event_handler_add(enum client_global_event event_type, int (*c
 	struct global_event_handler *handler;
 
 	handler = malloc(sizeof(*handler));
-	if (!handler)
+	if (!handler) {
+		ErrPrint("Heap: %s\n", strerror(errno));
 		return -ENOMEM;
+	}
 
 	handler->cbdata = data;
 	handler->cb = cb;

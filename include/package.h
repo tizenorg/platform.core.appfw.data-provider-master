@@ -68,7 +68,7 @@ extern int package_del_instance(struct pkg_info *info, struct inst_info *inst);
 extern Eina_List *package_instance_list(struct pkg_info *info);
 
 extern int package_clear_fault(struct pkg_info *info);
-extern int package_list_update(struct client_node *client);
+extern int package_alter_instances_to_client(struct client_node *client);
 
 extern int package_init(void);
 extern int package_fini(void);
