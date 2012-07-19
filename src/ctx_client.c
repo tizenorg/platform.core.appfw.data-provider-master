@@ -58,7 +58,7 @@ static int update_pkg_cb(struct category *category, const char *pkgname, void *d
 
 	/* Just try to create a new package */
 	timestamp = util_timestamp();
-	inst = instance_create(NULL, timestamp, pkgname, "default", c_name, s_name, DEFAULT_PERIOD);
+	inst = instance_create(NULL, timestamp, pkgname, DEFAULT_CONTENT, c_name, s_name, DEFAULT_PERIOD);
 	return EXIT_SUCCESS;
 }
 

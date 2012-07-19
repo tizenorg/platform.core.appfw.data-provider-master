@@ -323,6 +323,8 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		if (period > 0.0f && period < MINIMUM_PERIOD)
 			period = MINIMUM_PERIOD;
 
+		if (!strlen(content))
+			content = DEFAULT_CONTENT;
 		inst = instance_create(client, timestamp, pkgname, content, cluster, category, period);
 		/*!
 		 * \note
@@ -1262,6 +1264,73 @@ out:
 	return result;
 }
 
+static struct packet *client_delete_cluster(pid_t pid, int handle, const struct packet *packet)
+{
+	const char *cluster;
+	struct client_node *client;
+	struct packet *result;
+	int ret;
+
+	client = client_find_by_pid(pid);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = -ENOENT;
+		goto out;
+	}
+
+	ret = packet_get(packet, "s", &cluster);
+	if (ret != 1) {
+		ErrPrint("Invalid parameters\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/*!
+	 * \todo
+	 */
+	ret = -ENOSYS;
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a packet\n");
+	return result;
+}
+
+static struct packet *client_delete_category(pid_t pid, int handle, const struct packet *packet)
+{
+	const char *cluster;
+	const char *category;
+	struct client_node *client;
+	struct packet *result;
+	int ret;
+
+	client = client_find_by_pid(pid);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = -ENOENT;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ss", &cluster, &category);
+	if (ret != 2) {
+		ErrPrint("Invalid paramenters\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/*!
+	 * \todo
+	 */
+	ret = -ENOSYS;
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a packet\n");
+	return result;
+}
+
 static struct packet *client_unsubscribed(pid_t pid, int handle, const struct packet *packet)
 {
 	const char *cluster;
@@ -1279,7 +1348,7 @@ static struct packet *client_unsubscribed(pid_t pid, int handle, const struct pa
 
 	ret = packet_get(packet, "ss", &cluster, &category);
 	if (ret != 2) {
-		ErrPrint("Client %d is not exists\n", pid);
+		ErrPrint("Invalid paramenters\n");
 		ret = -EINVAL;
 		goto out;
 	}
@@ -1900,6 +1969,14 @@ static struct method s_table[] = {
 	{
 		.cmd = "unsubscribe", /* pid, cluster, sub-cluster */
 		.handler = client_unsubscribed,
+	},
+	{
+		.cmd = "delete_cluster",
+		.handler = client_delete_cluster,
+	},
+	{
+		.cmd = "delete_category",
+		.handler = client_delete_category,
 	},
 	/*!
 	 * \note services for slave

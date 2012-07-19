@@ -68,5 +68,6 @@ extern void conf_update_size(void);
 #define BUNDLE_SLAVE_ABI "abi"
 #define PACKET_TIME 0.01f
 #define NO_CHANGE -1.0f
+#define DEFAULT_CONTENT "default"
 
 /* End of a file */
