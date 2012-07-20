@@ -15,6 +15,7 @@
 #include "util.h"
 #include "debug.h"
 #include "slave_life.h"
+#include "critical_log.h"
 
 int errno;
 
@@ -46,7 +47,7 @@ int setting_is_locked(void)
 
 static void power_off_cb(void *data)
 {
-	ErrPrint("Turn off the master\n");
+	CRITICAL_LOG("Terminated(heynoti)\n");
 
 	if (creat("/tmp/.stop.provider", 0644) < 0)
 		ErrPrint("Failed to create .stop.provider [%s]\n", strerror(errno));
@@ -64,17 +65,17 @@ int setting_init(void)
 
 	s_info.heyfd = heynoti_init();
 	if (s_info.heyfd < 0) {
-		ErrPrint("Failed to set poweroff heynoti [%d]\n", s_info.heyfd);
+		CRITICAL_LOG("Failed to set poweroff heynoti [%d]\n", s_info.heyfd);
 		return 0;
 	}
 
 	ret = heynoti_subscribe(s_info.heyfd, "power_off_start", power_off_cb, NULL);
 	if (ret < 0)
-		ErrPrint("Failed to subscribe heynoti for power off [%d]\n", ret);
+		CRITICAL_LOG("Failed to subscribe heynoti for power off [%d]\n", ret);
 
 	ret = heynoti_attach_handler(s_info.heyfd);
 	if (ret < 0)
-		ErrPrint("Failed to attach heynoti handler [%d]\n", ret);
+		CRITICAL_LOG("Failed to attach heynoti handler [%d]\n", ret);
 
 	return ret;
 }

@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include <Ecore.h>
 #include <Ecore_X.h>
@@ -30,6 +33,7 @@
 #include "server.h"
 #include "util.h"
 #include "debug.h"
+#include "critical_log.h"
 
 #if defined(FLOG)
 FILE *__file_log_fp;
@@ -156,8 +160,32 @@ static int aul_handler_cb(aul_type type, bundle *kb, void *data)
 }
 */
 
+static void signal_handler(int signum, siginfo_t *info, void *unused)
+{
+	CRITICAL_LOG("Terminated(SIGTERM)\n");
+	creat("/tmp/.stop.provider", 0644);
+	exit(0);
+}
+
 int main(int argc, char *argv[])
 {
+	struct sigaction act;
+	int ret;
+
+	/*!
+	 * How could we care this return values?
+	 * Is there any way to print something on the screen?
+	 */
+	ret = critical_log_init();
+	if (ret < 0)
+		fprintf(stderr, "Failed to init the critical log\n");
+
+	/*
+	ret = daemon(0, 0);
+	if (ret < 0)
+		CRITICAL_LOG("Failed to make daemon: %s\n", strerror(errno));
+	*/
+
 #if defined(FLOG)
 	__file_log_fp = fopen("/tmp/live.log", "w+t");
 	if (!__file_log_fp)
@@ -165,29 +193,49 @@ int main(int argc, char *argv[])
 #endif
 	/* appcore_agent_terminate */
 	if (ecore_init() <= 0) {
-		ErrPrint("Failed to initiate ecore\n");
+		CRITICAL_LOG("Failed to initiate ecore\n");
+		critical_log_fini();
 		return -EFAULT;
 	}
+
+	act.sa_sigaction = signal_handler;
+	act.sa_flags = SA_SIGINFO;
+
+	ret = sigemptyset(&act.sa_mask);
+	if (ret < 0)
+		CRITICAL_LOG("Failed to do sigemptyset: %s\n", strerror(errno));
+
+	ret = sigaddset(&act.sa_mask, SIGTERM);
+	if (ret < 0)
+		CRITICAL_LOG("Failed to mask the SIGTERM: %s\n", strerror(errno));
+
+	ret = sigaction(SIGTERM, &act, NULL);
+	if (ret < 0)
+		CRITICAL_LOG("Failed to add sigaction: %s\n", strerror(errno));
+
 	if (ecore_x_init(NULL) <= 0) {
-		ErrPrint("Failed to ecore x init\n");
+		CRITICAL_LOG("Failed to ecore x init\n");
 		ecore_shutdown();
+		critical_log_fini();
 		return -EFAULT;
 	}
 
 	ecore_app_args_set(argc, (const char **)argv);
 
 	if (evas_init() <= 0) {
-		ErrPrint("Failed to init evas return count is below than 0\n");
+		CRITICAL_LOG("Failed to init evas return count is below than 0\n");
 		ecore_x_shutdown();
 		ecore_shutdown();
+		critical_log_fini();
 		return -EFAULT;
 	}
 
 	if (ecore_evas_init() <= 0) {
-		ErrPrint("Failed to init ecore_evas\n");
+		CRITICAL_LOG("Failed to init ecore_evas\n");
 		evas_shutdown();
 		ecore_x_shutdown();
 		ecore_shutdown();
+		critical_log_fini();
 		return -EFAULT;
 	}
 
@@ -209,6 +257,7 @@ int main(int argc, char *argv[])
 
 	ecore_x_shutdown();
 	ecore_shutdown();
+	critical_log_fini();
 	return 0;
 }
 
