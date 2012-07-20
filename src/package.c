@@ -724,16 +724,23 @@ static int client_created_cb(struct client_node *client, void *data)
 			case INST_ACTIVATED: /*!< This instance is actiavted, and used */
 			case INST_REQUEST_TO_REACTIVATE: /*!< This instance will be reactivated soon */
 			case INST_REQUEST_TO_DESTROY: /*!< This instance will be destroy soon */
-				if (client_is_subscribed(client, instance_cluster(inst), instance_category(inst))) {
+				if (instance_client(inst) == client) {
 					instance_unicast_created_event(inst, client);
-					DbgPrint("(Subscribed) Created package: %s\n", info->pkgname);
+				} else if (instance_client(inst) == NULL) {
+					/*!
+					 * \note
+					 * Instances are lives in the system cluster/sub-cluster
+					 */
+					if (client_is_subscribed(client, instance_cluster(inst), instance_category(inst))) {
+						instance_unicast_created_event(inst, client);
+						DbgPrint("(Subscribed) Created package: %s\n", info->pkgname);
+					}
 				}
 
 				break;
 			default:
 				DbgPrint("%s(%s) is not activated (%d)\n",
-						package_name(info), instance_id(inst),
-						instance_state(inst));
+						package_name(info), instance_id(inst), instance_state(inst));
 				break;
 			}
 		}
@@ -792,16 +799,23 @@ int package_alter_instances_to_client(struct client_node *client)
 			case INST_ACTIVATED: /*!< This instance is actiavted, and used */
 			case INST_REQUEST_TO_REACTIVATE: /*!< This instance will be reactivated soon */
 			case INST_REQUEST_TO_DESTROY: /*!< This instance will be destroy soon */
-				if (client_is_subscribed(client, instance_cluster(inst), instance_category(inst))) {
+				if (instance_client(inst) == client) {
 					instance_unicast_created_event(inst, client);
-					DbgPrint("(Subscribed) Created package: %s\n", info->pkgname);
+				} else if (instance_client(inst) == NULL) {
+					/*!
+					 * \note
+					 * Instances are lives in the system cluster/sub-cluster
+					 */
+					if (client_is_subscribed(client, instance_cluster(inst), instance_category(inst))) {
+						instance_unicast_created_event(inst, client);
+						DbgPrint("(Subscribed) Created package: %s\n", info->pkgname);
+					}
 				}
 
 				break;
 			default:
 				DbgPrint("%s(%s) is not activated (%d)\n",
-						package_name(info), instance_id(inst),
-						instance_state(inst));
+						package_name(info), instance_id(inst), instance_state(inst));
 				break;
 			}
 		}

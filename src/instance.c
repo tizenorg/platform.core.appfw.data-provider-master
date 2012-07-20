@@ -92,6 +92,8 @@ struct inst_info {
 	int refcnt;
 };
 
+#define CLIENT_SEND_EVENT(instance, packet)	((instance)->client ? client_rpc_async_request((instance)->client, (packet)) : client_rpc_broadcast((instance), (packet)))
+
 int instance_unicast_created_event(struct inst_info *inst, struct client_node *client)
 {
 	struct packet *packet;
@@ -188,7 +190,7 @@ int instance_broadcast_created_event(struct inst_info *inst)
 	if (!packet)
 		return -EFAULT;
 
-	return client_rpc_broadcast(inst, packet);
+	return CLIENT_SEND_EVENT(inst, packet);
 }
 
 int instance_unicast_deleted_event(struct inst_info *inst)
@@ -217,7 +219,7 @@ int instance_broadcast_deleted_event(struct inst_info *inst)
 		return -EFAULT;
 	}
 		
-	return client_rpc_broadcast(inst, packet);
+	return CLIENT_SEND_EVENT(inst, packet);
 }
 
 static int client_deactivated_cb(struct client_node *client, void *data)
@@ -434,11 +436,11 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 			instance_reactivate(inst);
 			break;
 		case INST_DESTROYED:
-			DbgPrint("==\n");
 			info = inst->info;
 			instance_broadcast_deleted_event(inst);
 			instance_state_reset(inst);
 			instance_destroy(inst);
+			DbgPrint("== %s\n", package_name(info));
 			slave_unload_instance(package_slave(info));
 		default:
 			/*!< Unable to reach here */
@@ -929,7 +931,7 @@ void instance_lb_updated_by_instance(struct inst_info *inst)
 		return;
 	}
 
-	client_rpc_broadcast(inst, packet);
+	(void)CLIENT_SEND_EVENT(inst, packet);
 }
 
 void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfile)
@@ -957,7 +959,7 @@ void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfil
 		return;
 	}
 
-	client_rpc_broadcast(inst, packet);
+	(void)CLIENT_SEND_EVENT(inst, packet);
 }
 
 void instance_pd_updated(const char *pkgname, const char *id, const char *descfile)
@@ -1040,7 +1042,7 @@ out:
 	result = packet_create("pinup", "iisss", ret, cbdata->inst->lb.is_pinned_up,
 							package_name(cbdata->inst->info), cbdata->inst->id, cbdata->inst->content);
 	if (result)
-		client_rpc_broadcast(cbdata->inst, result);
+		(void)CLIENT_SEND_EVENT(cbdata->inst, result);
 	else
 		ErrPrint("Failed to send pinup result packet\n");
 
@@ -1423,11 +1425,11 @@ void instance_faulted(struct inst_info *inst)
 	case INST_REQUEST_TO_REACTIVATE:
 	case INST_REQUEST_TO_DESTROY:
 	case INST_ACTIVATED:
-		DbgPrint("==\n");
 		info = inst->info;
 		instance_state_reset(inst);
 		instance_broadcast_deleted_event(inst);
 		instance_destroy(inst);
+		DbgPrint("== %s\n", package_name(info));
 		slave_unload_instance(package_slave(info));
 		break;
 	case INST_DESTROYED:
