@@ -1,6 +1,6 @@
 Name: com.samsung.data-provider-master
 Summary: Master data provider
-Version: 0.4.5
+Version: 0.4.6
 Release: 1
 Group: main/app
 License: Samsung Proprietary License
@@ -28,10 +28,10 @@ Manage the slave data provider and communicate with client applications.
 
 %prep
 %setup -q
-cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix}
 
 %build
-CFLAGS="${CFLAGS} -Wall -fpie -Winline -Werror" LDFLAGS="${LDFLAGS} -pie" make %{?jobs:-j%jobs}
+cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix}
+CFLAGS="${CFLAGS} -Wall -Winline -Werror" LDFLAGS="${LDFLAGS}" make %{?jobs:-j%jobs}
 
 %install
 rm -rf %{buildroot}

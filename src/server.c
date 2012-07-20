@@ -23,6 +23,7 @@
 #include "util.h"
 #include "fault_manager.h"
 #include "fb.h" /* fb_type */
+#include "group.h"
 
 static struct info {
 	int fd;
@@ -1297,6 +1298,70 @@ out:
 	return result;
 }
 
+static int update_pkg_cb(struct category *category, const char *pkgname, void *data)
+{
+	const char *c_name;
+	const char *s_name;
+
+	c_name = group_cluster_name_by_category(category);
+	s_name = group_category_name(category);
+
+	if (!c_name || !s_name || !pkgname) {
+		ErrPrint("Name is not valid\n");
+		return EXIT_FAILURE;
+	}
+
+	slave_rpc_request_update(pkgname, c_name, s_name);
+	return EXIT_SUCCESS;
+}
+
+static struct packet *client_refresh_group(pid_t pid, int handle, const struct packet *packet)
+{
+	const char *cluster_id;
+	const char *category_id;
+	struct client_node *client;
+	struct packet *result;
+	int ret;
+	struct cluster *cluster;
+	struct category *category;
+
+	client = client_find_by_pid(pid);
+	if (!client) {
+		ErrPrint("Cilent %d is not exists\n", pid);
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ss", &cluster_id, &category_id);
+	if (ret != 2) {
+		ErrPrint("Invalid parameter\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	cluster = group_find_cluster(cluster_id);
+	if (!cluster) {
+		ErrPrint("Cluster [%s] is not registered\n", cluster_id);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	category = group_find_category(cluster, category_id);
+	if (!category) {
+		ErrPrint("Category [%s] is not registered\n", category_id);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	group_list_category_pkgs(category, update_pkg_cb, NULL);
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a packet\n");
+	return result;
+}
+
 static struct packet *client_delete_category(pid_t pid, int handle, const struct packet *packet)
 {
 	const char *cluster;
@@ -1977,6 +2042,10 @@ static struct method s_table[] = {
 	{
 		.cmd = "delete_category",
 		.handler = client_delete_category,
+	},
+	{
+		.cmd = "refresh_group",
+		.handler = client_refresh_group,
 	},
 	/*!
 	 * \note services for slave
