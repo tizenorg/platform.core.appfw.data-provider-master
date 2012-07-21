@@ -283,10 +283,7 @@ static inline int parse_size(const char *buffer, unsigned int *size)
 			break;
 		case STOP:
 			for (j = 0; j < g_conf.max_size_type; j++) {
-				w = (double)w * g_conf.width / BASE_W;
-				h = (double)h * g_conf.height / BASE_H;
-				if (g_conf.size[j].width == w &&
-						g_conf.size[j].height == h) {
+				if (g_conf.size[j].width == w && g_conf.size[j].height == h) {
 					*size |= (0x01 << j);
 					break;
 				}
