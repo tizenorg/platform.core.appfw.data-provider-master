@@ -40,6 +40,7 @@
 #include "io.h"
 #include "main.h"
 #include "util.h"
+#include "setting.h"
 
 int errno;
 
@@ -135,7 +136,12 @@ static Eina_Bool client_cb(void *data, int type, void *event)
 	} else if (!strcmp(name, "_X_ILLUME_ACTIVATE_WINDOW")) {
 		DbgPrint("RESUME EVENT\n");
 		client_resumed(client);
-		slave_check_pause_or_resume();
+
+		if (!setting_is_locked()) {
+			slave_check_pause_or_resume();
+		} else {
+			DbgPrint("Locked. ignore resume event.\n");
+		}
 	}
 
 	free(name);
