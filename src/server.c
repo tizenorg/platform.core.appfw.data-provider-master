@@ -1110,6 +1110,68 @@ out:
 	return result;
 }
 
+static inline int slave_send_pd_create(struct inst_info *inst)
+{
+	const char *pkgname;
+	const char *id;
+	struct packet *packet;
+	struct slave_node *slave;
+	const struct pkg_info *info;
+
+	slave = package_slave(instance_package(inst));
+	if (!slave)
+		return -EFAULT;
+
+	info = instance_package(inst);
+	if (!info)
+		return -EINVAL;
+
+	pkgname = package_name(info);
+	id = instance_id(inst);
+
+	if (!pkgname || !id)
+		return -EINVAL;
+
+	packet = packet_create("pd_show", "ssii", pkgname, id, instance_pd_width(inst), instance_pd_height(inst));
+	if (!packet) {
+		ErrPrint("Failed to create a packet\n");
+		return -EFAULT;
+	}
+
+	return slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+}
+
+static inline int slave_send_pd_destroy(struct inst_info *inst)
+{
+	const char *pkgname;
+	const char *id;
+	struct packet *packet;
+	struct slave_node *slave;
+	struct pkg_info *info;
+
+	slave = package_slave(instance_package(inst));
+	if (!slave)
+		return -EFAULT;
+
+	info = instance_package(inst);
+	if (!info)
+		return -EINVAL;
+
+	pkgname = package_name(info);
+	id = instance_id(inst);
+
+	if (!pkgname || !id)
+		return -EINVAL;
+
+	packet = packet_create("pd_hide", "ss", pkgname, id);
+	if (!packet) {
+		ErrPrint("Failed to create a packet\n");
+		return -EFAULT;
+	}
+
+	return slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+}
+
 static struct packet *client_create_pd(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, ret */
 {
 	struct client_node *client;
@@ -1138,6 +1200,8 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		ret = -ENOENT;
 	else if (package_is_fault(instance_package(inst)))
 		ret = -EFAULT;
+	else if (package_pd_type(instance_package(inst)) == PD_TYPE_BUFFER)
+		ret = slave_send_pd_create(inst);
 	else
 		ret = script_handler_load(instance_pd_script(inst), 1);
 
@@ -1177,6 +1241,8 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 		ret = -ENOENT;
 	else if (package_is_fault(instance_package(inst)))
 		ret = -EFAULT;
+	else if (package_pd_type(instance_package(inst)) == PD_TYPE_BUFFER)
+		ret = slave_send_pd_destroy(inst);
 	else
 		ret = script_handler_unload(instance_pd_script(inst), 1);
 
@@ -1709,6 +1775,49 @@ out:
 	return result;
 }
 
+static struct packet *slave_deleted(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, id, ret */
+{
+	struct slave_node *slave;
+	struct packet *result;
+	const char *slavename;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	struct inst_info *inst;
+
+	slave = slave_find_by_pid(pid);
+	if (!slave) {
+		ErrPrint("Slave %d is not exists\n", pid);
+		ret = -ENOENT;
+		goto out;
+	}
+
+	ret = packet_get(packet, "sss", &slavename, &pkgname, &id);
+	if (ret != 3) {
+		ErrPrint("Parameter is not matched\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst)
+		ret = -ENOENT;
+	else if (package_is_fault(instance_package(inst)))
+		ret = -EFAULT;
+	else
+		ret = instance_destroyed(inst);
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a packet\n");
+
+	return result;
+}
+
+/*!
+ * \note for the BUFFER Type slave
+ */
 static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct packet *packet) /* type, id, w, h, size */
 {
 	enum target_type target;
@@ -1722,6 +1831,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 	struct slave_node *slave;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	int ret;
 
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
@@ -1746,23 +1856,36 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 
 	pkg = instance_package(inst);
 	id = "";
+	ret = -EINVAL;
 	if (target == TYPE_LB) {
 		if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
 			struct buffer_info *info;
+
 			info = instance_lb_buffer(inst);
+			if (!info)
+				instance_create_lb_buffer(inst);
+
+			ret = buffer_handler_resize(info, w, h);
+
 			if (buffer_handler_load(info) == 0)
 				id = buffer_handler_id(info);
 		}
 	} else if (target == TYPE_PD) {
 		if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
 			struct buffer_info *info;
+
 			info = instance_pd_buffer(inst);
+			if (!info)
+				instance_create_pd_buffer(inst);
+
+			ret = buffer_handler_resize(info, w, h);
+
 			if (buffer_handler_load(info) == 0)
 				id = buffer_handler_id(info);
 		}
 	}
 
-	result = packet_create_reply(packet, "s", id);
+	result = packet_create_reply(packet, "is", ret, id);
 	if (!result)
 		ErrPrint("Failed to create a packet\n");
 
@@ -1865,6 +1988,7 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 	struct packet *result;
 	struct slave_node *slave;
 	struct inst_info *inst;
+	int ret;
 
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
@@ -1874,65 +1998,29 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 
 	if (packet_get(packet, "isss", &type, &slavename, &pkgname, &id) != 4) {
 		ErrPrint("Inavlid argument\n");
-		result = packet_create_reply(packet, "i", -EINVAL);
-		if (!result)
-			ErrPrint("Faield to create a packet\n");
-
-		return result;
-	}
-
-	inst = package_find_instance_by_id(pkgname, id);
-	if (!inst) {
-		result = packet_create_reply(packet, "i", -ENOENT);
-		if (!result)
-			ErrPrint("Failed to create a packet\n");
-
-		return result;
-	}
-
-	if (type == TYPE_LB) {
-	} else if (type == TYPE_PD) {
-	} else {
-	}
-
-	result = packet_create_reply(packet, "i", 0);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-
-	return result;
-}
-
-static struct packet *slave_deleted(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, id, ret */
-{
-	struct slave_node *slave;
-	struct packet *result;
-	const char *slavename;
-	const char *pkgname;
-	const char *id;
-	int ret;
-	struct inst_info *inst;
-
-	slave = slave_find_by_pid(pid);
-	if (!slave) {
-		ErrPrint("Slave %d is not exists\n", pid);
-		ret = -ENOENT;
-		goto out;
-	}
-
-	ret = packet_get(packet, "sss", &slavename, &pkgname, &id);
-	if (ret != 3) {
-		ErrPrint("Parameter is not matched\n");
 		ret = -EINVAL;
 		goto out;
 	}
 
 	inst = package_find_instance_by_id(pkgname, id);
-	if (!inst)
+	if (!inst) {
+		ErrPrint("Instance is not found [%s - %s]\n", pkgname, id);
 		ret = -ENOENT;
-	else if (package_is_fault(instance_package(inst)))
-		ret = -EFAULT;
-	else
-		ret = instance_destroyed(inst);
+		goto out;
+	}
+
+	ret = -EINVAL;
+	if (type == TYPE_LB) {
+		struct buffer_info *info;
+
+		info = instance_lb_buffer(inst);
+		ret = buffer_handler_unload(info);
+	} else if (type == TYPE_PD) {
+		struct buffer_info *info;
+
+		info = instance_lb_buffer(inst);
+		ret = buffer_handler_unload(info);
+	}
 
 out:
 	result = packet_create_reply(packet, "i", ret);
@@ -1941,6 +2029,8 @@ out:
 
 	return result;
 }
+
+
 
 static struct method s_table[] = {
 	/*!

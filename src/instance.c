@@ -637,9 +637,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 				else
 					script_handler_load(inst->lb.canvas.script, 0);
 			} else if (package_lb_type(inst->info) == LB_TYPE_BUFFER) {
-				inst->lb.canvas.buffer = buffer_handler_create(inst, BUFFER_TYPE_FILE, inst->lb.width, inst->lb.height, sizeof(int));
-				if (!inst->lb.canvas.buffer)
-					ErrPrint("Failed to create LB\n");
+				instance_create_lb_buffer(inst);
 			}
 
 			if (package_pd_type(inst->info) == PD_TYPE_SCRIPT) {
@@ -654,14 +652,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 				if (!inst->pd.canvas.script)
 					ErrPrint("Failed to create PD\n");
 			} else if (package_pd_type(inst->info) == PD_TYPE_BUFFER) {
-				if (inst->pd.width == 0 && inst->pd.height == 0) {
-					inst->pd.width = package_pd_width(inst->info);
-					inst->pd.height = package_pd_height(inst->info);
-				}
-
-				inst->pd.canvas.buffer = buffer_handler_create(inst, BUFFER_TYPE_FILE, inst->pd.width, inst->pd.height, sizeof(int));
-				if (!inst->pd.canvas.buffer)
-					ErrPrint("Failed to create PD\n");
+				instance_create_pd_buffer(inst);
 			}
 
 			slave_load_instance(package_slave(inst->info));
@@ -678,6 +669,43 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 	}
 
 	instance_unref(inst);
+}
+
+int instance_create_pd_buffer(struct inst_info *inst)
+{
+	if (inst->pd.width == 0 && inst->pd.height == 0) {
+		inst->pd.width = package_pd_width(inst->info);
+		inst->pd.height = package_pd_height(inst->info);
+	}
+
+	if (!inst->pd.canvas.buffer) {
+		inst->pd.canvas.buffer = buffer_handler_create(inst, BUFFER_TYPE_FILE, inst->pd.width, inst->pd.height, sizeof(int));
+		if (!inst->pd.canvas.buffer)
+			ErrPrint("Failed to create PD Buffer\n");
+	}
+
+	return !!inst->pd.canvas.buffer;
+}
+
+int instance_create_lb_buffer(struct inst_info *inst)
+{
+	if (inst->lb.width == 0 && inst->lb.height == 0) {
+		inst->lb.width = g_conf.size[0].width;
+		inst->lb.height = g_conf.size[0].height;
+	}
+
+	if (!inst->lb.canvas.buffer) {
+		/*!
+		 * \note
+		 * Slave doesn't call the acquire_buffer.
+		 * In this case, create the buffer from here.
+		 */
+		inst->lb.canvas.buffer = buffer_handler_create(inst, BUFFER_TYPE_FILE, inst->lb.width, inst->lb.height, sizeof(int));
+		if (!inst->lb.canvas.buffer)
+			ErrPrint("Failed to create LB\n");
+	}
+
+	return !!inst->lb.canvas.buffer;
 }
 
 int instance_destroyed(struct inst_info *inst)
@@ -1355,7 +1383,7 @@ const int const instance_pd_height(const struct inst_info *inst)
 	return inst->pd.height;
 }
 
-const struct pkg_info *const instance_package(const struct inst_info *inst)
+struct pkg_info *const instance_package(const struct inst_info *inst)
 {
 	return inst->info;
 }

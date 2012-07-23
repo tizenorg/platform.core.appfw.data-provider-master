@@ -125,7 +125,7 @@ extern int instance_change_group(struct inst_info *inst, const char *cluster, co
  * getter
  */
 extern const double const instance_timestamp(const struct inst_info *inst);
-extern const struct pkg_info * const instance_package(const struct inst_info *inst);
+extern struct pkg_info * const instance_package(const struct inst_info *inst);
 extern struct script_info * const instance_lb_script(const struct inst_info *inst);
 extern struct script_info * const instance_pd_script(const struct inst_info *inst);
 extern struct buffer_info * const instance_pd_buffer(const struct inst_info *inst);
@@ -152,9 +152,7 @@ extern int instance_broadcast_created_event(struct inst_info *inst);
 extern int instance_broadcast_deleted_event(struct inst_info *inst);
 extern int instance_unicast_deleted_event(struct inst_info *inst);
 
-/*!
- * Call this after got the size of lb or pd buffer
- */
-extern int instance_prepare_fb(struct inst_info *inst);
+extern int instance_create_lb_buffer(struct inst_info *inst);
+extern int instance_create_pd_buffer(struct inst_info *inst);
 
 /* End of a file */
