@@ -23,7 +23,7 @@ pkg_check_modules(pkg REQUIRED
 
 SET(PACKAGE "${PROJECT_NAME}")
 SET(LOCALEDIR "/opt/apps/com.samsung.${PROJECT_NAME}/res/locale")
-SET(CMAKE_C_FLAGS "-Wall -fpie -Winline -Werror -fno-builtin-malloc -fno-omit-frame-pointer")
+SET(CMAKE_C_FLAGS "-Wall -fpie -Winline -Werror -fno-builtin-malloc -fno-omit-frame-pointer -g")
 SET(CMAKE_EXE_LINKER_FLAGS "-pie")
 
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/include)

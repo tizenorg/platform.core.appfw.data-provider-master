@@ -187,7 +187,7 @@ static Eina_Bool command_consumer_cb(void *data)
 		return ECORE_CALLBACK_RENEW;
 	}
 
-	if (com_core_packet_async_send(rpc->handle, command->packet, slave_async_cb, command) == 0)
+	if (com_core_packet_async_send(rpc->handle, command->packet, 0u, slave_async_cb, command) == 0)
 		return ECORE_CALLBACK_RENEW;
 
 	/*!
