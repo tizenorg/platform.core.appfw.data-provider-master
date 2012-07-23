@@ -49,8 +49,10 @@ struct period_cbdata {
 
 struct inst_info {
 	struct pkg_info *info;
+
 	enum instance_state state; /*!< Represents current state */
 	enum instance_state requested_state; /*!< Only ACTIVATED | DESTROYED is acceptable */
+	int changing_state;
 
 	char *id;
 	double timestamp;
@@ -403,12 +405,14 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 		 * The instance_reload will care this.
 		 * And it will be called from the slave activate callback.
 		 */
+		inst->changing_state = 0;
 		instance_unref(inst);
 		return;
 	}
 
 	if (packet_get(packet, "i", &ret) != 1) {
 		ErrPrint("Invalid argument\n");
+		inst->changing_state = 0;
 		instance_unref(inst);
 		return;
 	}
@@ -419,6 +423,7 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 		 * Already destroyed.
 		 * Do nothing at here anymore.
 		 */
+		inst->changing_state = 0;
 		instance_unref(inst);
 		return;
 	}
@@ -482,6 +487,7 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 		break;
 	}
 
+	inst->changing_state = 0;
 	instance_unref(inst);
 }
 
@@ -500,12 +506,14 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 		 * instance_reload function will care this.
 		 * and it will be called from the slave_activate callback
 		 */
+		inst->changing_state = 0;
 		instance_unref(inst);
 		return;
 	}
 
 	if (packet_get(packet, "i", &ret) != 1) {
 		ErrPrint("Invalid parameter\n");
+		inst->changing_state = 0;
 		instance_unref(inst);
 		return;
 	}
@@ -516,6 +524,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 		 * Already destroyed.
 		 * Do nothing at here anymore.
 		 */
+		inst->changing_state = 0;
 		instance_unref(inst);
 		return;
 	}
@@ -553,6 +562,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 		break;
 	}
 
+	inst->changing_state = 0;
 	instance_unref(inst);
 }
 
@@ -572,12 +582,14 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 		 * instance_reload will care this
 		 * it will be called from the slave_activate callback
 		 */
+		inst->changing_state = 0;
 		instance_unref(inst);
 		return;
 	}
 
 	if (packet_get(packet, "iiid", &ret, &w, &h, &priority) != 4) {
 		ErrPrint("Invalid parameter\n");
+		inst->changing_state = 0;
 		instance_unref(inst);
 		return;
 	}
@@ -588,6 +600,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 		 * Already destroyed.
 		 * Do nothing at here anymore.
 		 */
+		inst->changing_state = 0;
 		instance_unref(inst);
 		return;
 	}
@@ -668,6 +681,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 		break;
 	}
 
+	inst->changing_state = 0;
 	instance_unref(inst);
 }
 
@@ -781,6 +795,7 @@ int instance_destroy(struct inst_info *inst)
 
 	inst->requested_state = INST_DESTROYED;
 	inst->state = INST_REQUEST_TO_DESTROY;
+	inst->changing_state = 1;
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, deactivate_cb, instance_ref(inst));
 }
 
@@ -865,6 +880,7 @@ int instance_reactivate(struct inst_info *inst)
 
 	inst->requested_state = INST_ACTIVATED;
 	inst->state = INST_REQUEST_TO_REACTIVATE;
+	inst->changing_state = 1;
 
 	slave_activate(package_slave(inst->info));
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, reactivate_cb, instance_ref(inst));
@@ -917,6 +933,7 @@ int instance_activate(struct inst_info *inst)
 
 	inst->state = INST_REQUEST_TO_ACTIVATE;
 	inst->requested_state = INST_ACTIVATED;
+	inst->changing_state = 1;
 
 	/*!
 	 * \note
@@ -1469,9 +1486,16 @@ void instance_faulted(struct inst_info *inst)
 /*!
  * Invoked when a slave is activated
  */
-void instance_recover_state(struct inst_info *inst)
+int instance_recover_state(struct inst_info *inst)
 {
 	struct pkg_info *info;
+	int ret = 0;
+
+	if (inst->changing_state) {
+		DbgPrint("Doesn't need to recover the state\n");
+		return 0;
+	}
+
 	switch (inst->state) {
 	case INST_ACTIVATED:
 	case INST_REQUEST_TO_REACTIVATE:
@@ -1481,6 +1505,7 @@ void instance_recover_state(struct inst_info *inst)
 			DbgPrint("Req. to RE-ACTIVATED (%s)\n", package_name(inst->info));
 			instance_state_reset(inst);
 			instance_reactivate(inst);
+			ret = 1;
 			break;
 		case INST_DESTROYED:
 			DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
@@ -1501,11 +1526,13 @@ void instance_recover_state(struct inst_info *inst)
 			DbgPrint("Req. to ACTIVATED (%s)\n", package_name(inst->info));
 			instance_state_reset(inst);
 			instance_activate(inst);
+			ret = 1;
 			break;
 		case INST_DESTROYED:
 			DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
 			instance_state_reset(inst);
 			instance_destroy(inst);
+			ret = 1;
 			break;
 		default:
 			break;
@@ -1515,6 +1542,8 @@ void instance_recover_state(struct inst_info *inst)
 	default:
 		break;
 	}
+
+	return ret;
 }
 
 /*!

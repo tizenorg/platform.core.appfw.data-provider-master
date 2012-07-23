@@ -123,8 +123,7 @@ static int slave_activated_cb(struct slave_node *slave, void *data)
 
 	cnt = 0;
 	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
-		instance_recover_state(inst);
-		cnt++;
+		cnt += instance_recover_state(inst);
 	}
 
 	DbgPrint("Recover state for %d instances of %s\n", cnt, package_name(info));

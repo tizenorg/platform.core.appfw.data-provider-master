@@ -99,9 +99,11 @@ extern struct inst_info * instance_unref(struct inst_info *inst);
 
 extern int instance_state_reset(struct inst_info *inst);
 extern int instance_destroyed(struct inst_info *inst);
+
 extern int instance_reactivate(struct inst_info *inst);
 extern int instance_activate(struct inst_info *inst);
-extern void instance_recover_state(struct inst_info *inst);
+
+extern int instance_recover_state(struct inst_info *inst);
 extern int instance_need_slave(struct inst_info *inst);
 extern void instance_faulted(struct inst_info *inst);
 
