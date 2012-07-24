@@ -13,9 +13,8 @@
 #include <glib-object.h>
 #include <aul.h>
 
-#include <dlog.h>
-
 #include <packet.h>
+#include <dlog.h>
 
 #include "slave_life.h"
 #include "slave_rpc.h"

@@ -1,11 +1,10 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include <dlog.h>
-
 #include <gio/gio.h>
 #include <packet.h>
 #include <com-core.h>
+#include <dlog.h>
 
 #include "slave_life.h"
 #include "slave_rpc.h"

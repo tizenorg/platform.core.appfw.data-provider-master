@@ -4,9 +4,9 @@
 
 #include <gio/gio.h>
 
-#include <dlog.h>
 #include <Eina.h>
 #include <packet.h>
+#include <dlog.h>
 
 #include "util.h"
 #include "debug.h"

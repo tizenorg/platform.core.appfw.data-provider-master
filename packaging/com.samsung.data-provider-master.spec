@@ -86,3 +86,4 @@ done
 #/opt/share/applications/com.samsung.data-provider-master.desktop
 /etc/rc.d/init.d/data-provider-master
 /usr/bin/data-provider-master
+/usr/etc/package-manager/parserlib/*

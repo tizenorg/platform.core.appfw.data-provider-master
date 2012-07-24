@@ -25,7 +25,6 @@
 #include <ctype.h> /* isspace */
 
 #include <Eina.h>
-
 #include <dlog.h>
 
 #include "util.h"

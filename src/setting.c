@@ -37,12 +37,12 @@ int setting_is_locked(void)
 {
 	int state;
 
-	if (vconf_get_int(VCONFKEY_IDLE_LOCK_STATE, &state) != 0) {
+	if (vconf_get_int(VCONFKEY_PM_STATE, &state) != 0) {
 		ErrPrint("Idle lock state is not valid\n");
-		state = 0; /* UNLOCK */
+		state = VCONFKEY_PM_STATE_NORMAL; /* UNLOCK */
 	}
 
-	return state;
+	return state == VCONFKEY_PM_STATE_LCDOFF || state == VCONFKEY_PM_STATE_SLEEP;
 }
 
 static void power_off_cb(void *data)
@@ -59,7 +59,7 @@ int setting_init(void)
 {
 	int ret;
 
-	ret = vconf_notify_key_changed(VCONFKEY_IDLE_LOCK_STATE, lock_state_cb, NULL);
+	ret = vconf_notify_key_changed(VCONFKEY_PM_STATE, lock_state_cb, NULL);
 	if (ret < 0)
 		ErrPrint("Failed to add vconf for lock state\n");
 
@@ -83,7 +83,7 @@ int setting_init(void)
 int setting_fini(void)
 {
 	int ret;
-	ret = vconf_ignore_key_changed(VCONFKEY_IDLE_LOCK_STATE, lock_state_cb);
+	ret = vconf_ignore_key_changed(VCONFKEY_PM_STATE, lock_state_cb);
 	return ret;
 }
 

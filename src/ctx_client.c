@@ -5,8 +5,8 @@
 #include <Ecore.h>
 #include <gio/gio.h>
 
-#include <dlog.h>
 #include <vconf.h>
+#include <dlog.h>
 #include <context_subscribe.h>
 #include <packet.h>
 
