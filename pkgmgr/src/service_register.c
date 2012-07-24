@@ -215,6 +215,40 @@ static inline int db_insert_pkgmap(const char *appid, const char *pkgid)
 
 	ret = 0;
 	if (sqlite3_step(stmt) != SQLITE_DONE) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+	}
+
+out:
+	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+	sqlite3_finalize(stmt);
+	return ret;
+}
+
+static inline int db_remove_pkgmap(const char *appid)
+{
+	int ret;
+	static const char *dml;
+	sqlite3_stmt *stmt;
+
+	dml = "DELETE FROM pkgmap WHERE appid = ?";
+	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		return -EIO;
+	}
+
+	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = 0;
+	if (sqlite3_step(stmt) != SQLITE_DONE) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 	}
 
@@ -247,11 +281,59 @@ static inline int db_create_provider(void)
 	return 0;
 }
 
+static inline int db_remove_provider(const char *appid)
+{
+	static const char *dml;
+	int ret;
+	sqlite3_stmt *stmt;
+
+	dml = "DELETE FROM provider WHERE appid = ?";
+	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		return -EIO;
+	}
+
+	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = 0;
+	if (sqlite3_step(stmt) != SQLITE_DONE) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+	}
+
+out:
+	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+	sqlite3_finalize(stmt);
+	return ret;
+}
+
 static inline int db_insert_provider(const char *appid, int net, const char *abi, int secured, int box_type, const char *box_src, const char *box_group, int pd_type, const char *pd_src, const char *pd_group)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
+
+	if (!abi)
+		abi = "c";
+
+	if (!box_src)
+		box_src = "";
+
+	if (!box_group)
+		box_group = "";
+
+	if (!pd_src)
+		pd_src = "";
+
+	if (!pd_group)
+		pd_group = "";
 
 	dml = "INSERT INTO provider ( appid, network, abi, secured, box_type, box_src, box_group, pd_type, pd_src, pd_group ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
@@ -332,6 +414,7 @@ static inline int db_insert_provider(const char *appid, int net, const char *abi
 
 	ret = 0;
 	if (sqlite3_step(stmt) != SQLITE_DONE) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 	}
 
@@ -411,6 +494,40 @@ static inline int db_insert_client(const char *appid, const char *icon, const ch
 
 	ret = 0;
 	if (sqlite3_step(stmt) != SQLITE_DONE) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+	}
+
+out:
+	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+	sqlite3_finalize(stmt);
+	return ret;
+}
+
+static inline int db_remove_client(const char *appid)
+{
+	static const char *dml;
+	int ret;
+	sqlite3_stmt *stmt;
+
+	dml = "DELETE FROM client WHERE appid = ?";
+	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		return -EIO;
+	}
+
+	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = 0;
+	if (sqlite3_step(stmt) != SQLITE_DONE) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 	}
 
@@ -482,8 +599,45 @@ static inline int db_insert_i18n(const char *appid, const char *lang, const char
 
 	ret = 0;
 	if (sqlite3_step(stmt) != SQLITE_DONE) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 	}
+
+out:
+	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+	sqlite3_finalize(stmt);
+	return ret;
+}
+
+static inline int db_remove_i18n(const char *appid)
+{
+	static const char *dml;
+	int ret;
+	sqlite3_stmt *stmt;
+
+	dml = "DELETE FROM i18n WHERE appid = ?";
+	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		return -EIO;
+	}
+
+	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = 0;
+	if (sqlite3_step(stmt) != SQLITE_DONE) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+	}
+
+	if (sqlite3_changes(s_info.handle) == 0)
+		DbgPrint("No changes\n");
 
 out:
 	sqlite3_reset(stmt);
@@ -539,8 +693,45 @@ static inline int db_insert_box_size(const char *appid, int size_type)
 
 	ret = 0;
 	if (sqlite3_step(stmt) != SQLITE_DONE) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 	}
+
+out:
+	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+	sqlite3_finalize(stmt);
+	return ret;
+}
+
+static inline int db_remove_box_size(const char *appid)
+{
+	static const char *dml;
+	int ret;
+	sqlite3_stmt *stmt;
+
+	dml = "DELETE FROM box_size WHERE appid = ?";
+	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		return -EIO;
+	}
+
+	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = 0;
+	if (sqlite3_step(stmt) != SQLITE_DONE) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+	}
+
+	if (sqlite3_changes(s_info.handle) == 0)
+		DbgPrint("No changes\n");
 
 out:
 	sqlite3_reset(stmt);
@@ -587,264 +778,6 @@ static inline void db_create_table(void)
 	commit_transaction();
 }
 
-static inline int db_remove_record(const char *appid, const char *key, const char *data)
-{
-	static const char *dml = "DELETE FROM shortcut_service WHERE appid = ? AND extra_key = ? AND extra_data = ?";
-	sqlite3_stmt *stmt;
-	int ret;
-
-	if (!appid || !key || !data) {
-		ErrPrint("Invalid argument\n");
-		return -EINVAL;
-	}
-
-	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
-	if (ret != SQLITE_OK) {
-		ErrPrint("Failed to prepare the initial DML\n");
-		return -EIO;
-	}
-
-	ret = -EIO;
-	if (sqlite3_bind_text(stmt, 1, appid, -1, NULL) != SQLITE_OK) {
-		ErrPrint("Failed to bind a appid(%s)\n", sqlite3_errmsg(s_info.handle));
-		goto out;
-	}
-
-	if (sqlite3_bind_text(stmt, 2, key, -1, NULL) != SQLITE_OK) {
-		ErrPrint("Failed to bind a key(%s)\n", sqlite3_errmsg(s_info.handle));
-		goto out;
-	}
-
-	if (sqlite3_bind_text(stmt, 3, data, -1, NULL) != SQLITE_OK) {
-		ErrPrint("Failed to bind a data(%s)\n", sqlite3_errmsg(s_info.handle));
-		goto out;
-	}
-
-	ret = 0;
-	if (sqlite3_step(stmt) != SQLITE_DONE) {
-		ret = -EIO;
-		ErrPrint("Failed to execute the DML for %s - %s(%s)\n", appid, key, data);
-	}
-
-	if (sqlite3_changes(s_info.handle) == 0)
-		DbgPrint("No changes\n");
-
-out:
-	sqlite3_reset(stmt);
-	sqlite3_clear_bindings(stmt);
-	sqlite3_finalize(stmt);
-	return ret;
-}
-
-static inline int db_remove_name(int id)
-{
-	static const char *dml = "DELETE FROM shortcut_name WHERE id = ?";
-	sqlite3_stmt *stmt;
-	int ret;
-
-	if (id < 0) {
-		ErrPrint("Inavlid id\n");
-		return -EINVAL;
-	}
-
-	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
-	if (ret != SQLITE_OK) {
-		ErrPrint("Failed to prepare the initial DML\n");
-		return -EIO;
-	}
-
-	if (sqlite3_bind_int(stmt, 1, id) != SQLITE_OK) {
-		ErrPrint("Failed to bind id(%d)\n", id);
-		ret = -EIO;
-		goto out;
-	}
-
-	ret = 0;
-	if (sqlite3_step(stmt) != SQLITE_DONE) {
-		ret = -EIO;
-		ErrPrint("Failed to execute the DML for %d\n", id);
-		goto out;
-	}
-
-	if (sqlite3_changes(s_info.handle) == 0)
-		DbgPrint("No changes\n");
-
-out:
-	sqlite3_reset(stmt);
-	sqlite3_clear_bindings(stmt);
-	sqlite3_finalize(stmt);
-	return ret;
-}
-
-static inline int db_insert_record(const char *appid, const char *icon, const char *name, const char *key, const char *data)
-{
-	static const char *dml = "INSERT INTO shortcut_service (appid, icon, name, key, data) VALUES (?, ?, ?, ?, ?)";
-	sqlite3_stmt *stmt;
-	int ret;
-
-	if (!appid) {
-		ErrPrint("Failed to get appid\n");
-		return -EINVAL;
-	}
-
-	if (!name) {
-		ErrPrint("Failed to get name\n");
-		return -EINVAL;
-	}
-
-	if (!key) {
-		ErrPrint("Failed to get key\n");
-		return -EINVAL;
-	}
-
-	if (!data) {
-		ErrPrint("Faield to get key\n");
-		return -EINVAL;
-	}
-
-	icon = icon ? icon : "";
-
-	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
-	if (ret != SQLITE_OK) {
-		ErrPrint("Failed to prepare the initial DML\n");
-		return -EIO;
-	}
-
-	ret = -EIO;
-	if (sqlite3_bind_text(stmt, 1, appid, -1, NULL) != SQLITE_OK) {
-		ErrPrint("Failed to bind a appid(%s)\n", sqlite3_errmsg(s_info.handle));
-		goto out;
-	}
-
-	if (sqlite3_bind_text(stmt, 2, icon, -1, NULL) != SQLITE_OK) {
-		ErrPrint("Failed to bind a icon(%s)\n", sqlite3_errmsg(s_info.handle));
-		goto out;
-	}
-
-	if (sqlite3_bind_text(stmt, 3, name, -1, NULL) != SQLITE_OK) {
-		ErrPrint("Failed to bind a name(%s)\n", sqlite3_errmsg(s_info.handle));
-		goto out;
-	}
-
-	if (sqlite3_bind_text(stmt, 4, key, -1, NULL) != SQLITE_OK) {
-		ErrPrint("Failed to bind a service(%s)\n", sqlite3_errmsg(s_info.handle));
-		goto out;
-	}
-
-	if (sqlite3_bind_text(stmt, 5, data, -1, NULL) != SQLITE_OK) {
-		ErrPrint("Failed to bind a service(%s)\n", sqlite3_errmsg(s_info.handle));
-		goto out;
-	}
-
-	ret = 0;
-	if (sqlite3_step(stmt) != SQLITE_DONE) {
-		ErrPrint("Failed to execute the DML for %s - %s\n", appid, name);
-		ret = -EIO;
-	}
-
-out:
-	sqlite3_reset(stmt);
-	sqlite3_clear_bindings(stmt);
-	sqlite3_finalize(stmt);
-	return ret;
-}
-
-static inline int db_insert_name(int id, const char *lang, const char *name)
-{
-	static const char *dml = "INSERT INTO shortcut_name (id, lang, name) VALUES (?, ?, ?)";
-	sqlite3_stmt *stmt;
-	int ret;
-
-	if (id < 0 || !lang || !name) {
-		ErrPrint("Invalid parameters\n");
-		return -EINVAL;
-	}
-
-	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
-	if (ret != SQLITE_OK) {
-		ErrPrint("Failed to prepare the initial DML\n");
-		return -EIO;
-	}
-
-	if (sqlite3_bind_int(stmt, 1, id) != SQLITE_OK) {
-		ErrPrint("Failed to bind a id(%s)\n", sqlite3_errmsg(s_info.handle));
-		ret = -EIO;
-		goto out;
-	}
-
-	if (sqlite3_bind_text(stmt, 2, lang, -1, NULL) != SQLITE_OK) {
-		ErrPrint("Failed to bind a id(%s)\n", sqlite3_errmsg(s_info.handle));
-		ret = -EIO;
-		goto out;
-	}
-
-	if (sqlite3_bind_text(stmt, 3, name, -1, NULL) != SQLITE_OK) {
-		ErrPrint("Failed to bind a id(%s)\n", sqlite3_errmsg(s_info.handle));
-		ret = -EIO;
-		goto out;
-	}
-
-	ret = 0;
-	if (sqlite3_step(stmt) != SQLITE_DONE) {
-		ErrPrint("Failed to execute the DML for %d %s %s\n", id, lang, name);
-		ret = -EIO;
-	}
-
-out:
-	sqlite3_reset(stmt);
-	sqlite3_clear_bindings(stmt);
-	sqlite3_finalize(stmt);
-	return ret;
-}
-
-static inline int db_get_id(const char *appid, const char *key, const char *data)
-{
-	static const char *dml = "SELECT id FROM shortcut_service WHERE appid = ? AND key = ? AND data = ?";
-	sqlite3_stmt *stmt;
-	int ret;
-
-	if (!appid || !key || !data) {
-		ErrPrint("Invalid argument\n");
-		return -EINVAL;
-	}
-
-	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
-	if (ret != SQLITE_OK) {
-		ErrPrint("Failed to prepare the initial DML\n");
-		return -EIO;
-	}
-
-	ret = -EIO;
-	if (sqlite3_bind_text(stmt, 1, appid, -1, NULL) != SQLITE_OK) {
-		ErrPrint("Failed to bind a appid(%s) - %s\n", appid, sqlite3_errmsg(s_info.handle));
-		goto out;
-	}
-
-	if (sqlite3_bind_text(stmt, 2, key, -1, NULL) != SQLITE_OK) {
-		ErrPrint("Failed to bind a key(%s) - %s\n", key, sqlite3_errmsg(s_info.handle));
-		goto out;
-	}
-
-	if (sqlite3_bind_text(stmt, 3, data, -1, NULL) != SQLITE_OK) {
-		ErrPrint("Failed to bind a data(%s) - %s\n", data, sqlite3_errmsg(s_info.handle));
-		goto out;
-	}
-
-	if (sqlite3_step(stmt) != SQLITE_ROW) {
-		ErrPrint("Failed to execute the DML for %s - %s, %s\n", appid, key, data);
-		ret = -EIO;
-		goto out;
-	}
-
-	ret = sqlite3_column_int(stmt, 0);
-
-out:
-	sqlite3_reset(stmt);
-	sqlite3_clear_bindings(stmt);
-	sqlite3_finalize(stmt);
-	return ret;
-}
-
 static inline int db_init(void)
 {
 	int ret;
@@ -883,19 +816,762 @@ static inline int db_fini(void)
 	return 0;
 }
 
+struct i18n {
+	char *lang;
+	char *name;
+	char *icon;
+};
+
+enum lb_type {
+	LB_TYPE_IMAGE = 0x00,
+	LB_TYPE_SCRIPT = 0x01,
+	LB_TYPE_BUFFER = 0x02,
+	LB_TYPE_TEXT = 0x04,
+	LB_TYPE_UNKNOWN,
+};
+
+enum pd_type {
+	PD_TYPE_SCRIPT = 0x00,
+	PD_TYPE_BUFFER = 0x01,
+	PD_TYPE_TEXT = 0x02,
+	PD_TYPE_UNKNOWN,
+};
+
+enum lb_size {
+	LB_SIZE_1x1 = 0x01,
+	LB_SIZE_2x1 = 0x02,
+	LB_SIZE_2x2 = 0x04,
+	LB_SIZE_4x2 = 0x08,
+};
+
+struct livebox {
+	char *appid;
+	int secured;
+	int auto_launch;
+	int network;
+	char *abi;
+	char *name; /* Default name */
+	char *icon; /* Default icon */
+
+	enum lb_type lb_type;
+	char *lb_src;
+	char *lb_group;
+	int size_list; /* 172x172, 348x172, 348x348, 720x348 */
+
+	enum pd_type pd_type;
+	char *pd_src;
+	char *pd_group;
+	char *pd_size; /* Default PD size */
+
+	struct dlist *i18n_list;
+};
+
+static inline int validate_abi(const char *abi)
+{
+	return !strcasecmp(abi, "c") || !strcasecmp(abi, "cpp") || !strcasecmp(abi, "html");
+}
+
+static inline int validate_appid(const char *pkgname, const char *appid)
+{
+	return !strncmp(pkgname, appid, strlen(pkgname));
+}
+
+static inline int livebox_destroy(struct livebox *livebox)
+{
+	struct dlist *l;
+	struct dlist *n;
+	struct i18n *i18n;
+
+	free(livebox->appid);
+	free(livebox->abi);
+	free(livebox->name);
+	free(livebox->icon);
+	free(livebox->lb_src);
+	free(livebox->lb_group);
+	free(livebox->pd_src);
+	free(livebox->pd_group);
+	free(livebox->pd_size);
+
+	dlist_foreach_safe(livebox->i18n_list, l, n, i18n) {
+		livebox->i18n_list = dlist_remove(livebox->i18n_list, l);
+		free(i18n->name);
+		free(i18n->icon);
+		free(i18n->lang);
+		free(i18n);
+	}
+
+	return 0;
+}
+
+static inline void update_i18n_name(struct livebox *livebox, xmlNodePtr node)
+{
+	struct i18n *i18n;
+	struct dlist *l;
+	char *lang;
+	char *name;
+
+	if (!xmlHasProp(node, (xmlChar *)"xml:lang")) {
+		char *org;
+		char *tmp;
+
+		org = livebox->name;
+		if (org)
+			DbgPrint("Override default name: %s\n", org);
+
+		tmp = (char *)xmlNodeGetContent(node);
+		livebox->name = strdup(tmp);
+		if (!livebox->name) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			livebox->name = org;
+		} else {
+			free(org);
+		}
+		xmlFree((xmlChar *)tmp);
+
+		return;
+	}
+
+	name = (char *)xmlNodeGetContent(node);
+	if (!name) {
+		ErrPrint("Invalid tag\n");
+		return;
+	}
+	lang = (char *)xmlGetProp(node, (xmlChar *)"xml:lang");
+
+	dlist_foreach(livebox->i18n_list, l, i18n) {
+		if (!strcmp(i18n->lang, lang)) {
+			char *org;
+
+			org = i18n->name;
+			if (org)
+				DbgPrint("Override name: %s\n", org);
+
+			i18n->name = strdup(name);
+			if (!i18n->name) {
+				ErrPrint("Heap: %s (%s)\n", strerror(errno), name);
+				i18n->name = org;
+			} else {
+				free(org);
+			}
+
+			xmlFree((xmlChar *)name);
+			xmlFree((xmlChar *)lang);
+			return;
+		}
+	}
+
+	i18n = calloc(1, sizeof(*i18n));
+	if (!i18n) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		xmlFree((xmlChar *)name);
+		xmlFree((xmlChar *)lang);
+		return;
+	}
+
+	i18n->name = strdup(name);
+	if (!i18n->name) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		xmlFree((xmlChar *)name);
+		xmlFree((xmlChar *)lang);
+		free(i18n);
+		return;
+	}
+
+	xmlFree((xmlChar *)name);
+
+	i18n->lang = strdup(lang);
+	if (!i18n->lang) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		xmlFree((xmlChar *)lang);
+		free(i18n->name);
+		free(i18n);
+		return;
+	}
+
+	xmlFree((xmlChar *)lang);
+	DbgPrint("Label[%s] - [%s] added\n", i18n->lang, i18n->name);
+}
+
+static inline void update_i18n_icon(struct livebox *livebox, xmlNodePtr node)
+{
+	struct i18n *i18n;
+	struct dlist *l;
+	char *lang;
+	char *icon;
+
+	if (!xmlHasProp(node, (xmlChar *)"xml:lang")) {
+		char *org;
+		char *tmp;
+
+		org = livebox->icon;
+		if (org)
+			DbgPrint("Override default icon: %s\n", org);
+
+		tmp = (char *)xmlNodeGetContent(node);
+		livebox->icon = strdup(tmp);
+		if (!livebox->icon) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			livebox->icon = org;
+		} else {
+			free(org);
+		}
+		xmlFree((xmlChar *)tmp);
+
+		return;
+	}
+
+	icon = (char *)xmlNodeGetContent(node);
+	if (!icon) {
+		ErrPrint("Invalid tag\n");
+		return;
+	}
+	lang = (char *)xmlGetProp(node, (xmlChar *)"xml:lang");
+
+	dlist_foreach(livebox->i18n_list, l, i18n) {
+		if (!strcmp(i18n->lang, lang)) {
+			char *org;
+
+			org = i18n->icon;
+			if (org)
+				DbgPrint("Override icon: %s\n", org);
+
+			i18n->icon = strdup(icon);
+			if (!i18n->icon) {
+				ErrPrint("Heap: %s (%s)\n", strerror(errno), icon);
+				i18n->icon = org;
+			} else {
+				free(org);
+			}
+
+			xmlFree((xmlChar *)icon);
+			xmlFree((xmlChar *)lang);
+			return;
+		}
+	}
+
+	i18n = calloc(1, sizeof(*i18n));
+	if (!i18n) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		xmlFree((xmlChar *)icon);
+		xmlFree((xmlChar *)lang);
+		return;
+	}
+
+	i18n->icon = strdup(icon);
+	if (!i18n->icon) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		xmlFree((xmlChar *)icon);
+		xmlFree((xmlChar *)lang);
+		free(i18n);
+		return;
+	}
+
+	xmlFree((xmlChar *)icon);
+
+	i18n->lang = strdup(lang);
+	if (!i18n->lang) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		xmlFree((xmlChar *)lang);
+		free(i18n->icon);
+		free(i18n);
+		return;
+	}
+
+	xmlFree((xmlChar *)lang);
+
+	DbgPrint("Icon[%s] - [%s] added\n", i18n->lang, i18n->icon);
+}
+
+static inline void update_box(struct livebox *livebox, xmlNodePtr node)
+{
+	if (!xmlHasProp(node, (xmlChar *)"type")) {
+		livebox->lb_type = LB_TYPE_IMAGE;
+	} else {
+		char *type;
+		type = (char *)xmlGetProp(node, (xmlChar *)"type");
+
+		if (!strcmp(type, "text"))
+			livebox->lb_type = LB_TYPE_TEXT;
+		else if (!strcmp(type, "buffer"))
+			livebox->lb_type = LB_TYPE_BUFFER;
+		else if (!strcmp(type, "script"))
+			livebox->lb_type = LB_TYPE_SCRIPT;
+		else /* Default */
+			livebox->lb_type = LB_TYPE_IMAGE;
+
+		xmlFree((xmlChar *)type);
+	}
+
+	for (node = node->children; node; node = node->next) {
+		if (!strcmp((char *)node->name, "size")) {
+			char *size;
+
+			size = (char *)xmlNodeGetContent(node);
+			if (!size) {
+				ErrPrint("Invalid size tag\n");
+				continue;
+			}
+
+			if (!strcmp(size, "172x172"))
+				livebox->size_list |= LB_SIZE_1x1;
+			else if (!strcmp(size, "348x172"))
+				livebox->size_list |= LB_SIZE_2x1;
+			else if (!strcmp(size, "348x348"))
+				livebox->size_list |= LB_SIZE_2x2;
+			else if (!strcmp(size, "700x348"))
+				livebox->size_list |= LB_SIZE_4x2;
+			else
+				ErrPrint("Invalid size tag (%s)\n", size);
+
+			xmlFree((xmlChar *)size);
+			continue;
+		}
+
+		if (!strcmp((char *)node->name, "script")) {
+			if (!strcmp(livebox->abi, "html")) {
+				char *src;
+				char *org;
+
+				if (!xmlHasProp(node, (xmlChar *)"src")) {
+					ErrPrint("Invalid script tag. has no src\n");
+					continue;
+				}
+
+				src = (char *)xmlGetProp(node, (xmlChar *)"src");
+
+				org = livebox->lb_src;
+				if (org)
+					DbgPrint("Override LB src: %s\n", org);
+
+				livebox->lb_src = strdup(src);
+				if (!livebox->lb_src) {
+					ErrPrint("Heap: %s\n", strerror(errno));
+					livebox->lb_src = org;
+				} else {
+					free(org);
+				}
+
+				xmlFree((xmlChar *)src);
+			} else if (livebox->lb_type == LB_TYPE_SCRIPT) {
+				char *src;
+				char *group;
+
+				char *org_src;
+				char *org_group;
+
+				if (!xmlHasProp(node, (xmlChar *)"src")) {
+					ErrPrint("Invalid script tag. has no src\n");
+					continue;
+				}
+
+				if (!xmlHasProp(node, (xmlChar *)"group")) {
+					ErrPrint("Invalid script tag. has no group\n");
+					continue;
+				}
+
+				src = (char *)xmlGetProp(node, (xmlChar *)"src");
+				group = (char *)xmlGetProp(node, (xmlChar *)"group");
+
+				org_src = livebox->lb_src;
+				org_group = livebox->lb_group;
+				if (org_src || org_group)
+					DbgPrint("Override LB src & group: %s - %s\n", org_src, org_group);
+
+				livebox->lb_src = strdup(src);
+				livebox->lb_group = strdup(group);
+				if (!livebox->lb_src || !livebox->lb_group) {
+					ErrPrint("Heap: %s\n", strerror(errno));
+					free(livebox->lb_src);
+					free(livebox->lb_group);
+					livebox->lb_src = org_src;
+					livebox->lb_group = org_group;
+				} else {
+					free(org_src);
+					free(org_group);
+				}
+
+				xmlFree((xmlChar *)src);
+				xmlFree((xmlChar *)group);
+			} else {
+				ErrPrint("Invalid script tag\n");
+			}
+
+			continue;
+		}
+	}
+}
+
+static inline void update_pd(struct livebox *livebox, xmlNodePtr node)
+{
+	if (!xmlHasProp(node, (xmlChar *)"type")) {
+		livebox->pd_type = PD_TYPE_SCRIPT;
+	} else {
+		char *type;
+		type = (char *)xmlGetProp(node, (xmlChar *)"type");
+
+		if (!strcmp(type, "text"))
+			livebox->pd_type = PD_TYPE_TEXT;
+		else if (!strcmp(type, "buffer"))
+			livebox->pd_type = PD_TYPE_BUFFER;
+		else
+			livebox->pd_type = PD_TYPE_SCRIPT;
+
+		xmlFree((xmlChar *)type);
+	}
+
+	for (node = node->children; node; node = node->next) {
+		if (!strcmp((char *)node->name, "size")) {
+			char *size;
+			char *org;
+
+			size = (char *)xmlNodeGetContent(node);
+			if (!size) {
+				ErrPrint("Invalid size tag\n");
+				continue;
+			}
+
+			org = livebox->pd_size;
+			if (org)
+				DbgPrint("Override pd size: %s\n", org);
+
+			livebox->pd_size = strdup(size);
+			if (!livebox->pd_size) {
+				ErrPrint("Heap: %s\n", strerror(errno));
+				livebox->pd_size = org;
+			} else {
+				free(org);
+			}
+
+			xmlFree((xmlChar *)size);
+			continue;
+		}
+
+		if (!strcmp((char *)node->name, "script")) {
+			if (!strcmp(livebox->abi, "html")) {
+				char *src;
+				char *org;
+
+				if (!xmlHasProp(node, (xmlChar *)"src")) {
+					ErrPrint("Invalid script tag. has no src\n");
+					continue;
+				}
+
+				src = (char *)xmlGetProp(node, (xmlChar *)"src");
+
+				org = livebox->pd_src;
+				if (org)
+					DbgPrint("Override LB src: %s\n", org);
+
+				livebox->pd_src = strdup(src);
+				if (!livebox->pd_src) {
+					ErrPrint("Heap: %s\n", strerror(errno));
+					livebox->pd_src = org;
+				} else {
+					free(org);
+				}
+
+				xmlFree((xmlChar *)src);
+			} else if (livebox->lb_type == LB_TYPE_SCRIPT) {
+				char *src;
+				char *group;
+
+				char *org_src;
+				char *org_group;
+
+				if (!xmlHasProp(node, (xmlChar *)"src")) {
+					ErrPrint("Invalid script tag. has no src\n");
+					continue;
+				}
+
+				if (!xmlHasProp(node, (xmlChar *)"group")) {
+					ErrPrint("Invalid script tag. has no group\n");
+					continue;
+				}
+
+				src = (char *)xmlGetProp(node, (xmlChar *)"src");
+				group = (char *)xmlGetProp(node, (xmlChar *)"group");
+
+				org_src = livebox->pd_src;
+				org_group = livebox->pd_group;
+				if (org_src || org_group)
+					DbgPrint("Override LB src & group: %s - %s\n", org_src, org_group);
+
+				livebox->pd_src = strdup(src);
+				livebox->pd_group = strdup(group);
+				if (!livebox->pd_src || !livebox->pd_group) {
+					ErrPrint("Heap: %s\n", strerror(errno));
+					free(livebox->pd_src);
+					free(livebox->pd_group);
+					livebox->pd_src = org_src;
+					livebox->pd_group = org_group;
+				} else {
+					free(org_src);
+					free(org_group);
+				}
+
+				xmlFree((xmlChar *)src);
+				xmlFree((xmlChar *)group);
+			} else {
+				ErrPrint("Invalid script tag\n");
+			}
+
+			continue;
+		}
+	}
+}
+
+static inline int db_insert_livebox(struct livebox *livebox, const char *pkgname)
+{
+	struct dlist *l;
+	struct i18n *i18n;
+	int ret;
+
+	begin_transaction();
+	ret = db_insert_pkgmap(livebox->appid, pkgname);
+	if (ret < 0)
+		goto errout;
+
+	ret = db_insert_provider(livebox->appid, livebox->network, livebox->abi, livebox->secured, livebox->lb_type, livebox->lb_src, livebox->lb_group, livebox->pd_type, livebox->pd_src, livebox->pd_group);
+	if (ret < 0)
+		goto errout;
+
+	ret = db_insert_client(livebox->appid, livebox->icon, livebox->name, livebox->auto_launch, livebox->pd_size);
+	if (ret < 0)
+		goto errout;
+
+	dlist_foreach(livebox->i18n_list, l, i18n) {
+		ret = db_insert_i18n(livebox->appid, i18n->lang, i18n->name, i18n->icon);
+		if (ret < 0)
+			goto errout;
+	}
+
+	if (livebox->size_list & LB_SIZE_1x1) {
+		ret = db_insert_box_size(livebox->appid, LB_SIZE_1x1);
+		if (ret < 0)
+			goto errout;
+	}
+
+	if (livebox->size_list & LB_SIZE_2x1) {
+		ret = db_insert_box_size(livebox->appid, LB_SIZE_2x1);
+		if (ret < 0)
+			goto errout;
+	}
+
+	if (livebox->size_list & LB_SIZE_2x2) {
+		ret = db_insert_box_size(livebox->appid, LB_SIZE_2x2);
+		if (ret < 0)
+			goto errout;
+	}
+
+	if (livebox->size_list & LB_SIZE_4x2) {
+		ret = db_insert_box_size(livebox->appid, LB_SIZE_4x2);
+		if (ret < 0)
+			goto errout;
+	}
+
+	commit_transaction();
+	livebox_destroy(livebox);
+	return 0;
+
+errout:
+	rollback_transaction();
+	livebox_destroy(livebox);
+	return ret;
+}
+
+int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *pkgname)
+{
+	xmlNodePtr node;
+	struct livebox *livebox;
+	char *appid;
+	char *tmp;
+
+	if (!s_info.handle)
+		db_init();
+
+	if (!s_info.handle) {
+		ErrPrint("Failed to init DB\n");
+		return -EIO;
+	}
+
+	node = xmlDocGetRootElement(docPtr);
+	if (!node) {
+		ErrPrint("Invalid document\n");
+		return -EINVAL;
+	}
+
+	if (strcmp((char *)node->name, "livebox")) {
+		ErrPrint("Invalid tag: %s\n", (char *)node->name);
+		return -EINVAL;
+	}
+
+	if (!xmlHasProp(node, (xmlChar *)"appid")) {
+		ErrPrint("Missing appid\n");
+		return -EINVAL;
+	}
+
+	livebox = calloc(1, sizeof(*livebox));
+	if (!livebox) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
+	appid = (char *)xmlGetProp(node, (xmlChar *)"appid");
+	if (!appid || validate_appid(pkgname, appid) < 0) {
+		ErrPrint("Invalid appid\n");
+		xmlFree((xmlChar *)appid);
+		free(livebox);
+		return -EINVAL;
+	}
+
+	livebox->appid = strdup(appid);
+	if (!livebox->appid) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		xmlFree((xmlChar *)appid);
+		free(livebox);
+		return -EINVAL;
+	}
+
+	if (xmlHasProp(node, (xmlChar *)"secured")) {
+		tmp = (char *)xmlGetProp(node, (xmlChar *)"secured");
+		livebox->secured = !strcasecmp(tmp, "true");
+		xmlFree((xmlChar *)tmp);
+	}
+
+	if (xmlHasProp(node, (xmlChar *)"auto_launch")) {
+		tmp = (char *)xmlGetProp(node, (xmlChar *)"auto_launch");
+		livebox->auto_launch = !strcasecmp(tmp, "true");
+		xmlFree((xmlChar *)tmp);
+	}
+
+	if (xmlHasProp(node, (xmlChar *)"network")) {
+		tmp = (char *)xmlGetProp(node, (xmlChar *)"network");
+		livebox->network = !strcasecmp(tmp, "true");
+		xmlFree((xmlChar *)tmp);
+	}
+
+	if (xmlHasProp(node, (xmlChar *)"abi")) {
+		tmp = (char *)xmlGetProp(node, (xmlChar *)"abi");
+		if (validate_abi(tmp) < 0) {
+			xmlFree((xmlChar *)tmp);
+			livebox_destroy(livebox);
+			return -EINVAL;
+		}
+
+		livebox->abi = strdup(tmp);
+		xmlFree((xmlChar *)tmp);
+	} else {
+		livebox->abi = strdup("c");
+	}
+
+	if (!livebox->abi) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		livebox_destroy(livebox);
+		return -ENOMEM;
+	}
+
+	for (node = node->children; node; node = node->next) {
+		if (!strcasecmp((char *)node->name, "label")) {
+			update_i18n_name(livebox, node);
+			continue;
+		}
+
+		if (!strcasecmp((char *)node->name, "icon")) {
+			update_i18n_icon(livebox, node);
+			continue;
+		}
+
+		if (!strcasecmp((char *)node->name, "box")) {
+			update_box(livebox, node);
+			continue;
+		}
+
+		if (!strcasecmp((char *)node->name, "pd")) {
+			update_pd(livebox, node);
+			continue;
+		}
+	}
+
+	return db_insert_livebox(livebox, pkgname);
+}
+
 int PKGMGR_PARSER_PLUGIN_UPGRADE(xmlDocPtr docPtr, const char *appid)
 {
+	if (!s_info.handle)
+		db_init();
+
+	if (!s_info.handle)
+		return -EIO;
+
 	return 0;
 }
 
-int PKGMGR_PARSER_PLUGIN_UNINSTALL(xmlDocPtr docPtr, const char *_appid)
+int PKGMGR_PARSER_PLUGIN_UNINSTALL(xmlDocPtr docPtr, const char *pkgname)
 {
-	return 0;
-}
+	xmlNodePtr node;
+	char *appid;
+	int ret;
 
-int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *appid)
-{
+	if (!s_info.handle)
+		db_init();
+
+	if (!s_info.handle) {
+		ErrPrint("Failed to init DB\n");
+		return -EIO;
+	}
+
+	node = xmlDocGetRootElement(docPtr);
+	if (!node) {
+		ErrPrint("Invalid document\n");
+		return -EINVAL;
+	}
+
+	if (strcmp((char *)node->name, "livebox")) {
+		ErrPrint("Invalid tag: %s\n", (char *)node->name);
+		return -EINVAL;
+	}
+
+	if (!xmlHasProp(node, (xmlChar *)"appid")) {
+		ErrPrint("Missing appid\n");
+		return -EINVAL;
+	}
+
+	appid = (char *)xmlGetProp(node, (xmlChar *)"appid");
+	if (validate_appid(pkgname, appid) < 0) {
+		ErrPrint("Invalid package\n");
+		xmlFree((xmlChar *)appid);
+		return -EINVAL;
+	}
+
+	begin_transaction();
+	ret = db_remove_box_size(appid);
+	if (ret < 0)
+		goto errout;
+
+	ret = db_remove_i18n(appid);
+	if (ret < 0)
+		goto errout;
+
+	ret = db_remove_client(appid);
+	if (ret < 0)
+		goto errout;
+
+	ret = db_remove_provider(appid);
+	if (ret < 0)
+		goto errout;
+
+	ret = db_remove_pkgmap(appid);
+	if (ret < 0)
+		goto errout;
+	commit_transaction();
+
+	xmlFree((xmlChar *)appid);
 	return 0;
+
+errout:
+	rollback_transaction();
+	xmlFree((xmlChar *)appid);
+	return ret;
 }
 
 /*
