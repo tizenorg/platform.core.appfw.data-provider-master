@@ -70,4 +70,6 @@ extern void conf_update_size(void);
 #define NO_CHANGE -1.0f
 #define DEFAULT_CONTENT "default"
 
+#define SQLITE_FLUSH_MAX 1048576
+
 /* End of a file */

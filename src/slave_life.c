@@ -4,6 +4,7 @@
 #include <unistd.h> /* pid_t */
 #include <stdlib.h> /* free */
 #include <pthread.h>
+#include <malloc.h>
 
 #include <Eina.h>
 #include <Ecore.h>
@@ -11,6 +12,7 @@
 #include <aul.h> /* aul_launch_app */
 #include <dlog.h>
 #include <bundle.h>
+#include <sqlite3.h>
 
 #include <packet.h>
 
@@ -669,6 +671,9 @@ void slave_handle_state_change(void)
 		}
 
 		ctx_pause();
+
+		sqlite3_release_memory(SQLITE_FLUSH_MAX);
+		malloc_trim(0);
 	} else {
 		EINA_LIST_FOREACH(s_info.slave_list, l, slave) {
 			slave_resume(slave);
