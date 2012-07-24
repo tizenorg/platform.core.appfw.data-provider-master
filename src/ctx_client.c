@@ -266,7 +266,7 @@ static Eina_Bool event_consumer_cb(void *data)
 	s_info.pending_mask = 0;
 	pthread_mutex_unlock(&s_info.ctx_lock);
 
-	if (!s_info.enabled || (client_count() && client_is_all_paused()) || setting_is_locked())
+	if (!s_info.enabled || (client_count() && client_is_all_paused()) || setting_is_lcd_off())
 		return ECORE_CALLBACK_RENEW;
 
 	ctx_update(mask);

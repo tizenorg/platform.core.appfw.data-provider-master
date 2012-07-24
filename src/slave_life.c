@@ -332,7 +332,7 @@ int slave_activated(struct slave_node *slave)
 {
 	slave->state = SLAVE_RESUMED;
 	invoke_activate_cb(slave);
-	slave_check_pause_or_resume();
+	slave_handle_state_change();
 	return 0;
 }
 
@@ -650,13 +650,13 @@ void slave_unload_instance(struct slave_node *slave)
 		slave_deactivate(slave);
 }
 
-void slave_check_pause_or_resume(void)
+void slave_handle_state_change(void)
 {
 	int paused;
 	Eina_List *l;
 	struct slave_node *slave;
 
-	paused = client_is_all_paused() || setting_is_locked();
+	paused = client_is_all_paused() || setting_is_lcd_off();
 
 	if (s_info.paused == paused)
 		return;

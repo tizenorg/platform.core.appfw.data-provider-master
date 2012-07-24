@@ -21,28 +21,65 @@
 /* End of a file */
 
 /*!
+ * \note
  * DB Table schema
  *
+ * pkgmap
+ * +-------+-------+
+ * | appid | pkgid |
+ * +-------+-------+
+ * |   -   |   -   |
+ * +-------+-------+
+ * CREATE TABLE pkgmap ( appid TEXT PRIMARY KEY, pkgid TEXT )
+ *
+ *
  * provider
- * +-------+-----------+-----+---------+-------+-------+
- * | appid |  network  | abi | secured |  src  | group |
- * +-------+-----------+-----+---------+-------+-------+
- * |   -   |    -      |  -  |    -    |   -   |   -   |
- * +-------+-----------+-----+---------+-------+-------+
+ * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+
+ * | appid | network | abi | secured | box_type | box_src | box_group | pd_type | pd_src | pd_group |
+ * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+
+ * |   -   |    -    |  -  |    -    |     -    |    -    |     -     |    -    |    -   |     -    |
+ * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+
+ * CREATE TABLE provider ( appid TEXT PRIMARY KEY NOT NULL, network INTEGER, abi TEXT, secured INTEGER, box_type INTEGER, box_src TEXT, box_group TEXT, pd_type TEXT, pd_src TEXT, pd_group TEXT, FOREIGN KEY(appid) REFERENCES pkgmap(appid))
+ *
+ * = box_type = { text | buffer | script | image }
+ * = pd_type = { text | buffer | script }
+ * = abi = { c | cpp | html }
+ * = network = { 1 | 0 }
+ * = auto_launch = { 1 | 0 }
+ * = secured = { 1 | 0 }
+ *
  *
  * client
- * +-------+------+---------+-------------+---------------+
- * | appid | Icon |  Name   | auto_launch | box_size_list |
- * +-------+------+---------+-------------+---------------+
- * |   -   |   -  |    -    |      -      |        -      |
- * +-------+------+---------+-------------+---------------+
+ * +-------+------+---------+-------------+---------+
+ * | appid | Icon |  Name   | auto_launch | pd_size |
+ * +-------+------+---------+-------------+---------+
+ * |   -   |   -  |    -    |      -      |    -    |
+ * +-------+------+---------+-------------+---------+
+ * CREATE TABLE client ( appid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch INTEGER, pd_size TEXT,FOREIGN KEY(appid) REFERENCES pkgmap(appid) )
+ *
+ * = auto_launch = { 1 | 0 }
+ * = pd_size = WIDTHxHEIGHT
+ *
  *
  * i18n
- * +-------+------+------+
- * |   fk  | lang | name |
- * +-------+------+------+
- * | appid |   -  |   -  |
- * +-------+------+------+
+ * +-------+------+------+------+
+ * |   fk  | lang | name | icon |
+ * +-------+------+------+------+
+ * | appid |   -  |   -  |   -  |
+ * +-------+------+------+------+
+ * CREATE TABLE i18n ( appid TEXT NOT NULL, lang TEXT, name TEXT, icon TEXT, FOREIGN KEY(appid) REFERENCES pkgmap(appid) )
+ *
+ *
+ * box_size
+ * +-------+-----------+
+ * | appid | size_type |
+ * +-------+-----------+
+ * |   -   |     -     |
+ * +-------+-----------+
+ * CREATE TABLE box_size ( appid TEXT NOT NULL, size_type INTEGER, FOREIGN KEY(appid) REFERENCES pkgmap(appid) )
+ *
+ * = box_size_list = { WIDTHxHEIGHT; WIDTHxHEIGHT; ... }
+ *
  */
 
 #if !defined(LIBXML_TREE_ENABLED)
@@ -61,7 +98,7 @@ static struct {
 	const char *dbfile;
 	sqlite3 *handle;
 } s_info = {
-	.dbfile = "/opt/dbspace/.shortcut_service.db",
+	.dbfile = "/opt/dbspace/.livebox.db",
 	.handle = NULL,
 };
 
@@ -70,8 +107,7 @@ static inline int begin_transaction(void)
 	sqlite3_stmt *stmt;
 	int ret;
 
-	ret = sqlite3_prepare_v2(
-		s_info.handle, "BEGIN TRANSACTION", -1, &stmt, NULL);
+	ret = sqlite3_prepare_v2(s_info.handle, "BEGIN TRANSACTION", -1, &stmt, NULL);
 
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
@@ -94,8 +130,7 @@ static inline int rollback_transaction(void)
 	int ret;
 	sqlite3_stmt *stmt;
 
-	ret = sqlite3_prepare_v2(
-			s_info.handle, "ROLLBACK TRANSACTION", -1, &stmt, NULL);
+	ret = sqlite3_prepare_v2(s_info.handle, "ROLLBACK TRANSACTION", -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		return EXIT_FAILURE;
@@ -117,8 +152,7 @@ static inline int commit_transaction(void)
 	sqlite3_stmt *stmt;
 	int ret;
 
-	ret = sqlite3_prepare_v2(
-			s_info.handle, "COMMIT TRANSACTION", -1, &stmt, NULL);
+	ret = sqlite3_prepare_v2(s_info.handle, "COMMIT TRANSACTION", -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		return EXIT_FAILURE;
@@ -135,34 +169,422 @@ static inline int commit_transaction(void)
 	return EXIT_SUCCESS;
 }
 
-static inline void db_create_table(void)
+static inline int db_create_pkgmap(void)
 {
 	char *err;
-	static const char *ddl =
-		"CREATE TABLE shortcut_service ("
-		"id INTEGER PRIMARY KEY AUTOINCREMENT, "
-		"appid TEXT, "
-		"icon TEXT, "
-		"name TEXT, "
-		"extra_key TEXT, "
-		"extra_data TEXT)";
+	static const char *ddl;
 
+	ddl = "CREATE TABLE pkgmap ( appid TEXT PRIMARY KEY, pkgid TEXT )";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
-		return;
+		return -EIO;
 	}
 
 	if (sqlite3_changes(s_info.handle) == 0)
 		ErrPrint("No changes to DB\n");
 
-	ddl = "CREATE TABLE shortcut_name (id INTEGER, lang TEXT, name TEXT)";
+	return 0;
+}
+
+static inline int db_insert_pkgmap(const char *appid, const char *pkgid)
+{
+	int ret;
+	static const char *dml;
+	sqlite3_stmt *stmt;
+
+	dml = "INSERT INTO pkgmap ( appid, pkgid ) VALUES (? ,?)";
+	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		return -EIO;
+	}
+
+	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 2, pkgid, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = 0;
+	if (sqlite3_step(stmt) != SQLITE_DONE) {
+		ret = -EIO;
+	}
+
+out:
+	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+	sqlite3_finalize(stmt);
+	return ret;
+}
+
+static inline int db_create_provider(void)
+{
+	char *err;
+	static const char *ddl;
+
+	ddl = "CREATE TABLE provider (" \
+		"appid TEXT PRIMARY KEY NOT NULL, network INTEGER, " \
+		"abi TEXT, secured INTEGER, box_type INTEGER, " \
+		"box_src TEXT, box_group TEXT, pd_type INTEGER, " \
+		"pd_src TEXT, pd_group TEXT, FOREIGN KEY(appid) REFERENCES pkgmap(appid))";
+
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
-		return;
+		return -EIO;
 	}
 
 	if (sqlite3_changes(s_info.handle) == 0)
 		ErrPrint("No changes to DB\n");
+
+	return 0;
+}
+
+static inline int db_insert_provider(const char *appid, int net, const char *abi, int secured, int box_type, const char *box_src, const char *box_group, int pd_type, const char *pd_src, const char *pd_group)
+{
+	static const char *dml;
+	int ret;
+	sqlite3_stmt *stmt;
+
+	dml = "INSERT INTO provider ( appid, network, abi, secured, box_type, box_src, box_group, pd_type, pd_src, pd_group ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		return -EIO;
+	}
+
+	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_int(stmt, 2, net);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 3, abi, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_int(stmt, 4, secured);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_int(stmt, 5, box_type);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 6, box_src, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 7, box_group, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_int(stmt, 8, pd_type);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 9, pd_src, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 10, pd_group, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = 0;
+	if (sqlite3_step(stmt) != SQLITE_DONE) {
+		ret = -EIO;
+	}
+
+out:
+	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+	sqlite3_finalize(stmt);
+	return ret;
+}
+
+static inline int db_create_client(void)
+{
+	char *err;
+	static const char *ddl;
+
+	ddl = "CREATE TABLE client (" \
+		"appid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, " \
+		"auto_launch INTEGER, pd_size TEXT, FOREIGN KEY(appid) REFERENCES pkgmap(appid) )";
+	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
+		ErrPrint("Failed to execute the DDL (%s)\n", err);
+		return -EIO;
+	}
+
+	if (sqlite3_changes(s_info.handle) == 0)
+		ErrPrint("No changes to DB\n");
+
+	return 0;
+}
+
+static inline int db_insert_client(const char *appid, const char *icon, const char *name, int auto_launch, const char *pd_size)
+{
+	static const char *dml;
+	int ret;
+	sqlite3_stmt *stmt;
+
+	dml = "INSERT INTO client ( appid, icon, name, auto_launch, pd_size ) VALUES (?, ?, ?, ?, ?)";
+	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		return -EIO;
+	}
+
+	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 2, icon, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 3, name, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_int(stmt, 4, auto_launch);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 5, pd_size, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = 0;
+	if (sqlite3_step(stmt) != SQLITE_DONE) {
+		ret = -EIO;
+	}
+
+out:
+	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+	sqlite3_finalize(stmt);
+	return ret;
+}
+
+static inline int db_create_i18n(void)
+{
+	char *err;
+	static const char *ddl;
+
+	ddl = "CREATE TABLE i18n ( appid TEXT NOT NULL, lang TEXT, name TEXT, " \
+		"icon TEXT, FOREIGN KEY(appid) REFERENCES pkgmap(appid) )";
+	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
+		ErrPrint("Failed to execute the DDL (%s)\n", err);
+		return -EIO;
+	}
+
+	if (sqlite3_changes(s_info.handle) == 0)
+		ErrPrint("No changes to DB\n");
+
+	return 0;
+}
+
+static inline int db_insert_i18n(const char *appid, const char *lang, const char *name, const char *icon)
+{
+	static const char *dml;
+	int ret;
+	sqlite3_stmt *stmt;
+
+	dml = "INSERT INTO i18n ( appid, lang, name, icon ) VALUES (?, ?, ?, ?)";
+	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		return -EIO;
+	}
+
+	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 2, lang, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 3, name, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 4, icon, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = 0;
+	if (sqlite3_step(stmt) != SQLITE_DONE) {
+		ret = -EIO;
+	}
+
+out:
+	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+	sqlite3_finalize(stmt);
+	return ret;
+}
+
+static inline int db_create_box_size(void)
+{
+	char *err;
+	static const char *ddl;
+
+	ddl = "CREATE TABLE box_size ( appid TEXT NOT NULL, size_type INTEGER, " \
+		"FOREIGN KEY(appid) REFERENCES pkgmap(appid) )";
+	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
+		ErrPrint("Failed to execute the DDL (%s)\n", err);
+		return -EIO;
+	}
+
+	if (sqlite3_changes(s_info.handle) == 0)
+		ErrPrint("No changes to DB\n");
+
+	return 0;
+}
+
+static inline int db_insert_box_size(const char *appid, int size_type)
+{
+	static const char *dml;
+	int ret;
+	sqlite3_stmt *stmt;
+
+	dml = "INSERT INTO box_size ( appid, size_type ) VALUES (?, ?)";
+	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		return -EIO;
+	}
+
+	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_int(stmt, 2, size_type);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = 0;
+	if (sqlite3_step(stmt) != SQLITE_DONE) {
+		ret = -EIO;
+	}
+
+out:
+	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+	sqlite3_finalize(stmt);
+	return ret;
+}
+
+static inline void db_create_table(void)
+{
+	int ret;
+	begin_transaction();
+
+	ret = db_create_pkgmap();
+	if (ret < 0) {
+		rollback_transaction();
+		return;
+	}
+
+	ret = db_create_provider();
+	if (ret < 0) {
+		rollback_transaction();
+		return;
+	}
+
+	ret = db_create_client();
+	if (ret < 0) {
+		rollback_transaction();
+		return;
+	}
+
+	ret = db_create_i18n();
+	if (ret < 0) {
+		rollback_transaction();
+		return;
+	}
+
+	ret = db_create_box_size();
+	if (ret < 0) {
+		rollback_transaction();
+		return;
+	}
+
+	commit_transaction();
 }
 
 static inline int db_remove_record(const char *appid, const char *key, const char *data)
@@ -463,263 +885,16 @@ static inline int db_fini(void)
 
 int PKGMGR_PARSER_PLUGIN_UPGRADE(xmlDocPtr docPtr, const char *appid)
 {
-	xmlNodePtr root;
-
-	root = xmlDocGetRootElement(docPtr);
-	if (!root) {
-		ErrPrint("Invalid node ptr\n");
-		return -EINVAL;
-	}
-
-	if (!s_info.handle) {
-		if (db_init() < 0)
-			return -EIO;
-	}
-
-	if (strcmp((char *)root->name, "shortcut-list")) {
-		ErrPrint("Invalid XML root\n");
-		return -EINVAL;
-	}
-
 	return 0;
 }
 
 int PKGMGR_PARSER_PLUGIN_UNINSTALL(xmlDocPtr docPtr, const char *_appid)
 {
-	xmlNodePtr node = NULL;
-	xmlChar *key;
-	xmlChar *data;
-	xmlChar *appid;
-	xmlNodePtr root;
-	int id;
-
-	root = xmlDocGetRootElement(docPtr);
-	if (!root) {
-		ErrPrint("Invalid node ptr\n");
-		return -EINVAL;
-	}
-
-	if (!s_info.handle) {
-		if (db_init() < 0)
-			return -EIO;
-	}
-
-	if (strcmp((char *)root->name, "shortcut-list")) {
-		ErrPrint("Invalid XML root\n");
-		return -EINVAL;
-	}
-
-	DbgPrint("AppID: %s\n", _appid);
-	root = root->children;
-	while (root) {
-		for (node = root; node; node = node->next) {
-			if (node->type == XML_ELEMENT_NODE)
-				DbgPrint("Element %s\n", node->name);
-
-			if (strcmp((char *)node->name, "shortcut"))
-				continue;
-
-			if (!xmlHasProp(node, (xmlChar *)"extra_data")
-				|| !xmlHasProp(node, (xmlChar *)"extra_key")
-				|| !xmlHasProp(node, (xmlChar *)"appid"))
-			{
-				DbgPrint("Invalid element %s\n", node->name);
-				continue;
-			}
-
-			appid = xmlGetProp(node, (xmlChar *)"appid");
-			key = xmlGetProp(node, (xmlChar *)"extra_key");
-			data = xmlGetProp(node, (xmlChar *)"extra_data");
-
-			DbgPrint("appid: %s\n", appid);
-			DbgPrint("key: %s\n", key);
-			DbgPrint("data: %s\n", data);
-
-			id = db_get_id((char *)appid, (char *)key, (char *)data);
-			if (id < 0) {
-				ErrPrint("No records found\n");
-				xmlFree(appid);
-				xmlFree(key);
-				xmlFree(data);
-				continue;
-			}
-
-			begin_transaction();
-			if (db_remove_record((char *)appid, (char *)key, (char *)data) < 0) {
-				ErrPrint("Failed to remove a record\n");
-				rollback_transaction();
-				xmlFree(appid);
-				xmlFree(key);
-				xmlFree(data);
-				continue;
-			}
-
-			if (db_remove_name(id) < 0) {
-				ErrPrint("Failed to remove name records\n");
-				rollback_transaction();
-				xmlFree(appid);
-				xmlFree(key);
-				xmlFree(data);
-				continue;
-			}
-			commit_transaction();
-			xmlFree(appid);
-			xmlFree(key);
-			xmlFree(data);
-
-			/*!
-			 * \note
-			 * if (node->children)
-			 * DbgPrint("Skip this node's children\n");
-			 */
-		}
-		root = root->next;
-	}
-
 	return 0;
 }
 
 int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *appid)
 {
-	xmlNodePtr node = NULL;
-	xmlNodePtr child = NULL;
-	xmlChar *key;
-	xmlChar *data;
-	xmlChar *name;
-	xmlChar *icon;
-	xmlNodePtr root;
-	struct i18n_name {
-		xmlChar *name;
-		xmlChar *lang;
-	} *i18n;
-	struct dlist *i18n_list = NULL;
-	struct dlist *l;
-	struct dlist *n;
-	int id;
-
-	root = xmlDocGetRootElement(docPtr);
-	if (!root) {
-		ErrPrint("Invalid node ptr\n");
-		return -EINVAL;
-	}
-
-	if (!s_info.handle) {
-		if (db_init() < 0)
-			return -EIO;
-	}
-
-	if (strcmp((char *)root->name, "shortcut-list")) {
-		ErrPrint("Invalid XML root\n");
-		return -EINVAL;
-	}
-
-	DbgPrint("AppID: %s\n", appid);
-
-	root = root->children;
-	while (root) {
-		for (node = root; node; node = node->next) {
-			if (node->type == XML_ELEMENT_NODE)
-				DbgPrint("Element %s\n", node->name);
-
-			if (strcmp((char *)node->name, "shortcut"))
-				continue;
-
-			if (!xmlHasProp(node, (xmlChar *)"extra_key") || !xmlHasProp(node, (xmlChar *)"extra_data")) {
-				DbgPrint("Invalid element %s\n", node->name);
-				continue;
-			}
-
-			key = xmlGetProp(node, (xmlChar *)"extra_key");
-			data = xmlGetProp(node, (xmlChar *)"extra_data");
-
-			icon = NULL;
-			name = NULL;
-			for (child = node->children; child; child = child->next) {
-				if (!strcmp((char *)child->name, "icon")) {
-					if (icon) {
-						DbgPrint("Icon is duplicated\n");
-						continue;
-					}
-
-					icon = xmlNodeGetContent(child);
-					continue;
-				}
-
-				if (!strcmp((char *)child->name, "label")) {
-					if (!xmlHasProp(child, (xmlChar *)"xml:lang") && name) {
-						DbgPrint("Default name is duplicated\n");
-						continue;
-					}
-
-					i18n = malloc(sizeof(*i18n));
-					if (!i18n) {
-						ErrPrint("Heap: %s\n", strerror(errno));
-						break;
-					}
-
-					i18n->lang = xmlGetProp(child, (xmlChar *)"xml:lang");
-					i18n->name = xmlNodeGetContent(child);
-					i18n_list = dlist_append(i18n_list, i18n);
-					continue;
-				}
-
-			}
-
-			DbgPrint("appid: %s\n", appid);
-			DbgPrint("key: %s\n", key);
-			DbgPrint("data: %s\n", data);
-			DbgPrint("icon: %s\n", icon);
-			DbgPrint("Default name: %s\n", name);
-
-			begin_transaction();
-			if (db_insert_record(appid, (char *)icon, (char *)name, (char *)key, (char *)data) < 0) {
-				ErrPrint("Failed to insert a new record\n");
-				rollback_transaction();
-				xmlFree((xmlChar *)appid);
-				xmlFree(key);
-				xmlFree(data);
-				xmlFree(icon);
-				xmlFree(name);
-
-				dlist_foreach_safe(i18n_list, l, n, i18n) {
-					i18n_list = dlist_remove(i18n_list, l);
-					xmlFree(i18n->lang);
-					xmlFree(i18n->name);
-					free(i18n);
-				}
-			} else {
-				id = db_get_id(appid, (char *)key, (char *)data);
-				if (id < 0) {
-					ErrPrint("Failed to insert a new record\n");
-					rollback_transaction();
-					xmlFree((xmlChar *)appid);
-					xmlFree(key);
-					xmlFree(data);
-					xmlFree(icon);
-					xmlFree(name);
-
-					dlist_foreach_safe(i18n_list, l, n, i18n) {
-						i18n_list = dlist_remove(i18n_list, l);
-						xmlFree(i18n->lang);
-						xmlFree(i18n->name);
-						free(i18n);
-					}
-				} else {
-					dlist_foreach_safe(i18n_list, l, n, i18n) {
-						i18n_list = dlist_remove(i18n_list, l);
-						if (db_insert_name(id, (char *)i18n->lang, (char *)i18n->name) < 0)
-							ErrPrint("Failed to add i18n name: %s(%s)\n", i18n->name, i18n->lang);
-						xmlFree(i18n->lang);
-						xmlFree(i18n->name);
-						free(i18n);
-					}
-					commit_transaction();
-				}
-			}
-		}
-		root = root->next;
-	}
-
 	return 0;
 }
 

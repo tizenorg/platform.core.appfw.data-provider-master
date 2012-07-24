@@ -25,15 +25,15 @@ static struct {
 	.heyfd = -1,
 };
 
-static void lock_state_cb(keynode_t *node, void *user_data)
+static void lcd_state_cb(keynode_t *node, void *user_data)
 {
 	if (!node)
 		return;
 
-	slave_check_pause_or_resume();
+	slave_handle_state_change();
 }
 
-int setting_is_locked(void)
+int setting_is_lcd_off(void)
 {
 	int state;
 
@@ -59,7 +59,7 @@ int setting_init(void)
 {
 	int ret;
 
-	ret = vconf_notify_key_changed(VCONFKEY_PM_STATE, lock_state_cb, NULL);
+	ret = vconf_notify_key_changed(VCONFKEY_PM_STATE, lcd_state_cb, NULL);
 	if (ret < 0)
 		ErrPrint("Failed to add vconf for lock state\n");
 
@@ -83,7 +83,7 @@ int setting_init(void)
 int setting_fini(void)
 {
 	int ret;
-	ret = vconf_ignore_key_changed(VCONFKEY_PM_STATE, lock_state_cb);
+	ret = vconf_ignore_key_changed(VCONFKEY_PM_STATE, lcd_state_cb);
 	return ret;
 }
 
