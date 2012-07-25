@@ -97,6 +97,7 @@ static inline void destroy_client_data(struct client_node *client)
 {
 	struct event_item *event;
 	struct data_item *data;
+	struct subscribe_item *item;
 	Eina_List *l;
 	Eina_List *n;
 
@@ -119,6 +120,12 @@ static inline void destroy_client_data(struct client_node *client)
 
 	EINA_LIST_FREE(client->event_deactivate_list, event) {
 		free(event);
+	}
+
+	EINA_LIST_FREE(client->subscribe_list, item) {
+		free(item->cluster);
+		free(item->category);
+		free(item);
 	}
 
 	if (client->paused)
