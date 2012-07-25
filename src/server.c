@@ -452,6 +452,226 @@ out:
 	return result;
 }
 
+static struct packet *client_pd_mouse_enter(pid_t pid, int handle, const struct packet *packet)
+{
+	struct client_node *client;
+	struct packet *result;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	int w;
+	int h;
+	double timestamp;
+	double x;
+	double y;
+	struct inst_info *inst;
+	const struct pkg_info *pkg;
+
+	DbgPrint("Client[%d] request arrived\n", pid);
+
+	client = client_find_by_pid(pid);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = -ENOENT;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssiiddd", &pkgname, &id, &w, &h, &timestamp, &x, &y);
+	if (ret != 7) {
+		ErrPrint("Parameter is not matched\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, w, h, timestamp, x, y);
+
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst) {
+		ErrPrint("Instance[%s] is not exists\n", id);
+		ret = -ENOENT;
+		goto out;
+	}
+
+	pkg = instance_package(inst);
+	if (!pkg) {
+		ErrPrint("Package[%s] info is not found\n", pkgname);
+		ret = -EFAULT;
+		goto out;
+	}
+
+	if (package_is_fault(pkg)) {
+		/*!
+		 * \note
+		 * If the package is registered as fault module,
+		 * slave has not load it, so we don't need to do anything at here!
+		 */
+		ret = -EFAULT;
+	} else if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
+		struct buffer_info *buffer;
+		struct slave_node *slave;
+		struct packet *packet;
+
+		buffer = instance_pd_buffer(inst);
+		if (!buffer) {
+			ErrPrint("Instance[%s] has no buffer\n", id);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		slave = package_slave(pkg);
+		if (!slave) {
+			ErrPrint("Package[%s] has no slave\n", pkgname);
+			ret = -EINVAL;
+			goto out;
+		}
+
+		packet = packet_create("pd_mouse_enter", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
+		if (!packet) {
+			ErrPrint("Failed to create a packet[%s]\n", pkgname);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
+		struct script_info *script;
+		Evas *e;
+
+		script = instance_pd_script(inst);
+		if (!script) {
+			ret = -EFAULT;
+			goto out;
+		}
+
+		e = script_handler_evas(script);
+		if (!e) {
+			ret = -EFAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, x, y, -1);
+		evas_event_feed_mouse_in(e, timestamp, NULL);
+		ret = 0;
+	}
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a packet\n");
+
+	return result;
+}
+
+static struct packet *client_pd_mouse_leave(pid_t pid, int handle, const struct packet *packet)
+{
+	struct client_node *client;
+	struct packet *result;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	int w;
+	int h;
+	double timestamp;
+	double x;
+	double y;
+	struct inst_info *inst;
+	const struct pkg_info *pkg;
+
+	DbgPrint("Client[%d] request arrived\n", pid);
+
+	client = client_find_by_pid(pid);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = -ENOENT;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssiiddd", &pkgname, &id, &w, &h, &timestamp, &x, &y);
+	if (ret != 7) {
+		ErrPrint("Parameter is not matched\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, w, h, timestamp, x, y);
+
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst) {
+		ErrPrint("Instance[%s] is not exists\n", id);
+		ret = -ENOENT;
+		goto out;
+	}
+
+	pkg = instance_package(inst);
+	if (!pkg) {
+		ErrPrint("Package[%s] info is not found\n", pkgname);
+		ret = -EFAULT;
+		goto out;
+	}
+
+	if (package_is_fault(pkg)) {
+		/*!
+		 * \note
+		 * If the package is registered as fault module,
+		 * slave has not load it, so we don't need to do anything at here!
+		 */
+		ret = -EFAULT;
+	} else if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
+		struct buffer_info *buffer;
+		struct slave_node *slave;
+		struct packet *packet;
+
+		buffer = instance_pd_buffer(inst);
+		if (!buffer) {
+			ErrPrint("Instance[%s] has no buffer\n", id);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		slave = package_slave(pkg);
+		if (!slave) {
+			ErrPrint("Package[%s] has no slave\n", pkgname);
+			ret = -EINVAL;
+			goto out;
+		}
+
+		packet = packet_create("pd_mouse_leave", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
+		if (!packet) {
+			ErrPrint("Failed to create a packet[%s]\n", pkgname);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
+		struct script_info *script;
+		Evas *e;
+
+		script = instance_pd_script(inst);
+		if (!script) {
+			ret = -EFAULT;
+			goto out;
+		}
+
+		e = script_handler_evas(script);
+		if (!e) {
+			ret = -EFAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, x, y, -1);
+		evas_event_feed_mouse_out(e, timestamp, NULL);
+		ret = 0;
+	}
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a packet\n");
+
+	return result;
+}
+
 static struct packet *client_pd_mouse_down(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, id, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
@@ -550,7 +770,6 @@ static struct packet *client_pd_mouse_down(pid_t pid, int handle, const struct p
 		}
 
 		script_handler_update_pointer(script, x, y, 1);
-		evas_event_feed_mouse_in(e, timestamp, NULL);
 		evas_event_feed_mouse_move(e, x * w, y * h, timestamp, NULL);
 		evas_event_feed_mouse_down(e, 1, EVAS_BUTTON_NONE, timestamp + 0.01f, NULL);
 		ret = 0;
@@ -663,7 +882,6 @@ static struct packet *client_pd_mouse_up(pid_t pid, int handle, const struct pac
 
 		script_handler_update_pointer(script, x, y, 0);
 		evas_event_feed_mouse_up(e, 1, EVAS_BUTTON_NONE, timestamp, NULL);
-		evas_event_feed_mouse_out(e, timestamp + 0.01f, NULL);
 		ret = 0;
 	}
 
@@ -895,6 +1113,226 @@ out:
 	return result;
 }
 
+static struct packet *client_lb_mouse_enter(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+{
+	struct client_node *client;
+	struct packet *result;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	int w;
+	int h;
+	double timestamp;
+	double x;
+	double y;
+	struct inst_info *inst;
+	const struct pkg_info *pkg;
+
+	DbgPrint("Client[%d] request arrived\n", pid);
+
+	client = client_find_by_pid(pid);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = -ENOENT;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssiiddd", &pkgname, &id, &w, &h, &timestamp, &x, &y);
+	if (ret != 7) {
+		ErrPrint("Parameter is not matched\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, w, h, timestamp, x, y);
+
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst) {
+		ErrPrint("Instance[%s] is not exists\n", id);
+		ret = -ENOENT;
+		goto out;
+	}
+
+	pkg = instance_package(inst);
+	if (!pkg) {
+		ErrPrint("Package[%s] info is not exists\n", pkgname);
+		ret = -EFAULT;
+		goto out;
+	}
+
+	if (package_is_fault(pkg)) {
+		/*!
+		 * \note
+		 * If the package is registered as fault module,
+		 * slave has not load it, so we don't need to do anything at here!
+		 */
+		ret = -EFAULT;
+	} else if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
+		struct buffer_info *buffer;
+		struct slave_node *slave;
+		struct packet *packet;
+
+		buffer = instance_lb_buffer(inst);
+		if (!buffer) {
+			ErrPrint("Instance[%s] has no buffer\n", id);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		slave = package_slave(pkg);
+		if (!slave) {
+			ErrPrint("Package[%s] has no slave\n", pkgname);
+			ret = -EINVAL;
+			goto out;
+		}
+
+		packet = packet_create("lb_mouse_enter", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
+		if (!packet) {
+			ErrPrint("Failed to create a packet[%s]\n", pkgname);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
+		struct script_info *script;
+		Evas *e;
+
+		script = instance_lb_script(inst);
+		if (!script) {
+			ret = -EFAULT;
+			goto out;
+		}
+
+		e = script_handler_evas(script);
+		if (!e) {
+			ret = -EFAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, x, y, -1);
+		evas_event_feed_mouse_in(e, timestamp, NULL);
+		ret = 0;
+	}
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a packet\n");
+
+	return result;
+}
+
+static struct packet *client_lb_mouse_leave(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+{
+	struct client_node *client;
+	struct packet *result;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	int w;
+	int h;
+	double timestamp;
+	double x;
+	double y;
+	struct inst_info *inst;
+	const struct pkg_info *pkg;
+
+	DbgPrint("Client[%d] request arrived\n", pid);
+
+	client = client_find_by_pid(pid);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = -ENOENT;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssiiddd", &pkgname, &id, &w, &h, &timestamp, &x, &y);
+	if (ret != 7) {
+		ErrPrint("Parameter is not matched\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, w, h, timestamp, x, y);
+
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst) {
+		ErrPrint("Instance[%s] is not exists\n", id);
+		ret = -ENOENT;
+		goto out;
+	}
+
+	pkg = instance_package(inst);
+	if (!pkg) {
+		ErrPrint("Package[%s] info is not exists\n", pkgname);
+		ret = -EFAULT;
+		goto out;
+	}
+
+	if (package_is_fault(pkg)) {
+		/*!
+		 * \note
+		 * If the package is registered as fault module,
+		 * slave has not load it, so we don't need to do anything at here!
+		 */
+		ret = -EFAULT;
+	} else if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
+		struct buffer_info *buffer;
+		struct slave_node *slave;
+		struct packet *packet;
+
+		buffer = instance_lb_buffer(inst);
+		if (!buffer) {
+			ErrPrint("Instance[%s] has no buffer\n", id);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		slave = package_slave(pkg);
+		if (!slave) {
+			ErrPrint("Package[%s] has no slave\n", pkgname);
+			ret = -EINVAL;
+			goto out;
+		}
+
+		packet = packet_create("lb_mouse_leave", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
+		if (!packet) {
+			ErrPrint("Failed to create a packet[%s]\n", pkgname);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
+		struct script_info *script;
+		Evas *e;
+
+		script = instance_lb_script(inst);
+		if (!script) {
+			ret = -EFAULT;
+			goto out;
+		}
+
+		e = script_handler_evas(script);
+		if (!e) {
+			ret = -EFAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, x, y, -1);
+		evas_event_feed_mouse_out(e, timestamp, NULL);
+		ret = 0;
+	}
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a packet\n");
+
+	return result;
+}
+
 static struct packet *client_lb_mouse_down(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
@@ -993,7 +1431,6 @@ static struct packet *client_lb_mouse_down(pid_t pid, int handle, const struct p
 		}
 
 		script_handler_update_pointer(script, x, y, 1);
-		evas_event_feed_mouse_in(e, timestamp, NULL);
 		evas_event_feed_mouse_move(e, x * w, y * h, timestamp, NULL);
 		evas_event_feed_mouse_down(e, 1, EVAS_BUTTON_NONE, timestamp + 0.01f, NULL);
 		ret = 0;
@@ -1106,7 +1543,6 @@ static struct packet *client_lb_mouse_up(pid_t pid, int handle, const struct pac
 
 		script_handler_update_pointer(script, x, y, 0);
 		evas_event_feed_mouse_up(e, 1, EVAS_BUTTON_NONE, timestamp, NULL);
-		evas_event_feed_mouse_out(e, timestamp + 0.01f, NULL);
 		ret = 0;
 	}
 
@@ -2166,6 +2602,14 @@ static struct method s_table[] = {
 		.handler = client_change_group, /* pid, pkgname, filename, cluster, category, ret */
 	},
 	{
+		.cmd = "pd_mouse_enter",
+		.handler = client_pd_mouse_enter, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = "pd_mouse_leave",
+		.handler = client_pd_mouse_leave, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
+	},
+	{
 		.cmd = "pd_mouse_down",
 		.handler = client_pd_mouse_down, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
 	},
@@ -2180,6 +2624,14 @@ static struct method s_table[] = {
 	{
 		.cmd = "lb_mouse_move",
 		.handler = client_lb_mouse_move, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = "lb_mouse_enter",
+		.handler = client_lb_mouse_enter, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = "lb_mouse_leave",
+		.handler = client_lb_mouse_leave, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 	},
 	{
 		.cmd = "lb_mouse_down",

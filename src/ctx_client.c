@@ -82,7 +82,7 @@ static inline void update_location(void)
 		category = group_find_category(cluster, "location_weather");
 		if (category)
 			group_list_category_pkgs(category, update_pkg_cb, NULL);
-		
+
 		category = group_find_category(cluster, "location_around");
 		if (category)
 			group_list_category_pkgs(category, update_pkg_cb, NULL);
