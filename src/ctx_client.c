@@ -82,6 +82,18 @@ static inline void update_location(void)
 		category = group_find_category(cluster, "location_weather");
 		if (category)
 			group_list_category_pkgs(category, update_pkg_cb, NULL);
+		
+		category = group_find_category(cluster, "location_around");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+
+		category = group_find_category(cluster, "location_facebook");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+
+		category = group_find_category(cluster, "location_task");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
 	}
 
 	cluster = group_find_cluster("apps");
@@ -149,11 +161,79 @@ static inline void update_apps(void)
 		category = group_find_category(cluster, "apps_location");
 		if (category)
 			group_list_category_pkgs(category, update_pkg_cb, NULL);
+
+		category = group_find_category(cluster, "apps_frequently_now");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+
+		category = group_find_category(cluster, "apps_similar");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+
+		category = group_find_category(cluster, "apps_suggestion");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
 	}
 
 	cluster = group_find_cluster("location");
 	if (cluster) {
 		category = group_find_category(cluster, "location_apps");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+	}
+
+	cluster = group_find_cluster("photo_videos");
+	if (cluster) {
+		category = group_find_category(cluster, "media_facebook");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+
+		category = group_find_category(cluster, "media_category");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+
+		category = group_find_category(cluster, "media_top");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+
+		category = group_find_category(cluster, "media_facebook_like");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+	}
+
+	cluster = group_find_cluster("music");
+	if (cluster) {
+		category = group_find_category(cluster, "music_similar_artist");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+
+		category = group_find_category(cluster, "music_about");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+
+		category = group_find_category(cluster, "music_friend_playlist");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+	}
+
+	cluster = group_find_cluster("news");
+	if (cluster) {
+		category = group_find_category(cluster, "news_search");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+
+		category = group_find_category(cluster, "news_shared_by_friends");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+	}
+
+	cluster = group_find_cluster("people");
+	if (cluster) {
+		category = group_find_category(cluster, "people_frequently");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+
+		category = group_find_category(cluster, "people_rarely");
 		if (category)
 			group_list_category_pkgs(category, update_pkg_cb, NULL);
 	}
@@ -211,6 +291,25 @@ static inline void update_photo(void)
 		group_list_category_pkgs(category, update_pkg_cb, NULL);
 }
 
+static inline void update_events(void)
+{
+	struct cluster *cluster;
+	struct category *category;
+
+	DbgPrint("Processing events: Events\n");
+
+	cluster = group_find_cluster("location");
+	if (cluster) {
+		category = group_find_category(cluster, "location_task");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+
+		category = group_find_category(cluster, "location_appointment");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+	}
+}
+
 static inline void update_keyword(void)
 {
 	struct cluster *cluster;
@@ -219,12 +318,30 @@ static inline void update_keyword(void)
 	DbgPrint("Processing events: Keyword\n");
 
 	cluster = group_find_cluster("news");
-	if (!cluster)
-		return;
+	if (cluster) {
+		category = group_find_category(cluster, "news_from");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
 
-	category = group_find_category(cluster, "news_from");
-	if (category)
-		group_list_category_pkgs(category, update_pkg_cb, NULL);
+		category = group_find_category(cluster, "news_rss");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+
+		category = group_find_category(cluster, "news_friends");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+
+		category = group_find_category(cluster, "news_twitter");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+	}
+
+	cluster = group_find_cluster("photos_videos");
+	if (cluster) {
+		category = group_find_category(cluster, "media_youtube");
+		if (category)
+			group_list_category_pkgs(category, update_pkg_cb, NULL);
+	}
 }
 
 void ctx_update(unsigned long mask)
@@ -249,6 +366,9 @@ void ctx_update(unsigned long mask)
 
 	if (mask & CONTEXT_NOTI_KEYWORD)
 		update_keyword();
+
+	if (mask & CONTEXT_NOTI_EVENTS)
+		update_events();
 
 	return;
 }
@@ -279,7 +399,7 @@ static Eina_Bool delayed_ctx_init_cb(void *data)
 {
 	context_set_context_changed_cb(ctx_changed_cb,
 		CONTEXT_NOTI_LOCATION | CONTEXT_NOTI_CONTACTS | CONTEXT_NOTI_APPS |
-		CONTEXT_NOTI_MUSIC | CONTEXT_NOTI_PHOTOS | CONTEXT_NOTI_KEYWORD, NULL);
+		CONTEXT_NOTI_MUSIC | CONTEXT_NOTI_PHOTOS | CONTEXT_NOTI_KEYWORD | CONTEXT_NOTI_EVENTS, NULL);
 
 	/*!
 	 * Triggering all events first
