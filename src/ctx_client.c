@@ -27,16 +27,12 @@
 
 static struct info {
 	int updated;
-	unsigned long pending_mask;
 	int enabled;
-	pthread_mutex_t ctx_lock;
-	Ecore_Timer *ctx_event_consumer;
+	unsigned long pending_mask;
 } s_info = {
 	.updated = 0,
-	.pending_mask = CONTEXT_NOTI_LOCATION | CONTEXT_NOTI_CONTACTS | CONTEXT_NOTI_APPS | CONTEXT_NOTI_MUSIC | CONTEXT_NOTI_PHOTOS,
 	.enabled = 0,
-	.ctx_lock = PTHREAD_MUTEX_INITIALIZER,
-	.ctx_event_consumer = NULL,
+	.pending_mask = 0x0,
 };
 
 static int update_pkg_cb(struct category *category, const char *pkgname, void *data)
@@ -215,6 +211,22 @@ static inline void update_photo(void)
 		group_list_category_pkgs(category, update_pkg_cb, NULL);
 }
 
+static inline void update_keyword(void)
+{
+	struct cluster *cluster;
+	struct category *category;
+
+	DbgPrint("Processing events: Keyword\n");
+
+	cluster = group_find_cluster("news");
+	if (!cluster)
+		return;
+
+	category = group_find_category(cluster, "news_from");
+	if (category)
+		group_list_category_pkgs(category, update_pkg_cb, NULL);
+}
+
 void ctx_update(unsigned long mask)
 {
 	if (!mask)
@@ -235,14 +247,20 @@ void ctx_update(unsigned long mask)
 	if (mask & CONTEXT_NOTI_PHOTOS)
 		update_photo();
 
+	if (mask & CONTEXT_NOTI_KEYWORD)
+		update_keyword();
+
 	return;
 }
 
 static bool ctx_changed_cb(context_type_e type, void *user_data)
 {
-	pthread_mutex_lock(&s_info.ctx_lock);
 	s_info.pending_mask |= type;
-	pthread_mutex_unlock(&s_info.ctx_lock);
+	if (!s_info.enabled || (client_count() && client_is_all_paused()) || setting_is_lcd_off())
+		return ECORE_CALLBACK_RENEW;
+
+	ctx_update(s_info.pending_mask);
+	s_info.pending_mask = 0x0;
 	return false;
 }
 
@@ -257,33 +275,11 @@ static void ctx_vconf_cb(keynode_t *node, void *data)
 	}
 }
 
-static Eina_Bool event_consumer_cb(void *data)
-{
-	unsigned long mask;
-
-	pthread_mutex_lock(&s_info.ctx_lock);
-	mask = s_info.pending_mask;
-	s_info.pending_mask = 0;
-	pthread_mutex_unlock(&s_info.ctx_lock);
-
-	if (!s_info.enabled || (client_count() && client_is_all_paused()) || setting_is_lcd_off())
-		return ECORE_CALLBACK_RENEW;
-
-	ctx_update(mask);
-
-	return ECORE_CALLBACK_RENEW;
-}
-
 static Eina_Bool delayed_ctx_init_cb(void *data)
 {
-	s_info.ctx_event_consumer = ecore_timer_add(10.0f, event_consumer_cb, NULL);
-	if (!s_info.ctx_event_consumer) {
-		ErrPrint("Failed to add event consumer\n");
-	} else {
-		context_set_context_changed_cb(ctx_changed_cb,
-			CONTEXT_NOTI_LOCATION | CONTEXT_NOTI_CONTACTS | CONTEXT_NOTI_APPS |
-			CONTEXT_NOTI_MUSIC | CONTEXT_NOTI_PHOTOS, NULL);
-	}
+	context_set_context_changed_cb(ctx_changed_cb,
+		CONTEXT_NOTI_LOCATION | CONTEXT_NOTI_CONTACTS | CONTEXT_NOTI_APPS |
+		CONTEXT_NOTI_MUSIC | CONTEXT_NOTI_PHOTOS | CONTEXT_NOTI_KEYWORD, NULL);
 
 	/*!
 	 * Triggering all events first
@@ -316,22 +312,6 @@ int ctx_client_fini(void)
 {
 	vconf_ignore_key_changed(SYS_CLUSTER_KEY, ctx_vconf_cb);
 	return 0;
-}
-
-void ctx_pause(void)
-{
-	if (!s_info.ctx_event_consumer)
-		return;
-
-	ecore_timer_freeze(s_info.ctx_event_consumer);
-}
-
-void ctx_resume(void)
-{
-	if (!s_info.ctx_event_consumer)
-		return;
-
-	ecore_timer_thaw(s_info.ctx_event_consumer);
 }
 
 /* End of a file */

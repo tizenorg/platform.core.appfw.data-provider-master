@@ -670,16 +670,12 @@ void slave_handle_state_change(void)
 			slave_pause(slave);
 		}
 
-		ctx_pause();
-
 		sqlite3_release_memory(SQLITE_FLUSH_MAX);
 		malloc_trim(0);
 	} else {
 		EINA_LIST_FOREACH(s_info.slave_list, l, slave) {
 			slave_resume(slave);
 		}
-
-		ctx_resume();
 	}
 }
 
