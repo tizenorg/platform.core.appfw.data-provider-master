@@ -139,7 +139,7 @@ int instance_unicast_created_event(struct inst_info *inst, struct client_node *c
 			lb_type, pd_type,
 			inst->period);
 	if (!packet) {
-		ErrPrint("Failed to create a param\n");
+		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return -EFAULT;
 	}
 
@@ -188,9 +188,10 @@ int instance_broadcast_created_event(struct inst_info *inst)
 			package_pinup(inst->info),
 			lb_type, pd_type,
 			inst->period);
-
-	if (!packet)
+	if (!packet) {
+		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return -EFAULT;
+	}
 
 	return CLIENT_SEND_EVENT(inst, packet);
 }
@@ -204,7 +205,7 @@ int instance_unicast_deleted_event(struct inst_info *inst)
 
 	packet = packet_create("deleted", "ssd", package_name(inst->info), inst->id, inst->timestamp);
 	if (!packet) {
-		ErrPrint("Failed to create a param\n");
+		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return -EFAULT;
 	}
 		
@@ -217,7 +218,7 @@ int instance_broadcast_deleted_event(struct inst_info *inst)
 
 	packet = packet_create("deleted", "ssd", package_name(inst->info), inst->id, inst->timestamp);
 	if (!packet) {
-		ErrPrint("Failed to create a param\n");
+		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return -EFAULT;
 	}
 		
@@ -789,7 +790,7 @@ int instance_destroy(struct inst_info *inst)
 
 	packet = packet_create("delete", "ss", package_name(inst->info), inst->id);
 	if (!packet) {
-		ErrPrint("Failed to build a delete param\n");
+		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return -EFAULT;
 	}
 
@@ -843,7 +844,7 @@ int instance_reactivate(struct inst_info *inst)
 	}
 
 	if (package_is_fault(inst->info)) {
-		ErrPrint("Unable to reactivate the instance of a fault package\n");
+		DbgPrint("Fault package [%s]\n", package_name(inst->info));
 		return -EFAULT;
 	}
 
@@ -874,7 +875,7 @@ int instance_reactivate(struct inst_info *inst)
 			inst->lb.width, inst->lb.height,
 			package_abi(inst->info));
 	if (!packet) {
-		ErrPrint("Failed to create a param\n");
+		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return -EFAULT;
 	}
 
@@ -896,7 +897,7 @@ int instance_activate(struct inst_info *inst)
 	}
 
 	if (package_is_fault(inst->info)) {
-		ErrPrint("Unable to activate the instance of a fault package\n");
+		DbgPrint("Fault package [%s]\n", package_name(inst->info));
 		return -EFAULT;
 	}
 
@@ -927,7 +928,7 @@ int instance_activate(struct inst_info *inst)
 			!!inst->client,
 			package_abi(inst->info));
 	if (!packet) {
-		ErrPrint("Failed to create a param\n");
+		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return -EFAULT;
 	}
 
@@ -1089,7 +1090,7 @@ out:
 	if (result)
 		(void)CLIENT_SEND_EVENT(cbdata->inst, result);
 	else
-		ErrPrint("Failed to send pinup result packet\n");
+		ErrPrint("Failed to build a packet for %s\n", package_name(cbdata->inst->info));
 
 	instance_unref(cbdata->inst);
 	free(cbdata);
@@ -1100,8 +1101,15 @@ int instance_set_pinup(struct inst_info *inst, int pinup)
 	struct set_pinup_cbdata *cbdata;
 	struct packet *packet;
 
-	if (package_is_fault(inst->info))
+	if (!inst) {
+		ErrPrint("Invalid instance handle\n");
+		return -EINVAL;
+	}
+
+	if (package_is_fault(inst->info)) {
+		DbgPrint("Fault package [%s]\n", package_name(inst->info));
 		return -EFAULT;
+	}
 
 	if (!package_pinup(inst->info))
 		return -EINVAL;
@@ -1118,7 +1126,7 @@ int instance_set_pinup(struct inst_info *inst, int pinup)
 
 	packet = packet_create("pinup", "ssi", package_name(inst->info), inst->id, pinup);
 	if (!packet) {
-		ErrPrint("Failed to create a param\n");
+		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		instance_unref(cbdata->inst);
 		free(cbdata);
 		return -EFAULT;
@@ -1162,6 +1170,11 @@ int instance_resize(struct inst_info *inst, int w, int h)
 	struct packet *packet;
 	int ret;
 
+	if (!inst) {
+		ErrPrint("Invalid instance handle\n");
+		return -EINVAL;
+	}
+
 	if (package_is_fault(inst->info)) {
 		ErrPrint("Fault package: %s\n", package_name(inst->info));
 		return -EFAULT;
@@ -1180,7 +1193,7 @@ int instance_resize(struct inst_info *inst, int w, int h)
 	/* NOTE: param is resued from here */
 	packet = packet_create("resize", "ssii", package_name(inst->info), inst->id, w, h);
 	if (!packet) {
-		DbgPrint("Failed to build a packet for %s\n", package_name(inst->info));
+		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		ret = -EFAULT;
 		instance_unref(cbdata->inst);
 		free(cbdata);
@@ -1223,8 +1236,15 @@ int instance_set_period(struct inst_info *inst, double period)
 	struct packet *packet;
 	struct period_cbdata *cbdata;
 
-	if (package_is_fault(inst->info))
+	if (!inst) {
+		ErrPrint("Invalid instance handle\n");
+		return -EINVAL;
+	}
+
+	if (package_is_fault(inst->info)) {
+		DbgPrint("Fault package [%s]\n", package_name(inst->info));
 		return -EFAULT;
+	}
 
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
@@ -1243,6 +1263,7 @@ int instance_set_period(struct inst_info *inst, double period)
 
 	packet = packet_create("set_period", "ssd", package_name(inst->info), inst->id, period);
 	if (!packet) {
+		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		instance_unref(cbdata->inst);
 		free(cbdata);
 		return -EFAULT;
@@ -1255,13 +1276,22 @@ int instance_clicked(struct inst_info *inst, const char *event, double timestamp
 {
 	struct packet *packet;
 
-	if (package_is_fault(inst->info))
+	if (!inst) {
+		ErrPrint("Invalid instance handle\n");
+		return -EINVAL;
+	}
+
+	if (package_is_fault(inst->info)) {
+		DbgPrint("Fault package [%s]\n", package_name(inst->info));
 		return -EFAULT;
+	}
 
 	/* NOTE: param is resued from here */
 	packet = packet_create("clicked", "sssddd", package_name(inst->info), inst->id, event, timestamp, x, y);
-	if (!packet)
+	if (!packet) {
+		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return -EFAULT;
+	}
 
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, NULL, NULL);
 }
@@ -1270,12 +1300,21 @@ int instance_text_signal_emit(struct inst_info *inst, const char *emission, cons
 {
 	struct packet *packet;
 
-	if (package_is_fault(inst->info))
+	if (!inst) {
+		ErrPrint("Invalid instance handle\n");
+		return -EINVAL;
+	}
+
+	if (package_is_fault(inst->info)) {
+		DbgPrint("Fault package [%s]\n", package_name(inst->info));
 		return -EFAULT;
+	}
 
 	packet = packet_create("text_signal", "ssssdddd", package_name(inst->info), inst->id, emission, source, sx, sy, ex, ey);
-	if (!packet)
+	if (!packet) {
+		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return -EFAULT;
+	}
 
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, NULL, NULL);
 }
@@ -1322,8 +1361,15 @@ int instance_change_group(struct inst_info *inst, const char *cluster, const cha
 	struct packet *packet;
 	struct change_group_cbdata *cbdata;
 
-	if (package_is_fault(inst->info))
+	if (!inst) {
+		ErrPrint("Invalid instance handle\n");
+		return -EINVAL;
+	}
+
+	if (package_is_fault(inst->info)) {
+		DbgPrint("Fault package [%s]\n", package_name(inst->info));
 		return -EFAULT;
+	}
 
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
@@ -1350,6 +1396,7 @@ int instance_change_group(struct inst_info *inst, const char *cluster, const cha
 
 	packet = packet_create("change_group","ssss", package_name(inst->info), inst->id, cluster, category);
 	if (!packet) {
+		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		instance_unref(cbdata->inst);
 		free(cbdata->category);
 		free(cbdata->cluster);

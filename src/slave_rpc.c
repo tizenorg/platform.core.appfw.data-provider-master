@@ -149,6 +149,7 @@ static Eina_Bool command_consumer_cb(void *data)
 	command = pop_command();
 	if (!command) {
 		s_info.command_consuming_timer = NULL;
+		DbgPrint("Command consumer is deleted\n");
 		return ECORE_CALLBACK_CANCEL;
 	}
 
@@ -324,6 +325,8 @@ int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, struc
 
 	command = create_command(slave, pkgname, packet);
 	if (!command) {
+		ErrPrint("Failed to create command\n");
+
 		if (ret_cb)
 			ret_cb(slave, NULL, data);
 

@@ -126,6 +126,8 @@ static struct packet *client_clicked(pid_t pid, int handle, const struct packet 
 	int ret;
 	struct inst_info *inst;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -139,6 +141,8 @@ static struct packet *client_clicked(pid_t pid, int handle, const struct packet 
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("pkgname[%s] id[%s] event[%s] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, event, timestamp, x, y);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst)
@@ -172,6 +176,8 @@ static struct packet *client_text_signal(pid_t pid, int handle, const struct pac
 	struct inst_info *inst;
 	int ret;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -185,6 +191,8 @@ static struct packet *client_text_signal(pid_t pid, int handle, const struct pac
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("pkgname[%s] id[%s] emission[%s] source[%s] sx[%lf] sy[%lf] ex[%lf] ey[%lf]\n", pkgname, id, emission, source, sx, sy, ex, ey);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst)
@@ -211,6 +219,8 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 	struct inst_info *inst;
 	int ret;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -224,6 +234,8 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("pkgname[%s] id[%s]\n", pkgname, id);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
@@ -253,6 +265,8 @@ static struct packet *client_resize(pid_t pid, int handle, const struct packet *
 	struct inst_info *inst;
 	int ret;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -266,6 +280,8 @@ static struct packet *client_resize(pid_t pid, int handle, const struct packet *
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d]\n", pkgname, id, w, h);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst)
@@ -296,6 +312,8 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 	int ret;
 	struct pkg_info *info;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -309,6 +327,8 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("period[%lf] pkgname[%s] content[%s] cluster[%s] category[%s] period[%lf]\n", timestamp, pkgname, content, cluster, category, period);
 
 	info = package_find(pkgname);
 	if (!info)
@@ -352,6 +372,8 @@ static struct packet *client_set_period(pid_t pid, int handle, const struct pack
 	int ret;
 	struct inst_info *inst;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -366,6 +388,8 @@ static struct packet *client_set_period(pid_t pid, int handle, const struct pack
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("pkgname[%s] id[%s] period[%lf]\n", pkgname, id, period);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst)
@@ -394,6 +418,8 @@ static struct packet *client_change_group(pid_t pid, int handle, const struct pa
 	struct inst_info *inst;
 	int ret;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -407,6 +433,8 @@ static struct packet *client_change_group(pid_t pid, int handle, const struct pa
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("pkgname[%s] id[%s] cluster[%s] category[%s]\n", pkgname, id, cluster, category);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst)
@@ -439,6 +467,8 @@ static struct packet *client_pd_mouse_down(pid_t pid, int handle, const struct p
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -452,6 +482,8 @@ static struct packet *client_pd_mouse_down(pid_t pid, int handle, const struct p
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, w, h, timestamp, x, y);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
@@ -547,6 +579,8 @@ static struct packet *client_pd_mouse_up(pid_t pid, int handle, const struct pac
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -560,6 +594,8 @@ static struct packet *client_pd_mouse_up(pid_t pid, int handle, const struct pac
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, w, h, timestamp, x, y);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
@@ -654,6 +690,8 @@ static struct packet *client_pd_mouse_move(pid_t pid, int handle, const struct p
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -667,6 +705,8 @@ static struct packet *client_pd_mouse_move(pid_t pid, int handle, const struct p
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, w, h, timestamp, x, y);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
@@ -760,6 +800,8 @@ static struct packet *client_lb_mouse_move(pid_t pid, int handle, const struct p
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -773,6 +815,8 @@ static struct packet *client_lb_mouse_move(pid_t pid, int handle, const struct p
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, w, h, timestamp, x, y);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
@@ -866,6 +910,8 @@ static struct packet *client_lb_mouse_down(pid_t pid, int handle, const struct p
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -879,6 +925,8 @@ static struct packet *client_lb_mouse_down(pid_t pid, int handle, const struct p
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, w, h, timestamp, x, y);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
@@ -974,6 +1022,8 @@ static struct packet *client_lb_mouse_up(pid_t pid, int handle, const struct pac
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -987,6 +1037,8 @@ static struct packet *client_lb_mouse_up(pid_t pid, int handle, const struct pac
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, w, h, timestamp, x, y);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
@@ -1077,6 +1129,8 @@ static struct packet *client_pinup_changed(pid_t pid, int handle, const struct p
 	int ret;
 	struct inst_info *inst;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -1092,6 +1146,8 @@ static struct packet *client_pinup_changed(pid_t pid, int handle, const struct p
 		pinup = 0;
 		goto out;
 	}
+
+	DbgPrint("pkgname[%s] id[%s] pinup[%d]\n", pkgname, id, pinup);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
@@ -1181,6 +1237,8 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 	int ret;
 	struct inst_info *inst;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -1194,6 +1252,8 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("pkgname[%s] id[%s]\n", pkgname, id);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst)
@@ -1222,6 +1282,8 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 	int ret;
 	struct inst_info *inst;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -1235,6 +1297,8 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("pkgname[%s] id[%s]\n", pkgname, id);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst)
@@ -1262,6 +1326,8 @@ static struct packet *client_activate_package(pid_t pid, int handle, const struc
 	int ret;
 	struct pkg_info *info;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -1277,6 +1343,8 @@ static struct packet *client_activate_package(pid_t pid, int handle, const struc
 		pkgname = "";
 		goto out;
 	}
+
+	DbgPrint("pkgname[%s]\n", pkgname);
 
 	info = package_find(pkgname);
 	if (!info)
@@ -1300,6 +1368,8 @@ static struct packet *client_subscribed(pid_t pid, int handle, const struct pack
 	struct packet *result;
 	int ret;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -1313,6 +1383,8 @@ static struct packet *client_subscribed(pid_t pid, int handle, const struct pack
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("cluster[%s] category[%s]\n", cluster, category);
 
 	/*!
 	 * \todo
@@ -1338,6 +1410,8 @@ static struct packet *client_delete_cluster(pid_t pid, int handle, const struct 
 	struct packet *result;
 	int ret;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -1351,6 +1425,8 @@ static struct packet *client_delete_cluster(pid_t pid, int handle, const struct 
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("cluster[%s]\n", cluster);
 
 	/*!
 	 * \todo
@@ -1391,6 +1467,8 @@ static struct packet *client_refresh_group(pid_t pid, int handle, const struct p
 	struct cluster *cluster;
 	struct category *category;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Cilent %d is not exists\n", pid);
@@ -1404,6 +1482,8 @@ static struct packet *client_refresh_group(pid_t pid, int handle, const struct p
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("cluster[%s] category[%s]\n", cluster_id, category_id);
 
 	cluster = group_find_cluster(cluster_id);
 	if (!cluster) {
@@ -1436,6 +1516,8 @@ static struct packet *client_delete_category(pid_t pid, int handle, const struct
 	struct packet *result;
 	int ret;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -1449,6 +1531,8 @@ static struct packet *client_delete_category(pid_t pid, int handle, const struct
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("cluster[%s] category[%s]\n", cluster, category);
 
 	/*!
 	 * \todo
@@ -1470,6 +1554,8 @@ static struct packet *client_unsubscribed(pid_t pid, int handle, const struct pa
 	struct packet *result;
 	int ret;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -1483,6 +1569,8 @@ static struct packet *client_unsubscribed(pid_t pid, int handle, const struct pa
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("cluster[%s] category[%s]\n", cluster, category);
 
 	/*!
 	 * \todo
@@ -1504,6 +1592,8 @@ static struct packet *client_livebox_is_exists(pid_t pid, int handle, const stru
 	const char *pkgname;
 	int ret;
 
+	DbgPrint("Client[%d] request arrived\n", pid);
+
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -1517,6 +1607,8 @@ static struct packet *client_livebox_is_exists(pid_t pid, int handle, const stru
 		ret = -EINVAL;
 		goto out;
 	}
+
+	DbgPrint("pkgname[%s]\n", pkgname);
 
 	ret = util_validate_livebox_package(pkgname);
 
