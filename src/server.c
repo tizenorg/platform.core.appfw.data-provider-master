@@ -2021,41 +2021,6 @@ out:
 	return result;
 }
 
-static struct packet *client_livebox_is_exists(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, ret */
-{
-	struct client_node *client;
-	struct packet *result;
-	const char *pkgname;
-	int ret;
-
-	DbgPrint("Client[%d] request arrived\n", pid);
-
-	client = client_find_by_pid(pid);
-	if (!client) {
-		ErrPrint("Client %d is not exists\n", pid);
-		ret = -ENOENT;
-		goto out;
-	}
-
-	ret = packet_get(packet, "s", &pkgname);
-	if (ret != 1) {
-		ErrPrint("Parameter is not matched\n");
-		ret = -EINVAL;
-		goto out;
-	}
-
-	DbgPrint("pkgname[%s]\n", pkgname);
-
-	ret = util_validate_livebox_package(pkgname);
-
-out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-
-	return result;
-}
-
 static struct packet *slave_hello(pid_t pid, int handle, const struct packet *packet) /* slave_name, ret */
 {
 	struct slave_node *slave;
@@ -2656,10 +2621,6 @@ static struct method s_table[] = {
 	{
 		.cmd = "activate_package",
 		.handler = client_activate_package, /* pid, pkgname, ret */
-	},
-	{
-		.cmd = "livebox_is_exists",
-		.handler = client_livebox_is_exists, /* pid, pkgname, ret */
 	},
 	{
 		.cmd = "subscribe", /* pid, cluster, sub-cluster */

@@ -437,6 +437,44 @@ int slave_rpc_ping(struct slave_node *slave)
 	return 0;
 }
 
+int slave_rpc_ping_freeze(struct slave_node *slave)
+{
+	struct slave_rpc *rpc;
+
+	rpc = slave_data(slave, "rpc");
+	if (!rpc) {
+		ErrPrint("Slave RPC is not valid\n");
+		return -EINVAL;
+	}
+
+	if (!slave_is_activated(slave)) {
+		ErrPrint("Slave is not activated\n");
+		return -EFAULT;
+	}
+
+	ecore_timer_freeze(rpc->pong_timer);
+	return 0;
+}
+
+int slave_rpc_ping_thaw(struct slave_node *slave)
+{
+	struct slave_rpc *rpc;
+
+	rpc = slave_data(slave, "rpc");
+	if (!rpc) {
+		ErrPrint("Slave RPC is not valid\n");
+		return -EINVAL;
+	}
+
+	if (!slave_is_activated(slave)) {
+		ErrPrint("Slave is not activated\n");
+		return -EFAULT;
+	}
+
+	ecore_timer_thaw(rpc->pong_timer);
+	return 0;
+}
+
 void slave_rpc_request_update(const char *pkgname, const char *cluster, const char *category)
 {
 	struct slave_node *slave;

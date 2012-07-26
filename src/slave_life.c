@@ -709,8 +709,10 @@ static void resume_cb(struct slave_node *slave, const struct packet *packet, voi
 		return;
 	}
 
-	if (ret == 0)
+	if (ret == 0) {
 		slave->state = SLAVE_RESUMED;
+		slave_rpc_ping_thaw(slave);
+	}
 }
 
 static void pause_cb(struct slave_node *slave, const struct packet *packet, void *data)
@@ -728,8 +730,10 @@ static void pause_cb(struct slave_node *slave, const struct packet *packet, void
 		return;
 	}
 
-	if (ret == 0)
+	if (ret == 0) {
 		slave->state = SLAVE_PAUSED;
+		slave_rpc_ping_freeze(slave);
+	}
 }
 
 int slave_resume(struct slave_node *slave)

@@ -48,15 +48,10 @@ int util_check_ext(const char *filename, const char *check_ptr)
 	return 0;
 }
 
-int util_validate_livebox_package(const char *pkgname)
+static inline int check_native_livebox(const char *pkgname)
 {
 	int len;
 	char *path;
-
-	if (!pkgname) {
-		ErrPrint("Invalid argument\n");
-		return -EINVAL;
-	}
 
 	len = strlen(pkgname) * 2;
 	len += strlen(g_conf.path.root);
@@ -77,6 +72,44 @@ int util_validate_livebox_package(const char *pkgname)
 
 	free(path);
 	return 0;
+}
+
+static inline int check_web_livebox(const char *pkgname)
+{
+	int len;
+	char *path;
+
+	len = strlen(pkgname) * 2;
+	len += strlen("/opt/app/%s/res/wgt/livebox/index.html");
+
+	path = malloc(len + 1);
+	if (!path) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
+	snprintf(path, len, "/opt/app/%s/res/wgt/livebox/index.html", pkgname);
+	if (access(path, F_OK | R_OK) != 0) {
+		ErrPrint("%s is not a valid package\n", pkgname);
+		free(path);
+		return -EINVAL;
+	}
+
+	free(path);
+	return 0;
+}
+
+int util_validate_livebox_package(const char *pkgname)
+{
+	if (!pkgname) {
+		ErrPrint("Invalid argument\n");
+		return -EINVAL;
+	}
+
+	if (!check_native_livebox(pkgname) || !check_web_livebox(pkgname))
+		return 0;
+
+	return -EINVAL;
 }
 
 int util_unlink(const char *filename)

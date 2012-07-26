@@ -55,6 +55,9 @@ int io_init(void)
 	if (abi_add_entry("cpp", SLAVE_PKGNAME) != 0)
 		ErrPrint("Failed to add a slave package for \"cpp\"\n");
 
+	if (abi_add_entry("html", SLAVE_WEB_PKGNAME) != 0)
+		ErrPrint("Failed to add a slave package for \"html\"\n");
+
 	return 0;
 }
 
@@ -62,6 +65,7 @@ int io_fini(void)
 {
 	abi_del_entry("c");
 	abi_del_entry("cpp");
+	abi_del_entry("html");
 	return 0;
 }
 
