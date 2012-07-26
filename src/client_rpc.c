@@ -138,7 +138,7 @@ static Eina_Bool command_consumer_cb(void *data)
 	}
 
 	DbgPrint("Send a packet to client [%s]\n", packet_command(command->packet));
-	if (com_core_packet_async_send(rpc->handle, command->packet, 0u, recv_cb, command) < 0)
+	if (com_core_packet_async_send(rpc->handle, command->packet, 10000u, recv_cb, command) < 0)
 		destroy_command(command);
 
 	return ECORE_CALLBACK_RENEW;
