@@ -77,8 +77,10 @@ static int recv_cb(pid_t pid, int handle, const struct packet *packet, void *dat
 
 	if (!packet) {
 		DbgPrint("Client fault?\n");
-		client_fault(command->client);
-		command->client = NULL;
+		if (command->client) {
+			client_fault(command->client);
+			command->client = NULL;
+		}
 	} else {
 		int ret;
 
@@ -111,6 +113,12 @@ static Eina_Bool command_consumer_cb(void *data)
 	if (!command) {
 		s_info.command_consumer = NULL;
 		return ECORE_CALLBACK_CANCEL;
+	}
+
+	if (!command->client) {
+		DbgPrint("Has no client\n");
+		destroy_command(command);
+		return ECORE_CALLBACK_RENEW;
 	}
 
 	if (!client_is_activated(command->client)) {
@@ -164,6 +172,9 @@ int client_rpc_async_request(struct client_node *client, struct packet *packet)
 	struct command *command;
 	struct client_rpc *rpc;
 
+	if (!client)
+		return -EINVAL;
+
 	if (client_is_faulted(client)) {
 		ErrPrint("Client is faulted\n");
 		packet_unref(packet);
@@ -193,10 +204,16 @@ int client_rpc_broadcast(struct inst_info *inst, struct packet *packet)
 
 	if (!inst) {
 		EINA_LIST_FOREACH(s_info.rpc_list, l, rpc) {
+			if (!rpc->client)
+				continue;
+
 			(void)client_rpc_async_request(rpc->client, packet_ref(packet));
 		}
 	} else {
 		EINA_LIST_FOREACH(s_info.rpc_list, l, rpc) {
+			if (!rpc->client)
+				continue;
+
 			if (instance_client(inst) == rpc->client) {
 				(void)client_rpc_async_request(rpc->client, packet_ref(packet));
 				continue;

@@ -280,7 +280,7 @@ int client_deactivated_by_fault(struct client_node *client)
 
 int client_fault(struct client_node *client)
 {
-	if (client->faulted)
+	if (!client || client->faulted)
 		return 0;
 
 	DbgPrint("Client is faulted(%d), pid(%d)\n", client->refcnt, client->pid);
@@ -311,7 +311,8 @@ const int const client_is_faulted(const struct client_node *client)
 
 void client_reset_fault(struct client_node *client)
 {
-	client->faulted = 0;
+	if (client)
+		client->faulted = 0;
 }
 
 int client_event_callback_add(struct client_node *client, enum client_event event, int (*cb)(struct client_node *, void *), void *data)

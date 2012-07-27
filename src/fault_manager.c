@@ -93,6 +93,9 @@ void fault_unicast_info(struct client_node *client, const char *pkgname, const c
 {
 	struct packet *packet;
 
+	if (!client || !pkgname || !filename || !func)
+		return;
+
 	packet = packet_create("fault_packet", "sss", pkgname, filename, func);
 	if (!packet)
 		return;

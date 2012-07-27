@@ -286,7 +286,7 @@ static inline void update_photo(void)
 	if (category)
 		group_list_category_pkgs(category, update_pkg_cb, NULL);
 
-	category = group_find_category(cluster, "facebook_media");
+	category = group_find_category(cluster, "media_facebook");
 	if (category)
 		group_list_category_pkgs(category, update_pkg_cb, NULL);
 }

@@ -710,8 +710,7 @@ static int client_created_cb(struct client_node *client, void *data)
 
 	EINA_LIST_FOREACH(s_info.pkg_list, l, info) {
 		if (info->fault_info) {
-			fault_unicast_info(client,
-				info->pkgname, info->fault_info->filename, info->fault_info->function);
+			fault_unicast_info(client, info->pkgname, info->fault_info->filename, info->fault_info->function);
 			continue;
 		}
 
