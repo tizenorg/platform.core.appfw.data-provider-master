@@ -309,6 +309,7 @@ int slave_activate(struct slave_node *slave)
 	bundle_add(param, BUNDLE_SLAVE_NAME, slave->name);
 	bundle_add(param, BUNDLE_SLAVE_SECURED, slave->secured ? "true" : "false");
 	bundle_add(param, BUNDLE_SLAVE_ABI, slave->abi);
+	DbgPrint("Launch the slave package: %s\n", slave_pkgname);
 	slave->pid = (pid_t)aul_launch_app(slave_pkgname, param);
 	bundle_free(param);
 
@@ -596,13 +597,16 @@ struct slave_node *slave_find_by_name(const char *name)
 	return NULL;
 }
 
-struct slave_node *slave_find_available(void)
+struct slave_node *slave_find_available(const char *abi)
 {
 	Eina_List *l;
 	struct slave_node *slave;
 
 	EINA_LIST_FOREACH(s_info.slave_list, l, slave) {
 		if (slave->secured)
+			continue;
+
+		if (strcmp(slave->abi, abi))
 			continue;
 
 		DbgPrint("slave[%s] %d\n", slave_name(slave), slave->loaded_package);

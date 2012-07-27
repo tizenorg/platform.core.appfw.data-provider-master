@@ -373,7 +373,7 @@ struct pkg_info *package_create(const char *pkgname)
 	}
 
 	if (!info->secured)
-		info->slave = slave_find_available();
+		info->slave = slave_find_available(info->abi);
 
 	package_ref(info);
 

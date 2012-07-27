@@ -2200,6 +2200,8 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 		if (package_lb_type(instance_package(inst)) == LB_TYPE_SCRIPT) {
 			script_handler_resize(instance_lb_script(inst), w, h);
 			ret = script_handler_parse_desc(pkgname, id, URI_TO_PATH(id), 0);
+		} else if (package_lb_type(instance_package(inst)) == LB_TYPE_BUFFER) {
+			instance_lb_updated(pkgname, id);
 		} else {
 			/*!
 			 * \check
@@ -2258,6 +2260,9 @@ static struct packet *slave_desc_updated(pid_t pid, int handle, const struct pac
 		ret = 0;
 	} else if (script_handler_is_loaded(instance_pd_script(inst))) {
 		ret = script_handler_parse_desc(pkgname, id, descfile, 1);
+	} else if (package_pd_type(instance_package(inst)) == PD_TYPE_BUFFER) {
+		instance_pd_updated(pkgname, id, descfile);
+		ret = 0;
 	} else {
 		ret = 0;
 	}

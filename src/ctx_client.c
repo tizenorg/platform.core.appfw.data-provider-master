@@ -399,7 +399,8 @@ static Eina_Bool delayed_ctx_init_cb(void *data)
 {
 	context_set_context_changed_cb(ctx_changed_cb,
 		CONTEXT_NOTI_LOCATION | CONTEXT_NOTI_CONTACTS | CONTEXT_NOTI_APPS |
-		CONTEXT_NOTI_MUSIC | CONTEXT_NOTI_PHOTOS | CONTEXT_NOTI_KEYWORD | CONTEXT_NOTI_EVENTS, NULL);
+		CONTEXT_NOTI_MUSIC | CONTEXT_NOTI_PHOTOS | CONTEXT_NOTI_KEYWORD |
+		CONTEXT_NOTI_EVENTS, NULL);
 
 	/*!
 	 * Triggering all events first

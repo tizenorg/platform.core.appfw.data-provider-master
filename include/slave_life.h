@@ -66,7 +66,7 @@ extern const pid_t const slave_pid(const struct slave_node *slave);
  */
 extern void slave_load_package(struct slave_node *slave);
 extern void slave_unload_package(struct slave_node *slave);
-extern struct slave_node *slave_find_available(void);
+extern struct slave_node *slave_find_available(const char *abi);
 
 /*!
  * \note
