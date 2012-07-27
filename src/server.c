@@ -881,7 +881,8 @@ static struct packet *client_pd_mouse_up(pid_t pid, int handle, const struct pac
 		}
 
 		script_handler_update_pointer(script, x, y, 0);
-		evas_event_feed_mouse_up(e, 1, EVAS_BUTTON_NONE, timestamp, NULL);
+		evas_event_feed_mouse_move(e, x * w, y * h, timestamp, NULL);
+		evas_event_feed_mouse_up(e, 1, EVAS_BUTTON_NONE, timestamp + 0.1f, NULL);
 		ret = 0;
 	}
 
@@ -1542,7 +1543,8 @@ static struct packet *client_lb_mouse_up(pid_t pid, int handle, const struct pac
 		}
 
 		script_handler_update_pointer(script, x, y, 0);
-		evas_event_feed_mouse_up(e, 1, EVAS_BUTTON_NONE, timestamp, NULL);
+		evas_event_feed_mouse_move(e, x * w, y * h, timestamp, NULL);
+		evas_event_feed_mouse_up(e, 1, EVAS_BUTTON_NONE, timestamp + 0.1f, NULL);
 		ret = 0;
 	}
 
