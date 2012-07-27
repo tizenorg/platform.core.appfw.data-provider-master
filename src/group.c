@@ -49,6 +49,7 @@ struct cluster *group_create_cluster(const char *name)
 
 	cluster->category_list = NULL;
 
+	DbgPrint("Cluster %s is created\n", cluster->name);
 	s_info.cluster_list = eina_list_append(s_info.cluster_list, cluster);
 	return cluster;
 }
@@ -86,6 +87,7 @@ struct category *group_create_category(struct cluster *cluster, const char *name
 	category->cluster = cluster;
 	category->pkg_list = NULL;
 
+	DbgPrint("Category %s is created\n", category->name);
 	cluster->category_list = eina_list_append(cluster->category_list, category);
 	return category;
 }
@@ -270,6 +272,7 @@ int group_add_livebox(const char *group, const char *pkgname)
 					return -ENOMEM;
 				}
 
+				DbgPrint("Package %s is join to %s/%s\n", pkgname, cluster->name, category->name);
 				category->pkg_list = eina_list_append(category->pkg_list, name);
 
 				if (*ptr == '}')
