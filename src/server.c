@@ -1891,6 +1891,7 @@ static int update_pkg_cb(struct category *category, const char *pkgname, void *d
 		return EXIT_FAILURE;
 	}
 
+	DbgPrint("Send refresh request: %s (%s/%s)\n", pkgname, c_name, s_name);
 	slave_rpc_request_update(pkgname, c_name, s_name);
 	return EXIT_SUCCESS;
 }

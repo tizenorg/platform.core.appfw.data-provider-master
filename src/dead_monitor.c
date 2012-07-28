@@ -60,7 +60,7 @@ static int evt_cb(int handle, void *data)
 	if (client) {
 		DbgPrint("Client is disconnected\n");
 		if (client_pid(client) != (pid_t)-1)
-			client_deactivated_by_fault(client);
+			client_fault(client);
 		return 0;
 	}
 

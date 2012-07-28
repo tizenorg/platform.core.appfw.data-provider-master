@@ -75,7 +75,7 @@ static inline void update_location(void)
 		if (category)
 			group_list_category_pkgs(category, update_pkg_cb, NULL);
 
-		category = group_find_category(cluster, "location_appointment");
+		category = group_find_category(cluster, "location_appointments");
 		if (category)
 			group_list_category_pkgs(category, update_pkg_cb, NULL);
 
@@ -304,7 +304,7 @@ static inline void update_events(void)
 		if (category)
 			group_list_category_pkgs(category, update_pkg_cb, NULL);
 
-		category = group_find_category(cluster, "location_appointment");
+		category = group_find_category(cluster, "location_appointments");
 		if (category)
 			group_list_category_pkgs(category, update_pkg_cb, NULL);
 	}

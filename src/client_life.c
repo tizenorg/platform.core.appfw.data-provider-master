@@ -263,21 +263,6 @@ static inline void invoke_deactivated_cb(struct client_node *client)
 	}
 }
 
-int client_deactivated_by_fault(struct client_node *client)
-{
-	if (client->faulted)
-		return 0;
-
-	DbgPrint("Client is faulted! refcnt(%d), pid(%d)\n", client->refcnt, client->pid);
-	client->faulted = 1;
-
-	client->pid = (pid_t)-1;
-
-	invoke_deactivated_cb(client);
-	client_destroy(client);
-	return 0;
-}
-
 int client_fault(struct client_node *client)
 {
 	if (!client || client->faulted)
@@ -286,6 +271,7 @@ int client_fault(struct client_node *client)
 	DbgPrint("Client is faulted(%d), pid(%d)\n", client->refcnt, client->pid);
 	client->faulted = 1;
 
+	DbgPrint("Reset PID (%d)\n", client->pid);
 	client->pid = (pid_t)-1;
 
 	invoke_deactivated_cb(client);
@@ -590,7 +576,7 @@ int client_is_subscribed(struct client_node *client, const char *cluster, const 
 		if (!strcmp(item->category, "*"))
 			return 1;
 
-		if (!strcmp(item->category, category))
+		if (!strcasecmp(item->category, category))
 			return 1;
 	}
 

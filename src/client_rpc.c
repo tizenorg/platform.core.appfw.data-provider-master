@@ -76,10 +76,10 @@ static int recv_cb(pid_t pid, int handle, const struct packet *packet, void *dat
 	struct command *command = data;
 
 	if (!packet) {
-		DbgPrint("Client fault?\n");
 		if (command->client) {
+			DbgPrint("Client fault[%d], discards all response waitings?\n", client_pid(command->client));
 			client_fault(command->client);
-			command->client = NULL;
+			//command->client = NULL;
 		}
 	} else {
 		int ret;
@@ -146,7 +146,7 @@ static Eina_Bool command_consumer_cb(void *data)
 	}
 
 	DbgPrint("Send a packet to client [%s]\n", packet_command(command->packet));
-	if (com_core_packet_async_send(rpc->handle, command->packet, 10000u, recv_cb, command) < 0)
+	if (com_core_packet_async_send(rpc->handle, command->packet, 0u, recv_cb, command) < 0)
 		destroy_command(command);
 
 	return ECORE_CALLBACK_RENEW;
@@ -207,6 +207,7 @@ int client_rpc_broadcast(struct inst_info *inst, struct packet *packet)
 			if (!rpc->client)
 				continue;
 
+			DbgPrint("Send packet to %d\n", client_pid(rpc->client));
 			(void)client_rpc_async_request(rpc->client, packet_ref(packet));
 		}
 	} else {
@@ -215,6 +216,7 @@ int client_rpc_broadcast(struct inst_info *inst, struct packet *packet)
 				continue;
 
 			if (instance_client(inst) == rpc->client) {
+				DbgPrint("Send packet to %d\n", client_pid(rpc->client));
 				(void)client_rpc_async_request(rpc->client, packet_ref(packet));
 				continue;
 			}
@@ -222,6 +224,7 @@ int client_rpc_broadcast(struct inst_info *inst, struct packet *packet)
 			if (!client_is_subscribed(rpc->client, instance_cluster(inst), instance_category(inst)))
 				continue;
 
+			DbgPrint("Send packet to %d\n", client_pid(rpc->client));
 			(void)client_rpc_async_request(rpc->client, packet_ref(packet));
 		}
 	}
