@@ -114,6 +114,7 @@ static inline void destroy_client_data(struct client_node *client)
 	}
 
 	EINA_LIST_FREE(client->data_list, data) {
+		DbgPrint("Tag is not cleared (%s)\n", data->tag);
 		free(data->tag);
 		free(data);
 	}
@@ -252,6 +253,7 @@ static inline void invoke_deactivated_cb(struct client_node *client)
 	Eina_List *n;
 	int ret;
 
+	client_ref(client); /*!< Prevent deleting from callback */
 	EINA_LIST_FOREACH_SAFE(client->event_deactivate_list, l, n, item) {
 		ret = item->cb(client, item->data);
 		if (ret < 0) {
@@ -261,14 +263,15 @@ static inline void invoke_deactivated_cb(struct client_node *client)
 			}
 		}
 	}
+	client_unref(client);
 }
 
-int client_fault(struct client_node *client)
+int client_deactivated_by_fault(struct client_node *client)
 {
 	if (!client || client->faulted)
 		return 0;
 
-	DbgPrint("Client is faulted(%d), pid(%d)\n", client->refcnt, client->pid);
+	DbgPrint("Client[%p] is faulted(%d), pid(%d)\n", client, client->refcnt, client->pid);
 	client->faulted = 1;
 
 	DbgPrint("Reset PID (%d)\n", client->pid);

@@ -35,6 +35,7 @@ ADD_DEFINITIONS("-DLOCALEDIR=\"${LOCALEDIR}\"")
 
 ADD_DEFINITIONS("-DSLAVE_PKGNAME=\"com.samsung.data-provider-slave\"")
 ADD_DEFINITIONS("-DSLAVE_WEB_PKGNAME=\"com.samsung.data-provider-webslave\"")
+ADD_DEFINITIONS("-DSOCKET_FILE=\"/opt/share/live_magazine/.live.socket\"")
 
 ADD_DEFINITIONS("-DNDEBUG")
 #ADD_DEFINITIONS("-DFLOG")

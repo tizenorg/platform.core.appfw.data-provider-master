@@ -2532,7 +2532,6 @@ out:
 }
 
 
-
 static struct method s_table[] = {
 	/*!
 	 * \note
@@ -2701,16 +2700,16 @@ static struct method s_table[] = {
 
 int server_init(void)
 {
-	if (unlink("/tmp/.live.socket") < 0)
+	if (unlink(SOCKET_FILE) < 0)
 		ErrPrint("unlink: %s\n", strerror(errno));
 
-	s_info.fd = com_core_packet_server_init("/tmp/.live.socket", s_table);
+	s_info.fd = com_core_packet_server_init(SOCKET_FILE, s_table);
 	if (s_info.fd < 0) {
 		ErrPrint("Failed to create a server socket\n");
 		return s_info.fd;
 	}
 
-	chmod("/tmp/.live.socket", 0666);
+	chmod(SOCKET_FILE, 0666);
 	return 0;
 }
 

@@ -75,13 +75,7 @@ static int recv_cb(pid_t pid, int handle, const struct packet *packet, void *dat
 {
 	struct command *command = data;
 
-	if (!packet) {
-		if (command->client) {
-			DbgPrint("Client fault[%d], discards all response waitings?\n", client_pid(command->client));
-			client_fault(command->client);
-			//command->client = NULL;
-		}
-	} else {
+	if (packet) {
 		int ret;
 
 		packet_get(packet, "i", &ret);
@@ -122,13 +116,13 @@ static Eina_Bool command_consumer_cb(void *data)
 	}
 
 	if (!client_is_activated(command->client)) {
-		ErrPrint("Client is not activated, destroy this command\n");
+		ErrPrint("Client[%p] is not activated, destroy this command\n", command->client);
 		destroy_command(command);
 		return ECORE_CALLBACK_RENEW;
 	}
 
 	if (client_is_faulted(command->client)) {
-		ErrPrint("Client is faulted, discard command\n");
+		ErrPrint("Client[%p] is faulted, discard command\n", command->client);
 		destroy_command(command);
 		return ECORE_CALLBACK_RENEW;
 	}
@@ -146,8 +140,15 @@ static Eina_Bool command_consumer_cb(void *data)
 	}
 
 	DbgPrint("Send a packet to client [%s]\n", packet_command(command->packet));
-	if (com_core_packet_async_send(rpc->handle, command->packet, 0u, recv_cb, command) < 0)
+	if (com_core_packet_async_send(rpc->handle, command->packet, 0.0f, recv_cb, command) < 0) {
+		/*!
+		 * \todo
+		 * Do we need to handle this error?
+		 * Close current connection and make new one?
+		 * how about pended command lists?
+		 */
 		destroy_command(command);
+	}
 
 	return ECORE_CALLBACK_RENEW;
 }
@@ -176,15 +177,14 @@ int client_rpc_async_request(struct client_node *client, struct packet *packet)
 		return -EINVAL;
 
 	if (client_is_faulted(client)) {
-		ErrPrint("Client is faulted\n");
+		ErrPrint("Client[%p] is faulted\n", client);
 		packet_unref(packet);
 		return -EFAULT;
 	}
 
 	rpc = client_data(client, "rpc");
 	if (!rpc)
-		ErrPrint("Client is not ready for communication (%s)\n",
-							packet_command(packet));
+		ErrPrint("Client[%p] is not ready for communication (%s)\n", client, packet_command(packet));
 
 	command = create_command(client, packet);
 	if (!command) {
@@ -249,10 +249,14 @@ static int deactivated_cb(struct client_node *client, void *data)
 	DbgPrint("Reset handle for %d\n", client_pid(client));
 	rpc->handle = -1;
 
+	DbgPrint("Begin: Destroying command\n");
 	EINA_LIST_FOREACH_SAFE(s_info.command_list, l, n, command) {
-		if (command->client == client)
+		if (command->client == client) {
+			s_info.command_list = eina_list_remove(s_info.command_list, command);
 			destroy_command(command);
+		}
 	}
+	DbgPrint("End: Destroying command\n");
 
 	return 0;
 }
@@ -271,7 +275,8 @@ static int del_cb(struct client_node *client, void *data)
 	free(rpc);
 
 	client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, deactivated_cb, NULL);
-	return -1; /* Return <0, Delete this callback */
+	client_event_callback_del(client, CLIENT_EVENT_DESTROY, del_cb, NULL);
+	return 0; /* Return <0, Delete this callback */
 }
 
 int client_rpc_initialize(struct client_node *client, int handle)

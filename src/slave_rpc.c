@@ -188,7 +188,7 @@ static Eina_Bool command_consumer_cb(void *data)
 		return ECORE_CALLBACK_RENEW;
 	}
 
-	if (com_core_packet_async_send(rpc->handle, command->packet, 0u, slave_async_cb, command) == 0)
+	if (com_core_packet_async_send(rpc->handle, command->packet, 0.0f, slave_async_cb, command) == 0)
 		return ECORE_CALLBACK_RENEW;
 
 	/*!
@@ -196,6 +196,12 @@ static Eina_Bool command_consumer_cb(void *data)
 	 * What happens at here?
 	 * We are failed to send a packet!!!
 	 * Let's try to send this again
+	 */
+	/*!
+	 * \todo
+	 * Do we need to handle this error?
+	 * Close current connection and make new one?
+	 * how about pended command lists?
 	 */
 	DbgPrint("Send this packet again\n");
 	prepend_command(command);

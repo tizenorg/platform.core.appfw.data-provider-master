@@ -15,34 +15,6 @@
 #include "util.h"
 #include "debug.h"
 
-#if 0
-int aul_listen_app_dead_signal(int (*)(int, void *), void *);
-
-static int dead_cb(int pid, void *cb_data)
-{
-	struct slave_node *slave;
-
-	slave = slave_find_by_pid(pid);
-	if (slave) {
-		slave_deactivated_by_fault(slave);
-	} else {
-		struct client_node *client;
-		client = client_find_by_pid(pid);
-		if (client) {
-			DbgPrint("Client %d is deactivated\n", client_pid(client));
-			client_deactivated_by_fault(client);
-		} else {
-			ErrPrint("Unknown PID:%d is terminated\n", pid);
-			/*!
-			 * \note
-			 * Ignore this dead signal
-			 */
-		}
-	}
-
-	return 0;
-}
-#endif
 static int evt_cb(int handle, void *data)
 {
 	struct slave_node *slave;
@@ -60,10 +32,11 @@ static int evt_cb(int handle, void *data)
 	if (client) {
 		DbgPrint("Client is disconnected\n");
 		if (client_pid(client) != (pid_t)-1)
-			client_fault(client);
+			client_deactivated_by_fault(client);
 		return 0;
 	}
 
+	DbgPrint("This is not my favor: %d\n", handle);
 	return 0;
 }
 

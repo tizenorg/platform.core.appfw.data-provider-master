@@ -16,6 +16,8 @@ launch_provider()
 
 start ()
 {
+	rm /opt/share/live_magazine/*
+	rm /tmp/.stop.provider
 	launch_provider &
 }
 
