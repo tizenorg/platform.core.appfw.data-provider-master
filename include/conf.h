@@ -69,6 +69,7 @@ extern void conf_update_size(void);
 #define PACKET_TIME 0.01f
 #define NO_CHANGE -1.0f
 #define DEFAULT_CONTENT "default"
+#define DEFAULT_PERIOD	-1.0f
 
 #define SQLITE_FLUSH_MAX 1048576
 

@@ -1882,6 +1882,8 @@ static int update_pkg_cb(struct category *category, const char *pkgname, void *d
 {
 	const char *c_name;
 	const char *s_name;
+	double timestamp;
+	struct inst_info *inst;
 
 	c_name = group_cluster_name_by_category(category);
 	s_name = group_category_name(category);
@@ -1893,6 +1895,12 @@ static int update_pkg_cb(struct category *category, const char *pkgname, void *d
 
 	DbgPrint("Send refresh request: %s (%s/%s)\n", pkgname, c_name, s_name);
 	slave_rpc_request_update(pkgname, c_name, s_name);
+
+	/* Just try to create a new package */
+	timestamp = util_timestamp();
+	inst = instance_create(NULL, timestamp, pkgname, DEFAULT_CONTENT, c_name, s_name, DEFAULT_PERIOD);
+	if (!inst)
+		ErrPrint("Failed to create a new instance\n");
 	return EXIT_SUCCESS;
 }
 
@@ -2348,7 +2356,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 	/* TODO: */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
-		result = packet_create_reply(packet, "is", BUFFER_ERROR, "");
+		result = packet_create_reply(packet, "is", -EINVAL, "");
 		if (!result)
 			ErrPrint("Failed to create a packet\n");
 
@@ -2363,8 +2371,10 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 			struct buffer_info *info;
 
 			info = instance_lb_buffer(inst);
-			if (!info)
+			if (!info) {
 				instance_create_lb_buffer(inst);
+				info = instance_lb_buffer(inst);
+			}
 
 			ret = buffer_handler_resize(info, w, h);
 
@@ -2376,8 +2386,10 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 			struct buffer_info *info;
 
 			info = instance_pd_buffer(inst);
-			if (!info)
+			if (!info) {
 				instance_create_pd_buffer(inst);
+				info = instance_pd_buffer(inst);
+			}
 
 			ret = buffer_handler_resize(info, w, h);
 
@@ -2530,7 +2542,6 @@ out:
 
 	return result;
 }
-
 
 static struct method s_table[] = {
 	/*!
