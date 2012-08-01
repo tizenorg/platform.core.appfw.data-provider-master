@@ -400,7 +400,7 @@ static struct packet *client_set_period(pid_t pid, int handle, const struct pack
 		ret = instance_set_period(inst, period);
 
 out:
-	result = packet_create_reply(packet, "id", ret, period);
+	result = packet_create_reply(packet, "i", ret);
 	if (!result)
 		ErrPrint("Failed to create a packet\n");
 

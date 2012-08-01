@@ -1208,23 +1208,29 @@ static void set_period_cb(struct slave_node *slave, const struct packet *packet,
 {
 	int ret;
 	struct period_cbdata *cbdata = data;
+	struct packet *result;
 
 	if (!packet) {
-		instance_unref(cbdata->inst);
-		free(cbdata);
-		return;
+		ret = -EFAULT;
+		goto out;
 	}
 
 	if (packet_get(packet, "i", &ret) != 1) {
-		instance_unref(cbdata->inst);
-		free(cbdata);
-		return;
+		ret = -EINVAL;
+		goto out;
 	}
 
 	if (ret == 0)
 		cbdata->inst->period = cbdata->period;
 	else
 		ErrPrint("Failed to set period %d\n", ret);
+
+out:
+	result = packet_create("period_changed", "idss", ret, cbdata->inst->period, package_name(cbdata->inst->info), cbdata->inst->id);
+	if (result)
+		(void)CLIENT_SEND_EVENT(cbdata->inst, result);
+	else
+		ErrPrint("Failed to build a packet for %s\n", package_name(cbdata->inst->info));
 
 	instance_unref(cbdata->inst);
 	free(cbdata);
@@ -1322,23 +1328,22 @@ int instance_text_signal_emit(struct inst_info *inst, const char *emission, cons
 static void change_group_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	struct change_group_cbdata *cbdata = data;
+	struct packet *result;
 	int ret;
 
 	if (!packet) {
-		instance_unref(cbdata->inst);
 		free(cbdata->cluster);
 		free(cbdata->category);
-		free(cbdata);
-		return;
+		ret = -EFAULT;
+		goto out;
 	}
 
 	if (packet_get(packet, "i", &ret) != 1) {
 		ErrPrint("Invalid packet\n");
-		instance_unref(cbdata->inst);
 		free(cbdata->cluster);
 		free(cbdata->category);
-		free(cbdata);
-		return;
+		ret = -EINVAL;
+		goto out;
 	}
 
 	if (ret == 0) {
@@ -1351,6 +1356,15 @@ static void change_group_cb(struct slave_node *slave, const struct packet *packe
 		free(cbdata->cluster);
 		free(cbdata->category);
 	}
+
+out:
+	result = packet_create("group_changed", "ssiss",
+				package_name(cbdata->inst->info), cbdata->inst->id, ret,
+				cbdata->inst->cluster, cbdata->inst->category);
+	if (!result)
+		ErrPrint("Failed to build a packet %s\n", package_name(cbdata->inst->info));
+	else
+		(void)CLIENT_SEND_EVENT(cbdata->inst, result);
 
 	instance_unref(cbdata->inst);
 	free(cbdata);

@@ -129,10 +129,11 @@ static void render_post_cb(void *data, Evas *e, void *event_info)
 		return;
 	}
 
+/*!< Disabled
 	evas_image_cache_flush(e);
 	evas_font_cache_flush(e);
 	evas_render_dump(e);
-
+*/
 	DbgPrint("Render post invoked (%s)[%s]\n", package_name(instance_package(inst)), util_basename(instance_id(inst)));
 	info = instance_lb_script(inst);
 	if (info && script_handler_evas(info) == e) {
