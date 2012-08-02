@@ -1400,6 +1400,12 @@ int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *pkgname)
 		return -EINVAL;
 	}
 
+	node = node->children;
+	if (!node) {
+		ErrPrint("Root has no children\n");
+		return -EINVAL;
+	}
+
 	if (strcmp((char *)node->name, "livebox")) {
 		ErrPrint("Invalid tag: %s\n", (char *)node->name);
 		return -EINVAL;
@@ -1523,6 +1529,12 @@ int PKGMGR_PARSER_PLUGIN_UNINSTALL(xmlDocPtr docPtr, const char *pkgname)
 	node = xmlDocGetRootElement(docPtr);
 	if (!node) {
 		ErrPrint("Invalid document\n");
+		return -EINVAL;
+	}
+
+	node = node->children;
+	if (!node) {
+		ErrPrint("Root has no children\n");
 		return -EINVAL;
 	}
 

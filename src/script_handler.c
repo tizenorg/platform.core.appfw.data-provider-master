@@ -1012,6 +1012,7 @@ int script_handler_parse_desc(const char *pkgname, const char *id, const char *d
 
 	fclose(fp);
 
+	/*
 	if (inst) {
 		struct script_info *info;
 		Evas *e;
@@ -1028,6 +1029,7 @@ int script_handler_parse_desc(const char *pkgname, const char *id, const char *d
 				ErrPrint("Evas(nil) %dx%d\n", info->w, info->h);
 		}
 	}
+	*/
 
 	return 0;
 
