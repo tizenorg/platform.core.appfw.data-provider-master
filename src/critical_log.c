@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <sys/time.h>
 #include <errno.h>
 #include <string.h>
@@ -7,12 +8,22 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "dlog.h"
+#include "conf.h"
+#include "debug.h"
+#include "util.h"
 #include "critical_log.h"
 
 static struct {
 	FILE *fp;
+	int file_id;
+	int nr_of_lines;
+	char *filename;
 } s_info = {
 	.fp = NULL,
+	.file_id = 0,
+	.nr_of_lines = 0,
+	.filename = NULL,
 };
 
 
@@ -27,27 +38,77 @@ int critical_log(const char *func, int line, const char *fmt, ...)
 		return -EIO;
 
 	gettimeofday(&tv, NULL);
-	fprintf(s_info.fp, "%d %lu.%lu [%s:%d] ", getpid(), tv.tv_sec, tv.tv_usec, basename((char *)func), line);
+	fprintf(s_info.fp, "%d %lu.%lu [%s:%d] ", getpid(), tv.tv_sec, tv.tv_usec, util_basename((char *)func), line);
 
 	va_start(ap, fmt);
 	ret = vfprintf(s_info.fp, fmt, ap);
 	va_end(ap);
+
+	s_info.nr_of_lines++;
+	if (s_info.nr_of_lines == MAX_LOG_LINE) {
+		char *filename;
+		int namelen;
+
+		s_info.file_id = (s_info.file_id + 1) % MAX_LOG_FILE;
+
+		namelen = strlen(s_info.filename) + strlen("/opt/var/log/") + 20;
+		filename = malloc(namelen);
+		if (filename) {
+			snprintf(filename, namelen, "/opt/var/log/%d_%s", s_info.file_id, s_info.filename);
+
+			if (s_info.fp)
+				fclose(s_info.fp);
+
+			s_info.fp = fopen(filename, "w+");
+			if (!s_info.fp)
+				ErrPrint("Failed to open a file: %s\n", filename);
+
+			free(filename);
+		}
+
+		s_info.nr_of_lines = 0;
+	}
 	return ret;
 }
 
 
 
-int critical_log_init(void)
+int critical_log_init(const char *name)
 {
+	int namelen;
+	char *filename;
+
 	if (s_info.fp)
 		return 0;
 
-	s_info.fp = fopen("/opt/var/log/provider-master.log", "a+");
+	s_info.filename = strdup(name);
+	if (!s_info.filename) {
+		ErrPrint("Failed to create a log file\n");
+		return -ENOMEM;
+	}
+
+	namelen = strlen(name) + strlen("/opt/var/log/") + 20;
+
+	filename = malloc(namelen);
+	if (!filename) {
+		ErrPrint("Failed to create a log file\n");
+		free(s_info.filename);
+		s_info.filename = NULL;
+		return -ENOMEM;
+	}
+
+	snprintf(filename, namelen, "/opt/var/log/%d_%s", s_info.file_id, name);
+
+	s_info.fp = fopen(filename, "w+");
 	if (!s_info.fp) {
-		fprintf(stderr, "Failed to open log: %s\n", strerror(errno));
+		ErrPrint("Failed to open log: %s\n", strerror(errno));
+		free(s_info.filename);
+		s_info.filename = NULL;
+		free(filename);
 		return -EIO;
 	}
 
+	free(filename);
 	return 0;
 }
 
@@ -55,10 +116,16 @@ int critical_log_init(void)
 
 int critical_log_fini(void)
 {
-	if (s_info.fp)
-		fclose(s_info.fp);
+	if (s_info.filename) {
+		free(s_info.filename);
+		s_info.filename = NULL;
+	}
 
-	s_info.fp = NULL;
+	if (s_info.fp) {
+		fclose(s_info.fp);
+		s_info.fp = NULL;
+	}
+
 	return 0;
 }
 

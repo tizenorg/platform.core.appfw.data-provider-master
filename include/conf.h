@@ -19,6 +19,8 @@
  *
  */
 
+#define MAX_SIZE_LIST	5
+
 struct conf {
 	int width;
 	int height;
@@ -35,7 +37,7 @@ struct conf {
 	struct {
 		int width;
 		int height;
-	} size[4];
+	} size[MAX_SIZE_LIST];
 
 	const int max_size_type;
 
@@ -71,6 +73,9 @@ extern void conf_update_size(void);
 #define DEFAULT_CONTENT "default"
 #define DEFAULT_PERIOD	-1.0f
 #define MINIMUM_SPACE	(5 << 20)
+
+#define MAX_LOG_LINE 1000
+#define MAX_LOG_FILE 3
 
 #define SQLITE_FLUSH_MAX 1048576
 

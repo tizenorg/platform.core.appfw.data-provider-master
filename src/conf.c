@@ -52,10 +52,14 @@ struct conf g_conf = {
 		{
 			.width = 700,
 			.height = 348,  /* Slot type 4 */
-		}
+		},
+		{
+			.width = 700,
+			.height = 172, /* Slot type 5 */
+		},
 	},
 
-	.max_size_type = 4,
+	.max_size_type = MAX_SIZE_LIST,
 	.quality = "quality=100 compress=1",
 	.error = "/opt/apps/com.samsung."PACKAGE"/res/images/error.png",
 	.ping_time = 240.0f,

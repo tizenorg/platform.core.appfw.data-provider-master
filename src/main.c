@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
 	 * How could we care this return values?
 	 * Is there any way to print something on the screen?
 	 */
-	ret = critical_log_init();
+	ret = critical_log_init(util_basename(argv[0]));
 	if (ret < 0)
 		fprintf(stderr, "Failed to init the critical log\n");
 

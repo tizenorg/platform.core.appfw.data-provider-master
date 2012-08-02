@@ -745,8 +745,17 @@ int slave_resume(struct slave_node *slave)
 	double timestamp;
 	struct packet *packet;
 
-	if (slave->state == SLAVE_RESUMED || slave->state == SLAVE_REQUEST_TO_RESUME)
+	switch (slave->state) {
+	case SLAVE_REQUEST_TO_LAUNCH:
+	case SLAVE_REQUEST_TO_TERMINATE:
+	case SLAVE_TERMINATED:
+		return -EINVAL;
+	case SLAVE_RESUMED:
+	case SLAVE_REQUEST_TO_RESUME:
 		return 0;
+	default:
+		break;
+	}
 
 	timestamp = util_timestamp();
 
@@ -765,8 +774,17 @@ int slave_pause(struct slave_node *slave)
 	double timestamp;
 	struct packet *packet;
 
-	if (slave->state == SLAVE_PAUSED || slave->state == SLAVE_REQUEST_TO_PAUSE)
+	switch (slave->state) {
+	case SLAVE_REQUEST_TO_LAUNCH:
+	case SLAVE_REQUEST_TO_TERMINATE:
+	case SLAVE_TERMINATED:
+		return -EINVAL;
+	case SLAVE_PAUSED:
+	case SLAVE_REQUEST_TO_PAUSE:
 		return 0;
+	default:
+		break;
+	}
 
 	timestamp = util_timestamp();
 
