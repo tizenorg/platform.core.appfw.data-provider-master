@@ -338,6 +338,9 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		ret = -EFAULT;
 	} else if (package_is_fault(info)) {
 		ret = -EFAULT;
+	} else if (util_free_space(g_conf.path.image) < MINIMUM_SPACE) {
+		ErrPrint("Not enough space\n");
+		ret = -ENOSPC;
 	} else {
 		struct inst_info *inst;
 
@@ -346,6 +349,7 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 
 		if (!strlen(content))
 			content = DEFAULT_CONTENT;
+
 		inst = instance_create(client, timestamp, pkgname, content, cluster, category, period);
 		/*!
 		 * \note
@@ -1698,6 +1702,8 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		ret = -ENOENT;
 	else if (package_is_fault(instance_package(inst)))
 		ret = -EFAULT;
+	else if (util_free_space(g_conf.path.image) < MINIMUM_SPACE)
+		ret = -ENOSPC;
 	else if (package_pd_type(instance_package(inst)) == PD_TYPE_BUFFER)
 		ret = slave_send_pd_create(inst);
 	else
@@ -1882,8 +1888,6 @@ static int update_pkg_cb(struct category *category, const char *pkgname, void *d
 {
 	const char *c_name;
 	const char *s_name;
-	double timestamp;
-	struct inst_info *inst;
 
 	c_name = group_cluster_name_by_category(category);
 	s_name = group_category_name(category);
@@ -1897,10 +1901,17 @@ static int update_pkg_cb(struct category *category, const char *pkgname, void *d
 	slave_rpc_request_update(pkgname, c_name, s_name);
 
 	/* Just try to create a new package */
-	timestamp = util_timestamp();
-	inst = instance_create(NULL, timestamp, pkgname, DEFAULT_CONTENT, c_name, s_name, DEFAULT_PERIOD);
-	if (!inst)
-		ErrPrint("Failed to create a new instance\n");
+	if (util_free_space(g_conf.path.image) > MINIMUM_SPACE) {
+		double timestamp;
+		struct inst_info *inst;
+
+		timestamp = util_timestamp();
+		inst = instance_create(NULL, timestamp, pkgname, DEFAULT_CONTENT, c_name, s_name, DEFAULT_PERIOD);
+		if (!inst)
+			ErrPrint("Failed to create a new instance\n");
+	} else {
+		ErrPrint("Not enough space\n");
+	}
 	return EXIT_SUCCESS;
 }
 
@@ -2353,6 +2364,14 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 		return NULL;
 	}
 
+	if (util_free_space(g_conf.path.image) < MINIMUM_SPACE) {
+		result = packet_create_reply(packet, "is", -ENOSPC, "");
+		if (!result)
+			ErrPrint("Failed to create a packet\n");
+
+		return result;
+	}
+
 	/* TODO: */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
@@ -2423,6 +2442,15 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 	if (!slave) {
 		ErrPrint("Failed to find a slave\n");
 		return NULL;
+	}
+
+	if (util_free_space(g_conf.path.image) < MINIMUM_SPACE) {
+		ErrPrint("Not enough space\n");
+		result = packet_create_reply(packet, "i", -ENOSPC);
+		if (!result)
+			ErrPrint("Failed to create a packet\n");
+
+		return result;
 	}
 
 	if (packet_get(packet, "isssii", &type, &slavename, &pkgname, &id, &w, &h) != 6) {

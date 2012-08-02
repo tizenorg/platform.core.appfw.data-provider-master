@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <sys/statvfs.h>
 
 #include <dlog.h>
 
@@ -158,6 +159,24 @@ const char *util_basename(const char *name)
 	while (--length > 0 && name[length] != '/');
 
 	return length <= 0 ? name : (name + length + (name[length] == '/'));
+}
+
+unsigned long util_free_space(const char *path)
+{
+	struct statvfs st;
+	unsigned long space;
+
+	if (statvfs(path, &st) < 0) {
+		ErrPrint("statvfs: %s\n", strerror(errno));
+		return 0lu;
+	}
+
+	space = st.f_bsize * st.f_bfree;
+	/*!
+	 * \note
+	 * Must have to check the overflow
+	 */
+	return space;
 }
 
 /* End of a file */

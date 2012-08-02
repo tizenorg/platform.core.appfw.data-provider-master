@@ -39,7 +39,6 @@ static int update_pkg_cb(struct category *category, const char *pkgname, void *d
 {
 	const char *c_name;
 	const char *s_name;
-	double timestamp;
 	struct inst_info *inst;
 
 	c_name = group_cluster_name_by_category(category);
@@ -53,8 +52,14 @@ static int update_pkg_cb(struct category *category, const char *pkgname, void *d
 	slave_rpc_request_update(pkgname, c_name, s_name);
 
 	/* Just try to create a new package */
-	timestamp = util_timestamp();
-	inst = instance_create(NULL, timestamp, pkgname, DEFAULT_CONTENT, c_name, s_name, DEFAULT_PERIOD);
+	;
+	if (util_free_space(g_conf.path.image) > MINIMUM_SPACE) {
+		double timestamp;
+		timestamp = util_timestamp();
+		inst = instance_create(NULL, timestamp, pkgname, DEFAULT_CONTENT, c_name, s_name, DEFAULT_PERIOD);
+	} else {
+		ErrPrint("No enough space\n");
+	}
 	return EXIT_SUCCESS;
 }
 

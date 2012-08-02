@@ -70,6 +70,7 @@ extern void conf_update_size(void);
 #define NO_CHANGE -1.0f
 #define DEFAULT_CONTENT "default"
 #define DEFAULT_PERIOD	-1.0f
+#define MINIMUM_SPACE	(5 << 20)
 
 #define SQLITE_FLUSH_MAX 1048576
 

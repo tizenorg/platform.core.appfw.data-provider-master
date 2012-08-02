@@ -570,7 +570,6 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 static void activate_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	struct inst_info *inst = data;
-	struct inst_info *new_inst;
 	int ret;
 	int w;
 	int h;
@@ -608,9 +607,16 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 
 	switch (ret) {
 	case 1: /*!< need to create */
-		new_inst = instance_create(inst->client, util_timestamp(), package_name(inst->info),
-						inst->content, inst->cluster, inst->category,
-						inst->period);
+		if (util_free_space(g_conf.path.image) > MINIMUM_SPACE) {
+			struct inst_info *new_inst;
+			new_inst = instance_create(inst->client, util_timestamp(), package_name(inst->info),
+							inst->content, inst->cluster, inst->category,
+							inst->period);
+			if (!new_inst)
+				ErrPrint("Failed to create a new instance\n");
+		} else {
+			ErrPrint("Not enough space\n");
+		}
 	case 0: /*!< normally created */
 		/*!
 		 * \note
