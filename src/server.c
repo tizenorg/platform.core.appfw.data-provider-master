@@ -1670,6 +1670,20 @@ static inline int slave_send_pd_destroy(struct inst_info *inst)
 	return slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
 }
 
+static int pd_buffer_close_cb(struct client_node *client, void *inst)
+{
+	DbgPrint("Forcely close the PD\n");
+	slave_send_pd_destroy(inst);
+	return -1; /* Delete this callback */
+}
+
+static int pd_script_close_cb(struct client_node *client, void *inst)
+{
+	DbgPrint("Forcely close the PD\n");
+	script_handler_unload(instance_pd_script(inst), 1);
+	return -1; /* Delete this callback */
+}
+
 static struct packet *client_create_pd(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, ret */
 {
 	struct client_node *client;
@@ -1704,10 +1718,13 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		ret = -EFAULT;
 	else if (util_free_space(g_conf.path.image) < MINIMUM_SPACE)
 		ret = -ENOSPC;
-	else if (package_pd_type(instance_package(inst)) == PD_TYPE_BUFFER)
+	else if (package_pd_type(instance_package(inst)) == PD_TYPE_BUFFER) {
 		ret = slave_send_pd_create(inst);
-	else
+		client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, pd_buffer_close_cb, inst);
+	} else {
 		ret = script_handler_load(instance_pd_script(inst), 1);
+		client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, pd_script_close_cb, inst);
+	}
 
 out:
 	result = packet_create_reply(packet, "i", ret);
@@ -1749,10 +1766,13 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 		ret = -ENOENT;
 	else if (package_is_fault(instance_package(inst)))
 		ret = -EFAULT;
-	else if (package_pd_type(instance_package(inst)) == PD_TYPE_BUFFER)
+	else if (package_pd_type(instance_package(inst)) == PD_TYPE_BUFFER) {
 		ret = slave_send_pd_destroy(inst);
-	else
+		client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, pd_buffer_close_cb, inst);
+	} else {
 		ret = script_handler_unload(instance_pd_script(inst), 1);
+		client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, pd_script_close_cb, inst);
+	}
 
 out:
 	result = packet_create_reply(packet, "i", ret);
