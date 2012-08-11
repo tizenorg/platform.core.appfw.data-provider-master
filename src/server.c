@@ -2233,7 +2233,7 @@ static inline char *get_file_kept_in_safe(const char *id)
 	}
 
 	strncpy(new_path, path, base_idx);
-	snprintf(new_path + base_idx, len + 10 - base_idx, "_%s", path + base_idx);
+	snprintf(new_path + base_idx, len + 10 - base_idx, "reader/%s", path + base_idx);
 	return new_path;
 }
 

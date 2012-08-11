@@ -40,8 +40,10 @@ rm -rf %{buildroot}
 
 %post
 mkdir -p /opt/share/live_magazine/log
+mkdir -p /opt/share/live_magazine/reader
 chown 5000:5000 /opt/share/live_magazine
 chown 5000:5000 /opt/share/live_magazine/log
+chown 5000:5000 /opt/share/live_magazine/reader
 
 # Menu daemon will launch the data provider master automatically
 #if [ -f "/etc/rc.d/rc3.d/S41data-provider-master" ]; then
