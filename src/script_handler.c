@@ -361,7 +361,13 @@ struct fb_info *script_handler_fb(struct script_info *info)
 
 void *script_handler_evas(struct script_info *info)
 {
-	return info ? ecore_evas_get(info->ee) : NULL;
+	if (!info)
+		return NULL;
+
+	if (!info->ee)
+		return NULL;
+
+	return ecore_evas_get(info->ee);
 }
 
 static int update_script_text(struct inst_info *inst, struct block *block, int is_pd)

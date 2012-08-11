@@ -19,7 +19,7 @@
  *
  */
 
-#define MAX_SIZE_LIST	5
+#define MAX_SIZE_LIST	6
 
 struct conf {
 	int width;

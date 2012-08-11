@@ -104,8 +104,11 @@ int instance_unicast_created_event(struct inst_info *inst, struct client_node *c
 	const char *lb_file;
 	const char *pd_file;
 
-	if (!inst->client && !client)
-		return 0;
+	if (!client) {
+		client = inst->client;
+		if (!client)
+			return 0;
+	}
 
 	lb_type = package_lb_type(inst->info);
 	pd_type = package_pd_type(inst->info);
@@ -142,9 +145,6 @@ int instance_unicast_created_event(struct inst_info *inst, struct client_node *c
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return -EFAULT;
 	}
-
-	if (!client)
-		client = inst->client;
 
 	return client_rpc_async_request(client, packet);
 }

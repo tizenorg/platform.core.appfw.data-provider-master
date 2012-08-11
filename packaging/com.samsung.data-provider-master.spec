@@ -1,6 +1,6 @@
 Name: com.samsung.data-provider-master
 Summary: Master data provider
-Version: 0.6.2
+Version: 0.7.0
 Release: 1
 Group: main/app
 License: Samsung Proprietary License
@@ -88,3 +88,4 @@ done
 /etc/rc.d/init.d/data-provider-master
 /usr/bin/data-provider-master
 /usr/etc/package-manager/parserlib/*
+/usr/share/data-provider-master/*

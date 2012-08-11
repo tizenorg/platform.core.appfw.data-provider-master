@@ -94,6 +94,19 @@ int abi_del_entry(const char *abi)
 	return -ENOENT;
 }
 
+int abi_del_all(void)
+{
+	struct item *item;
+
+	EINA_LIST_FREE(s_abi.list, item) {
+		free(item->abi);
+		free(item->pkgname);
+		free(item);
+	}
+
+	return 0;
+}
+
 const char *abi_find_slave(const char *abi)
 {
 	Eina_List *l;

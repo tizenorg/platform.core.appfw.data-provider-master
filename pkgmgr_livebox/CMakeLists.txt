@@ -1,6 +1,6 @@
 PROJECT(livebox C)
 
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/pkgmgr/include)
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/pkgmgr_livebox/include)
 
 INCLUDE(FindPkgConfig)
 pkg_check_modules(bin_pkgs REQUIRED

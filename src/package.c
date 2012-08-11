@@ -23,6 +23,7 @@
 #include "script_handler.h"
 #include "group.h"
 #include "abi.h"
+#include "io.h"
 
 int errno;
 
@@ -87,11 +88,13 @@ struct pkg_info {
 		unsigned int height;
 	} pd;
 
+	int network;
 	int timeout;
 	double period;
 	int secured;
 	char *script; /* script type: edje, ... */
 	char *abi;
+	char *libexec;
 
 	int fault_count;
 	struct fault_info *fault_info;
@@ -179,6 +182,7 @@ static inline void destroy_package(struct pkg_info *info)
 	free(info->script);
 	free(info->abi);
 	free(info->pkgname);
+	free(info->libexec);
 
 	if (info->slave) {
 		slave_unload_package(info->slave);
@@ -189,7 +193,7 @@ static inline void destroy_package(struct pkg_info *info)
 	free(info);
 }
 
-static inline int load_conf(struct pkg_info *info, const char *pkgname)
+static inline int load_conf(struct pkg_info *info)
 {
 	struct parser *parser;
 	const char *str;
@@ -324,6 +328,7 @@ static inline int load_conf(struct pkg_info *info, const char *pkgname)
 	}
 
 	info->timeout = parser_timeout(parser);
+	info->network = parser_network(parser);
 
 	info->period = parser_period(parser);
 	if (info->period < 0.0f)
@@ -339,8 +344,8 @@ static inline int load_conf(struct pkg_info *info, const char *pkgname)
 	parser_get_pdsize(parser, &info->pd.width, &info->pd.height);
 
 	group = parser_group_str(parser);
-	if (group && group_add_livebox(group, pkgname) < 0)
-		ErrPrint("Failed to build cluster tree for %s{%s}\n", pkgname, group);
+	if (group && group_add_livebox(group, info->pkgname) < 0)
+		ErrPrint("Failed to build cluster tree for %s{%s}\n", info->pkgname, group);
 
 	parser_unload(parser);
 	return 0;
@@ -366,10 +371,12 @@ struct pkg_info *package_create(const char *pkgname)
 		return NULL;
 	}
 
-	if (load_conf(info, pkgname) < 0) {
-		free(info->pkgname);
-		free(info);
-		return NULL;
+	if (io_load_package_db(info) < 0) {
+		if (load_conf(info) < 0) {
+			free(info->pkgname);
+			free(info);
+			return NULL;
+		}
 	}
 
 	if (!info->secured)
@@ -569,9 +576,19 @@ const int const package_timeout(const struct pkg_info *info)
 	return info->timeout;
 }
 
+void package_set_timeout(struct pkg_info *info, int timeout)
+{
+	info->timeout = timeout;
+}
+
 const double const package_period(const struct pkg_info *info)
 {
 	return info->period;
+}
+
+void package_set_period(struct pkg_info *info, double period)
+{
+	info->period = period;
 }
 
 const int const package_secured(const struct pkg_info *info)
@@ -579,14 +596,48 @@ const int const package_secured(const struct pkg_info *info)
 	return info->secured;
 }
 
+void package_set_secured(struct pkg_info *info, int secured)
+{
+	info->secured = secured;
+}
+
 const char * const package_script(const struct pkg_info *info)
 {
 	return info->script;
 }
 
+int package_set_script(struct pkg_info *info, const char *script)
+{
+	char *tmp;
+
+	tmp = strdup(script);
+	if (!tmp) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
+	free(info->script);
+	info->script = tmp;
+	return 0;
+}
+
 const char * const package_abi(const struct pkg_info *info)
 {
 	return info->abi;
+}
+
+int package_set_abi(struct pkg_info *info, const char *abi)
+{
+	char *tmp;
+	tmp = strdup(abi);
+	if (!tmp) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
+	free(info->abi);
+	info->abi = tmp;
+	return 0;
 }
 
 const char * const package_lb_path(const struct pkg_info *info)
@@ -597,12 +648,48 @@ const char * const package_lb_path(const struct pkg_info *info)
 	return info->lb.info.script.path;
 }
 
+int package_set_lb_path(struct pkg_info *info, const char *path)
+{
+	char *tmp;
+
+	if (info->lb.type != LB_TYPE_SCRIPT)
+		return -EINVAL;
+
+	tmp = strdup(path);
+	if (!tmp) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
+	free(info->lb.info.script.path);
+	info->lb.info.script.path = tmp;
+	return 0;
+}
+
 const char * const package_lb_group(const struct pkg_info *info)
 {
 	if (info->lb.type != LB_TYPE_SCRIPT)
 		return NULL;
 
 	return info->lb.info.script.group;
+}
+
+int package_set_lb_group(struct pkg_info *info, const char *group)
+{
+	char *tmp;
+
+	if (info->lb.type != LB_TYPE_SCRIPT)
+		return -EINVAL;
+
+	tmp = strdup(group);
+	if (!tmp) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
+	free(info->lb.info.script.group);
+	info->lb.info.script.group = tmp;
+	return 0;
 }
 
 const char * const package_pd_path(const struct pkg_info *info)
@@ -613,6 +700,24 @@ const char * const package_pd_path(const struct pkg_info *info)
 	return info->pd.info.script.path;
 }
 
+int package_set_pd_path(struct pkg_info *info, const char *path)
+{
+	char *tmp;
+
+	if (info->pd.type != PD_TYPE_SCRIPT)
+		return -EINVAL;
+
+	tmp = strdup(path);
+	if (!tmp) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
+	free(info->pd.info.script.path);
+	info->pd.info.script.path = tmp;
+	return 0;
+}
+
 const char * const package_pd_group(const struct pkg_info *info)
 {
 	if (info->pd.type != PD_TYPE_SCRIPT)
@@ -621,9 +726,32 @@ const char * const package_pd_group(const struct pkg_info *info)
 	return info->pd.info.script.group;
 }
 
+int package_set_pd_group(struct pkg_info *info, const char *group)
+{
+	char *tmp;
+
+	if (info->pd.type != PD_TYPE_SCRIPT)
+		return -EINVAL;
+
+	tmp = strdup(group);
+	if (!tmp) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
+	free(info->pd.info.script.group);
+	info->pd.info.script.group = tmp;
+	return 0;
+}
+
 const int const package_pinup(const struct pkg_info *info)
 {
 	return info->lb.pinup;
+}
+
+void package_set_pinup(struct pkg_info *info, int pinup)
+{
+	info->lb.pinup = pinup;
 }
 
 const int const package_auto_launch(const struct pkg_info *info)
@@ -631,9 +759,19 @@ const int const package_auto_launch(const struct pkg_info *info)
 	return info->lb.auto_launch;
 }
 
+void package_set_auto_launch(struct pkg_info *info, int auto_launch)
+{
+	info->lb.auto_launch = auto_launch;
+}
+
 const unsigned int const package_size_list(const struct pkg_info *info)
 {
 	return info->lb.size_list;
+}
+
+void package_set_size_list(struct pkg_info *info, unsigned int size_list)
+{
+	info->lb.size_list = size_list;
 }
 
 const int const package_pd_width(const struct pkg_info *info)
@@ -641,9 +779,19 @@ const int const package_pd_width(const struct pkg_info *info)
 	return info->pd.width;
 }
 
+void package_set_pd_width(struct pkg_info *info, int width)
+{
+	info->pd.width = width;
+}
+
 const int const package_pd_height(const struct pkg_info *info)
 {
 	return info->pd.height;
+}
+
+void package_set_pd_height(struct pkg_info *info, int height)
+{
+	info->pd.height = height;
 }
 
 struct pkg_info * const package_ref(struct pkg_info *info)
@@ -678,9 +826,49 @@ const enum lb_type package_lb_type(const struct pkg_info *info)
 	return info->lb.type;
 }
 
+void package_set_lb_type(struct pkg_info *info, enum lb_type type)
+{
+	info->lb.type = type;
+}
+
+const char * const package_libexec(struct pkg_info *info)
+{
+	return info->libexec;
+}
+
+int package_set_libexec(struct pkg_info *info, const char *libexec)
+{
+	char *tmp;
+
+	tmp = strdup(libexec);
+	if (!tmp) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
+	free(info->libexec);
+	info->libexec = tmp;
+	return 0;
+}
+
+int package_network(struct pkg_info *info)
+{
+	return info->network;
+}
+
+void package_set_network(struct pkg_info *info, int network)
+{
+	info->network = network;
+}
+
 const enum pd_type const package_pd_type(const struct pkg_info *info)
 {
 	return info->pd.type;
+}
+
+void package_set_pd_type(struct pkg_info *info, enum pd_type type)
+{
+	info->pd.type = type;
 }
 
 int package_add_instance(struct pkg_info *info, struct inst_info *inst)

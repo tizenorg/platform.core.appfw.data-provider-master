@@ -37,7 +37,6 @@
 #include "debug.h"
 #include "client_life.h"
 #include "slave_life.h"
-#include "io.h"
 #include "main.h"
 #include "util.h"
 #include "setting.h"

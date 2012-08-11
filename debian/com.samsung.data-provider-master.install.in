@@ -3,3 +3,4 @@
 /usr/bin/data-provider-master
 /etc/rc.d/init.d/data-provider-master
 /usr/etc/package-manager/parserlib/*
+/usr/share/data-provider-master/*

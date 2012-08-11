@@ -182,6 +182,38 @@ const char *group_cluster_name_by_category(struct category *category)
 	return !category ? NULL : (category->cluster ? category->cluster->name : NULL);
 }
 
+int group_add_package(struct category *category, const char *pkgname)
+{
+	char *name;
+
+	name = strdup(pkgname);
+	if (!name) {
+		ErrPrint("Heap: %s (%s)\n", strerror(errno), pkgname);
+		return -ENOMEM;
+	}
+
+	category->pkg_list = eina_list_append(category->pkg_list, name);
+	return 0;
+}
+
+int group_del_package(struct category *category, const char *pkgname)
+{
+	Eina_List *l;
+	Eina_List *n;
+	char *name;
+
+	EINA_LIST_FOREACH_SAFE(category->pkg_list, l, n, name) {
+		if (strcmp(name, pkgname))
+			continue;
+
+		category->pkg_list = eina_list_remove(category->pkg_list, name);
+		free(name);
+		return 0;
+	}
+
+	return -ENOENT;
+}
+
 int group_add_livebox(const char *group, const char *pkgname)
 {
 	struct cluster *cluster;
@@ -266,14 +298,8 @@ int group_add_livebox(const char *group, const char *pkgname)
 				if (!category)
 					return -EFAULT;
 
-				name = strdup(pkgname);
-				if (!name) {
-					ErrPrint("Heap: %s (%s)\n", strerror(errno), pkgname);
-					return -ENOMEM;
-				}
-
 				DbgPrint("Package %s is join to %s/%s\n", pkgname, cluster->name, category->name);
-				category->pkg_list = eina_list_append(category->pkg_list, name);
+				group_add_package(category, pkgname);
 
 				if (*ptr == '}')
 					state = CLUSTER;
@@ -303,22 +329,12 @@ int group_del_livebox(const char *pkgname)
 	Eina_List *n;
 	Eina_List *s_l;
 	Eina_List *s_n;
-	Eina_List *p_l;
-	Eina_List *p_n;
 	struct cluster *cluster;
 	struct category *category;
-	char *name;
 
 	EINA_LIST_FOREACH_SAFE(s_info.cluster_list, l, n, cluster) {
 		EINA_LIST_FOREACH_SAFE(cluster->category_list, s_l, s_n, category) {
-			EINA_LIST_FOREACH_SAFE(category->pkg_list, p_l, p_n, name) {
-				if (!strcmp(name, pkgname)) {
-					category->pkg_list = eina_list_remove_list(category->pkg_list, p_l);
-					free(name);
-					break;
-				}
-			}
-
+			group_del_package(category, pkgname);
 			if (!category->pkg_list)
 				group_destroy_category(category);
 		}

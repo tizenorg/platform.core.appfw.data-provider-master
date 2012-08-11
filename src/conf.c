@@ -55,7 +55,11 @@ struct conf g_conf = {
 		},
 		{
 			.width = 700,
-			.height = 172, /* Slot type 5 */
+			.height = 172, /* Slot type 5 4x1 */
+		},
+		{
+			.width = 700,
+			.height = 700, /* Slot type 6 4x4 */
 		},
 	},
 

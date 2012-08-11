@@ -1672,15 +1672,17 @@ static inline int slave_send_pd_destroy(struct inst_info *inst)
 
 static int pd_buffer_close_cb(struct client_node *client, void *inst)
 {
-	DbgPrint("Forcely close the PD\n");
-	slave_send_pd_destroy(inst);
+	int ret;
+	ret = slave_send_pd_destroy(inst);
+	DbgPrint("Forcely close the PD %d\n", ret);
 	return -1; /* Delete this callback */
 }
 
 static int pd_script_close_cb(struct client_node *client, void *inst)
 {
-	DbgPrint("Forcely close the PD\n");
-	script_handler_unload(instance_pd_script(inst), 1);
+	int ret;
+	ret = script_handler_unload(instance_pd_script(inst), 1);
+	DbgPrint("Forcely close the PD (%d)\n", ret);
 	return -1; /* Delete this callback */
 }
 
@@ -2198,6 +2200,43 @@ out:
 	return result;
 }
 
+static inline char *get_file_kept_in_safe(const char *id)
+{
+	const char *path;
+	char *new_path;
+	int len;
+	int base_idx;
+
+	path = URI_TO_PATH(id);
+	if (!path) {
+		ErrPrint("Invalid URI(%s)\n", id);
+		return NULL;
+	}
+
+	/*!
+	 * TODO: Remove me
+	 */
+	if (getenv("DISABLE_PREVENT_OVERWRITE")) {
+		return strdup(path);
+	}
+
+	len = strlen(path);
+	base_idx = len - 1;
+
+	while (base_idx > 0 && path[base_idx] != '/') base_idx--;
+	base_idx += (path[base_idx] == '/');
+
+	new_path = malloc(len + 10);
+	if (!new_path) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return NULL;
+	}
+
+	strncpy(new_path, path, base_idx);
+	snprintf(new_path + base_idx, len + 10 - base_idx, "_%s", path + base_idx);
+	return new_path;
+}
+
 static struct packet *slave_updated(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, filename, width, height, priority, ret */
 {
 	struct slave_node *slave;
@@ -2238,8 +2277,17 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 		instance_set_lb_info(inst, w, h, priority);
 
 		if (package_lb_type(instance_package(inst)) == LB_TYPE_SCRIPT) {
+			char *filename;
+
 			script_handler_resize(instance_lb_script(inst), w, h);
-			ret = script_handler_parse_desc(pkgname, id, URI_TO_PATH(id), 0);
+
+			filename = get_file_kept_in_safe(id);
+			if (filename) {
+				ret = script_handler_parse_desc(pkgname, id, filename, 0);
+				free(filename);
+			} else {
+				ret = script_handler_parse_desc(pkgname, id, URI_TO_PATH(id), 0);
+			}
 		} else if (package_lb_type(instance_package(inst)) == LB_TYPE_BUFFER) {
 			instance_lb_updated(pkgname, id);
 		} else {

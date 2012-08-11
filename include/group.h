@@ -14,6 +14,9 @@ extern const char * const group_category_name(struct category *category);
 extern const char * const group_cluster_name(struct cluster *cluster);
 extern const char *group_cluster_name_by_category(struct category *category);
 
+extern int group_add_package(struct category *category, const char *pkgname);
+extern int group_del_package(struct category *category, const char *pkgname);
+
 extern int group_add_livebox(const char *group, const char *pkgname);
 extern int group_del_livebox(const char *pkgname);
 

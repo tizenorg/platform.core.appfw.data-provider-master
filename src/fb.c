@@ -123,7 +123,7 @@ static void free_fb(void *data, void *ptr)
 		free(info->buffer);
 		info->buffer = NULL;
 
-		strncpy(info->id, "", fname_len);
+		strncpy(info->id, "file:///tmp/.live.undefined", fname_len);
 	} else if (info->type == FB_TYPE_SHM) {
 		int id;
 
@@ -140,7 +140,7 @@ static void free_fb(void *data, void *ptr)
 		if (shmctl(id, IPC_RMID, 0) < 0)
 			ErrPrint("%s shmctl: %s\n", info->id, strerror(errno));
 
-		strncpy(info->id, "", fname_len);
+		strncpy(info->id, "shm://-1", fname_len);
 	}
 }
 

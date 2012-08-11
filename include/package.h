@@ -51,6 +51,27 @@ extern const unsigned int const package_size_list(const struct pkg_info *info);
 extern const int const package_pd_width(const struct pkg_info *info);
 extern const int const package_pd_height(const struct pkg_info *info);
 extern const char * const package_name(const struct pkg_info *info);
+extern const char * const package_libexec(struct pkg_info *info);
+extern int package_network(struct pkg_info *info);
+
+extern int package_set_libexec(struct pkg_info *info, const char *libexec);
+extern void package_set_pinup(struct pkg_info *info, int pinup);
+extern void package_set_auto_launch(struct pkg_info *info, int auto_launch);
+extern void package_set_size_list(struct pkg_info *info, unsigned int size_list);
+extern void package_set_lb_type(struct pkg_info *info, enum lb_type type);
+extern void package_set_pd_type(struct pkg_info *info, enum pd_type type);
+extern int package_set_lb_group(struct pkg_info *info, const char *group);
+extern int package_set_lb_path(struct pkg_info *info, const char *path);
+extern int package_set_pd_group(struct pkg_info *info, const char *group);
+extern int package_set_pd_path(struct pkg_info *info, const char *path);
+extern int package_set_script(struct pkg_info *info, const char *script);
+extern void package_set_secured(struct pkg_info *info, int secured);
+extern void package_set_period(struct pkg_info *info, double period);
+extern void package_set_timeout(struct pkg_info *info, int timeout);
+extern void package_set_network(struct pkg_info *info, int network);
+extern void package_set_pd_height(struct pkg_info *info, int height);
+extern void package_set_pd_width(struct pkg_info *info, int width);
+extern int package_set_abi(struct pkg_info *info, const char *abi);
 
 /*!
  * \brief
