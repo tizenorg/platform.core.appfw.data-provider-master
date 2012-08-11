@@ -372,11 +372,14 @@ struct pkg_info *package_create(const char *pkgname)
 	}
 
 	if (io_load_package_db(info) < 0) {
-		if (load_conf(info) < 0) {
-			free(info->pkgname);
-			free(info);
-			return NULL;
-		}
+		ErrPrint("Failed to load DB, fall back to conf file loader\n");
+	}
+
+	if (load_conf(info) < 0) {
+		ErrPrint("Failed to initiate the conf file loader\n");
+		free(info->pkgname);
+		free(info);
+		return NULL;
 	}
 
 	if (!info->secured)

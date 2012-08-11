@@ -10,6 +10,7 @@
 #include <dlog.h>
 #include <Eina.h>
 #include <sqlite3.h>
+#include <db-util.h>
 
 #include "debug.h"
 #include "conf.h"
@@ -481,6 +482,11 @@ int io_load_package_db(struct pkg_info *info)
 {
 	int ret;
 
+	if (!s_info.handle) {
+		ErrPrint("DB is not ready\n");
+		return -EIO;
+	}
+
 	ret = build_provider_info(info);
 	if (ret < 0)
 		return ret;
@@ -500,7 +506,53 @@ int io_load_package_db(struct pkg_info *info)
 	return 0;
 }
 
-int io_init(void)
+static inline int db_init(void)
+{
+	int ret;
+	struct stat stat;
+
+	ret = db_util_open(s_info.dbfile, &s_info.handle, DB_UTIL_REGISTER_HOOK_METHOD);
+	if (ret != SQLITE_OK) {
+		ErrPrint("Failed to open a DB\n");
+		return -EIO;
+	}
+
+	if (lstat(s_info.dbfile, &stat) < 0) {
+		db_util_close(s_info.handle);
+		s_info.handle = NULL;
+		ErrPrint("%s\n", strerror(errno));
+		return -EIO;
+	}
+
+	if (!S_ISREG(stat.st_mode)) {
+		ErrPrint("Invalid file\n");
+		db_util_close(s_info.handle);
+		s_info.handle = NULL;
+		return -EINVAL;
+	}
+
+	if (stat.st_size <= 0) {
+		ErrPrint("Size is %d\n", stat.st_size);
+		db_util_close(s_info.handle);
+		s_info.handle = NULL;
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static inline int db_fini(void)
+{
+	if (!s_info.handle)
+		return 0;
+
+	db_util_close(s_info.handle);
+	s_info.handle = NULL;
+
+	return 0;
+}
+
+static inline void crawling_liveboxes(void)
 {
 	struct dirent *ent;
 	DIR *dir;
@@ -509,7 +561,7 @@ int io_init(void)
 	dir = opendir(g_conf.path.root);
 	if (!dir) {
 		ErrPrint("Error: %s\n", strerror(errno));
-		return -EIO;
+		return;
 	}
 
 	while ((ent = readdir(dir))) {
@@ -522,14 +574,31 @@ int io_init(void)
 	}
 
 	closedir(dir);
+}
 
-	load_abi_table();
+int io_init(void)
+{
+	int ret;
+
+	ret = db_init();
+	DbgPrint("DB initialized: %d\n", ret);
+
+	ret = load_abi_table();
+	DbgPrint("ABI table is loaded: %d\n", ret);
+
+	crawling_liveboxes();
 	return 0;
 }
 
 int io_fini(void)
 {
-	abi_del_all();
+	int ret;
+
+	ret = abi_del_all();
+	DbgPrint("ABI table is finalized: %d\n", ret);
+
+	ret = db_fini();
+	DbgPrint("DB finalized: %d\n", ret);
 	return 0;
 }
 
