@@ -95,6 +95,8 @@ struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buffer_ty
 
 int buffer_handler_load(struct buffer_info *info)
 {
+	int len;
+
 	if (!info) {
 		DbgPrint("buffer handler is nil\n");
 		return -EINVAL;
@@ -106,7 +108,6 @@ int buffer_handler_load(struct buffer_info *info)
 	}
 
 	if (info->type == BUFFER_TYPE_FILE) {
-		int len;
 		double timestamp;
 
 		len = strlen(g_conf.path.image) + 40;
@@ -130,7 +131,6 @@ int buffer_handler_load(struct buffer_info *info)
 	} else if (info->type == BUFFER_TYPE_SHM) {
 		int id;
 		int size;
-		int len;
 		struct buffer *buffer; /* Just for getting a size */
 
 		size = info->w * info->h * info->pixel_size;

@@ -106,7 +106,7 @@ static void *alloc_fb(void *data, int size)
 		snprintf(info->id, fname_len, "shm://%d", id);
 	} else if (info->type == FB_TYPE_PIXMAP) {
 		ErrPrint("Pixmap is not supported yet\n");
-		strncpy(info->id, fname_len, "pixmap://-1");
+		strncpy(info->id, "pixmap://-1", fname_len);
 	}
 
 	info->bufsz = size;
