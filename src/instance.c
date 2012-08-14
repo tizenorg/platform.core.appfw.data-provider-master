@@ -700,7 +700,9 @@ int instance_create_pd_buffer(struct inst_info *inst)
 	}
 
 	if (!inst->pd.canvas.buffer) {
-		inst->pd.canvas.buffer = buffer_handler_create(inst, BUFFER_TYPE_FILE, inst->pd.width, inst->pd.height, sizeof(int));
+		inst->pd.canvas.buffer = buffer_handler_create(inst,
+						getenv("USE_SHM_FOR_LIVE_CONTENT") ? BUFFER_TYPE_SHM : BUFFER_TYPE_FILE,
+						inst->pd.width, inst->pd.height, sizeof(int));
 		if (!inst->pd.canvas.buffer)
 			ErrPrint("Failed to create PD Buffer\n");
 	}
@@ -721,7 +723,9 @@ int instance_create_lb_buffer(struct inst_info *inst)
 		 * Slave doesn't call the acquire_buffer.
 		 * In this case, create the buffer from here.
 		 */
-		inst->lb.canvas.buffer = buffer_handler_create(inst, BUFFER_TYPE_FILE, inst->lb.width, inst->lb.height, sizeof(int));
+		inst->lb.canvas.buffer = buffer_handler_create(inst,
+						getenv("USE_SHM_FOR_LIVE_CONTENT") ? BUFFER_TYPE_SHM : BUFFER_TYPE_FILE,
+						inst->lb.width, inst->lb.height, sizeof(int));
 		if (!inst->lb.canvas.buffer)
 			ErrPrint("Failed to create LB\n");
 	}

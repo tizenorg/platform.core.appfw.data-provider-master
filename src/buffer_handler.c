@@ -56,9 +56,29 @@ struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buffer_ty
 		return NULL;
 	}
 
-	info->id = strdup("file:///tmp/.live.undefined");
-	if (!info->id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+	if (type == BUFFER_TYPE_SHM) {
+		info->id = strdup("shm://-1");
+		if (!info->id) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			free(info);
+			return NULL;
+		}
+	} else if (type == BUFFER_TYPE_FILE) {
+		info->id = strdup("file:///tmp/.live.undefined");
+		if (!info->id) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			free(info);
+			return NULL;
+		}
+	} else if (type == BUFFER_TYPE_PIXMAP) {
+		info->id = strdup("pixmap://-1");
+		if (!info->id) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			free(info);
+			return NULL;
+		}
+	} else {
+		ErrPrint("Invalid type\n");
 		free(info);
 		return NULL;
 	}
@@ -93,8 +113,20 @@ int buffer_handler_load(struct buffer_info *info)
 		timestamp = util_timestamp();
 
 		free(info->id);
+
 		info->id = malloc(len);
+		if (!info->id) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			return -ENOMEM;
+		}
+
 		snprintf(info->id, len, "file://%s%lf", g_conf.path.image, timestamp);
+
+		/*!
+		 * \note
+		 * In case of the buffer, master doesn't need to care the content of it.
+		 */
+
 	} else if (info->type == BUFFER_TYPE_SHM) {
 		int id;
 		int size;
@@ -114,7 +146,7 @@ int buffer_handler_load(struct buffer_info *info)
 		}
 
 		info->buffer = shmat(id, NULL, 0);
-		if (!info->buffer) {
+		if (info->buffer == (void *)-1) {
 			ErrPrint("%s shmat: %s\n", info->id, strerror(errno));
 
 			if (shmctl(id, IPC_RMID, 0) < 0)
@@ -122,6 +154,10 @@ int buffer_handler_load(struct buffer_info *info)
 
 			return -EFAULT;
 		}
+
+		info->buffer->type = BUFFER_TYPE_SHM;
+		info->buffer->refcnt = id;
+		info->buffer->state = CREATED; /*!< Needless */
 
 		free(info->id);
 
@@ -136,6 +172,17 @@ int buffer_handler_load(struct buffer_info *info)
 		}
 
 		snprintf(info->id, len, "shm://%d", id);
+	} else if (info->type == BUFFER_TYPE_PIXMAP) {
+		free(info->id);
+
+		len = 10 + 30; /* strlen("pixmap://") + 30 */
+		info->id = malloc(len);
+		if (!info->id) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			return -ENOMEM;
+		}
+
+		strncpy(info->id, "pixmap://-1", len);
 	} else {
 		ErrPrint("Invalid buffer\n");
 		return -EINVAL;
@@ -162,6 +209,7 @@ int buffer_handler_unload(struct buffer_info *info)
 		char *path;
 
 		len = strlen(info->id);
+
 		path = malloc(len);
 		if (!path) {
 			ErrPrint("Heap: %s\n", strerror(errno));
@@ -178,7 +226,8 @@ int buffer_handler_unload(struct buffer_info *info)
 			ErrPrint("unlink: %s\n", strerror(errno));
 
 		free(info->id);
-		info->id = strdup("");
+
+		info->id = strdup("file:///tmp/.live.undefined");
 		if (!info->id)
 			ErrPrint("Heap: %s\n", strerror(errno));
 	} else if (info->type == BUFFER_TYPE_SHM) {
@@ -189,11 +238,27 @@ int buffer_handler_unload(struct buffer_info *info)
 			return -EINVAL;
 		}
 
-		shmdt(info->buffer);
-		shmctl(id, IPC_RMID, 0);
+		if (info->id < 0) {
+			ErrPrint("Invalid id\n");
+			return -EINVAL;
+		}
+
+		if (shmdt(info->buffer) < 0)
+			ErrPrint("Detach shm: %s\n", strerror(errno));
+
+		if (shmctl(id, IPC_RMID, 0) < 0)
+			ErrPrint("Remove shm: %s\n", strerror(errno));
+
 		info->buffer = NULL;
+
 		free(info->id);
-		info->id = strdup("");
+
+		info->id = strdup("shm://-1");
+		if (!info->id)
+			ErrPrint("Heap: %s\n", strerror(errno));
+	} else if (info->type == BUFFER_TYPE_PIXMAP) {
+		free(info->id);
+		info->id = strdup("pixmap://-1");
 		if (!info->id)
 			ErrPrint("Heap: %s\n", strerror(errno));
 	} else {
@@ -214,6 +279,8 @@ int buffer_handler_destroy(struct buffer_info *info)
 		}
 	} else if (info->type == BUFFER_TYPE_FILE) {
 		unlink(info->id);
+	} else if (info->type == BUFFER_TYPE_PIXMAP) {
+		ErrPrint("Pixmap is not supported yet\n");
 	}
 
 	free(info->id);
@@ -275,12 +342,12 @@ int buffer_handler_resize(struct buffer_info *info, int w, int h)
 	}
 
 	if (shmdt(info->buffer) < 0) {
-		ErrPrint("detach failed [%s]\n", strerror(errno));
+		ErrPrint("shmdt: [%s]\n", strerror(errno));
 		return -EINVAL;
 	}
 
 	if (shmctl(id, IPC_RMID, 0) < 0) {
-		ErrPrint("Ctrl failed [%s]\n", strerror(errno));
+		ErrPrint("shmctl: [%s]\n", strerror(errno));
 		return -EINVAL;
 	}
 
@@ -308,7 +375,7 @@ int buffer_handler_resize(struct buffer_info *info, int w, int h)
 	}
 
 	info->buffer = shmat(id, NULL, 0);
-	if (!info->buffer) {
+	if (info->buffer == (void *)-1) {
 		ErrPrint("%s shmat: %s\n", info->id, strerror(errno));
 
 		if (shmctl(id, IPC_RMID, 0) < 0)
@@ -319,6 +386,13 @@ int buffer_handler_resize(struct buffer_info *info, int w, int h)
 			ErrPrint("Heap: %s\n", strerror(errno));
 		return -EFAULT;
 	}
+
+	/*!
+	 * refcnt is used for keeping the IPC resource ID
+	 */
+	info->buffer->refcnt = id;
+	info->buffer->state = CREATED;
+	info->buffer->type = BUFFER_TYPE_SHM;
 
 	len = 6 + 30; /* strlen("shm://") + 30 */
 	info->id = malloc(len);

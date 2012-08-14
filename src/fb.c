@@ -16,6 +16,7 @@
 #include "conf.h"
 #include "debug.h"
 #include "fb.h"
+#include "buffer_handler.h"
 
 int errno;
 
@@ -70,20 +71,22 @@ static void *alloc_fb(void *data, int size)
 			return NULL;
 		}
 
-		info->buffer->type = FB_TYPE_FILE;
+		info->buffer->type = BUFFER_TYPE_FILE;
+		info->buffer->refcnt = 0;
+		info->buffer->state = CREATED; /*!< needless */
 
 		snprintf(info->id, fname_len, "file://%s%lf", g_conf.path.image, util_timestamp());
 	} else if (info->type == FB_TYPE_SHM) {
 		int id;
 
-		id = shmget(IPC_PRIVATE, size + sizeof(*info->buffer), IPC_CREAT | 0644);
+		id = shmget(IPC_PRIVATE, size + sizeof(*info->buffer), IPC_CREAT | 0666);
 		if (id < 0) {
 			ErrPrint("shmget: %s\n", strerror(errno));
 			return NULL;
 		}
 
 		info->buffer = shmat(id, NULL, 0);
-		if (!info->buffer) {
+		if (info->buffer == (void *)-1) {
 			ErrPrint("%s shmat: %s\n", info->id, strerror(errno));
 
 			if (shmctl(id, IPC_RMID, 0) < 0)
@@ -92,9 +95,18 @@ static void *alloc_fb(void *data, int size)
 			return NULL;
 		}
 
-		info->buffer->type = FB_TYPE_SHM;
+		/*!
+		 * \note
+		 * Initiate the buffer control information
+		 */
+		info->buffer->type = BUFFER_TYPE_SHM;
+		info->buffer->refcnt = id;
+		info->buffer->state = CREATED; /* Meaniningless */
 
 		snprintf(info->id, fname_len, "shm://%d", id);
+	} else if (info->type == FB_TYPE_PIXMAP) {
+		ErrPrint("Pixmap is not supported yet\n");
+		strncpy(info->id, fname_len, "pixmap://-1");
 	}
 
 	info->bufsz = size;
@@ -141,6 +153,9 @@ static void free_fb(void *data, void *ptr)
 			ErrPrint("%s shmctl: %s\n", info->id, strerror(errno));
 
 		strncpy(info->id, "shm://-1", fname_len);
+	} else if (info->type == FB_TYPE_PIXMAP) {
+		ErrPrint("Pixmap is not supported yet\n");
+		strncpy(info->id, "pixmap://-1", fname_len);
 	}
 }
 
@@ -178,6 +193,8 @@ struct fb_info *fb_create(int w, int h, enum fb_type type)
 		strncpy(info->id, "file:///tmp/.live.undefined", fname_len);
 	else if (type == FB_TYPE_SHM)
 		strncpy(info->id, "shm://-1", fname_len);
+	else if (type == FB_TYPE_PIXMAP)
+		strncpy(info->id, "pixmap://-1", fname_len);
 
 	DbgPrint("FB Created [%dx%d]\n", info->w, info->h);
 	return info;

@@ -4,6 +4,7 @@ enum fb_type {
 	FB_TYPE_UNKNWON,
 	FB_TYPE_FILE,
 	FB_TYPE_SHM,
+	FB_TYPE_PIXMAP,
 };
 
 extern int fb_init(void);

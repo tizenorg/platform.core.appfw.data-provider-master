@@ -297,7 +297,7 @@ struct script_info *script_handler_create(struct inst_info *inst, const char *fi
 		return NULL;
 	}
 
-	info->fb = fb_create(w, h, FB_TYPE_FILE);
+	info->fb = fb_create(w, h, getenv("USE_SHM_FOR_LIVE_CONTENT") ? FB_TYPE_SHM : FB_TYPE_FILE);
 	if (!info->fb) {
 		ErrPrint("Failed to create a FB (%dx%d)\n", w, h);
 		free(info);

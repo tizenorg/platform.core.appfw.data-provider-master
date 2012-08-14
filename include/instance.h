@@ -90,6 +90,7 @@ enum instance_state {
 struct inst_info;
 struct pkg_info;
 struct script_handle;
+struct client_node;
 
 extern struct inst_info *instance_create(struct client_node *client, double timestamp, const char *pkgname, const char *content, const char *cluster, const char *category, double period);
 extern int instance_destroy(struct inst_info *inst);
