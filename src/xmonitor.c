@@ -89,7 +89,7 @@ static Eina_Bool destroy_cb(void *data, int type, void *event)
 	return ECORE_CALLBACK_RENEW;
 }
 
-int xmonitor_update_state(void)
+int xmonitor_update_state(int target_pid)
 {
 	Ecore_X_Window win;
 	struct client_node *client;
@@ -102,10 +102,20 @@ int xmonitor_update_state(void)
 		return -ENOENT;
 
 	client = client_find_by_pid(pid);
-	if (!client)
+	if (!client) {
+		DbgPrint("Client %d is not registered yet\n", pid);
 		return -EINVAL;
+	}
 
-	client_resumed(client);
+	if (target_pid != pid) {
+		DbgPrint("Client is paused\n");
+		client_paused(client);
+	} else {
+		DbgPrint("Client is resumed\n");
+		client_resumed(client);
+	}
+
+	slave_handle_state_change();
 	return 0;
 }
 
@@ -131,16 +141,15 @@ static Eina_Bool client_cb(void *data, int type, void *event)
 	if (!strcmp(name, "_X_ILLUME_DEACTIVATE_WINDOW")) {
 		DbgPrint("PAUSE EVENT\n");
 		client_paused(client);
+
 		slave_handle_state_change();
 	} else if (!strcmp(name, "_X_ILLUME_ACTIVATE_WINDOW")) {
 		DbgPrint("RESUME EVENT\n");
 		client_resumed(client);
 
-		if (!setting_is_lcd_off()) {
-			slave_handle_state_change();
-		} else {
-			DbgPrint("Locked. ignore resume event.\n");
-		}
+		slave_handle_state_change();
+	} else {
+		/* ignore event */
 	}
 
 	free(name);

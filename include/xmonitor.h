@@ -21,6 +21,6 @@
 
 extern int xmonitor_init(void);
 extern void xmonitor_fini(void);
-extern int xmonitor_update_state(void);
+extern int xmonitor_update_state(int pid);
 
 /* End of a file */

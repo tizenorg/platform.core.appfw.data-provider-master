@@ -207,6 +207,11 @@ int client_rpc_broadcast(struct inst_info *inst, struct packet *packet)
 			if (!rpc->client)
 				continue;
 
+			if (client_pid(rpc->client) < 0) {
+				ErrPrint("Client[%p] has PID[%d]\n", rpc->client, client_pid(rpc->client));
+				continue;
+			}
+
 			DbgPrint("Send packet to %d\n", client_pid(rpc->client));
 			(void)client_rpc_async_request(rpc->client, packet_ref(packet));
 		}
@@ -214,6 +219,11 @@ int client_rpc_broadcast(struct inst_info *inst, struct packet *packet)
 		EINA_LIST_FOREACH(s_info.rpc_list, l, rpc) {
 			if (!rpc->client)
 				continue;
+
+			if (client_pid(rpc->client) < 0) {
+				ErrPrint("Client[%p] has PID[%d]\n", rpc->client, client_pid(rpc->client));
+				continue;
+			}
 
 			if (instance_client(inst) == rpc->client) {
 				DbgPrint("Send packet to %d\n", client_pid(rpc->client));

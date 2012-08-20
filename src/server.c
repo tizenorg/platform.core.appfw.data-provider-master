@@ -24,6 +24,7 @@
 #include "fault_manager.h"
 #include "fb.h" /* fb_type */
 #include "group.h"
+#include "xmonitor.h"
 
 static struct info {
 	int fd;
@@ -77,7 +78,12 @@ static struct packet *client_acquire(pid_t pid, int handle, const struct packet 
 		goto out;
 	}
 
-	client_rpc_initialize(client, handle);
+	ret = client_rpc_initialize(client, handle);
+	if (ret < 0)
+		ErrPrint("Failed to initialize the RPC for %d\n", pid);
+	else
+		xmonitor_update_state(pid);
+
 	ret = 0;
 
 out:
