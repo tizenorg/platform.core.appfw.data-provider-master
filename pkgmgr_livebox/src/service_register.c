@@ -1448,6 +1448,11 @@ static inline void update_group(struct livebox *livebox, xmlNodePtr node)
 
 	cluster = node;
 	for (cluster = cluster->children; cluster; cluster = cluster->next) {
+		if (xmlStrcasecmp(cluster->name, (const xmlChar *)"cluster")) {
+			DbgPrint("Skip: %s\n", cluster->name);
+			continue;
+		}
+
 		if (!xmlHasProp(cluster, (const xmlChar *)"name")) {
 			ErrPrint("Invalid cluster, has no name\n");
 			continue;
@@ -1460,6 +1465,11 @@ static inline void update_group(struct livebox *livebox, xmlNodePtr node)
 		}
 
 		for (category = cluster->children; category; category = category->next) {
+			if (xmlStrcasecmp(category->name, (const xmlChar *)"category")) {
+				DbgPrint("Skip: %s\n", category->name);
+				continue;
+			}
+
 			if (!xmlHasProp(category, (const xmlChar *)"name")) {
 				ErrPrint("Invalid category, has no name\n");
 				continue;
@@ -1686,14 +1696,13 @@ int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *pkgname)
 		return -EINVAL;
 	}
 
-	node = node->children;
-	if (!node) {
-		ErrPrint("Root has no children\n");
-		return -EINVAL;
+	for (node = node->children; node; node = node->next) {
+		if (!xmlStrcasecmp(node->name, (const xmlChar *)"livebox"))
+			break;
 	}
 
-	if (xmlStrcasecmp(node->name, (const xmlChar *)"livebox")) {
-		ErrPrint("Invalid tag: %s\n", (char *)node->name);
+	if (!node) {
+		ErrPrint("Root has no children\n");
 		return -EINVAL;
 	}
 
@@ -1837,11 +1846,29 @@ int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *pkgname)
 
 int PKGMGR_PARSER_PLUGIN_UPGRADE(xmlDocPtr docPtr, const char *appid)
 {
+	xmlNodePtr node;
+
 	if (!s_info.handle) {
 		if (db_init() < 0) {
 			ErrPrint("Failed to init DB\n");
 			return -EIO;
 		}
+	}
+
+	node = xmlDocGetRootElement(docPtr);
+	if (!node) {
+		ErrPrint("Invalid document\n");
+		return -EINVAL;
+	}
+
+	for (node = node->children; node; node = node->next) {
+		if (!xmlStrcasecmp(node->name, (const xmlChar *)"livebox"))
+			break;
+	}
+
+	if (!node) {
+		ErrPrint("Root has no livebox\n");
+		return -EINVAL;
 	}
 
 	return 0;
@@ -1866,14 +1893,13 @@ int PKGMGR_PARSER_PLUGIN_UNINSTALL(xmlDocPtr docPtr, const char *pkgname)
 		return -EINVAL;
 	}
 
-	node = node->children;
-	if (!node) {
-		ErrPrint("Root has no children\n");
-		return -EINVAL;
+	for (node = node->children; node; node = node->next) {
+		if (!xmlStrcasecmp(node->name, (const xmlChar *)"livebox"))
+			break;
 	}
 
-	if (xmlStrcasecmp(node->name, (const xmlChar *)"livebox")) {
-		ErrPrint("Invalid tag: %s\n", (char *)node->name);
+	if (!node) {
+		ErrPrint("Root has no livebox\n");
 		return -EINVAL;
 	}
 
