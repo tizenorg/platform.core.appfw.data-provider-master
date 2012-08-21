@@ -1730,6 +1730,7 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		ret = slave_send_pd_create(inst);
 		client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, pd_buffer_close_cb, inst);
 	} else {
+		ret = slave_send_pd_create(inst);
 		ret = script_handler_load(instance_pd_script(inst), 1);
 		client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, pd_script_close_cb, inst);
 	}
@@ -1778,6 +1779,7 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 		ret = slave_send_pd_destroy(inst);
 		client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, pd_buffer_close_cb, inst);
 	} else {
+		ret = slave_send_pd_destroy(inst);
 		ret = script_handler_unload(instance_pd_script(inst), 1);
 		client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, pd_script_close_cb, inst);
 	}
