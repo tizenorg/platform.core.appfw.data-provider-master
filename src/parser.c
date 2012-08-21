@@ -296,7 +296,6 @@ static inline int parse_size(const char *buffer, unsigned int *size)
 			w = 0;
 			h = 0;
 			break;
-		case ERROR:
 		default:
 			return -1;
 		}

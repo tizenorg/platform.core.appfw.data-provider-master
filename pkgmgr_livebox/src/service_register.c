@@ -1243,6 +1243,7 @@ static inline int livebox_destroy(struct livebox *livebox)
 		free(group);
 	}
 
+	free(livebox);
 	return 0;
 }
 

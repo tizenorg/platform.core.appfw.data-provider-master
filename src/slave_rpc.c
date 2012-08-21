@@ -319,11 +319,6 @@ static Eina_Bool ping_timeout_cb(void *data)
 	return ECORE_CALLBACK_CANCEL;
 }
 
-static inline int slave_rpc_is_valid(struct slave_rpc *rpc)
-{
-	return rpc && rpc->handle > 0;
-}
-
 int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, struct packet *packet, void (*ret_cb)(struct slave_node *slave, const struct packet *packet, void *data), void *data)
 {
 	struct command *command;
@@ -344,7 +339,17 @@ int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, struc
 	command->cbdata = data;
 
 	rpc = slave_data(slave, "rpc");
-	if (!slave_rpc_is_valid(rpc)) {
+	if (!rpc) {
+		ErrPrint("Slave has no RPC yet\n");
+		if (ret_cb)
+			ret_cb(slave, NULL, data);
+
+		destroy_command(command);
+		packet_unref(packet);
+		return -EFAULT;
+	}
+
+	if (rpc->handle < 0) {
 		DbgPrint("RPC info is not ready to use, push this to pending list\n");
 		rpc->pending_list = eina_list_append(rpc->pending_list, command);
 		packet_unref(packet);

@@ -1002,6 +1002,7 @@ int script_handler_parse_desc(const char *pkgname, const char *id, const char *d
 			free(block->group);
 			free(block->id);
 			free(block);
+			block = NULL;
 
 			state = UNKNOWN;
 			break;

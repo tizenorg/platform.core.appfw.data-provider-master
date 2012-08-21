@@ -261,7 +261,7 @@ int group_add_livebox(const char *group, const char *pkgname)
 			free(name);
 
 			if (!cluster) {
-				ErrPrint("Failed to get cluster for %s\n", name);
+				ErrPrint("Failed to get cluster\n");
 				return -EFAULT;
 			}
 

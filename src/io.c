@@ -39,7 +39,7 @@ static struct {
 static inline int load_abi_table(void)
 {
 	FILE *fp;
-	char ch;
+	int ch;
 	int idx;
 	int tag_id;
 	enum {

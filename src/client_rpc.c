@@ -78,8 +78,10 @@ static int recv_cb(pid_t pid, int handle, const struct packet *packet, void *dat
 	if (packet) {
 		int ret;
 
-		packet_get(packet, "i", &ret);
-		DbgPrint("returns %d\n", ret);
+		if (packet_get(packet, "i", &ret) != 1)
+			ErrPrint("Invalid packet received\n");
+		else
+			DbgPrint("returns %d\n", ret);
 	}
 
 	destroy_command(command);

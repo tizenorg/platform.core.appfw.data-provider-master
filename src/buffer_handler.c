@@ -225,6 +225,7 @@ int buffer_handler_unload(struct buffer_info *info)
 		if (unlink(path) < 0)
 			ErrPrint("unlink: %s\n", strerror(errno));
 
+		free(path);
 		free(info->id);
 
 		info->id = strdup("file:///tmp/.live.undefined");
