@@ -334,8 +334,11 @@ int slave_activate(struct slave_node *slave)
 int slave_activated(struct slave_node *slave)
 {
 	slave->state = SLAVE_RESUMED;
+
+	if (client_is_all_paused() || setting_is_lcd_off())
+		slave_pause(slave);
+
 	invoke_activate_cb(slave);
-	slave_handle_state_change();
 	return 0;
 }
 
