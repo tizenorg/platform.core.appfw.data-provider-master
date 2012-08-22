@@ -98,12 +98,24 @@ int xmonitor_update_state(int target_pid)
 	win = ecore_x_window_focus_get();
 
 	pid = get_pid(win);
-	if (pid <= 0)
+	if (pid <= 0) {
+		DbgPrint("Focused window has no PID %X\n", win);
+		client = client_find_by_pid(target_pid);
+		if (client) {
+			DbgPrint("Client window has not focus now\n");
+			client_paused(client);
+		}
 		return -ENOENT;
+	}
 
 	client = client_find_by_pid(pid);
 	if (!client) {
 		DbgPrint("Client %d is not registered yet\n", pid);
+		client = client_find_by_pid(target_pid);
+		if (client) {
+			DbgPrint("Client window has not focus now\n");
+			client_paused(client);
+		}
 		return -EINVAL;
 	}
 

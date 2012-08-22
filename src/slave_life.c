@@ -32,6 +32,7 @@ int errno;
 struct slave_node {
 	char *name;
 	char *abi;
+	char *pkgname;
 	int secured;	/* Only A package(livebox) is loaded for security requirements */
 	int refcnt;
 	int fault_count;
@@ -102,7 +103,7 @@ static struct {
 	.paused = 0,
 };
 
-static inline struct slave_node *create_slave_node(const char *name, int is_secured, const char *abi)
+static inline struct slave_node *create_slave_node(const char *name, int is_secured, const char *abi, const char *pkgname)
 {
 	struct slave_node *slave;
 
@@ -122,6 +123,15 @@ static inline struct slave_node *create_slave_node(const char *name, int is_secu
 	slave->abi = strdup(abi);
 	if (!slave->abi) {
 		ErrPrint("Heap: %s\n", strerror(errno));
+		free(slave->name);
+		free(slave);
+		return NULL;
+	}
+
+	slave->pkgname = strdup(pkgname);
+	if (!slave->pkgname) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		free(slave->abi);
 		free(slave->name);
 		free(slave);
 		return NULL;
@@ -188,6 +198,7 @@ static inline void destroy_slave_node(struct slave_node *slave)
 	s_info.slave_list = eina_list_remove(s_info.slave_list, slave);
 	free(slave->abi);
 	free(slave->name);
+	free(slave->pkgname);
 	free(slave);
 	return;
 }
@@ -238,7 +249,7 @@ const int const slave_refcnt(struct slave_node *slave)
 	return slave->refcnt;
 }
 
-struct slave_node *slave_create(const char *name, int is_secured, const char *abi)
+struct slave_node *slave_create(const char *name, int is_secured, const char *abi, const char *pkgname)
 {
 	struct slave_node *slave;
 
@@ -249,7 +260,10 @@ struct slave_node *slave_create(const char *name, int is_secured, const char *ab
 		return slave;
 	}
 
-	slave = create_slave_node(name, is_secured, abi);
+	slave = create_slave_node(name, is_secured, abi, pkgname);
+	if (!slave)
+		return NULL;
+
 	slave_ref(slave);
 
 	return slave;
@@ -291,14 +305,9 @@ const int const slave_is_faulted(const struct slave_node *slave)
 int slave_activate(struct slave_node *slave)
 {
 	bundle *param;
-	const char *slave_pkgname;
 
 	if (slave->pid != (pid_t)-1)
 		return -EALREADY;
-
-	slave_pkgname = abi_find_slave(slave->abi);
-	if (!slave_pkgname)
-		return -ENOTSUP;
 
 	param = bundle_create();
 	if (!param) {
@@ -309,8 +318,8 @@ int slave_activate(struct slave_node *slave)
 	bundle_add(param, BUNDLE_SLAVE_NAME, slave->name);
 	bundle_add(param, BUNDLE_SLAVE_SECURED, slave->secured ? "true" : "false");
 	bundle_add(param, BUNDLE_SLAVE_ABI, slave->abi);
-	DbgPrint("Launch the slave package: %s\n", slave_pkgname);
-	slave->pid = (pid_t)aul_launch_app(slave_pkgname, param);
+	DbgPrint("Launch the slave package: %s\n", slave->pkgname);
+	slave->pid = (pid_t)aul_launch_app(slave->pkgname, param);
 	bundle_free(param);
 
 	if (slave->pid < 0) {
@@ -333,10 +342,16 @@ int slave_activate(struct slave_node *slave)
 
 int slave_activated(struct slave_node *slave)
 {
+	int paused;
 	slave->state = SLAVE_RESUMED;
 
-	if (client_is_all_paused() || setting_is_lcd_off())
-		slave_pause(slave);
+	paused = client_is_all_paused() || setting_is_lcd_off();
+	if (s_info.paused == paused) {
+		if (paused)
+			slave_pause(slave);
+	} else {
+		slave_handle_state_change();
+	}
 
 	invoke_activate_cb(slave);
 	return 0;
@@ -799,6 +814,11 @@ int slave_pause(struct slave_node *slave)
 
 	slave->state = SLAVE_REQUEST_TO_PAUSE;
 	return slave_rpc_async_request(slave, NULL, packet, pause_cb, NULL);
+}
+
+const char *slave_pkgname(const struct slave_node *slave)
+{
+	return slave ? slave->pkgname : NULL;
 }
 
 /* End of a file */

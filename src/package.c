@@ -388,35 +388,64 @@ struct pkg_info *package_create(const char *pkgname)
 	package_ref(info);
 
 	if (!info->slave) {
-		char *slavename;
-		slavename = util_slavename();
-		if (!slavename) {
+		char *s_name;
+		char *s_pkgname;
+		const char *tmp;
+
+		s_name = util_slavename();
+		if (!s_name) {
 			package_destroy(info);
 			return NULL;
 		}
 
-		DbgPrint("New slave name is %s assigned for %s\n", slavename, pkgname);
-		info->slave = slave_create(slavename, info->secured, info->abi);
-		slave_rpc_initialize(info->slave);
-		free(slavename);
+		tmp = abi_find_slave(info->abi);
+		if (!tmp) {
+			free(s_name);
+			package_destroy(info);
+			return NULL;
+		}
+
+		DbgPrint("Slave package: \"%s\" (abi: %s)\n", tmp, info->abi);
+		s_pkgname = util_replace_string(tmp, REPLACE_TAG_APPID, pkgname);
+		if (!s_pkgname) {
+			s_pkgname = strdup(tmp);
+			if (!s_pkgname) {
+				ErrPrint("Heap: %s\n", strerror(errno));
+				free(s_name);
+				package_destroy(info);
+				return NULL;
+			}
+		} else if (!info->secured) {
+			DbgPrint("Slave package name is specified but the livebox is not secured\n");
+			DbgPrint("Forcely set secured flag for livebox %s\n", pkgname);
+			info->secured = 1;
+		}
+
+		DbgPrint("New slave name is %s, it is assigned for livebox %s (using %s)\n", s_name, pkgname, s_pkgname);
+		info->slave = slave_create(s_name, info->secured, info->abi, s_pkgname);
+		free(s_name);
+		free(s_pkgname);
+
+		if (info->slave) {
+			slave_rpc_initialize(info->slave);
+		} else {
+			/*!
+			 * \note
+			 * package_destroy will try to remove "info" from the pkg_list.
+			 * but we didn't add this to it yet.
+			 * If the list method couldn't find an "info" from the list,
+			 * it just do nothing so I'll leave this.
+			 */
+			package_destroy(info);
+			return NULL;
+		}
 		/*!
 		 * \note
 		 * Slave is not activated yet.
 		 */
+
 	} else {
 		DbgPrint("Slave %s is assigned for %s\n", slave_name(info->slave), pkgname);
-	}
-
-	if (!info->slave) {
-		/*!
-		 * \note
-		 * package_destroy will try to remove "info" from the pkg_list.
-		 * but we didn't add this to it yet.
-		 * If the list method couldn't find an "info" from the list,
-		 * it just do nothing so I'll leave this.
-		 */
-		package_destroy(info);
-		return NULL;
 	}
 
 	slave_load_package(info->slave);

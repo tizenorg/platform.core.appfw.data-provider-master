@@ -19,7 +19,7 @@ extern const int const slave_refcnt(struct slave_node *slave);
 /*!
  * Create a new slave object or destroy it
  */
-extern struct slave_node *slave_create(const char *name, int is_secured, const char *abi);
+extern struct slave_node *slave_create(const char *name, int is_secured, const char *abi, const char *pkgname);
 extern void slave_destroy(struct slave_node *slave);
 
 /*!
@@ -79,4 +79,5 @@ extern int const slave_loaded_instance(struct slave_node *slave);
 extern int slave_resume(struct slave_node *slave);
 extern int slave_pause(struct slave_node *slave);
 
+extern const char *slave_pkgname(const struct slave_node *slave);
 /* End of a file */

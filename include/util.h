@@ -6,6 +6,7 @@ extern int util_unlink(const char *filename);
 extern char *util_slavename(void);
 extern const char *util_basename(const char *name);
 extern unsigned long util_free_space(const char *path);
+extern char *util_replace_string(const char *src, const char *pattern, const char *replace);
 
 #define URI_TO_PATH(uri)	((uri) + 7)
 

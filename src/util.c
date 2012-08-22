@@ -179,4 +179,134 @@ unsigned long util_free_space(const char *path)
 	return space;
 }
 
+char *util_replace_string(const char *src, const char *pattern, const char *replace)
+{
+	int s_idx;
+	int p_idx;
+	int n_idx;
+	int t_idx;
+	int r_idx;
+	int idx;
+	char *result;
+	int len;
+	int rlen;
+	int matched;
+
+	if (!src || !pattern || !replace || !src[0] || !pattern[0]) {
+		ErrPrint("Invalid argument: %s %s %s\n", src, pattern, replace);
+		return NULL;
+	}
+
+	rlen = strlen(replace);
+	len = strlen(src);
+	result = malloc(len);
+	if (!result) {
+		ErrPrint("Heap:%s\n", strerror(errno));
+		return NULL;
+	}
+
+	r_idx = 0;
+	idx = 0;
+	matched = 0;
+	for (s_idx = 0; src[s_idx]; s_idx++) {
+		if (idx == len) {
+			char *tmp;
+
+			len += (rlen > len ? rlen : len);
+			tmp = realloc(result, len);
+			if (!tmp) {
+				ErrPrint("Heap: %s\n", strerror(errno));
+				free(result);
+				return NULL;
+			}
+			result = tmp;
+		}
+
+		if (src[s_idx] == pattern[0]) {
+			n_idx = -1;
+			t_idx = s_idx;
+			r_idx = idx;
+
+			if (r_idx == len) {
+				char *tmp;
+				len += (rlen > len ? rlen : len);
+				tmp = realloc(result, len);
+				if (!tmp) {
+					ErrPrint("Heap: %s\n", strerror(errno));
+					free(result);
+					return NULL;
+				}
+				result = tmp;
+			}
+			result[r_idx++] = src[t_idx++];
+			p_idx = 1;
+			while (pattern[p_idx]) {
+				if (src[t_idx] == pattern[p_idx]) {
+					if (n_idx < 0) {
+						if (src[t_idx] == pattern[0]) {
+							n_idx = t_idx;
+						} else {
+							if (r_idx == len) {
+								char *tmp;
+								len += (rlen > len ? rlen : len);
+								tmp = realloc(result, len);
+								if (!tmp) {
+									ErrPrint("Heap: %s\n", strerror(errno));
+									free(result);
+									return NULL;
+								}
+								result = tmp;
+							}
+							result[r_idx++] = src[t_idx];
+						}
+					}
+
+					p_idx++;
+					t_idx++;
+					continue;
+				}
+
+				if (n_idx < 0)
+					s_idx = t_idx;
+				else
+					s_idx = n_idx;
+
+				break;
+			}
+
+			if (pattern[p_idx] == '\0') {
+				if (idx + rlen >= len) {
+					char *tmp;
+					len += (rlen > len ? rlen : len);
+					tmp = realloc(result, len);
+					if (!tmp) {
+						ErrPrint("Heap: %s\n", strerror(errno));
+						free(result);
+						return NULL;
+					}
+					result = tmp;
+					matched++;
+				}
+				strcpy(result + idx, replace);
+				idx += strlen(replace);
+				s_idx = t_idx - 1;
+			} else {
+				idx = r_idx;
+				s_idx = (n_idx < 0 ? t_idx : n_idx) - 1;
+			}
+		} else {
+			result[idx++] = src[s_idx];
+		}
+	}
+
+	result[idx] = '\0';
+
+	if (!matched) {
+		free(result);
+		result = NULL;
+	}
+
+	return result;
+}
+
 /* End of a file */
