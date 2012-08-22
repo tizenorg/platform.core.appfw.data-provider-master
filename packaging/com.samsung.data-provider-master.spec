@@ -5,6 +5,7 @@ Release: 1
 Group: main/app
 License: Samsung Proprietary License
 Source0: %{name}-%{version}.tar.gz
+Source1: data-provider.service
 BuildRequires: cmake, gettext-tools
 BuildRequires: pkgconfig(ail)
 BuildRequires: pkgconfig(dlog)
@@ -46,6 +47,13 @@ CFLAGS="${CFLAGS} -Wall -Winline -Werror" LDFLAGS="${LDFLAGS}" make %{?jobs:-j%j
 rm -rf %{buildroot}
 %make_install
 
+mkdir -p %{buildroot}/etc/rc.d/rc3.d
+ln -sf /etc/rc.d/init.d/data-provider-master %{buildroot}/etc/rc.d/rc3.d/S99data-provider-master
+
+mkdir -p %{buildroot}/usr/lib/systemd/user/tizen-middleware.target.wants
+install -m644 %{SOURCE1} %{buildroot}/usr/lib/systemd/user/data-provider.service
+ln -s ../data-provider.service %{buildroot}/usr/lib/systemd/user/tizen-middleware.target.wants/data-provider.service
+
 %post
 mkdir -p /opt/share/live_magazine
 chown 5000:5000 /opt/share/live_magazine
@@ -64,7 +72,6 @@ chown 5000:5000 /opt/share/live_magazine/reader
 touch /opt/dbspace/.livebox.db
 chsmack -a "data-provider-master::db" /opt/dbspace/.livebox.db
 
-ln -sf /etc/rc.d/init.d/data-provider-master /etc/rc.d/rc3.d/S99data-provider-master
 chsmack -a "_" /etc/rc.d/rc3.d/S99data-provider-master
 chsmack -e "_" /etc/rc.d/rc3.d/S99data-provider-master
 
@@ -102,7 +109,10 @@ done
 %manifest com.samsung.data-provider-master.manifest
 %defattr(-,root,root,-)
 /etc/rc.d/init.d/data-provider-master
+/etc/rc.d/rc3.d/S99data-provider-master
 /usr/bin/data-provider-master
 /usr/bin/liveinfo
 /usr/etc/package-manager/parserlib/*
 /usr/share/data-provider-master/*
+/usr/lib/systemd/user/data-provider.service
+/usr/lib/systemd/user/tizen-middleware.target.wants/data-provider.service
