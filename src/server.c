@@ -1676,19 +1676,25 @@ static inline int slave_send_pd_destroy(struct inst_info *inst)
 	return slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
 }
 
+/* Client Deactivated Callback */
 static int pd_buffer_close_cb(struct client_node *client, void *inst)
 {
 	int ret;
+
+	DbgPrint("Forcely close the PD\n");
 	ret = slave_send_pd_destroy(inst);
-	DbgPrint("Forcely close the PD %d\n", ret);
+	DbgPrint("Returns: %d\n", ret);
 	return -1; /* Delete this callback */
 }
 
+/* Client Deactivated Callback */
 static int pd_script_close_cb(struct client_node *client, void *inst)
 {
 	int ret;
+
+	DbgPrint("Forcely close the PD\n");
 	ret = script_handler_unload(instance_pd_script(inst), 1);
-	DbgPrint("Forcely close the PD (%d)\n", ret);
+	DbgPrint("Returns: %d\n", ret);
 	return -1; /* Delete this callback */
 }
 

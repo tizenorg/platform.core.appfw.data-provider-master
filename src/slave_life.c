@@ -379,7 +379,9 @@ static inline void invoke_deactivate_cb(struct slave_node *slave)
 
 	if (reactivate) {
 		DbgPrint("Need to reactivate a slave\n");
-		slave_activate(slave);
+		ret = slave_activate(slave);
+		if (ret < 0 && ret != -EALREADY)
+			ErrPrint("Failed to reactivate a slave\n");
 	}
 }
 

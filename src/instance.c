@@ -399,6 +399,12 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 	struct pkg_info *info;
 	int ret;
 
+	/*!
+	 * \note
+	 * In this callback, we cannot trust the "client" information.
+	 * It could be cleared before reach to here.
+	 */
+
 	if (!packet) {
 		DbgPrint("Consuming a request of a dead process\n");
 		/*!
@@ -847,6 +853,7 @@ int instance_state_reset(struct inst_info *inst)
 int instance_reactivate(struct inst_info *inst)
 {
 	struct packet *packet;
+	int ret;
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
@@ -889,17 +896,29 @@ int instance_reactivate(struct inst_info *inst)
 		return -EFAULT;
 	}
 
+	ret = slave_activate(package_slave(inst->info));
+	if (ret < 0 && ret != -EALREADY) {
+		/*!
+		 * \note
+		 * If the master failed to launch the slave,
+		 * Do not send any requests to the slave.
+		 */
+		ErrPrint("Failed to launch the slave\n");
+		packet_destroy(packet);
+		return ret;
+	}
+
 	inst->requested_state = INST_ACTIVATED;
 	inst->state = INST_REQUEST_TO_REACTIVATE;
 	inst->changing_state = 1;
 
-	slave_activate(package_slave(inst->info));
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, reactivate_cb, instance_ref(inst));
 }
 
 int instance_activate(struct inst_info *inst)
 {
 	struct packet *packet;
+	int ret;
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
@@ -942,6 +961,18 @@ int instance_activate(struct inst_info *inst)
 		return -EFAULT;
 	}
 
+	ret = slave_activate(package_slave(inst->info));
+	if (ret < 0 && ret != -EALREADY) {
+		/*!
+		 * \note
+		 * If the master failed to launch the slave,
+		 * Do not send any requests to the slave.
+		 */
+		ErrPrint("Failed to launch the slave\n");
+		packet_destroy(packet);
+		return ret;
+	}
+
 	inst->state = INST_REQUEST_TO_ACTIVATE;
 	inst->requested_state = INST_ACTIVATED;
 	inst->changing_state = 1;
@@ -950,7 +981,6 @@ int instance_activate(struct inst_info *inst)
 	 * \note
 	 * Try to activate a slave if it is not activated
 	 */
-	slave_activate(package_slave(inst->info));
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, activate_cb, instance_ref(inst));
 }
 
@@ -1481,7 +1511,7 @@ struct script_info *const instance_lb_script(const struct inst_info *inst)
 	return (package_lb_type(inst->info) == LB_TYPE_SCRIPT) ? inst->lb.canvas.script : NULL;
 }
 
-struct script_info * const instance_pd_script(const struct inst_info *inst)
+struct script_info *const instance_pd_script(const struct inst_info *inst)
 {
 	return (package_pd_type(inst->info) == PD_TYPE_SCRIPT) ? inst->pd.canvas.script : NULL;
 }

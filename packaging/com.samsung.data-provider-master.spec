@@ -1,6 +1,6 @@
 Name: com.samsung.data-provider-master
 Summary: Master data provider
-Version: 0.7.2
+Version: 0.7.3
 Release: 1
 Group: main/app
 License: Samsung Proprietary License
@@ -74,7 +74,7 @@ PID_LIST=`ps ax | grep 'data-provider-slave' | grep -v 'grep' | grep -v 'rpm' | 
 for PID in $PID_LIST
 do
 	echo "Terminate old data provider slave $PID"
-	kill -9 $PID
+	aul_test term_pid $PID
 done
 
 #

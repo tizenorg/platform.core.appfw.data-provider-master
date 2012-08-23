@@ -102,8 +102,6 @@ struct script_info {
 	void *port_data;
 };
 
-static void render_post_cb(void *data, Evas *e, void *event_info);
-
 static inline struct script_port *find_port(const char *magic_id)
 {
 	Eina_List *l;
@@ -1018,26 +1016,6 @@ int script_handler_parse_desc(const char *pkgname, const char *id, const char *d
 	}
 
 	fclose(fp);
-
-	/*
-	if (inst) {
-		struct script_info *info;
-		Evas *e;
-		if (is_pd)
-			info = instance_pd_script(inst);
-		else
-			info = instance_lb_script(inst);
-
-		if (info) {
-			e = script_handler_evas(info);
-			if (e)
-				evas_damage_rectangle_add(e, 0, 0, info->w, info->h);
-			else
-				ErrPrint("Evas(nil) %dx%d\n", info->w, info->h);
-		}
-	}
-	*/
-
 	return 0;
 
 errout:

@@ -11,6 +11,7 @@
 #include "client_rpc.h"
 #include "debug.h"
 #include "util.h"
+#include "slave_life.h"
 
 int errno;
 
@@ -134,6 +135,13 @@ static inline void destroy_client_data(struct client_node *client)
 
 	s_info.client_list = eina_list_remove(s_info.client_list, client);
 	free(client);
+
+	/*!
+	 * \note
+	 * If there is any changes of clients,
+	 * We should check the pause/resume states again.
+	 */
+	slave_handle_state_change();
 }
 
 static inline struct client_node *create_client_data(pid_t pid)
