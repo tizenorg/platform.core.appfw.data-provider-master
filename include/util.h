@@ -7,7 +7,10 @@ extern char *util_slavename(void);
 extern const char *util_basename(const char *name);
 extern unsigned long util_free_space(const char *path);
 extern char *util_replace_string(const char *src, const char *pattern, const char *replace);
+extern const char *util_uri_to_path(const char *uri);
 
-#define URI_TO_PATH(uri)	((uri) + 7)
+#define SCHEMA_FILE	"file://"
+#define SCHEMA_PIXMAP	"pixmap://"
+#define SCHEMA_SHM	"shm://"
 
 /* End of a file */

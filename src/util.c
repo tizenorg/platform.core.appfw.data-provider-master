@@ -309,4 +309,15 @@ char *util_replace_string(const char *src, const char *pattern, const char *repl
 	return result;
 }
 
+const char *util_uri_to_path(const char *uri)
+{
+	int len;
+
+	len = strlen(SCHEMA_FILE);
+	if (strncasecmp(uri, SCHEMA_FILE, len))
+		return NULL;
+
+	return uri + len;
+}
+
 /* End of a file */

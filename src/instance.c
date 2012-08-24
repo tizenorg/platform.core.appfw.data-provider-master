@@ -19,9 +19,9 @@
 #include "instance.h"
 #include "client_rpc.h"
 #include "package.h"
-#include "fb.h"
 #include "script_handler.h"
 #include "buffer_handler.h"
+#include "fb.h"
 
 int errno;
 
@@ -308,7 +308,7 @@ struct inst_info *instance_create(struct client_node *client, double timestamp, 
 
 	inst->timestamp = timestamp;
 
-	snprintf(id, sizeof(id), "file://%s%s_%d_%lf.png", g_conf.path.image, pkgname, client_pid(client), inst->timestamp);
+	snprintf(id, sizeof(id), SCHEMA_FILE "%s%s_%d_%lf.png", g_conf.path.image, pkgname, client_pid(client), inst->timestamp);
 	inst->id = strdup(id);
 	if (!inst->id) {
 		ErrPrint("Heap: %s\n", strerror(errno));
@@ -706,8 +706,7 @@ int instance_create_pd_buffer(struct inst_info *inst)
 	}
 
 	if (!inst->pd.canvas.buffer) {
-		inst->pd.canvas.buffer = buffer_handler_create(inst,
-						getenv("USE_SHM_FOR_LIVE_CONTENT") ? BUFFER_TYPE_SHM : BUFFER_TYPE_FILE,
+		inst->pd.canvas.buffer = buffer_handler_create(getenv("USE_SHM_FOR_LIVE_CONTENT") ? BUFFER_TYPE_SHM : BUFFER_TYPE_FILE,
 						inst->pd.width, inst->pd.height, sizeof(int));
 		if (!inst->pd.canvas.buffer)
 			ErrPrint("Failed to create PD Buffer\n");
@@ -729,8 +728,7 @@ int instance_create_lb_buffer(struct inst_info *inst)
 		 * Slave doesn't call the acquire_buffer.
 		 * In this case, create the buffer from here.
 		 */
-		inst->lb.canvas.buffer = buffer_handler_create(inst,
-						getenv("USE_SHM_FOR_LIVE_CONTENT") ? BUFFER_TYPE_SHM : BUFFER_TYPE_FILE,
+		inst->lb.canvas.buffer = buffer_handler_create(getenv("USE_SHM_FOR_LIVE_CONTENT") ? BUFFER_TYPE_SHM : BUFFER_TYPE_FILE,
 						inst->lb.width, inst->lb.height, sizeof(int));
 		if (!inst->lb.canvas.buffer)
 			ErrPrint("Failed to create LB\n");

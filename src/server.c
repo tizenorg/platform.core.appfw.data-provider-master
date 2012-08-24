@@ -39,12 +39,6 @@ enum target_type {
 	TYPE_ERROR,
 };
 
-enum buffer_method {
-	BUFFER_SHM,
-	BUFFER_FILE,
-	BUFFER_ERROR,
-};
-
 static struct packet *client_acquire(pid_t pid, int handle, const struct packet *packet) /*!< timestamp, ret */
 {
 	struct client_node *client;
@@ -2221,7 +2215,7 @@ static inline char *get_file_kept_in_safe(const char *id)
 	int len;
 	int base_idx;
 
-	path = URI_TO_PATH(id);
+	path = util_uri_to_path(id);
 	if (!path) {
 		ErrPrint("Invalid URI(%s)\n", id);
 		return NULL;
@@ -2300,7 +2294,7 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 				ret = script_handler_parse_desc(pkgname, id, filename, 0);
 				free(filename);
 			} else {
-				ret = script_handler_parse_desc(pkgname, id, URI_TO_PATH(id), 0);
+				ret = script_handler_parse_desc(pkgname, id, util_uri_to_path(id), 0);
 			}
 		} else if (package_lb_type(instance_package(inst)) == LB_TYPE_BUFFER) {
 			instance_lb_updated(pkgname, id);

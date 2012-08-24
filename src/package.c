@@ -19,7 +19,6 @@
 #include "package.h"
 #include "fault_manager.h"
 #include "instance.h"
-#include "fb.h"
 #include "script_handler.h"
 #include "group.h"
 #include "abi.h"

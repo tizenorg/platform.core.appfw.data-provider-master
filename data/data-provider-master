@@ -4,7 +4,7 @@ launch_provider()
 {
 	RETRY_COUNT=0
 	while [ ! -f "/tmp/.stop.provider" ]; do
-		/usr/bin/data-provider-master 
+		/usr/bin/data-provider-master
 		let RETRY_COUNT=$RETRY_COUNT+1
 		if [ $RETRY_COUNT -gt 5 ]; then
 			echo "EXCEED THE MAXIMUM RETRY COUNT: $RETRY_COUNT (max 5)"

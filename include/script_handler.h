@@ -1,4 +1,5 @@
 struct script_info;
+struct fb_info;
 
 extern struct script_info *script_handler_create(struct inst_info *inst, const char *file, const char *group, int w, int h);
 extern int script_handler_destroy(struct script_info *info);

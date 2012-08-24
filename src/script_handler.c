@@ -19,6 +19,7 @@
 #include "client_life.h"
 #include "package.h"
 #include "instance.h"
+#include "buffer_handler.h"
 #include "script_handler.h"
 #include "fb.h"
 #include "debug.h"
@@ -243,7 +244,7 @@ int script_handler_load(struct script_info *info, int is_pd)
 	fb_sync(info->fb);
 
 	if (e)
-		script_signal_emit(e, URI_TO_PATH(instance_id(info->inst)), is_pd ? "pd,show" : "lb,show", 0.0f, 0.0f, 0.0f, 0.0f);
+		script_signal_emit(e, util_uri_to_path(instance_id(info->inst)), is_pd ? "pd,show" : "lb,show", 0.0f, 0.0f, 0.0f, 0.0f);
 	return 0;
 }
 
@@ -266,7 +267,7 @@ int script_handler_unload(struct script_info *info, int is_pd)
 
 	e = script_handler_evas(info);
 	if (e) {
-		script_signal_emit(e, URI_TO_PATH(instance_id(info->inst)), is_pd ? "pd,hide" : "lb,hide", 0.0f, 0.0f, 0.0f, 0.0f);
+		script_signal_emit(e, util_uri_to_path(instance_id(info->inst)), is_pd ? "pd,hide" : "lb,hide", 0.0f, 0.0f, 0.0f, 0.0f);
 		if (info->port->unload(info->port_data, e) < 0)
 			ErrPrint("Failed to unload script object. but go ahead\n");
 		evas_event_callback_del(e, EVAS_CALLBACK_RENDER_FLUSH_POST, render_post_cb);
@@ -295,7 +296,7 @@ struct script_info *script_handler_create(struct inst_info *inst, const char *fi
 		return NULL;
 	}
 
-	info->fb = fb_create(w, h, getenv("USE_SHM_FOR_LIVE_CONTENT") ? FB_TYPE_SHM : FB_TYPE_FILE);
+	info->fb = fb_create(w, h, getenv("USE_SHM_FOR_LIVE_CONTENT") ? BUFFER_TYPE_SHM : BUFFER_TYPE_FILE);
 	if (!info->fb) {
 		ErrPrint("Failed to create a FB (%dx%d)\n", w, h);
 		free(info);
@@ -974,7 +975,7 @@ int script_handler_parse_desc(const char *pkgname, const char *id, const char *d
 			break;
 		case BLOCK_CLOSE:
 			if (!block->file) {
-				block->file = strdup(URI_TO_PATH(id));
+				block->file = strdup(util_uri_to_path(id));
 				if (!block->file) {
 					ErrPrint("Heap: %s\n", strerror(errno));
 					goto errout;

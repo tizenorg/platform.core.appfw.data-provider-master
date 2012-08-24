@@ -16,8 +16,8 @@
 #include "debug.h"
 #include "conf.h"
 #include "util.h"
-#include "client_life.h"
 #include "instance.h"
+#include "client_life.h"
 #include "client_rpc.h"
 #include "buffer_handler.h"
 
@@ -42,11 +42,9 @@ struct buffer_info
 	int h;
 	int pixel_size;
 	int is_loaded;
-
-	struct inst_info *inst;
 };
 
-struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buffer_type type, int w, int h, int pixel_size)
+struct buffer_info *buffer_handler_create(enum buffer_type type, int w, int h, int pixel_size)
 {
 	struct buffer_info *info;
 
@@ -57,21 +55,21 @@ struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buffer_ty
 	}
 
 	if (type == BUFFER_TYPE_SHM) {
-		info->id = strdup("shm://-1");
+		info->id = strdup(SCHEMA_SHM "-1");
 		if (!info->id) {
 			ErrPrint("Heap: %s\n", strerror(errno));
 			free(info);
 			return NULL;
 		}
 	} else if (type == BUFFER_TYPE_FILE) {
-		info->id = strdup("file:///tmp/.live.undefined");
+		info->id = strdup(SCHEMA_FILE "/tmp/.live.undefined");
 		if (!info->id) {
 			ErrPrint("Heap: %s\n", strerror(errno));
 			free(info);
 			return NULL;
 		}
 	} else if (type == BUFFER_TYPE_PIXMAP) {
-		info->id = strdup("pixmap://-1");
+		info->id = strdup(SCHEMA_PIXMAP "-1");
 		if (!info->id) {
 			ErrPrint("Heap: %s\n", strerror(errno));
 			free(info);
@@ -87,7 +85,6 @@ struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buffer_ty
 	info->h = h;
 	info->pixel_size = pixel_size;
 	info->type = type;
-	info->inst = inst;
 	info->is_loaded = 0;
 
 	return info;
@@ -109,6 +106,19 @@ int buffer_handler_load(struct buffer_info *info)
 
 	if (info->type == BUFFER_TYPE_FILE) {
 		double timestamp;
+		int size;
+		struct buffer *buffer;
+
+		size = sizeof(*buffer) + info->w * info->h * info->pixel_size;
+		info->buffer = calloc(1, size);
+		if (!info) {
+			ErrPrint("Failed to allocate buffer\n");
+			return -ENOMEM;
+		}
+
+		info->buffer->type = BUFFER_TYPE_FILE;
+		info->buffer->refcnt = 0;
+		info->buffer->state = CREATED;
 
 		len = strlen(g_conf.path.image) + 40;
 		timestamp = util_timestamp();
@@ -121,13 +131,7 @@ int buffer_handler_load(struct buffer_info *info)
 			return -ENOMEM;
 		}
 
-		snprintf(info->id, len, "file://%s%lf", g_conf.path.image, timestamp);
-
-		/*!
-		 * \note
-		 * In case of the buffer, master doesn't need to care the content of it.
-		 */
-
+		snprintf(info->id, len, SCHEMA_FILE "%s%lf", g_conf.path.image, timestamp);
 	} else if (info->type == BUFFER_TYPE_SHM) {
 		int id;
 		int size;
@@ -161,7 +165,7 @@ int buffer_handler_load(struct buffer_info *info)
 
 		free(info->id);
 
-		len = 6 + 30; /* strlen("shm://") + 30 */
+		len = strlen(SCHEMA_SHM) + 30; /* strlen("shm://") + 30 */
 		info->id = malloc(len);
 		if (!info->id) {
 			ErrPrint("Heap: %s\n", strerror(errno));
@@ -171,18 +175,20 @@ int buffer_handler_load(struct buffer_info *info)
 			return -ENOMEM;
 		}
 
-		snprintf(info->id, len, "shm://%d", id);
+		snprintf(info->id, len, SCHEMA_SHM "%d", id);
 	} else if (info->type == BUFFER_TYPE_PIXMAP) {
+		/*
+		 */
 		free(info->id);
 
-		len = 10 + 30; /* strlen("pixmap://") + 30 */
+		len = strlen(SCHEMA_PIXMAP) + 30; /* strlen("pixmap://") + 30 */
 		info->id = malloc(len);
 		if (!info->id) {
 			ErrPrint("Heap: %s\n", strerror(errno));
 			return -ENOMEM;
 		}
 
-		strncpy(info->id, "pixmap://-1", len);
+		strncpy(info->id, SCHEMA_PIXMAP "-1", len);
 	} else {
 		ErrPrint("Invalid buffer\n");
 		return -EINVAL;
@@ -205,36 +211,25 @@ int buffer_handler_unload(struct buffer_info *info)
 	}
 
 	if (info->type == BUFFER_TYPE_FILE) {
-		int len;
-		char *path;
+		const char *path;
 
-		len = strlen(info->id);
+		free(info->buffer);
+		info->buffer = NULL;
 
-		path = malloc(len);
-		if (!path) {
-			ErrPrint("Heap: %s\n", strerror(errno));
-			return -ENOMEM;
-		}
-
-		if (sscanf(info->id, "file://%s", path) != 1) {
-			free(path);
-			ErrPrint("Invalid argument\n");
-			return -EINVAL;
-		}
-
-		if (unlink(path) < 0)
+		path = util_uri_to_path(info->id);
+		if (path && unlink(path) < 0)
 			ErrPrint("unlink: %s\n", strerror(errno));
 
-		free(path);
 		free(info->id);
 
-		info->id = strdup("file:///tmp/.live.undefined");
+		info->id = strdup(SCHEMA_FILE "/tmp/.live.undefined");
 		if (!info->id)
 			ErrPrint("Heap: %s\n", strerror(errno));
+
 	} else if (info->type == BUFFER_TYPE_SHM) {
 		int id;
 
-		if (sscanf(info->id, "ssh://%d", &id) != 1) {
+		if (sscanf(info->id, SCHEMA_SHM "%d", &id) != 1) {
 			ErrPrint("Invalid ID\n");
 			return -EINVAL;
 		}
@@ -254,12 +249,12 @@ int buffer_handler_unload(struct buffer_info *info)
 
 		free(info->id);
 
-		info->id = strdup("shm://-1");
+		info->id = strdup(SCHEMA_SHM "-1");
 		if (!info->id)
 			ErrPrint("Heap: %s\n", strerror(errno));
 	} else if (info->type == BUFFER_TYPE_PIXMAP) {
 		free(info->id);
-		info->id = strdup("pixmap://-1");
+		info->id = strdup(SCHEMA_PIXMAP "-1");
 		if (!info->id)
 			ErrPrint("Heap: %s\n", strerror(errno));
 	} else {
@@ -337,7 +332,7 @@ int buffer_handler_resize(struct buffer_info *info, int w, int h)
 	if (info->type != BUFFER_TYPE_SHM)
 		return 0;
 
-	if (sscanf(info->id, "shm://%d", &id) != 1) {
+	if (sscanf(info->id, SCHEMA_SHM "%d", &id) != 1) {
 		ErrPrint("Invalid argument\n");
 		return -EINVAL;
 	}
@@ -360,7 +355,7 @@ int buffer_handler_resize(struct buffer_info *info, int w, int h)
 	size = info->w * info->h * info->pixel_size;
 	if (!size) {
 		ErrPrint("Invalid buffer size\n");
-		info->id = strdup("shm://-1");
+		info->id = strdup(SCHEMA_SHM "-1");
 		if (!info->id)
 			ErrPrint("Heap: %s\n", strerror(errno));
 		return -EINVAL;
@@ -369,7 +364,7 @@ int buffer_handler_resize(struct buffer_info *info, int w, int h)
 	id = shmget(IPC_PRIVATE, size + sizeof(*buffer), IPC_CREAT | 0666);
 	if (id < 0) {
 		ErrPrint("shmget: %s\n", strerror(errno));
-		info->id = strdup("shm://-1");
+		info->id = strdup(SCHEMA_SHM "-1");
 		if (!info->id)
 			ErrPrint("Heap: %s\n", strerror(errno));
 		return -EFAULT;
@@ -382,7 +377,7 @@ int buffer_handler_resize(struct buffer_info *info, int w, int h)
 		if (shmctl(id, IPC_RMID, 0) < 0)
 			ErrPrint("%s shmctl: %s\n", info->id, strerror(errno));
 
-		info->id = strdup("shm://-1");
+		info->id = strdup(SCHEMA_SHM "-1");
 		if (!info->id)
 			ErrPrint("Heap: %s\n", strerror(errno));
 		return -EFAULT;
@@ -395,7 +390,7 @@ int buffer_handler_resize(struct buffer_info *info, int w, int h)
 	info->buffer->state = CREATED;
 	info->buffer->type = BUFFER_TYPE_SHM;
 
-	len = 6 + 30; /* strlen("shm://") + 30 */
+	len = strlen(SCHEMA_SHM) + 30; /* strlen("shm://") + 30 */
 	info->id = malloc(len);
 	if (!info->id) {
 		ErrPrint("Heap: %s\n", strerror(errno));
@@ -405,8 +400,52 @@ int buffer_handler_resize(struct buffer_info *info, int w, int h)
 		return -ENOMEM;
 	}
 
-	snprintf(info->id, len, "shm://%d", id);
+	snprintf(info->id, len, SCHEMA_SHM "%d", id);
 	return 0;
+}
+
+int buffer_handler_get_size(struct buffer_info *info, int *w, int *h)
+{
+	if (!info)
+		return -EINVAL;
+
+	if (w)
+		*w = info->w;
+	if (h)
+		*h = info->h;
+
+	return 0;
+}
+
+void buffer_handler_flush(struct buffer_info *info)
+{
+	int fd;
+	int size;
+
+	if (!info || !info->buffer || info->type != BUFFER_TYPE_FILE)
+		return;
+
+	fd = open(util_uri_to_path(info->id), O_WRONLY | O_CREAT, 0644);
+	if (fd < 0) {
+		ErrPrint("%s open falied: %s\n", util_uri_to_path(info->id), strerror(errno));
+		return;
+	}
+
+	size = info->w * info->h * info->pixel_size;
+	DbgPrint("Flush size: %d\n", size);
+
+	if (write(fd, info->buffer, size) != size)
+		ErrPrint("Write is not completed: %s\n", strerror(errno));
+
+	close(fd);
+}
+
+void *buffer_handler_buffer(struct buffer_info *info)
+{
+	if (!info || !info->buffer)
+		return NULL;
+
+	return info->buffer->data;
 }
 
 int buffer_handler_init(void)
