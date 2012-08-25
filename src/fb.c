@@ -47,7 +47,7 @@ static void *alloc_fb(void *data, int size)
 		return NULL;
 	}
 
-	return buffer_handler_buffer(info->buffer);
+	return buffer_handler_fb(info->buffer);
 }
 
 static void free_fb(void *data, void *ptr)
@@ -59,7 +59,7 @@ static void free_fb(void *data, void *ptr)
 		return;
 	}
 
-	if (buffer_handler_buffer(info->buffer) != ptr)
+	if (buffer_handler_fb(info->buffer) != ptr)
 		ErrPrint("Buffer pointer is not matched\n");
 
 	(void)buffer_handler_unload(info->buffer);
@@ -93,6 +93,7 @@ int fb_create_buffer(struct fb_info *info)
 	int oh;
 
 	buffer_handler_get_size(info->buffer, &ow, &oh);
+	DbgPrint("Buffer handler size: %dx%d\n", ow, oh);
 
 	if (info->ee) {
 		int w = 0;
@@ -150,10 +151,10 @@ const char *fb_id(struct fb_info *fb)
 
 int fb_resize(struct fb_info *info, int w, int h)
 {
-	if (info->ee) /* This will do free/alloc operation */
+	buffer_handler_update_size(info->buffer, w, h);
+
+	if (info->ee)
 		ecore_evas_resize(info->ee, w, h);
-	else /* Just update the buffer information */
-		buffer_handler_resize(info->buffer, w, h);
 
 	return 0;
 }

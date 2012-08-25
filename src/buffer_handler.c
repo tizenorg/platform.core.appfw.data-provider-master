@@ -132,6 +132,7 @@ int buffer_handler_load(struct buffer_info *info)
 		}
 
 		snprintf(info->id, len, SCHEMA_FILE "%s%lf", g_conf.path.image, timestamp);
+		DbgPrint("FILE type %d created\n", size);
 	} else if (info->type == BUFFER_TYPE_SHM) {
 		int id;
 		int size;
@@ -304,6 +305,15 @@ int buffer_handler_is_loaded(const struct buffer_info *info)
 	return info ? info->is_loaded : 0;
 }
 
+void buffer_handler_update_size(struct buffer_info *info, int w, int h)
+{
+	if (!info)
+		return;
+
+	info->w = w;
+	info->h = h;
+}
+
 int buffer_handler_resize(struct buffer_info *info, int w, int h)
 {
 	int id;
@@ -321,8 +331,7 @@ int buffer_handler_resize(struct buffer_info *info, int w, int h)
 		return 0;
 	}
 
-	info->w = w;
-	info->h = h;
+	buffer_handler_update_size(info, w, h);
 
 	if (!info->is_loaded) {
 		DbgPrint("Not yet loaded, just update the size [%dx%d]\n", w, h);
@@ -438,14 +447,6 @@ void buffer_handler_flush(struct buffer_info *info)
 		ErrPrint("Write is not completed: %s\n", strerror(errno));
 
 	close(fd);
-}
-
-void *buffer_handler_buffer(struct buffer_info *info)
-{
-	if (!info || !info->buffer)
-		return NULL;
-
-	return info->buffer->data;
 }
 
 int buffer_handler_init(void)
