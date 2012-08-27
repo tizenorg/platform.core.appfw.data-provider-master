@@ -169,4 +169,14 @@ void fb_sync(struct fb_info *info)
 	buffer_handler_flush(info->buffer);
 }
 
+void *fb_pixmap_render_pre(struct fb_info *info)
+{
+	return buffer_handler_pixmap_acquire_buffer(info->buffer);
+}
+
+int fb_pixmap_render_post(struct fb_info *info)
+{
+	return buffer_handler_pixmap_release_buffer(info->buffer);
+}
+
 /* End of a file */

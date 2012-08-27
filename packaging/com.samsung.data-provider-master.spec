@@ -23,6 +23,13 @@ BuildRequires: pkgconfig(capi-context-engine)
 BuildRequires: pkgconfig(com-core)
 BuildRequires: pkgconfig(heynoti)
 BuildRequires: pkgconfig(libxml-2.0)
+BuildRequires: pkgconfig(x11)
+BuildRequires: pkgconfig(libdri2)
+BuildRequires: pkgconfig(libdrm)
+BuildRequires: pkgconfig(libdrm_slp)
+BuildRequires: pkgconfig(xfixes)
+BuildRequires: pkgconfig(dri2proto)
+BuildRequires: pkgconfig(xext)
 
 %description
 Manage the slave data provider and communicate with client applications.

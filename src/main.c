@@ -20,6 +20,7 @@
 #include "slave_rpc.h"
 #include "client_life.h"
 #include "instance.h"
+#include <buffer_handler.h>
 #include "script_handler.h"
 #include "package.h"
 #include "group.h"
@@ -59,6 +60,9 @@ static Eina_Bool lazy_init_cb(void *data)
 
 	ret = xmonitor_init();
 	DbgPrint("XMonitor init is done: %d\n", ret);
+
+	ret = buffer_handler_init();
+	DbgPrint("Buffer handler init is done: %d\n", ret);
 
 	return ECORE_CALLBACK_CANCEL;
 }

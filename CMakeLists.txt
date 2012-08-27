@@ -19,6 +19,13 @@ pkg_check_modules(pkg REQUIRED
 	capi-context-engine
 	com-core
 	heynoti
+	x11
+	libdri2
+	libdrm
+	libdrm_slp
+	xfixes
+	dri2proto
+	xext
 )
 
 SET(PACKAGE "${PROJECT_NAME}")

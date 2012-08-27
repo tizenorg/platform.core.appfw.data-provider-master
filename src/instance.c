@@ -655,7 +655,8 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 				}
 
 				inst->lb.canvas.script = script_handler_create(inst,
-								package_lb_path(inst->info), package_lb_group(inst->info),
+								package_lb_path(inst->info),
+								package_lb_group(inst->info),
 								inst->lb.width, inst->lb.height);
 
 				if (!inst->lb.canvas.script)
@@ -673,8 +674,10 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 				}
 
 				inst->pd.canvas.script = script_handler_create(inst,
-								package_pd_path(inst->info), package_pd_group(inst->info),
+								package_pd_path(inst->info),
+								package_pd_group(inst->info),
 								inst->pd.width, inst->pd.height);
+
 				if (!inst->pd.canvas.script)
 					ErrPrint("Failed to create PD\n");
 			} else if (package_pd_type(inst->info) == PD_TYPE_BUFFER) {
@@ -706,8 +709,19 @@ int instance_create_pd_buffer(struct inst_info *inst)
 	}
 
 	if (!inst->pd.canvas.buffer) {
-		inst->pd.canvas.buffer = buffer_handler_create(getenv("USE_SHM_FOR_LIVE_CONTENT") ? BUFFER_TYPE_SHM : BUFFER_TYPE_FILE,
-						inst->pd.width, inst->pd.height, sizeof(int));
+		enum buffer_type type;
+		const char *env_type;
+
+		type = BUFFER_TYPE_FILE;
+		env_type = getenv("USE_SHM_FOR_LIVE_CONTENT");
+		if (env_type) {
+			if (!strcasecmp(env_type, "shm"))
+				type = BUFFER_TYPE_SHM;
+			else if (!strcasecmp(env_type, "pixmap"))
+				type = BUFFER_TYPE_PIXMAP;
+		}
+
+		inst->pd.canvas.buffer = buffer_handler_create(type, inst->pd.width, inst->pd.height, sizeof(int));
 		if (!inst->pd.canvas.buffer)
 			ErrPrint("Failed to create PD Buffer\n");
 	}
@@ -723,13 +737,23 @@ int instance_create_lb_buffer(struct inst_info *inst)
 	}
 
 	if (!inst->lb.canvas.buffer) {
+		enum buffer_type type;
+		const char *env_type;
+
+		type = BUFFER_TYPE_FILE;
+		env_type = getenv("USE_SHM_FOR_LIVE_CONTENT");
+		if (env_type) {
+			if (!strcasecmp(env_type, "shm"))
+				type = BUFFER_TYPE_SHM;
+			else if (!strcasecmp(env_type, "pixmap"))
+				type = BUFFER_TYPE_PIXMAP;
+		}
 		/*!
 		 * \note
 		 * Slave doesn't call the acquire_buffer.
 		 * In this case, create the buffer from here.
 		 */
-		inst->lb.canvas.buffer = buffer_handler_create(getenv("USE_SHM_FOR_LIVE_CONTENT") ? BUFFER_TYPE_SHM : BUFFER_TYPE_FILE,
-						inst->lb.width, inst->lb.height, sizeof(int));
+		inst->lb.canvas.buffer = buffer_handler_create(type, inst->lb.width, inst->lb.height, sizeof(int));
 		if (!inst->lb.canvas.buffer)
 			ErrPrint("Failed to create LB\n");
 	}

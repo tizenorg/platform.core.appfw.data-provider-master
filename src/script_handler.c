@@ -116,6 +116,36 @@ static inline struct script_port *find_port(const char *magic_id)
 	return NULL;
 }
 
+static void render_pre_cb(void *data, Evas *e, void *event_info)
+{
+	struct inst_info *inst = data;
+	struct script_info *info;
+
+	if (instance_state(inst) != INST_ACTIVATED) {
+		DbgPrint("Render pre invoked but instance is not activated\n");
+		return;
+	}
+
+	DbgPrint("Render pre invoked (%s)[%s]\n",
+					package_name(instance_package(inst)),
+					util_basename(instance_id(inst)));
+
+	info = instance_lb_script(inst);
+	if (info && script_handler_evas(info) == e) {
+		fb_pixmap_render_pre(script_handler_fb(info));
+		return;
+	}
+
+	info = instance_pd_script(inst);
+	if (info && script_handler_evas(info) == e) {
+		fb_pixmap_render_pre(script_handler_fb(info));
+		return;
+	}
+
+	ErrPrint("Failed to do sync\n");
+	return;
+}
+
 static void render_post_cb(void *data, Evas *e, void *event_info)
 {
 	struct inst_info *inst;
@@ -128,14 +158,13 @@ static void render_post_cb(void *data, Evas *e, void *event_info)
 		return;
 	}
 
-/*!< Disabled
-	evas_image_cache_flush(e);
-	evas_font_cache_flush(e);
-	evas_render_dump(e);
-*/
-	DbgPrint("Render post invoked (%s)[%s]\n", package_name(instance_package(inst)), util_basename(instance_id(inst)));
+	DbgPrint("Render post invoked (%s)[%s]\n",
+					package_name(instance_package(inst)),
+					util_basename(instance_id(inst)));
+
 	info = instance_lb_script(inst);
 	if (info && script_handler_evas(info) == e) {
+		fb_pixmap_render_post(script_handler_fb(info));
 		fb_sync(script_handler_fb(info));
 		instance_lb_updated_by_instance(inst);
 		return;
@@ -143,6 +172,7 @@ static void render_post_cb(void *data, Evas *e, void *event_info)
 
 	info = instance_pd_script(inst);
 	if (info && script_handler_evas(info) == e) {
+		fb_pixmap_render_post(script_handler_fb(info));
 		fb_sync(script_handler_fb(info));
 		instance_pd_updated_by_instance(inst, NULL);
 		return;
@@ -227,10 +257,12 @@ int script_handler_load(struct script_info *info, int is_pd)
 
 	e = script_handler_evas(info);
 	if (e) {
+		evas_event_callback_add(e, EVAS_CALLBACK_RENDER_FLUSH_PRE, render_pre_cb, info->inst);
 		evas_event_callback_add(e, EVAS_CALLBACK_RENDER_FLUSH_POST, render_post_cb, info->inst);
 		if (info->port->load(info->port_data, e, info->w, info->h) < 0) {
 			ErrPrint("Failed to add new script object\n");
 			evas_event_callback_del(e, EVAS_CALLBACK_RENDER_FLUSH_POST, render_post_cb);
+			evas_event_callback_del(e, EVAS_CALLBACK_RENDER_FLUSH_PRE, render_pre_cb);
 			fb_destroy_buffer(info->fb);
 			return -EFAULT;
 		}
@@ -244,7 +276,8 @@ int script_handler_load(struct script_info *info, int is_pd)
 	fb_sync(info->fb);
 
 	if (e)
-		script_signal_emit(e, util_uri_to_path(instance_id(info->inst)), is_pd ? "pd,show" : "lb,show", 0.0f, 0.0f, 0.0f, 0.0f);
+		script_signal_emit(e, util_uri_to_path(instance_id(info->inst)),
+					is_pd ? "pd,show" : "lb,show", 0.0f, 0.0f, 0.0f, 0.0f);
 	return 0;
 }
 
@@ -271,6 +304,7 @@ int script_handler_unload(struct script_info *info, int is_pd)
 		if (info->port->unload(info->port_data, e) < 0)
 			ErrPrint("Failed to unload script object. but go ahead\n");
 		evas_event_callback_del(e, EVAS_CALLBACK_RENDER_FLUSH_POST, render_post_cb);
+		evas_event_callback_del(e, EVAS_CALLBACK_RENDER_FLUSH_PRE, render_pre_cb);
 	} else {
 		ErrPrint("Evas(nil): Unload script\n");
 	}
@@ -286,6 +320,8 @@ int script_handler_unload(struct script_info *info, int is_pd)
 struct script_info *script_handler_create(struct inst_info *inst, const char *file, const char *group, int w, int h)
 {
 	struct script_info *info;
+	enum buffer_type type;
+	const char *env_type;
 
 	if (!file)
 		return NULL;
@@ -296,7 +332,16 @@ struct script_info *script_handler_create(struct inst_info *inst, const char *fi
 		return NULL;
 	}
 
-	info->fb = fb_create(w, h, getenv("USE_SHM_FOR_LIVE_CONTENT") ? BUFFER_TYPE_SHM : BUFFER_TYPE_FILE);
+	type = BUFFER_TYPE_FILE;
+	env_type = getenv("USE_SHM_FOR_LIVE_CONTENT");
+	if (env_type) {
+		if (!strcasecmp(env_type, "shm"))
+			type = BUFFER_TYPE_SHM;
+		else if (!strcasecmp(env_type, "pixmap"))
+			type = BUFFER_TYPE_PIXMAP;
+	}
+
+	info->fb = fb_create(w, h, type);
 	if (!info->fb) {
 		ErrPrint("Failed to create a FB (%dx%d)\n", w, h);
 		free(info);

@@ -2467,8 +2467,13 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 
 			info = instance_lb_buffer(inst);
 			if (!info) {
-				instance_create_lb_buffer(inst);
-				info = instance_lb_buffer(inst);
+				if (!instance_create_lb_buffer(inst)) {
+					ErrPrint("Failed to create a LB buffer\n");
+				} else {
+					info = instance_lb_buffer(inst);
+					if (!info)
+						ErrPrint("LB buffer is not valid\n");
+				}
 			}
 
 			ret = buffer_handler_resize(info, w, h);
@@ -2482,8 +2487,13 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 
 			info = instance_pd_buffer(inst);
 			if (!info) {
-				instance_create_pd_buffer(inst);
-				info = instance_pd_buffer(inst);
+				if (!instance_create_pd_buffer(inst)) {
+					ErrPrint("Failed to create a PD buffer\n");
+				} else {
+					info = instance_pd_buffer(inst);
+					if (!info)
+						ErrPrint("PD buffer is not valid\n");
+				}
 			}
 
 			ret = buffer_handler_resize(info, w, h);

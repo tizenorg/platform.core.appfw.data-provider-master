@@ -12,4 +12,10 @@ extern int fb_create_buffer(struct fb_info *info);
 extern int fb_destroy_buffer(struct fb_info *info);
 extern int fb_resize(struct fb_info *info, int w, int h);
 
+/*!
+ * \note Only for the pixmap
+ */
+extern void *fb_pixmap_render_pre(struct fb_info *info);
+extern int fb_pixmap_render_post(struct fb_info *info);
+
 /* End of a file */

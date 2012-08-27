@@ -10,6 +10,17 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <Ecore.h>
+#include <Ecore_X.h>
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <X11/Xproto.h>
+
+#include <dri2.h>
+#include <xf86drm.h>
+#include <xf86drmMode.h>
+#include <drm_slp_bufmgr.h>
+
 #include <dlog.h>
 #include <packet.h>
 
@@ -31,9 +42,25 @@ struct buffer {
 	char data[];
 };
 
+/*!
+ * \brief Allocate this in the buffer->data.
+ */
+struct gem_data {
+	DRI2Buffer *dri2_buffer;
+	unsigned int attachments[1];
+	drm_slp_bo pixmap_bo;
+	int count;
+	int buf_count;
+	int w;
+	int h;
+	int depth;
+	Pixmap pixmap;
+	void *data; /* Gem layer */
+};
+
 struct buffer_info
 {
-	struct buffer *buffer;
+	void *buffer;
 	char *id;
 
 	enum buffer_type type;
@@ -42,6 +69,18 @@ struct buffer_info
 	int h;
 	int pixel_size;
 	int is_loaded;
+};
+
+static struct {
+	drm_slp_bufmgr slp_bufmgr;
+	int evt_base;
+	int err_base;
+	int fd;
+} s_info = {
+	.slp_bufmgr = NULL,
+	.evt_base = 0,
+	.err_base = 0,
+	.fd = -1,
 };
 
 struct buffer_info *buffer_handler_create(enum buffer_type type, int w, int h, int pixel_size)
@@ -69,7 +108,7 @@ struct buffer_info *buffer_handler_create(enum buffer_type type, int w, int h, i
 			return NULL;
 		}
 	} else if (type == BUFFER_TYPE_PIXMAP) {
-		info->id = strdup(SCHEMA_PIXMAP "-1");
+		info->id = strdup(SCHEMA_PIXMAP "0");
 		if (!info->id) {
 			ErrPrint("Heap: %s\n", strerror(errno));
 			free(info);
@@ -88,6 +127,130 @@ struct buffer_info *buffer_handler_create(enum buffer_type type, int w, int h, i
 	info->is_loaded = 0;
 
 	return info;
+}
+
+static inline struct buffer *create_gem(Display *disp, Window parent, int w, int h, int depth)
+{
+	struct gem_data *gem;
+	struct buffer *buffer;
+
+	if (!s_info.slp_bufmgr)
+		return NULL;
+
+	buffer = calloc(1, sizeof(*buffer) + sizeof(*gem));
+	if (!buffer) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return NULL;
+	}
+
+	gem = (struct gem_data *)buffer->data;
+
+	buffer->type = BUFFER_TYPE_PIXMAP;
+	buffer->refcnt = 0;
+	buffer->state = CREATED;
+
+	DbgPrint("Canvas %dx%d - %d is created\n", w, h, depth);
+
+	gem->attachments[0] = DRI2BufferFrontLeft;
+	gem->count = 1;
+	gem->w = w;
+	gem->h = h;
+	gem->depth = depth;
+	gem->pixmap = XCreatePixmap(disp, parent, w, h, (depth << 3));
+	if (gem->pixmap == (Pixmap)0) {
+		ErrPrint("Failed to create a pixmap\n");
+		free(buffer);
+		return NULL;
+	}
+
+	DbgPrint("Pixmap:0x%X is created\n", gem->pixmap);
+
+	DRI2CreateDrawable(disp, gem->pixmap);
+
+	DbgPrint("DRI2CreateDrawable is done\n");
+	gem->dri2_buffer = DRI2GetBuffers(disp, gem->pixmap,
+					&gem->w, &gem->h, gem->attachments, gem->count, &gem->buf_count);
+	DbgPrint("dri2_buffer: %p, name: %p, %dx%d (%dx%d)\n", gem->dri2_buffer, gem->dri2_buffer->name, gem->w, gem->h, w, h);
+	DbgPrint("dri2_buffer->pitch : %d, buf_count: %d\n", gem->dri2_buffer->pitch, gem->buf_count);
+	if (!gem->dri2_buffer || !gem->dri2_buffer->name) {
+		ErrPrint("Failed to get GemBuffer\n");
+		XFreePixmap(disp, gem->pixmap);
+		buffer->state = DESTROYED;
+		free(buffer);
+		return NULL;
+	}
+
+	/*!
+	 * \How can I destroy this?
+	 */
+	gem->pixmap_bo = drm_slp_bo_import(s_info.slp_bufmgr, gem->dri2_buffer->name);
+	if (!gem->pixmap_bo) {
+		DRI2DestroyDrawable(disp, gem->pixmap);
+		XFreePixmap(disp, gem->pixmap);
+		ErrPrint("Failed to import BO\n");
+		buffer->state = DESTROYED;
+		free(buffer);
+		return NULL;
+	}
+
+	return buffer;
+}
+
+static inline void *acquire_gem(struct buffer *buffer)
+{
+	struct gem_data *gem;
+
+	gem = (struct gem_data *)buffer->data;
+
+	gem->data = (void *)drm_slp_bo_map(gem->pixmap_bo, DRM_SLP_DEVICE_CPU, DRM_SLP_OPTION_READ|DRM_SLP_OPTION_WRITE);
+	if (gem->data)
+		buffer->refcnt++;
+
+	DbgPrint("gem->data %p is gotten\n", gem->data);
+	return gem->data;
+}
+
+static inline void release_gem(struct buffer *buffer)
+{
+	struct gem_data *gem;
+
+	gem = (struct gem_data *)buffer->data;
+
+	DbgPrint("Release gem : %d (%p)\n", buffer->refcnt, gem->data);
+	if (buffer->refcnt == 0)
+		return;
+
+	drm_slp_bo_unmap(gem->pixmap_bo, DRM_SLP_DEVICE_CPU);
+	gem->data = NULL;
+}
+
+static inline int destroy_gem(Display *disp, struct buffer *buffer)
+{
+	struct gem_data *gem;
+
+	if (!buffer)
+		return -EINVAL;
+
+	/*!
+	 * Forcely release the acquire_buffer.
+	 */
+	release_gem(buffer);
+
+	gem = (struct gem_data *)buffer->data;
+
+	DbgPrint("unref pixmap bo\n");
+	drm_slp_bo_unref(gem->pixmap_bo);
+	gem->pixmap_bo = NULL;
+
+	DbgPrint("DRI2DestroyDrawable\n");
+	DRI2DestroyDrawable(disp, gem->pixmap);
+	DbgPrint("After destroy drawable\n");
+	XFreePixmap(disp, gem->pixmap);
+	DbgPrint("Free pixmap\n");
+
+	buffer->state = DESTROYED;
+	free(buffer);
+	return 0;
 }
 
 int buffer_handler_load(struct buffer_info *info)
@@ -110,15 +273,15 @@ int buffer_handler_load(struct buffer_info *info)
 		struct buffer *buffer;
 
 		size = sizeof(*buffer) + info->w * info->h * info->pixel_size;
-		info->buffer = calloc(1, size);
-		if (!info) {
+		buffer = calloc(1, size);
+		if (!buffer) {
 			ErrPrint("Failed to allocate buffer\n");
 			return -ENOMEM;
 		}
 
-		info->buffer->type = BUFFER_TYPE_FILE;
-		info->buffer->refcnt = 0;
-		info->buffer->state = CREATED;
+		buffer->type = BUFFER_TYPE_FILE;
+		buffer->refcnt = 0;
+		buffer->state = CREATED;
 
 		len = strlen(g_conf.path.image) + 40;
 		timestamp = util_timestamp();
@@ -128,10 +291,13 @@ int buffer_handler_load(struct buffer_info *info)
 		info->id = malloc(len);
 		if (!info->id) {
 			ErrPrint("Heap: %s\n", strerror(errno));
+			buffer->state = DESTROYED;
+			free(buffer);
 			return -ENOMEM;
 		}
 
 		snprintf(info->id, len, SCHEMA_FILE "%s%lf", g_conf.path.image, timestamp);
+		info->buffer = buffer;
 		DbgPrint("FILE type %d created\n", size);
 	} else if (info->type == BUFFER_TYPE_SHM) {
 		int id;
@@ -150,8 +316,8 @@ int buffer_handler_load(struct buffer_info *info)
 			return -EFAULT;
 		}
 
-		info->buffer = shmat(id, NULL, 0);
-		if (info->buffer == (void *)-1) {
+		buffer = shmat(id, NULL, 0);
+		if (buffer == (void *)-1) {
 			ErrPrint("%s shmat: %s\n", info->id, strerror(errno));
 
 			if (shmctl(id, IPC_RMID, 0) < 0)
@@ -160,9 +326,9 @@ int buffer_handler_load(struct buffer_info *info)
 			return -EFAULT;
 		}
 
-		info->buffer->type = BUFFER_TYPE_SHM;
-		info->buffer->refcnt = id;
-		info->buffer->state = CREATED; /*!< Needless */
+		buffer->type = BUFFER_TYPE_SHM;
+		buffer->refcnt = id;
+		buffer->state = CREATED; /*!< Needless */
 
 		free(info->id);
 
@@ -170,26 +336,46 @@ int buffer_handler_load(struct buffer_info *info)
 		info->id = malloc(len);
 		if (!info->id) {
 			ErrPrint("Heap: %s\n", strerror(errno));
-			shmdt(info->buffer);
-			shmctl(id, IPC_RMID, 0);
-			info->buffer = NULL;
+			if (shmdt(buffer) < 0)
+				ErrPrint("shmdt: %s\n", strerror(errno));
+
+			if (shmctl(id, IPC_RMID, 0) < 0)
+				ErrPrint("shmctl: %s\n", strerror(errno));
+
 			return -ENOMEM;
 		}
 
 		snprintf(info->id, len, SCHEMA_SHM "%d", id);
+		info->buffer = buffer;
 	} else if (info->type == BUFFER_TYPE_PIXMAP) {
 		/*
 		 */
+		Display *disp;
+		Window root;
+		struct buffer *buffer;
+		struct gem_data *gem;
+
+		disp = ecore_x_display_get();
+		root = DefaultRootWindow(disp);
+
+		info->buffer = create_gem(disp, root, info->w, info->h, info->pixel_size);
+		if (!info->buffer)
+			DbgPrint("No GEM initialized\n");
+
 		free(info->id);
 
 		len = strlen(SCHEMA_PIXMAP) + 30; /* strlen("pixmap://") + 30 */
 		info->id = malloc(len);
 		if (!info->id) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			destroy_gem(disp, info->buffer);
+			info->buffer = NULL;
 			return -ENOMEM;
 		}
 
-		strncpy(info->id, SCHEMA_PIXMAP "-1", len);
+		buffer = info->buffer;
+		gem = (struct gem_data *)buffer->data;
+		snprintf(info->id, len, SCHEMA_PIXMAP "%d", (int)gem->pixmap);
+		DbgPrint("info->id: %s\n", info->id);
 	} else {
 		ErrPrint("Invalid buffer\n");
 		return -EINVAL;
@@ -231,12 +417,12 @@ int buffer_handler_unload(struct buffer_info *info)
 		int id;
 
 		if (sscanf(info->id, SCHEMA_SHM "%d", &id) != 1) {
-			ErrPrint("Invalid ID\n");
+			ErrPrint("%s Invalid ID\n", info->id);
 			return -EINVAL;
 		}
 
-		if (info->id < 0) {
-			ErrPrint("Invalid id\n");
+		if (id < 0) {
+			ErrPrint("(%s) Invalid id: %d\n", info->id, id);
 			return -EINVAL;
 		}
 
@@ -254,8 +440,24 @@ int buffer_handler_unload(struct buffer_info *info)
 		if (!info->id)
 			ErrPrint("Heap: %s\n", strerror(errno));
 	} else if (info->type == BUFFER_TYPE_PIXMAP) {
+		int id;
+
+		if (sscanf(info->id, SCHEMA_PIXMAP "%d", &id) != 1) {
+			ErrPrint("Invalid ID (%s)\n", info->id);
+			return -EINVAL;
+		}
+
+		if (id == 0) {
+			ErrPrint("(%s) Invalid id: %d\n", info->id, id);
+			return -EINVAL;
+		}
+
+		destroy_gem(ecore_x_display_get(), info->buffer);
+		info->buffer = NULL;
+
 		free(info->id);
-		info->id = strdup(SCHEMA_PIXMAP "-1");
+
+		info->id = strdup(SCHEMA_PIXMAP "0");
 		if (!info->id)
 			ErrPrint("Heap: %s\n", strerror(errno));
 	} else {
@@ -270,14 +472,13 @@ int buffer_handler_unload(struct buffer_info *info)
 int buffer_handler_destroy(struct buffer_info *info)
 {
 	if (info->type == BUFFER_TYPE_SHM) {
-		if (info->buffer) {
-			ErrPrint("BUFFER is still loaded\n");
-			buffer_handler_unload(info);
-		}
+		buffer_handler_unload(info);
 	} else if (info->type == BUFFER_TYPE_FILE) {
 		unlink(info->id);
 	} else if (info->type == BUFFER_TYPE_PIXMAP) {
-		ErrPrint("Pixmap is not supported yet\n");
+		buffer_handler_unload(info);
+	} else {
+		DbgPrint("Buffer info: unknown type\n");
 	}
 
 	free(info->id);
@@ -297,7 +498,80 @@ enum buffer_type buffer_handler_type(const struct buffer_info *info)
 
 void *buffer_handler_fb(const struct buffer_info *info)
 {
-	return info ? info->buffer->data : NULL;
+	struct buffer *buffer;
+
+	if (!info)
+		return NULL;
+
+	buffer = info->buffer;
+
+	if (!strncasecmp(info->id, SCHEMA_PIXMAP, strlen(SCHEMA_PIXMAP))) {
+		void *canvas;
+
+		canvas = buffer_handler_pixmap_acquire_buffer(info);
+		buffer_handler_pixmap_release_buffer(info);
+		DbgPrint("Canvas %p\n", canvas);
+		return canvas;
+	}
+
+	return buffer->data;
+}
+
+int buffer_handler_pixmap(const struct buffer_info *info)
+{
+	int id;
+
+	if (sscanf(info->id, SCHEMA_PIXMAP "%d", &id) != 1)
+		return 0;
+
+	return id;
+}
+
+void *buffer_handler_pixmap_acquire_buffer(const struct buffer_info *info)
+{
+	struct buffer *buffer;
+	struct gem_data *gem;
+
+	if (!info->is_loaded)
+		return NULL;
+
+	buffer = info->buffer;
+	if (!buffer || buffer->state != CREATED || buffer->type != BUFFER_TYPE_PIXMAP)
+		return NULL;
+
+	gem = (struct gem_data *)buffer->data;
+
+	if (buffer->refcnt > 0) {
+		DbgPrint("gem->data already exists: %p\n", gem->data);
+		buffer->refcnt++;
+		return gem->data;
+	}
+
+	return acquire_gem(buffer);
+}
+
+int buffer_handler_pixmap_release_buffer(const struct buffer_info *info)
+{
+	struct buffer *buffer;
+
+	if (!info->is_loaded)
+		return -EINVAL;
+
+	buffer = info->buffer;
+	if (!buffer || buffer->state != CREATED || buffer->type != BUFFER_TYPE_PIXMAP)
+		return -EINVAL;
+
+	buffer->refcnt--;
+	if (buffer->refcnt < 0) {
+		buffer->refcnt = 0;
+		return -EINVAL;
+	}
+
+	if (buffer->refcnt > 0)
+		return 0;
+
+	release_gem(buffer);
+	return 0;
 }
 
 int buffer_handler_is_loaded(const struct buffer_info *info)
@@ -316,10 +590,7 @@ void buffer_handler_update_size(struct buffer_info *info, int w, int h)
 
 int buffer_handler_resize(struct buffer_info *info, int w, int h)
 {
-	int id;
-	int size;
-	int len;
-	struct buffer *buffer;
+	int ret;
 
 	if (!info) {
 		ErrPrint("Invalid handler\n");
@@ -338,78 +609,14 @@ int buffer_handler_resize(struct buffer_info *info, int w, int h)
 		return 0;
 	}
 
-	if (info->type != BUFFER_TYPE_SHM)
-		return 0;
+	ret = buffer_handler_unload(info);
+	if (ret < 0)
+		ErrPrint("Unload: %d\n", ret);
 
-	if (sscanf(info->id, SCHEMA_SHM "%d", &id) != 1) {
-		ErrPrint("Invalid argument\n");
-		return -EINVAL;
-	}
+	ret = buffer_handler_load(info);
+	if (ret < 0)
+		ErrPrint("Load: %d\n", ret);
 
-	if (shmdt(info->buffer) < 0) {
-		ErrPrint("shmdt: [%s]\n", strerror(errno));
-		return -EINVAL;
-	}
-
-	if (shmctl(id, IPC_RMID, 0) < 0) {
-		ErrPrint("shmctl: [%s]\n", strerror(errno));
-		return -EINVAL;
-	}
-
-	info->buffer = NULL;
-
-	free(info->id);
-	info->id = NULL;
-
-	size = info->w * info->h * info->pixel_size;
-	if (!size) {
-		ErrPrint("Invalid buffer size\n");
-		info->id = strdup(SCHEMA_SHM "-1");
-		if (!info->id)
-			ErrPrint("Heap: %s\n", strerror(errno));
-		return -EINVAL;
-	}
-
-	id = shmget(IPC_PRIVATE, size + sizeof(*buffer), IPC_CREAT | 0666);
-	if (id < 0) {
-		ErrPrint("shmget: %s\n", strerror(errno));
-		info->id = strdup(SCHEMA_SHM "-1");
-		if (!info->id)
-			ErrPrint("Heap: %s\n", strerror(errno));
-		return -EFAULT;
-	}
-
-	info->buffer = shmat(id, NULL, 0);
-	if (info->buffer == (void *)-1) {
-		ErrPrint("%s shmat: %s\n", info->id, strerror(errno));
-
-		if (shmctl(id, IPC_RMID, 0) < 0)
-			ErrPrint("%s shmctl: %s\n", info->id, strerror(errno));
-
-		info->id = strdup(SCHEMA_SHM "-1");
-		if (!info->id)
-			ErrPrint("Heap: %s\n", strerror(errno));
-		return -EFAULT;
-	}
-
-	/*!
-	 * refcnt is used for keeping the IPC resource ID
-	 */
-	info->buffer->refcnt = id;
-	info->buffer->state = CREATED;
-	info->buffer->type = BUFFER_TYPE_SHM;
-
-	len = strlen(SCHEMA_SHM) + 30; /* strlen("shm://") + 30 */
-	info->id = malloc(len);
-	if (!info->id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		shmdt(info->buffer);
-		shmctl(id, IPC_RMID, 0);
-		info->buffer = NULL;
-		return -ENOMEM;
-	}
-
-	snprintf(info->id, len, SCHEMA_SHM "%d", id);
 	return 0;
 }
 
@@ -430,32 +637,99 @@ void buffer_handler_flush(struct buffer_info *info)
 {
 	int fd;
 	int size;
+	struct buffer *buffer;
 
-	if (!info || !info->buffer || info->type != BUFFER_TYPE_FILE)
+	if (!info || !info->buffer)
 		return;
 
-	fd = open(util_uri_to_path(info->id), O_WRONLY | O_CREAT, 0644);
-	if (fd < 0) {
-		ErrPrint("%s open falied: %s\n", util_uri_to_path(info->id), strerror(errno));
-		return;
+	buffer = info->buffer;
+
+	if (buffer->type == BUFFER_TYPE_PIXMAP) {
+		DbgPrint("PIXMAP: Nothing to be done\n");
+	} else if (buffer->type == BUFFER_TYPE_FILE) {
+		fd = open(util_uri_to_path(info->id), O_WRONLY | O_CREAT, 0644);
+		if (fd < 0) {
+			ErrPrint("%s open falied: %s\n", util_uri_to_path(info->id), strerror(errno));
+			return;
+		}
+
+		size = info->w * info->h * info->pixel_size;
+		DbgPrint("Flush size: %d\n", size);
+
+		if (write(fd, info->buffer, size) != size)
+			ErrPrint("Write is not completed: %s\n", strerror(errno));
+
+		close(fd);
+	} else {
+		DbgPrint("Flush nothing\n");
 	}
-
-	size = info->w * info->h * info->pixel_size;
-	DbgPrint("Flush size: %d\n", size);
-
-	if (write(fd, info->buffer, size) != size)
-		ErrPrint("Write is not completed: %s\n", strerror(errno));
-
-	close(fd);
 }
 
 int buffer_handler_init(void)
 {
+	int dri2Major, dri2Minor;
+	char *driverName, *deviceName;
+	drm_magic_t magic;
+
+	if (!DRI2QueryExtension(ecore_x_display_get(), &s_info.evt_base, &s_info.err_base)) {
+		DbgPrint("DRI2 is not supported\n");
+		return 0;
+	}
+
+	if (!DRI2QueryVersion(ecore_x_display_get(), &dri2Major, &dri2Minor)) {
+		DbgPrint("DRI2 is not supported\n");
+		s_info.evt_base = 0;
+		s_info.err_base = 0;
+		return 0;
+	}
+
+	if (!DRI2Connect(ecore_x_display_get(), DefaultRootWindow(ecore_x_display_get()), &driverName, &deviceName)) {
+		DbgPrint("DRI2 is not supported\n");
+		s_info.evt_base = 0;
+		s_info.err_base = 0;
+		return 0;
+	}
+
+	DbgPrint("Open: %s", deviceName);
+	s_info.fd = open(deviceName, O_RDWR);
+	if (s_info.fd < 0) {
+		DbgPrint("Failed to open a drm device: %s (%s)\n", deviceName, strerror(errno));
+		s_info.evt_base = 0;
+		s_info.err_base = 0;
+		return 0;
+	}
+
+	drmGetMagic(s_info.fd, &magic);
+	DbgPrint("DRM Magic: 0x%X\n", magic);
+	if (!DRI2Authenticate(ecore_x_display_get(), DefaultRootWindow(ecore_x_display_get()), (unsigned int)magic)) {
+		DbgPrint("Failed to do authenticate for DRI2\n");
+		close(s_info.fd);
+		s_info.fd = -1;
+		s_info.evt_base = 0;
+		s_info.err_base = 0;
+		return 0;
+	}
+
+	s_info.slp_bufmgr = drm_slp_bufmgr_init(s_info.fd, NULL);
+	if (!s_info.slp_bufmgr) {
+		DbgPrint("Failed to init bufmgr\n");
+		close(s_info.fd);
+		s_info.fd = -1;
+		s_info.evt_base = 0;
+		s_info.err_base = 0;
+		return 0;
+	}
+
 	return 0;
 }
 
 int buffer_handler_fini(void)
 {
+	if (s_info.fd >= 0) {
+		close(s_info.fd);
+		s_info.fd = -1;
+	}
+
 	return 0;
 }
 
