@@ -41,6 +41,11 @@ struct command {
 	/* Don't need to care these data */
 	void (*ret_cb)(struct slave_node *slave, const struct packet *packet, void *cbdata);
 	void *cbdata;
+
+	enum {
+		TYPE_ACK,
+		TYPE_NOACK,
+	} type;
 };
 
 static struct info {
@@ -149,7 +154,6 @@ static Eina_Bool command_consumer_cb(void *data)
 	command = pop_command();
 	if (!command) {
 		s_info.command_consuming_timer = NULL;
-		DbgPrint("Command consumer is deleted\n");
 		return ECORE_CALLBACK_CANCEL;
 	}
 
@@ -159,14 +163,7 @@ static Eina_Bool command_consumer_cb(void *data)
 		goto errout;
 	}
 
-	if (!command->pkgname) {
-		/*!
-		 * \note
-		 * pause or resume command has no package name
-		 */
-		DbgPrint("Package name is not specified: command(%s)\n",
-						packet_command(command->packet));
-	} else {
+	if (command->pkgname) {
 		struct pkg_info *info;
 
 		info = package_find(command->pkgname);
@@ -188,8 +185,15 @@ static Eina_Bool command_consumer_cb(void *data)
 		return ECORE_CALLBACK_RENEW;
 	}
 
-	if (com_core_packet_async_send(rpc->handle, command->packet, 0.0f, slave_async_cb, command) == 0)
-		return ECORE_CALLBACK_RENEW;
+	if (command->type == TYPE_NOACK) {
+		if (com_core_packet_send_only(rpc->handle, command->packet) == 0) {
+			destroy_command(command);
+			return ECORE_CALLBACK_RENEW;
+		}
+	} else {
+		if (com_core_packet_async_send(rpc->handle, command->packet, 0.0f, slave_async_cb, command) == 0)
+			return ECORE_CALLBACK_RENEW;
+	}
 
 	/*!
 	 * \WARN
@@ -337,6 +341,7 @@ int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, struc
 
 	command->ret_cb = ret_cb;
 	command->cbdata = data;
+	command->type = TYPE_ACK;
 
 	rpc = slave_data(slave, "rpc");
 	if (!rpc) {
@@ -351,6 +356,42 @@ int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, struc
 
 	if (rpc->handle < 0) {
 		DbgPrint("RPC info is not ready to use, push this to pending list\n");
+		rpc->pending_list = eina_list_append(rpc->pending_list, command);
+		packet_unref(packet);
+		return 0;
+	}
+
+	push_command(command);
+	packet_unref(packet);
+	return 0;
+}
+
+int slave_rpc_request_only(struct slave_node *slave, struct packet *packet)
+{
+	struct command *command;
+	struct slave_rpc *rpc;
+
+	command = create_command(slave, NULL, packet);
+	if (!command) {
+		ErrPrint("Failed to create a command\n");
+		packet_unref(packet);
+		return -ENOMEM;
+	}
+
+	command->ret_cb = NULL;
+	command->cbdata = NULL;
+	command->type = TYPE_NOACK;
+
+	rpc = slave_data(slave, "rpc");
+	if (!rpc) {
+		ErrPrint("Slave has no RPC yet\n");
+		destroy_command(command);
+		packet_unref(packet);
+		return -EFAULT;
+	}
+
+	if (rpc->handle < 0) {
+		DbgPrint("RPC info is not ready to use, delete this\n");
 		rpc->pending_list = eina_list_append(rpc->pending_list, command);
 		packet_unref(packet);
 		return 0;

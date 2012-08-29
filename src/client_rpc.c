@@ -71,23 +71,6 @@ static inline int count_command(void)
 	return eina_list_count(s_info.command_list);
 }
 
-static int recv_cb(pid_t pid, int handle, const struct packet *packet, void *data)
-{
-	struct command *command = data;
-
-	if (packet) {
-		int ret;
-
-		if (packet_get(packet, "i", &ret) != 1)
-			ErrPrint("Invalid packet received\n");
-		else
-			DbgPrint("returns %d\n", ret);
-	}
-
-	destroy_command(command);
-	return 0;
-}
-
 static inline struct command *pop_command(void)
 {
 	struct command *command;
@@ -104,6 +87,7 @@ static Eina_Bool command_consumer_cb(void *data)
 {
 	struct command *command;
 	struct client_rpc *rpc;
+	int ret;
 
 	command = pop_command();
 	if (!command) {
@@ -113,45 +97,36 @@ static Eina_Bool command_consumer_cb(void *data)
 
 	if (!command->client) {
 		DbgPrint("Has no client\n");
-		destroy_command(command);
-		return ECORE_CALLBACK_RENEW;
+		goto out;
 	}
 
 	if (!client_is_activated(command->client)) {
 		ErrPrint("Client[%p] is not activated, destroy this command\n", command->client);
-		destroy_command(command);
-		return ECORE_CALLBACK_RENEW;
+		goto out;
 	}
 
 	if (client_is_faulted(command->client)) {
 		ErrPrint("Client[%p] is faulted, discard command\n", command->client);
-		destroy_command(command);
-		return ECORE_CALLBACK_RENEW;
+		goto out;
 	}
 
 	rpc = client_data(command->client, "rpc");
 	if (!rpc) {
 		ErrPrint("Invalid command\n");
-		destroy_command(command);
-		return ECORE_CALLBACK_RENEW;
+		goto out;
 	}
 
 	if (rpc->handle < 0) {
-		destroy_command(command);
-		return ECORE_CALLBACK_RENEW;
+		DbgPrint("RPC is not initialized\n");
+		goto out;
 	}
 
-	DbgPrint("Send a packet to client [%s]\n", packet_command(command->packet));
-	if (com_core_packet_async_send(rpc->handle, command->packet, 0.0f, recv_cb, command) < 0) {
-		/*!
-		 * \todo
-		 * Do we need to handle this error?
-		 * Close current connection and make new one?
-		 * how about pended command lists?
-		 */
-		destroy_command(command);
-	}
+	ret = com_core_packet_send_only(rpc->handle, command->packet);
+	if (ret < 0)
+		ErrPrint("Failed to send packet %d\n", ret);
 
+out:
+	destroy_command(command);
 	return ECORE_CALLBACK_RENEW;
 }
 
@@ -214,7 +189,6 @@ int client_rpc_broadcast(struct inst_info *inst, struct packet *packet)
 				continue;
 			}
 
-			DbgPrint("Send packet to %d\n", client_pid(rpc->client));
 			(void)client_rpc_async_request(rpc->client, packet_ref(packet));
 		}
 	} else {
@@ -236,7 +210,6 @@ int client_rpc_broadcast(struct inst_info *inst, struct packet *packet)
 			if (!client_is_subscribed(rpc->client, instance_cluster(inst), instance_category(inst)))
 				continue;
 
-			DbgPrint("Send packet to %d\n", client_pid(rpc->client));
 			(void)client_rpc_async_request(rpc->client, packet_ref(packet));
 		}
 	}

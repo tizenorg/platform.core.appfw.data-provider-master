@@ -459,7 +459,6 @@ out:
 static struct packet *client_pd_mouse_enter(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
-	struct packet *result;
 	const char *pkgname;
 	const char *id;
 	int ret;
@@ -470,8 +469,6 @@ static struct packet *client_pd_mouse_enter(pid_t pid, int handle, const struct 
 	double y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
-
-	DbgPrint("Client[%d] request arrived\n", pid);
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -486,8 +483,6 @@ static struct packet *client_pd_mouse_enter(pid_t pid, int handle, const struct 
 		ret = -EINVAL;
 		goto out;
 	}
-
-	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, w, h, timestamp, x, y);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
@@ -509,6 +504,7 @@ static struct packet *client_pd_mouse_enter(pid_t pid, int handle, const struct 
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
+		DbgPrint("Package[%s] is faulted\n", pkgname);
 		ret = -EFAULT;
 	} else if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
 		struct buffer_info *buffer;
@@ -529,14 +525,14 @@ static struct packet *client_pd_mouse_enter(pid_t pid, int handle, const struct 
 			goto out;
 		}
 
-		packet = packet_create("pd_mouse_enter", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
+		packet = packet_create_noack("pd_mouse_enter", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
 		if (!packet) {
 			ErrPrint("Failed to create a packet[%s]\n", pkgname);
 			ret = -EFAULT;
 			goto out;
 		}
 
-		ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+		ret = slave_rpc_request_only(slave, packet);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -556,20 +552,18 @@ static struct packet *client_pd_mouse_enter(pid_t pid, int handle, const struct 
 		script_handler_update_pointer(script, x, y, -1);
 		evas_event_feed_mouse_in(e, timestamp, NULL);
 		ret = 0;
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = -EINVAL;
 	}
 
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-
-	return result;
+	return NULL;
 }
 
 static struct packet *client_pd_mouse_leave(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
-	struct packet *result;
 	const char *pkgname;
 	const char *id;
 	int ret;
@@ -580,8 +574,6 @@ static struct packet *client_pd_mouse_leave(pid_t pid, int handle, const struct 
 	double y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
-
-	DbgPrint("Client[%d] request arrived\n", pid);
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -596,8 +588,6 @@ static struct packet *client_pd_mouse_leave(pid_t pid, int handle, const struct 
 		ret = -EINVAL;
 		goto out;
 	}
-
-	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, w, h, timestamp, x, y);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
@@ -619,6 +609,7 @@ static struct packet *client_pd_mouse_leave(pid_t pid, int handle, const struct 
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
+		DbgPrint("Package[%s] is faulted\n", pkgname);
 		ret = -EFAULT;
 	} else if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
 		struct buffer_info *buffer;
@@ -639,14 +630,14 @@ static struct packet *client_pd_mouse_leave(pid_t pid, int handle, const struct 
 			goto out;
 		}
 
-		packet = packet_create("pd_mouse_leave", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
+		packet = packet_create_noack("pd_mouse_leave", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
 		if (!packet) {
 			ErrPrint("Failed to create a packet[%s]\n", pkgname);
 			ret = -EFAULT;
 			goto out;
 		}
 
-		ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+		ret = slave_rpc_request_only(slave, packet);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -666,20 +657,18 @@ static struct packet *client_pd_mouse_leave(pid_t pid, int handle, const struct 
 		script_handler_update_pointer(script, x, y, -1);
 		evas_event_feed_mouse_out(e, timestamp, NULL);
 		ret = 0;
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = -EINVAL;
 	}
 
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-
-	return result;
+	return NULL;
 }
 
 static struct packet *client_pd_mouse_down(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, id, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
-	struct packet *result;
 	const char *pkgname;
 	const char *id;
 	int ret;
@@ -690,8 +679,6 @@ static struct packet *client_pd_mouse_down(pid_t pid, int handle, const struct p
 	double y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
-
-	DbgPrint("Client[%d] request arrived\n", pid);
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -706,8 +693,6 @@ static struct packet *client_pd_mouse_down(pid_t pid, int handle, const struct p
 		ret = -EINVAL;
 		goto out;
 	}
-
-	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, w, h, timestamp, x, y);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
@@ -729,6 +714,7 @@ static struct packet *client_pd_mouse_down(pid_t pid, int handle, const struct p
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
+		DbgPrint("Package[%s] is faulted\n", pkgname);
 		ret = -EFAULT;
 	} else if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
 		struct buffer_info *buffer;
@@ -749,14 +735,14 @@ static struct packet *client_pd_mouse_down(pid_t pid, int handle, const struct p
 			goto out;
 		}
 
-		packet = packet_create("pd_mouse_down", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
+		packet = packet_create_noack("pd_mouse_down", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
 		if (!packet) {
 			ErrPrint("Failed to create a packet[%s]\n", pkgname);
 			ret = -EFAULT;
 			goto out;
 		}
 
-		ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+		ret = slave_rpc_request_only(slave, packet);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -777,20 +763,18 @@ static struct packet *client_pd_mouse_down(pid_t pid, int handle, const struct p
 		evas_event_feed_mouse_move(e, x * w, y * h, timestamp, NULL);
 		evas_event_feed_mouse_down(e, 1, EVAS_BUTTON_NONE, timestamp + 0.01f, NULL);
 		ret = 0;
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = -EINVAL;
 	}
 
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-
-	return result;
+	return NULL;
 }
 
 static struct packet *client_pd_mouse_up(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
-	struct packet *result;
 	const char *pkgname;
 	const char *id;
 	int ret;
@@ -801,8 +785,6 @@ static struct packet *client_pd_mouse_up(pid_t pid, int handle, const struct pac
 	double y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
-
-	DbgPrint("Client[%d] request arrived\n", pid);
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -817,8 +799,6 @@ static struct packet *client_pd_mouse_up(pid_t pid, int handle, const struct pac
 		ret = -EINVAL;
 		goto out;
 	}
-
-	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, w, h, timestamp, x, y);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
@@ -840,6 +820,7 @@ static struct packet *client_pd_mouse_up(pid_t pid, int handle, const struct pac
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
+		DbgPrint("Package[%s] is faulted\n", pkgname);
 		ret = -EFAULT;
 	} else if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
 		struct buffer_info *buffer;
@@ -860,14 +841,14 @@ static struct packet *client_pd_mouse_up(pid_t pid, int handle, const struct pac
 			goto out;
 		}
 
-		packet = packet_create("pd_mouse_up", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
+		packet = packet_create_noack("pd_mouse_up", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
 		if (!packet) {
 			ErrPrint("Failed to create a packet[%s]\n", pkgname);
 			ret = -EFAULT;
 			goto out;
 		}
 
-		ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+		ret = slave_rpc_request_only(slave, packet);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -888,20 +869,18 @@ static struct packet *client_pd_mouse_up(pid_t pid, int handle, const struct pac
 		evas_event_feed_mouse_move(e, x * w, y * h, timestamp, NULL);
 		evas_event_feed_mouse_up(e, 1, EVAS_BUTTON_NONE, timestamp + 0.1f, NULL);
 		ret = 0;
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = -EINVAL;
 	}
 
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-
-	return result;
+	return NULL;
 }
 
 static struct packet *client_pd_mouse_move(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
-	struct packet *result;
 	const char *pkgname;
 	const char *id;
 	int ret;
@@ -912,8 +891,6 @@ static struct packet *client_pd_mouse_move(pid_t pid, int handle, const struct p
 	double y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
-
-	DbgPrint("Client[%d] request arrived\n", pid);
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -929,18 +906,16 @@ static struct packet *client_pd_mouse_move(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
-	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, w, h, timestamp, x, y);
-
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
-		ErrPrint("Instance[%s] is not exists\n");
+		ErrPrint("Instance[%s] is not exists\n", pkgname);
 		ret = -ENOENT;
 		goto out;
 	}
 
 	pkg = instance_package(inst);
 	if (!pkg) {
-		ErrPrint("Package[%s] info is not exists\n");
+		ErrPrint("Package[%s] info is not exists\n", pkgname);
 		ret = -EFAULT;
 		goto out;
 	}
@@ -951,6 +926,7 @@ static struct packet *client_pd_mouse_move(pid_t pid, int handle, const struct p
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
+		DbgPrint("Package[%s] is faulted\n", pkgname);
 		ret = -EFAULT;
 	} else if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
 		struct buffer_info *buffer;
@@ -971,14 +947,14 @@ static struct packet *client_pd_mouse_move(pid_t pid, int handle, const struct p
 			goto out;
 		}
 
-		packet = packet_create("pd_mouse_move", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
+		packet = packet_create_noack("pd_mouse_move", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
 		if (!packet) {
 			ErrPrint("Failed to create a packet[%s]\n", pkgname);
 			ret = -EFAULT;
 			goto out;
 		}
 
-		ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+		ret = slave_rpc_request_only(slave, packet);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -998,20 +974,18 @@ static struct packet *client_pd_mouse_move(pid_t pid, int handle, const struct p
 		script_handler_update_pointer(script, x, y, -1);
 		evas_event_feed_mouse_move(e, x * w, y * h, timestamp, NULL);
 		ret = 0;
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = -EINVAL;
 	}
 
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-
-	return result;
+	return NULL;
 }
 
 static struct packet *client_lb_mouse_move(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
-	struct packet *result;
 	const char *pkgname;
 	const char *id;
 	int ret;
@@ -1022,8 +996,6 @@ static struct packet *client_lb_mouse_move(pid_t pid, int handle, const struct p
 	double y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
-
-	DbgPrint("Client[%d] request arrived\n", pid);
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -1039,11 +1011,9 @@ static struct packet *client_lb_mouse_move(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
-	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, w, h, timestamp, x, y);
-
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
-		ErrPrint("Instance[%s] is not exists\n");
+		ErrPrint("Instance[%s] is not exists\n", pkgname);
 		ret = -ENOENT;
 		goto out;
 	}
@@ -1061,6 +1031,7 @@ static struct packet *client_lb_mouse_move(pid_t pid, int handle, const struct p
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
+		DbgPrint("Package[%s] is faulted\n", pkgname);
 		ret = -EFAULT;
 	} else if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
 		struct buffer_info *buffer;
@@ -1081,14 +1052,14 @@ static struct packet *client_lb_mouse_move(pid_t pid, int handle, const struct p
 			goto out;
 		}
 
-		packet = packet_create("lb_mouse_move", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
+		packet = packet_create_noack("lb_mouse_move", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
 		if (!packet) {
 			ErrPrint("Failed to create a packet[%s]\n", pkgname);
 			ret = -EFAULT;
 			goto out;
 		}
 
-		ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+		ret = slave_rpc_request_only(slave, packet);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -1108,20 +1079,18 @@ static struct packet *client_lb_mouse_move(pid_t pid, int handle, const struct p
 		script_handler_update_pointer(script, x, y, -1);
 		evas_event_feed_mouse_move(e, x * w, y * h, timestamp, NULL);
 		ret = 0;
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = -EINVAL;
 	}
 
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-
-	return result;
+	return NULL;
 }
 
 static struct packet *client_lb_mouse_enter(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
-	struct packet *result;
 	const char *pkgname;
 	const char *id;
 	int ret;
@@ -1132,8 +1101,6 @@ static struct packet *client_lb_mouse_enter(pid_t pid, int handle, const struct 
 	double y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
-
-	DbgPrint("Client[%d] request arrived\n", pid);
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -1148,8 +1115,6 @@ static struct packet *client_lb_mouse_enter(pid_t pid, int handle, const struct 
 		ret = -EINVAL;
 		goto out;
 	}
-
-	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, w, h, timestamp, x, y);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
@@ -1171,6 +1136,7 @@ static struct packet *client_lb_mouse_enter(pid_t pid, int handle, const struct 
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
+		DbgPrint("Package[%s] is faulted\n", pkgname);
 		ret = -EFAULT;
 	} else if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
 		struct buffer_info *buffer;
@@ -1191,14 +1157,14 @@ static struct packet *client_lb_mouse_enter(pid_t pid, int handle, const struct 
 			goto out;
 		}
 
-		packet = packet_create("lb_mouse_enter", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
+		packet = packet_create_noack("lb_mouse_enter", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
 		if (!packet) {
 			ErrPrint("Failed to create a packet[%s]\n", pkgname);
 			ret = -EFAULT;
 			goto out;
 		}
 
-		ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+		ret = slave_rpc_request_only(slave, packet);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -1218,20 +1184,18 @@ static struct packet *client_lb_mouse_enter(pid_t pid, int handle, const struct 
 		script_handler_update_pointer(script, x, y, -1);
 		evas_event_feed_mouse_in(e, timestamp, NULL);
 		ret = 0;
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = -EINVAL;
 	}
 
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-
-	return result;
+	return NULL;
 }
 
 static struct packet *client_lb_mouse_leave(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
-	struct packet *result;
 	const char *pkgname;
 	const char *id;
 	int ret;
@@ -1242,8 +1206,6 @@ static struct packet *client_lb_mouse_leave(pid_t pid, int handle, const struct 
 	double y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
-
-	DbgPrint("Client[%d] request arrived\n", pid);
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -1258,8 +1220,6 @@ static struct packet *client_lb_mouse_leave(pid_t pid, int handle, const struct 
 		ret = -EINVAL;
 		goto out;
 	}
-
-	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, w, h, timestamp, x, y);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
@@ -1281,6 +1241,7 @@ static struct packet *client_lb_mouse_leave(pid_t pid, int handle, const struct 
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
+		DbgPrint("Package[%s] is faulted\n", pkgname);
 		ret = -EFAULT;
 	} else if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
 		struct buffer_info *buffer;
@@ -1301,14 +1262,14 @@ static struct packet *client_lb_mouse_leave(pid_t pid, int handle, const struct 
 			goto out;
 		}
 
-		packet = packet_create("lb_mouse_leave", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
+		packet = packet_create_noack("lb_mouse_leave", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
 		if (!packet) {
 			ErrPrint("Failed to create a packet[%s]\n", pkgname);
 			ret = -EFAULT;
 			goto out;
 		}
 
-		ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+		ret = slave_rpc_request_only(slave, packet);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -1328,20 +1289,18 @@ static struct packet *client_lb_mouse_leave(pid_t pid, int handle, const struct 
 		script_handler_update_pointer(script, x, y, -1);
 		evas_event_feed_mouse_out(e, timestamp, NULL);
 		ret = 0;
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = -EINVAL;
 	}
 
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-
-	return result;
+	return NULL;
 }
 
 static struct packet *client_lb_mouse_down(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
-	struct packet *result;
 	const char *pkgname;
 	const char *id;
 	int ret;
@@ -1352,8 +1311,6 @@ static struct packet *client_lb_mouse_down(pid_t pid, int handle, const struct p
 	double y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
-
-	DbgPrint("Client[%d] request arrived\n", pid);
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -1368,8 +1325,6 @@ static struct packet *client_lb_mouse_down(pid_t pid, int handle, const struct p
 		ret = -EINVAL;
 		goto out;
 	}
-
-	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, w, h, timestamp, x, y);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
@@ -1391,6 +1346,7 @@ static struct packet *client_lb_mouse_down(pid_t pid, int handle, const struct p
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
+		DbgPrint("Package[%s] is faulted\n", pkgname);
 		ret = -EFAULT;
 	} else if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
 		struct buffer_info *buffer;
@@ -1411,14 +1367,14 @@ static struct packet *client_lb_mouse_down(pid_t pid, int handle, const struct p
 			goto out;
 		}
 
-		packet = packet_create("lb_mouse_down", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
+		packet = packet_create_noack("lb_mouse_down", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
 		if (!packet) {
 			ErrPrint("Failed to create a packet[%s]\n", pkgname);
 			ret = -EFAULT;
 			goto out;
 		}
 
-		ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+		ret = slave_rpc_request_only(slave, packet);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -1439,20 +1395,18 @@ static struct packet *client_lb_mouse_down(pid_t pid, int handle, const struct p
 		evas_event_feed_mouse_move(e, x * w, y * h, timestamp, NULL);
 		evas_event_feed_mouse_down(e, 1, EVAS_BUTTON_NONE, timestamp + 0.01f, NULL);
 		ret = 0;
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = -EINVAL;
 	}
 
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-
-	return result;
+	return NULL;
 }
 
 static struct packet *client_lb_mouse_up(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
-	struct packet *result;
 	const char *pkgname;
 	const char *id;
 	int ret;
@@ -1463,8 +1417,6 @@ static struct packet *client_lb_mouse_up(pid_t pid, int handle, const struct pac
 	double y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
-
-	DbgPrint("Client[%d] request arrived\n", pid);
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -1479,8 +1431,6 @@ static struct packet *client_lb_mouse_up(pid_t pid, int handle, const struct pac
 		ret = -EINVAL;
 		goto out;
 	}
-
-	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d] timestamp[%lf] x[%lf] y[%lf]\n", pkgname, id, w, h, timestamp, x, y);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
@@ -1502,6 +1452,7 @@ static struct packet *client_lb_mouse_up(pid_t pid, int handle, const struct pac
 		 * If the package is registered as fault module,
 		 * slave has not load it, so we don't need to do anything at here!
 		 */
+		DbgPrint("Package[%s] is faulted\n", pkgname);
 		ret = -EFAULT;
 	} else if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
 		struct buffer_info *buffer;
@@ -1522,14 +1473,14 @@ static struct packet *client_lb_mouse_up(pid_t pid, int handle, const struct pac
 			goto out;
 		}
 
-		packet = packet_create("lb_mouse_up", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
+		packet = packet_create_noack("lb_mouse_up", "ssiiddd", pkgname, id, w, h, timestamp, x, y);
 		if (!packet) {
 			ErrPrint("Failed to create a packet[%s]\n", pkgname);
 			ret = -EFAULT;
 			goto out;
 		}
 
-		ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+		ret = slave_rpc_request_only(slave, packet);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -1550,15 +1501,13 @@ static struct packet *client_lb_mouse_up(pid_t pid, int handle, const struct pac
 		evas_event_feed_mouse_move(e, x * w, y * h, timestamp, NULL);
 		evas_event_feed_mouse_up(e, 1, EVAS_BUTTON_NONE, timestamp + 0.1f, NULL);
 		ret = 0;
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = -EINVAL;
 	}
 
-
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-
-	return result;
+	return NULL;
 }
 
 static struct packet *client_pinup_changed(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, pinup, ret */
@@ -2665,6 +2614,46 @@ static struct method s_table[] = {
 	 * service for client
 	 */
 	{
+		.cmd = "pd_mouse_move",
+		.handler = client_pd_mouse_move, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = "lb_mouse_move",
+		.handler = client_lb_mouse_move, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = "pd_mouse_enter",
+		.handler = client_pd_mouse_enter, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = "pd_mouse_leave",
+		.handler = client_pd_mouse_leave, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = "pd_mouse_down",
+		.handler = client_pd_mouse_down, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = "pd_mouse_up",
+		.handler = client_pd_mouse_up, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = "lb_mouse_enter",
+		.handler = client_lb_mouse_enter, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = "lb_mouse_leave",
+		.handler = client_lb_mouse_leave, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = "lb_mouse_down",
+		.handler = client_lb_mouse_down, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = "lb_mouse_up",
+		.handler = client_lb_mouse_up, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+	},
+	{
 		.cmd = "acquire",
 		.handler = client_acquire, /*!< pid, ret */
 	},
@@ -2699,46 +2688,6 @@ static struct method s_table[] = {
 	{
 		.cmd = "change_group",
 		.handler = client_change_group, /* pid, pkgname, filename, cluster, category, ret */
-	},
-	{
-		.cmd = "pd_mouse_enter",
-		.handler = client_pd_mouse_enter, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
-	},
-	{
-		.cmd = "pd_mouse_leave",
-		.handler = client_pd_mouse_leave, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
-	},
-	{
-		.cmd = "pd_mouse_down",
-		.handler = client_pd_mouse_down, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
-	},
-	{
-		.cmd = "pd_mouse_up",
-		.handler = client_pd_mouse_up, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
-	},
-	{
-		.cmd = "pd_mouse_move",
-		.handler = client_pd_mouse_move, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
-	},
-	{
-		.cmd = "lb_mouse_move",
-		.handler = client_lb_mouse_move, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
-	},
-	{
-		.cmd = "lb_mouse_enter",
-		.handler = client_lb_mouse_enter, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
-	},
-	{
-		.cmd = "lb_mouse_leave",
-		.handler = client_lb_mouse_leave, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
-	},
-	{
-		.cmd = "lb_mouse_down",
-		.handler = client_lb_mouse_down, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
-	},
-	{
-		.cmd = "lb_mouse_up",
-		.handler = client_lb_mouse_up, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 	},
 	{
 		.cmd = "pinup_changed",

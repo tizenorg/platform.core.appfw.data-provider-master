@@ -68,7 +68,7 @@ extern void conf_update_size(void);
 #define BUNDLE_SLAVE_NAME "name"
 #define BUNDLE_SLAVE_SECURED "secured"
 #define BUNDLE_SLAVE_ABI "abi"
-#define PACKET_TIME 0.01f
+#define PACKET_TIME 0.0001f
 #define NO_CHANGE -1.0f
 #define CONTENT_NO_CHANGE ""
 #define TITLE_NO_CHANGE ""

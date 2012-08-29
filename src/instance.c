@@ -128,7 +128,7 @@ int instance_unicast_created_event(struct inst_info *inst, struct client_node *c
 	else
 		pd_file = "";
 
-	packet = packet_create("created", "dsssiiiissssidiiiiids", 
+	packet = packet_create_noack("created", "dsssiiiissssidiiiiids", 
 			inst->timestamp,
 			package_name(inst->info), inst->id, inst->content,
 			inst->lb.width, inst->lb.height,
@@ -175,7 +175,7 @@ int instance_broadcast_created_event(struct inst_info *inst)
 	else
 		pd_file = "";
 
-	packet = packet_create("created", "dsssiiiissssidiiiiids", 
+	packet = packet_create_noack("created", "dsssiiiissssidiiiiids", 
 			inst->timestamp,
 			package_name(inst->info), inst->id, inst->content,
 			inst->lb.width, inst->lb.height,
@@ -204,7 +204,7 @@ int instance_unicast_deleted_event(struct inst_info *inst)
 	if (!inst->client)
 		return -EINVAL;
 
-	packet = packet_create("deleted", "ssd", package_name(inst->info), inst->id, inst->timestamp);
+	packet = packet_create_noack("deleted", "ssd", package_name(inst->info), inst->id, inst->timestamp);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return -EFAULT;
@@ -217,7 +217,7 @@ int instance_broadcast_deleted_event(struct inst_info *inst)
 {
 	struct packet *packet;
 
-	packet = packet_create("deleted", "ssd", package_name(inst->info), inst->id, inst->timestamp);
+	packet = packet_create_noack("deleted", "ssd", package_name(inst->info), inst->id, inst->timestamp);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return -EFAULT;
@@ -1061,6 +1061,8 @@ void instance_lb_updated_by_instance(struct inst_info *inst)
 	struct packet *packet;
 	const char *id;
 	enum lb_type lb_type;
+	const char *title;
+	const char *content;
 
 	lb_type = package_lb_type(inst->info);
 	if (lb_type == LB_TYPE_SCRIPT)
@@ -1070,9 +1072,19 @@ void instance_lb_updated_by_instance(struct inst_info *inst)
 	else
 		id = "";
 
-	packet = packet_create("lb_updated", "sssiidss",
+	if (inst->content)
+		content = inst->content;
+	else
+		content = "";
+
+	if (inst->title)
+		title = inst->title;
+	else
+		title = "";
+
+	packet = packet_create_noack("lb_updated", "sssiidss",
 			package_name(inst->info), inst->id, id,
-			inst->lb.width, inst->lb.height, inst->lb.priority, inst->content, inst->title);
+			inst->lb.width, inst->lb.height, inst->lb.priority, content, title);
 	if (!packet) {
 		ErrPrint("Failed to create param (%s - %s)\n", package_name(inst->info), inst->id);
 		return;
@@ -1098,7 +1110,7 @@ void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfil
 	else
 		id = "";
 
-	packet = packet_create("pd_updated", "ssssii",
+	packet = packet_create_noack("pd_updated", "ssssii",
 			package_name(inst->info), inst->id, descfile, id,
 			inst->pd.width, inst->pd.height);
 	if (!packet) {
@@ -1206,7 +1218,7 @@ out:
 	 * Send PINUP Result to client.
 	 * Client should wait this event.
 	 */
-	result = packet_create("pinup", "iisss", ret, cbdata->inst->lb.is_pinned_up,
+	result = packet_create_noack("pinup", "iisss", ret, cbdata->inst->lb.is_pinned_up,
 							package_name(cbdata->inst->info), cbdata->inst->id, cbdata->inst->content);
 	if (result)
 		(void)CLIENT_SEND_EVENT(cbdata->inst, result);
@@ -1347,7 +1359,7 @@ static void set_period_cb(struct slave_node *slave, const struct packet *packet,
 		ErrPrint("Failed to set period %d\n", ret);
 
 out:
-	result = packet_create("period_changed", "idss", ret, cbdata->inst->period, package_name(cbdata->inst->info), cbdata->inst->id);
+	result = packet_create_noack("period_changed", "idss", ret, cbdata->inst->period, package_name(cbdata->inst->info), cbdata->inst->id);
 	if (result)
 		(void)CLIENT_SEND_EVENT(cbdata->inst, result);
 	else
@@ -1479,7 +1491,7 @@ static void change_group_cb(struct slave_node *slave, const struct packet *packe
 	}
 
 out:
-	result = packet_create("group_changed", "ssiss",
+	result = packet_create_noack("group_changed", "ssiss",
 				package_name(cbdata->inst->info), cbdata->inst->id, ret,
 				cbdata->inst->cluster, cbdata->inst->category);
 	if (!result)

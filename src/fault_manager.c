@@ -96,7 +96,7 @@ void fault_unicast_info(struct client_node *client, const char *pkgname, const c
 	if (!client || !pkgname || !filename || !func)
 		return;
 
-	packet = packet_create("fault_packet", "sss", pkgname, filename, func);
+	packet = packet_create_noack("fault_package", "sss", pkgname, filename, func);
 	if (!packet)
 		return;
 
@@ -108,7 +108,7 @@ void fault_broadcast_info(const char *pkgname, const char *filename, const char 
 {
 	struct packet *packet;
 
-	packet = packet_create("fault_packet", "sss", pkgname, filename, func);
+	packet = packet_create("fault_package", "sss", pkgname, filename, func);
 	if (!packet) {
 		ErrPrint("Failed to create a param\n");
 		return;

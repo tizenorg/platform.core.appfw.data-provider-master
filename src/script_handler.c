@@ -126,10 +126,6 @@ static void render_pre_cb(void *data, Evas *e, void *event_info)
 		return;
 	}
 
-	DbgPrint("Render pre invoked (%s)[%s]\n",
-					package_name(instance_package(inst)),
-					util_basename(instance_id(inst)));
-
 	info = instance_lb_script(inst);
 	if (info && script_handler_evas(info) == e) {
 		fb_pixmap_render_pre(script_handler_fb(info));
@@ -157,10 +153,6 @@ static void render_post_cb(void *data, Evas *e, void *event_info)
 		DbgPrint("Render post invoked but instance is not activated\n");
 		return;
 	}
-
-	DbgPrint("Render post invoked (%s)[%s]\n",
-					package_name(instance_package(inst)),
-					util_basename(instance_id(inst)));
 
 	info = instance_lb_script(inst);
 	if (info && script_handler_evas(info) == e) {

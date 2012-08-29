@@ -1,3 +1,10 @@
+data-provider-master (0.9.0) unstable; urgency=low
+
+  * Git: slp/pkgs/d/data-provider-master
+  * Tag: data-provider-master_0.9.0
+
+ -- Sung-jae Park <nicesj.park@samsung.com>  Sun, 02 Sep 2012 14:08:48 +0900
+
 data-provider-master (0.8.0) unstable; urgency=low
 
   * Git: slp/pkgs/d/data-provider-master

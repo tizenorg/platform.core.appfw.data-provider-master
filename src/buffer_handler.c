@@ -39,6 +39,7 @@ struct buffer {
 	} state;
 	enum buffer_type type;
 	int refcnt;
+	void *info;
 	char data[];
 };
 
@@ -298,6 +299,7 @@ int buffer_handler_load(struct buffer_info *info)
 
 		snprintf(info->id, len, SCHEMA_FILE "%s%lf", g_conf.path.image, timestamp);
 		info->buffer = buffer;
+		buffer->info = info;
 		DbgPrint("FILE type %d created\n", size);
 	} else if (info->type == BUFFER_TYPE_SHM) {
 		int id;
@@ -347,6 +349,7 @@ int buffer_handler_load(struct buffer_info *info)
 
 		snprintf(info->id, len, SCHEMA_SHM "%d", id);
 		info->buffer = buffer;
+		buffer->info = NULL; /*!< This has not to be used */
 	} else if (info->type == BUFFER_TYPE_PIXMAP) {
 		/*
 		 */
@@ -373,6 +376,7 @@ int buffer_handler_load(struct buffer_info *info)
 		}
 
 		buffer = info->buffer;
+		buffer->info = info;
 		gem = (struct gem_data *)buffer->data;
 		snprintf(info->id, len, SCHEMA_PIXMAP "%d", (int)gem->pixmap);
 		DbgPrint("info->id: %s\n", info->id);
@@ -471,6 +475,11 @@ int buffer_handler_unload(struct buffer_info *info)
 
 int buffer_handler_destroy(struct buffer_info *info)
 {
+	if (!info) {
+		DbgPrint("Buffer is not created yet. info is nil\n");
+		return 0;
+	}
+
 	if (info->type == BUFFER_TYPE_SHM) {
 		buffer_handler_unload(info);
 	} else if (info->type == BUFFER_TYPE_FILE) {
@@ -728,6 +737,11 @@ int buffer_handler_fini(void)
 	if (s_info.fd >= 0) {
 		close(s_info.fd);
 		s_info.fd = -1;
+	}
+
+	if (s_info.slp_bufmgr) {
+		drm_slp_bufmgr_destroy(s_info.slp_bufmgr);
+		s_info.slp_bufmgr = NULL;
 	}
 
 	return 0;
