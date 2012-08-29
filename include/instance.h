@@ -108,7 +108,7 @@ extern int instance_recover_state(struct inst_info *inst);
 extern int instance_need_slave(struct inst_info *inst);
 extern void instance_faulted(struct inst_info *inst);
 
-extern void instance_set_lb_info(struct inst_info *inst, int w, int h, double priority);
+extern void instance_set_lb_info(struct inst_info *inst, int w, int h, double priority, const char *content, const char *title);
 extern void instance_set_pd_info(struct inst_info *inst, int w, int h);
 
 extern void instance_pd_updated(const char *pkgname, const char *id, const char *descfile);
@@ -137,6 +137,7 @@ extern const char * const instance_id(const struct inst_info *inst);
 extern const char * const instance_content(const struct inst_info *inst);
 extern const char * const instance_category(const struct inst_info *inst);
 extern const char * const instance_cluster(const struct inst_info *inst);
+extern const char * const instance_title(const struct inst_info *inst);
 extern const int const instance_auto_launch(const struct inst_info *inst);
 extern const int const instance_priority(const struct inst_info *inst);
 extern const struct client_node * const instance_client(const struct inst_info *inst);

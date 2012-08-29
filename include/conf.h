@@ -70,6 +70,9 @@ extern void conf_update_size(void);
 #define BUNDLE_SLAVE_ABI "abi"
 #define PACKET_TIME 0.01f
 #define NO_CHANGE -1.0f
+#define CONTENT_NO_CHANGE ""
+#define TITLE_NO_CHANGE ""
+#define DEFAULT_TITLE ""
 #define DEFAULT_CONTENT "default"
 #define DEFAULT_PERIOD	-1.0f
 #define MINIMUM_SPACE	(5 << 20)

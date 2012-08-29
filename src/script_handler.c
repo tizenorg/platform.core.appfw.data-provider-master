@@ -623,7 +623,7 @@ static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 			if (is_pd)
 				instance_set_pd_info(inst, w, h);
 			else
-				instance_set_lb_info(inst, w, h, NO_CHANGE);
+				instance_set_lb_info(inst, w, h, NO_CHANGE, CONTENT_NO_CHANGE, TITLE_NO_CHANGE);
 
 			script_handler_resize(info, w, h);
 		} else {

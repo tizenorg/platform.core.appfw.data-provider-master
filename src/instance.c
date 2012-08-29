@@ -60,6 +60,7 @@ struct inst_info {
 	char *content;
 	char *cluster;
 	char *category;
+	char *title;
 
 	struct {
 		int width;
@@ -127,7 +128,7 @@ int instance_unicast_created_event(struct inst_info *inst, struct client_node *c
 	else
 		pd_file = "";
 
-	packet = packet_create("created", "dsssiiiissssidiiiiid", 
+	packet = packet_create("created", "dsssiiiissssidiiiiids", 
 			inst->timestamp,
 			package_name(inst->info), inst->id, inst->content,
 			inst->lb.width, inst->lb.height,
@@ -140,7 +141,7 @@ int instance_unicast_created_event(struct inst_info *inst, struct client_node *c
 			!!inst->client,
 			package_pinup(inst->info),
 			lb_type, pd_type,
-			inst->period);
+			inst->period, inst->title);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return -EFAULT;
@@ -174,7 +175,7 @@ int instance_broadcast_created_event(struct inst_info *inst)
 	else
 		pd_file = "";
 
-	packet = packet_create("created", "dsssiiiissssidiiiiid", 
+	packet = packet_create("created", "dsssiiiissssidiiiiids", 
 			inst->timestamp,
 			package_name(inst->info), inst->id, inst->content,
 			inst->lb.width, inst->lb.height,
@@ -187,7 +188,7 @@ int instance_broadcast_created_event(struct inst_info *inst)
 			!!inst->client,
 			package_pinup(inst->info),
 			lb_type, pd_type,
-			inst->period);
+			inst->period, inst->title);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return -EFAULT;
@@ -267,6 +268,7 @@ static inline void destroy_instance(struct inst_info *inst)
 	free(inst->category);
 	free(inst->cluster);
 	free(inst->content);
+	free(inst->title);
 	util_unlink(inst->id);
 	free(inst->id);
 	package_del_instance(inst->info, inst);
@@ -343,7 +345,19 @@ struct inst_info *instance_create(struct client_node *client, double timestamp, 
 		return NULL;
 	}
 
+	inst->title = strdup(DEFAULT_TITLE); /*!< Use the DEFAULT Title "" */
+	if (!inst->title) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		free(inst->category);
+		free(inst->cluster);
+		free(inst->content);
+		free(inst->id);
+		free(inst);
+		return NULL;
+	}
+
 	if (fork_package(inst, pkgname) < 0) {
+		free(inst->title);
 		free(inst->category);
 		free(inst->cluster);
 		free(inst->content);
@@ -505,6 +519,8 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 	enum lb_type lb_type;
 	enum pd_type pd_type;
 	int ret;
+	const char *content;
+	const char *title;
 
 	if (!packet) {
 		DbgPrint("Consuming a request of a dead process\n");
@@ -513,16 +529,40 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 		 * instance_reload function will care this.
 		 * and it will be called from the slave_activate callback
 		 */
-		inst->changing_state = 0;
-		instance_unref(inst);
-		return;
+		goto out;
 	}
 
-	if (packet_get(packet, "i", &ret) != 1) {
+	if (packet_get(packet, "iss", &ret, &content, &title) != 3) {
 		ErrPrint("Invalid parameter\n");
-		inst->changing_state = 0;
-		instance_unref(inst);
-		return;
+		goto out;
+	}
+
+	if (strlen(content)) {
+		char *tmp;
+		tmp = strdup(content);
+		if (!tmp) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			goto out;
+		}
+
+		free(inst->content);
+		inst->content = tmp;
+
+		DbgPrint("Update content info %s\n", tmp);
+	}
+
+	if (strlen(title)) {
+		char *tmp;
+		tmp = strdup(title);
+		if (!tmp) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			goto out;
+		}
+
+		free(inst->title);
+		inst->title = tmp;
+
+		DbgPrint("Update title info %s\n", tmp);
 	}
 
 	if (inst->state == INST_DESTROYED) {
@@ -531,9 +571,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 		 * Already destroyed.
 		 * Do nothing at here anymore.
 		 */
-		inst->changing_state = 0;
-		instance_unref(inst);
-		return;
+		goto out;
 	}
 
 	switch (ret) {
@@ -555,6 +593,11 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 
 			if (pd_type == PD_TYPE_SCRIPT && inst->pd.canvas.script && inst->pd.is_opened_for_reactivate)
 				script_handler_load(inst->pd.canvas.script, 1);
+
+			/*!
+			 * \note After recreated, send the update event to the client
+			 */
+			instance_lb_updated_by_instance(inst);
 		default:
 			break;
 		}
@@ -569,6 +612,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 		break;
 	}
 
+out:
 	inst->changing_state = 0;
 	instance_unref(inst);
 }
@@ -580,6 +624,8 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 	int w;
 	int h;
 	double priority;
+	char *content;
+	char *title;
 
 	if (!packet) {
 		DbgPrint("Consuming a request of a dead process\n");
@@ -588,16 +634,12 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 		 * instance_reload will care this
 		 * it will be called from the slave_activate callback
 		 */
-		inst->changing_state = 0;
-		instance_unref(inst);
-		return;
+		goto out;
 	}
 
-	if (packet_get(packet, "iiid", &ret, &w, &h, &priority) != 4) {
+	if (packet_get(packet, "iiidss", &ret, &w, &h, &priority, &content, &title) != 6) {
 		ErrPrint("Invalid parameter\n");
-		inst->changing_state = 0;
-		instance_unref(inst);
-		return;
+		goto out;
 	}
 
 	if (inst->state == INST_DESTROYED) {
@@ -606,9 +648,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 		 * Already destroyed.
 		 * Do nothing at here anymore.
 		 */
-		inst->changing_state = 0;
-		instance_unref(inst);
-		return;
+		goto out;
 	}
 
 	switch (ret) {
@@ -632,9 +672,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 		 */
 		inst->state = INST_ACTIVATED;
 
-		inst->lb.width = w;
-		inst->lb.height = h;
-		inst->lb.priority = priority;
+		instance_set_lb_info(inst, w, h, priority, content, title);
 
 		switch (inst->requested_state) {
 		case INST_DESTROYED:
@@ -697,6 +735,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 		break;
 	}
 
+out:
 	inst->changing_state = 0;
 	instance_unref(inst);
 }
@@ -1031,9 +1070,9 @@ void instance_lb_updated_by_instance(struct inst_info *inst)
 	else
 		id = "";
 
-	packet = packet_create("lb_updated", "sssiid",
+	packet = packet_create("lb_updated", "sssiidss",
 			package_name(inst->info), inst->id, id,
-			inst->lb.width, inst->lb.height, inst->lb.priority);
+			inst->lb.width, inst->lb.height, inst->lb.priority, inst->content, inst->title);
 	if (!packet) {
 		ErrPrint("Failed to create param (%s - %s)\n", package_name(inst->info), inst->id);
 		return;
@@ -1081,10 +1120,30 @@ void instance_pd_updated(const char *pkgname, const char *id, const char *descfi
 	instance_pd_updated_by_instance(inst, descfile);
 }
 
-void instance_set_lb_info(struct inst_info *inst, int w, int h, double priority)
+void instance_set_lb_info(struct inst_info *inst, int w, int h, double priority, const char *content, const char *title)
 {
+	char *_content = NULL;
+	char *_title = NULL;
+
+	if (strlen(content))
+		_content = strdup(content);
+
+	if (strlen(title))
+		_title = strdup(title);
+
 	inst->lb.width = w;
 	inst->lb.height = h;
+
+	if (_content) {
+		free(inst->content);
+		inst->content= _content;
+	}
+
+	if (title) {
+		free(inst->title);
+		inst->title = _title;
+	}
+		
 
 	if (priority >= 0.0f && priority <= 1.0f)
 		inst->lb.priority = priority;
@@ -1566,6 +1625,11 @@ const char *const instance_category(const struct inst_info *inst)
 const char *const instance_cluster(const struct inst_info *inst)
 {
 	return inst->cluster;
+}
+
+const char * const instance_title(const struct inst_info *inst)
+{
+	return inst->title;
 }
 
 const double const instance_timestamp(const struct inst_info *inst)

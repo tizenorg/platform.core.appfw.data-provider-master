@@ -2252,6 +2252,8 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 	const char *slavename;
 	const char *pkgname;
 	const char *id;
+	const char *content_info;
+	const char *title;
 	int w;
 	int h;
 	double priority;
@@ -2265,8 +2267,8 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 		goto out;
 	}
 
-	ret = packet_get(packet, "sssiid", &slavename, &pkgname, &id, &w, &h, &priority);
-	if (ret != 6) {
+	ret = packet_get(packet, "sssiidss", &slavename, &pkgname, &id, &w, &h, &priority, &content_info, &title);
+	if (ret != 8) {
 		ErrPrint("Parameter is not matched\n");
 		ret = -EINVAL;
 		goto out;
@@ -2282,7 +2284,7 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 		ErrPrint("Instance is already destroyed\n");
 		ret = -EINVAL;
 	} else {
-		instance_set_lb_info(inst, w, h, priority);
+		instance_set_lb_info(inst, w, h, priority, content_info, title);
 
 		if (package_lb_type(instance_package(inst)) == LB_TYPE_SCRIPT) {
 			char *filename;
@@ -2297,13 +2299,13 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 				ret = script_handler_parse_desc(pkgname, id, util_uri_to_path(id), 0);
 			}
 		} else if (package_lb_type(instance_package(inst)) == LB_TYPE_BUFFER) {
-			instance_lb_updated(pkgname, id);
+			instance_lb_updated_by_instance(inst);
 		} else {
 			/*!
 			 * \check
 			 * text format (inst)
 			 */
-			instance_lb_updated(pkgname, id);
+			instance_lb_updated_by_instance(inst);
 			ret = 0;
 		}
 	}
