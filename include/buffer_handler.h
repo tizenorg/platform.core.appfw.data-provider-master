@@ -1,4 +1,5 @@
 struct buffer_info;
+struct inst_info;
 
 enum buffer_type { /*!< Must have to be sync with libprovider, liblivebox-viewer */
 	BUFFER_TYPE_FILE,
@@ -15,7 +16,7 @@ enum buffer_type { /*!< Must have to be sync with libprovider, liblivebox-viewer
  * \param[in] pixel_size
  * \return buffer_info
  */
-extern struct buffer_info *buffer_handler_create(enum buffer_type type, int w, int h, int pixel_size);
+extern struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buffer_type type, int w, int h, int pixel_size);
 
 /*!
  * \brief
@@ -27,9 +28,10 @@ extern int buffer_handler_destroy(struct buffer_info *info);
 /*!
  * \brief
  * \param[in] info
+ * \param[in] with_update_cb use the pixmap damage callback
  * \return int
  */
-extern int buffer_handler_load(struct buffer_info *info);
+extern int buffer_handler_load(struct buffer_info *info, int with_update_cb);
 
 /*!
  * \brief

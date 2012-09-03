@@ -15,6 +15,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xproto.h>
+#include <X11/extensions/Xdamage.h>
 
 #include <dri2.h>
 #include <xf86drm.h>
@@ -57,6 +58,9 @@ struct gem_data {
 	int depth;
 	Pixmap pixmap;
 	void *data; /* Gem layer */
+
+	Ecore_Event_Handler *damage_handler;
+	Ecore_X_Damage damage;
 };
 
 struct buffer_info
@@ -70,6 +74,8 @@ struct buffer_info
 	int h;
 	int pixel_size;
 	int is_loaded;
+
+	struct inst_info *inst;
 };
 
 static struct {
@@ -84,7 +90,7 @@ static struct {
 	.fd = -1,
 };
 
-struct buffer_info *buffer_handler_create(enum buffer_type type, int w, int h, int pixel_size)
+struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buffer_type type, int w, int h, int pixel_size)
 {
 	struct buffer_info *info;
 
@@ -126,6 +132,7 @@ struct buffer_info *buffer_handler_create(enum buffer_type type, int w, int h, i
 	info->pixel_size = pixel_size;
 	info->type = type;
 	info->is_loaded = 0;
+	info->inst = inst;
 
 	return info;
 }
@@ -163,6 +170,8 @@ static inline struct buffer *create_gem(Display *disp, Window parent, int w, int
 		free(buffer);
 		return NULL;
 	}
+
+	XSync(disp, False);
 
 	DbgPrint("Pixmap:0x%X is created\n", gem->pixmap);
 
@@ -235,9 +244,9 @@ static inline int destroy_gem(Display *disp, struct buffer *buffer)
 	/*!
 	 * Forcely release the acquire_buffer.
 	 */
-	release_gem(buffer);
-
 	gem = (struct gem_data *)buffer->data;
+
+	release_gem(buffer);
 
 	DbgPrint("unref pixmap bo\n");
 	drm_slp_bo_unref(gem->pixmap_bo);
@@ -246,6 +255,7 @@ static inline int destroy_gem(Display *disp, struct buffer *buffer)
 	DbgPrint("DRI2DestroyDrawable\n");
 	DRI2DestroyDrawable(disp, gem->pixmap);
 	DbgPrint("After destroy drawable\n");
+
 	XFreePixmap(disp, gem->pixmap);
 	DbgPrint("Free pixmap\n");
 
@@ -254,7 +264,40 @@ static inline int destroy_gem(Display *disp, struct buffer *buffer)
 	return 0;
 }
 
-int buffer_handler_load(struct buffer_info *info)
+static Eina_Bool damage_event_cb(void *data, int type, void *event)
+{
+	Ecore_X_Event_Damage *e = (Ecore_X_Event_Damage *)event;
+	struct buffer_info *info;
+	struct buffer *buffer;
+	struct gem_data *gem;
+
+	info = (struct buffer_info *)data;
+	if (!info)
+		return ECORE_CALLBACK_PASS_ON;
+
+	buffer = (struct buffer *)info->buffer;
+	if (!buffer)
+		return ECORE_CALLBACK_PASS_ON;
+
+	gem = (struct gem_data *)buffer->data;
+
+	DbgPrint("0x%X <> 0x%X\n", e->drawable, gem->pixmap);
+	if (e->drawable == gem->pixmap) {
+		if (instance_pd_buffer(info->inst) == info) {
+			instance_pd_updated_by_instance(info->inst, NULL);
+		} else if (instance_lb_buffer(info->inst) == info) {
+			instance_lb_updated_by_instance(info->inst);
+		} else {
+			ErrPrint("What happens?\n");
+		}
+
+		ecore_x_damage_subtract(gem->damage, None, None);
+	}
+
+	return ECORE_CALLBACK_PASS_ON;
+}
+
+int buffer_handler_load(struct buffer_info *info, int with_update_cb)
 {
 	int len;
 
@@ -377,9 +420,21 @@ int buffer_handler_load(struct buffer_info *info)
 
 		buffer = info->buffer;
 		buffer->info = info;
+
 		gem = (struct gem_data *)buffer->data;
 		snprintf(info->id, len, SCHEMA_PIXMAP "%d", (int)gem->pixmap);
 		DbgPrint("info->id: %s\n", info->id);
+
+		if (with_update_cb) {
+			DbgPrint("Enable the damage event handler\n");
+			gem->damage_handler = ecore_event_handler_add(ECORE_X_EVENT_DAMAGE_NOTIFY, damage_event_cb, info);
+			if (!gem->damage_handler)
+				ErrPrint("Failed to add a damage event handler\n");
+
+			gem->damage = ecore_x_damage_new(gem->pixmap, ECORE_X_DAMAGE_REPORT_RAW_RECTANGLES);
+			if (!gem->damage)
+				ErrPrint("Failed to create a new damage\n");
+		}
 	} else {
 		ErrPrint("Invalid buffer\n");
 		return -EINVAL;
@@ -445,6 +500,8 @@ int buffer_handler_unload(struct buffer_info *info)
 			ErrPrint("Heap: %s\n", strerror(errno));
 	} else if (info->type == BUFFER_TYPE_PIXMAP) {
 		int id;
+		struct buffer *buffer;
+		struct gem_data *gem;
 
 		if (sscanf(info->id, SCHEMA_PIXMAP "%d", &id) != 1) {
 			ErrPrint("Invalid ID (%s)\n", info->id);
@@ -454,6 +511,22 @@ int buffer_handler_unload(struct buffer_info *info)
 		if (id == 0) {
 			ErrPrint("(%s) Invalid id: %d\n", info->id, id);
 			return -EINVAL;
+		}
+
+		buffer = (struct buffer *)info->buffer;
+		if (buffer) {
+			gem = (struct gem_data *)buffer->data;
+			if (gem) {
+				if (gem->damage) {
+					ecore_x_damage_free(gem->damage);
+					gem->damage = 0;
+				}
+
+				if (gem->damage_handler) {
+					ecore_event_handler_del(gem->damage_handler);
+					gem->damage_handler = NULL;
+				}
+			}
 		}
 
 		destroy_gem(ecore_x_display_get(), info->buffer);
@@ -622,7 +695,7 @@ int buffer_handler_resize(struct buffer_info *info, int w, int h)
 	if (ret < 0)
 		ErrPrint("Unload: %d\n", ret);
 
-	ret = buffer_handler_load(info);
+	ret = buffer_handler_load(info, 0);
 	if (ret < 0)
 		ErrPrint("Load: %d\n", ret);
 

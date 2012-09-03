@@ -128,7 +128,7 @@ int instance_unicast_created_event(struct inst_info *inst, struct client_node *c
 	else
 		pd_file = "";
 
-	packet = packet_create_noack("created", "dsssiiiissssidiiiiids", 
+	packet = packet_create_noack("created", "dsssiiiissssidiiiiids",
 			inst->timestamp,
 			package_name(inst->info), inst->id, inst->content,
 			inst->lb.width, inst->lb.height,
@@ -375,7 +375,13 @@ struct inst_info *instance_create(struct client_node *client, double timestamp, 
 	inst->requested_state = INST_INIT;
 	instance_ref(inst);
 	package_add_instance(inst->info, inst);
-	instance_activate(inst);
+
+	if (instance_activate(inst) < 0) {
+		instance_state_reset(inst);
+		instance_destroy(inst);
+		inst = NULL;
+	}
+
 	return inst;
 }
 
@@ -589,7 +595,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 			if (lb_type == LB_TYPE_SCRIPT && inst->lb.canvas.script)
 				script_handler_load(inst->lb.canvas.script, 0);
 			else if (lb_type == LB_TYPE_BUFFER && inst->lb.canvas.buffer)
-				buffer_handler_load(inst->lb.canvas.buffer);
+				buffer_handler_load(inst->lb.canvas.buffer, 0);
 
 			if (pd_type == PD_TYPE_SCRIPT && inst->pd.canvas.script && inst->pd.is_opened_for_reactivate)
 				script_handler_load(inst->pd.canvas.script, 1);
@@ -760,7 +766,7 @@ int instance_create_pd_buffer(struct inst_info *inst)
 				type = BUFFER_TYPE_PIXMAP;
 		}
 
-		inst->pd.canvas.buffer = buffer_handler_create(type, inst->pd.width, inst->pd.height, sizeof(int));
+		inst->pd.canvas.buffer = buffer_handler_create(inst, type, inst->pd.width, inst->pd.height, sizeof(int));
 		if (!inst->pd.canvas.buffer)
 			ErrPrint("Failed to create PD Buffer\n");
 	}
@@ -792,7 +798,7 @@ int instance_create_lb_buffer(struct inst_info *inst)
 		 * Slave doesn't call the acquire_buffer.
 		 * In this case, create the buffer from here.
 		 */
-		inst->lb.canvas.buffer = buffer_handler_create(type, inst->lb.width, inst->lb.height, sizeof(int));
+		inst->lb.canvas.buffer = buffer_handler_create(inst, type, inst->lb.width, inst->lb.height, sizeof(int));
 		if (!inst->lb.canvas.buffer)
 			ErrPrint("Failed to create LB\n");
 	}
@@ -1724,8 +1730,14 @@ int instance_recover_state(struct inst_info *inst)
 		case INST_INIT:
 			DbgPrint("Req. to ACTIVATED (%s)\n", package_name(inst->info));
 			instance_state_reset(inst);
-			instance_activate(inst);
-			ret = 1;
+			if (instance_activate(inst) < 0) {
+				DbgPrint("Failed to reactivate the instance\n");
+				instance_broadcast_deleted_event(inst);
+				instance_state_reset(inst);
+				instance_destroy(inst);
+			} else {
+				ret = 1;
+			}
 			break;
 		case INST_DESTROYED:
 			DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));

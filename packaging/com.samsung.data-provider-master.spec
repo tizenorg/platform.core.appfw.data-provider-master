@@ -30,6 +30,7 @@ BuildRequires: pkgconfig(libdrm_slp)
 BuildRequires: pkgconfig(xfixes)
 BuildRequires: pkgconfig(dri2proto)
 BuildRequires: pkgconfig(xext)
+BuildRequires: pkgconfig(xdamage)
 
 %description
 Manage the slave data provider and communicate with client applications.

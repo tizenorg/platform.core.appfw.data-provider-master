@@ -42,7 +42,7 @@ static void *alloc_fb(void *data, int size)
 
 	DbgPrint("FB size: %d\n", size);
 
-	if (buffer_handler_load(info->buffer) < 0) {
+	if (buffer_handler_load(info->buffer, 0) < 0) {
 		ErrPrint("Failed to load buffer handler\n");
 		return NULL;
 	}
@@ -65,7 +65,7 @@ static void free_fb(void *data, void *ptr)
 	(void)buffer_handler_unload(info->buffer);
 }
 
-struct fb_info *fb_create(int w, int h, enum buffer_type type)
+struct fb_info *fb_create(struct inst_info *inst, int w, int h, enum buffer_type type)
 {
 	struct fb_info *info;
 
@@ -75,7 +75,7 @@ struct fb_info *fb_create(int w, int h, enum buffer_type type)
 		return NULL;
 	}
 
-	info->buffer = buffer_handler_create(type, w, h, sizeof(int));
+	info->buffer = buffer_handler_create(inst, type, w, h, sizeof(int));
 	if (!info->buffer) {
 		ErrPrint("Failed to create a buffer\n");
 		free(info);

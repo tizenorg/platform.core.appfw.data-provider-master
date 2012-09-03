@@ -1,8 +1,9 @@
 struct fb_info;
+struct inst_info;
 
 extern int fb_init(void);
 extern int fb_fini(void);
-extern struct fb_info *fb_create(int w, int h, enum buffer_type type);
+extern struct fb_info *fb_create(struct inst_info *inst, int w, int h, enum buffer_type type);
 extern int fb_destroy(struct fb_info *info);
 extern Ecore_Evas * const fb_canvas(struct fb_info *info);
 extern const char *fb_id(struct fb_info *info);

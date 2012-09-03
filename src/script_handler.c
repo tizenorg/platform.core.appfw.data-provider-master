@@ -333,7 +333,7 @@ struct script_info *script_handler_create(struct inst_info *inst, const char *fi
 			type = BUFFER_TYPE_PIXMAP;
 	}
 
-	info->fb = fb_create(w, h, type);
+	info->fb = fb_create(inst, w, h, type);
 	if (!info->fb) {
 		ErrPrint("Failed to create a FB (%dx%d)\n", w, h);
 		free(info);

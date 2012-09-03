@@ -26,6 +26,7 @@ pkg_check_modules(pkg REQUIRED
 	xfixes
 	dri2proto
 	xext
+	xdamage
 )
 
 SET(PACKAGE "${PROJECT_NAME}")

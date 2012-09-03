@@ -2429,7 +2429,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 
 			ret = buffer_handler_resize(info, w, h);
 
-			if (buffer_handler_load(info) == 0)
+			if (buffer_handler_load(info, 0) == 0)
 				id = buffer_handler_id(info);
 		}
 	} else if (target == TYPE_PD) {
@@ -2449,7 +2449,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 
 			ret = buffer_handler_resize(info, w, h);
 
-			if (buffer_handler_load(info) == 0)
+			if (buffer_handler_load(info, 0) == 0)
 				id = buffer_handler_id(info);
 		}
 	}
