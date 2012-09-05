@@ -164,7 +164,12 @@ static inline struct buffer *create_gem(Display *disp, Window parent, int w, int
 	gem->w = w;
 	gem->h = h;
 	gem->depth = depth;
-	gem->pixmap = XCreatePixmap(disp, parent, w, h, (depth << 3));
+	/*!
+	 * \NOTE
+	 * Use the 24 Bits
+	 * 32 Bits is not supported for video playing.
+	 */
+	gem->pixmap = XCreatePixmap(disp, parent, w, h, 24 /* (depth << 3) */);
 	if (gem->pixmap == (Pixmap)0) {
 		ErrPrint("Failed to create a pixmap\n");
 		free(buffer);
