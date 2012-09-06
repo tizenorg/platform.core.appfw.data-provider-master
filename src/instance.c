@@ -62,6 +62,8 @@ struct inst_info {
 	char *category;
 	char *title;
 
+	enum livebox_visible_state visible;
+
 	struct {
 		int width;
 		int height;
@@ -96,6 +98,35 @@ struct inst_info {
 };
 
 #define CLIENT_SEND_EVENT(instance, packet)	((instance)->client ? client_rpc_async_request((instance)->client, (packet)) : client_rpc_broadcast((instance), (packet)))
+
+static inline int pause_livebox(struct inst_info *inst)
+{
+	struct packet *packet;
+	int ret;
+
+	packet = packet_create_noack("lb_pause", "ss", package_name(inst->info), inst->id);
+	if (!packet) {
+		ErrPrint("Failed to create a new packet\n");
+		return -EFAULT;
+	}
+
+	return slave_rpc_request_only(package_slave(inst->info), package_name(inst->info), packet);
+}
+
+/*! \TODO Wake up the freeze'd timer */
+static inline int resume_livebox(struct inst_info *inst)
+{
+	struct packet *packet;
+	int ret;
+
+	packet = packet_create_noack("lb_resume", "ss", package_name(inst->info), inst->id);
+	if (!packet) {
+		ErrPrint("Failed to create a new packet\n");
+		return -EFAULT;
+	}
+
+	return slave_rpc_request_only(package_slave(inst->info), package_name(inst->info), packet);
+}
 
 int instance_unicast_created_event(struct inst_info *inst, struct client_node *client)
 {
@@ -600,6 +631,21 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 			if (pd_type == PD_TYPE_SCRIPT && inst->pd.canvas.script && inst->pd.is_opened_for_reactivate)
 				script_handler_load(inst->pd.canvas.script, 1);
 
+			switch (inst->visible) {
+			case LB_SHOW:
+				/* Do nothing */
+				break;
+			case LB_HIDE:
+				/* Do nothing */
+				break;
+			case LB_HIDE_WITH_PAUSE:
+				pause_livebox(inst);
+				break;
+			default:
+				ErrPrint("Unknown visibility\n");
+				break;
+			}
+
 			/*!
 			 * \note After recreated, send the update event to the client
 			 */
@@ -1070,6 +1116,11 @@ void instance_lb_updated_by_instance(struct inst_info *inst)
 	const char *title;
 	const char *content;
 
+	if (inst->client && inst->visible != LB_SHOW) {
+		DbgPrint("Livebox is hidden. ignore update event\n");
+		return;
+	}
+
 	lb_type = package_lb_type(inst->info);
 	if (lb_type == LB_TYPE_SCRIPT)
 		id = fb_id(script_handler_fb(inst->lb.canvas.script));
@@ -1104,6 +1155,11 @@ void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfil
 	struct packet *packet;
 	enum pd_type pd_type;
 	const char *id;
+
+	if (inst->client && inst->visible != LB_SHOW) {
+		DbgPrint("Livebox is hidden. ignore update event\n");
+		return;
+	}
 
 	if (!descfile)
 		descfile = inst->id;
@@ -1272,6 +1328,36 @@ int instance_set_pinup(struct inst_info *inst, int pinup)
 	}
 
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, pinup_cb, cbdata);
+}
+
+int instance_set_visible_state(struct inst_info *inst, enum livebox_visible_state state)
+{
+	if (inst->visible == state) {
+		DbgPrint("Visibility has no changed\n");
+		return 0;
+	}
+
+	switch (state) {
+	case LB_SHOW:
+	case LB_HIDE:
+		if (inst->visible == LB_HIDE_WITH_PAUSE) {
+			if (resume_livebox(inst) == 0)
+				inst->visible = state;
+		} else {
+			inst->visible = state;
+		}
+		break;
+
+	case LB_HIDE_WITH_PAUSE:
+		if (pause_livebox(inst) == 0)
+			inst->visible = LB_HIDE_WITH_PAUSE;
+		break;
+
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
 }
 
 static void resize_cb(struct slave_node *slave, const struct packet *packet, void *data)

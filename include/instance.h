@@ -34,7 +34,7 @@
  * It will change the instance's state to "ACTIVATED"
  * But now, the master will not send "created" event to the clients.
  *
- * Because the clients don't watn to know the re-created liveboxes.
+ * Because the clients don't want to know the re-created liveboxes.
  * They just want to know about fault liveboxes to display deactivated
  * message.
  *
@@ -53,7 +53,7 @@
  * Yes, it is right. But the instance cannot be deleted directly.
  * Because some callbacks still reference it to complete its job.
  * So the instance needs to keep this DESTROYED state for a while
- * until all callbacks are done to their jobs.
+ * until all callbacks are done for their remained jobs.
  *
  * To unload the instance from the slave,
  * The master should send a request to the slave,
@@ -85,6 +85,15 @@ enum instance_state {
 	 */
 	INST_DESTROYED, /*!< Instance is unloaded and also it requires to be deleted from the master */
 	INST_REQUEST_TO_DESTROY, /*!< Sent a request to a slave, when the master receives deleted event, the master will delete this */
+};
+
+enum livebox_visible_state { /*!< Must be sync'd with livebox-viewer */
+	LB_SHOW = 0x00, /*!< Livebox is showed. Default state */
+	LB_HIDE = 0x01, /*!< Livebox is hide, with no update event, but keep update timer */
+
+	LB_HIDE_WITH_PAUSE = 0x02, /*!< Livebix is hide, it needs to be paused (with freezed update timer) */
+
+	LB_VISIBLE_ERROR = 0xFFFFFFFF, /* To enlarge the size of this enumeration type */
 };
 
 struct inst_info;
@@ -122,6 +131,7 @@ extern int instance_set_period(struct inst_info *inst, double period);
 extern int instance_clicked(struct inst_info *inst, const char *event, double timestamp, double x, double y);
 extern int instance_text_signal_emit(struct inst_info *inst, const char *emission, const char *source, double sx, double sy, double ex, double ey);
 extern int instance_change_group(struct inst_info *inst, const char *cluster, const char *category);
+extern int instance_set_visible_state(struct inst_info *inst, enum livebox_visible_state state);
 
 /*!
  * \note

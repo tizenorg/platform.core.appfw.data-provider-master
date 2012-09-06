@@ -1,5 +1,5 @@
 extern int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, struct packet *packet, void (*ret_cb)(struct slave_node *slave, const struct packet *packet, void *data), void *data);
-extern int slave_rpc_request_only(struct slave_node *slave, struct packet *packet);
+extern int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, struct packet *packet);
 extern int slave_rpc_update_handle(struct slave_node *slave, int handle);
 extern int slave_rpc_ping(struct slave_node *slave);
 extern void slave_rpc_request_update(const char *pkgname, const char *cluster, const char *category);

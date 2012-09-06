@@ -116,7 +116,6 @@ out:
 static struct packet *client_clicked(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
-	struct packet *result;
 	const char *pkgname;
 	const char *id;
 	const char *event;
@@ -153,11 +152,7 @@ static struct packet *client_clicked(pid_t pid, int handle, const struct packet 
 		ret = instance_clicked(inst, event, timestamp, x, y);
 
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-
-	return result;
+	return NULL;
 }
 
 /* pid, pkgname, filename, emission, source, s, sy, ex, ey, ret */
@@ -366,6 +361,43 @@ out:
 	return result;
 }
 
+static struct packet *client_change_visibility(pid_t pid, int handle, const struct packet *packet)
+{
+	struct client_node *client;
+	const char *pkgname;
+	const char *id;
+	enum livebox_visible_state state;
+	int ret;
+	struct inst_info *inst;
+
+	DbgPrint("Client[%d] request arrived\n", pid);
+
+	client = client_find_by_pid(pid);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssi", &pkgname, &id, (int *)&state);
+	if (ret != 3) {
+		ErrPrint("Parameter is not matched\n");
+		goto out;
+	}
+
+	DbgPrint("pkgname[%s] id[%s] state[%d]\n", pkgname, id, state);
+
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst)
+		goto out;
+	else if (package_is_fault(instance_package(inst)))
+		goto out;
+	else
+		ret = instance_set_visible_state(inst, state);
+
+out:
+	return NULL;
+}
+
 static struct packet *client_set_period(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, period, ret */
 {
 	struct client_node *client;
@@ -532,7 +564,7 @@ static struct packet *client_pd_mouse_enter(pid_t pid, int handle, const struct 
 			goto out;
 		}
 
-		ret = slave_rpc_request_only(slave, packet);
+		ret = slave_rpc_request_only(slave, pkgname, packet);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -637,7 +669,7 @@ static struct packet *client_pd_mouse_leave(pid_t pid, int handle, const struct 
 			goto out;
 		}
 
-		ret = slave_rpc_request_only(slave, packet);
+		ret = slave_rpc_request_only(slave, pkgname, packet);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -742,7 +774,7 @@ static struct packet *client_pd_mouse_down(pid_t pid, int handle, const struct p
 			goto out;
 		}
 
-		ret = slave_rpc_request_only(slave, packet);
+		ret = slave_rpc_request_only(slave, pkgname, packet);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -848,7 +880,7 @@ static struct packet *client_pd_mouse_up(pid_t pid, int handle, const struct pac
 			goto out;
 		}
 
-		ret = slave_rpc_request_only(slave, packet);
+		ret = slave_rpc_request_only(slave, pkgname, packet);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -954,7 +986,7 @@ static struct packet *client_pd_mouse_move(pid_t pid, int handle, const struct p
 			goto out;
 		}
 
-		ret = slave_rpc_request_only(slave, packet);
+		ret = slave_rpc_request_only(slave, pkgname, packet);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -1059,7 +1091,7 @@ static struct packet *client_lb_mouse_move(pid_t pid, int handle, const struct p
 			goto out;
 		}
 
-		ret = slave_rpc_request_only(slave, packet);
+		ret = slave_rpc_request_only(slave, pkgname, packet);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -1164,7 +1196,7 @@ static struct packet *client_lb_mouse_enter(pid_t pid, int handle, const struct 
 			goto out;
 		}
 
-		ret = slave_rpc_request_only(slave, packet);
+		ret = slave_rpc_request_only(slave, pkgname, packet);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -1269,7 +1301,7 @@ static struct packet *client_lb_mouse_leave(pid_t pid, int handle, const struct 
 			goto out;
 		}
 
-		ret = slave_rpc_request_only(slave, packet);
+		ret = slave_rpc_request_only(slave, pkgname, packet);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -1374,7 +1406,7 @@ static struct packet *client_lb_mouse_down(pid_t pid, int handle, const struct p
 			goto out;
 		}
 
-		ret = slave_rpc_request_only(slave, packet);
+		ret = slave_rpc_request_only(slave, pkgname, packet);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -1480,7 +1512,7 @@ static struct packet *client_lb_mouse_up(pid_t pid, int handle, const struct pac
 			goto out;
 		}
 
-		ret = slave_rpc_request_only(slave, packet);
+		ret = slave_rpc_request_only(slave, pkgname, packet);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -1788,7 +1820,6 @@ static struct packet *client_subscribed(pid_t pid, int handle, const struct pack
 	const char *cluster;
 	const char *category;
 	struct client_node *client;
-	struct packet *result;
 	int ret;
 
 	DbgPrint("Client[%d] request arrived\n", pid);
@@ -1819,11 +1850,7 @@ static struct packet *client_subscribed(pid_t pid, int handle, const struct pack
 		package_alter_instances_to_client(client);
 
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-
-	return result;
+	return NULL;
 }
 
 static struct packet *client_delete_cluster(pid_t pid, int handle, const struct packet *packet)
@@ -1899,7 +1926,6 @@ static struct packet *client_refresh_group(pid_t pid, int handle, const struct p
 	const char *cluster_id;
 	const char *category_id;
 	struct client_node *client;
-	struct packet *result;
 	int ret;
 	struct cluster *cluster;
 	struct category *category;
@@ -1939,10 +1965,7 @@ static struct packet *client_refresh_group(pid_t pid, int handle, const struct p
 	group_list_category_pkgs(category, update_pkg_cb, NULL);
 
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-	return result;
+	return NULL;
 }
 
 static struct packet *client_delete_category(pid_t pid, int handle, const struct packet *packet)
@@ -1988,7 +2011,6 @@ static struct packet *client_unsubscribed(pid_t pid, int handle, const struct pa
 	const char *cluster;
 	const char *category;
 	struct client_node *client;
-	struct packet *result;
 	int ret;
 
 	DbgPrint("Client[%d] request arrived\n", pid);
@@ -2016,10 +2038,7 @@ static struct packet *client_unsubscribed(pid_t pid, int handle, const struct pa
 	ret = client_unsubscribe(client, cluster, category);
 
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-	return result;
+	return NULL;
 }
 
 static struct packet *slave_hello(pid_t pid, int handle, const struct packet *packet) /* slave_name, ret */
@@ -2724,6 +2743,10 @@ static struct method s_table[] = {
 	{
 		.cmd = "refresh_group",
 		.handler = client_refresh_group,
+	},
+	{
+		.cmd = "change,visibility",
+		.handler = client_change_visibility,
 	},
 	/*!
 	 * \note services for slave

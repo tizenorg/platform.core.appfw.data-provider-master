@@ -366,12 +366,12 @@ int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, struc
 	return 0;
 }
 
-int slave_rpc_request_only(struct slave_node *slave, struct packet *packet)
+int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, struct packet *packet)
 {
 	struct command *command;
 	struct slave_rpc *rpc;
 
-	command = create_command(slave, NULL, packet);
+	command = create_command(slave, pkgname, packet);
 	if (!command) {
 		ErrPrint("Failed to create a command\n");
 		packet_unref(packet);
