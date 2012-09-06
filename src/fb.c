@@ -42,7 +42,7 @@ static void *alloc_fb(void *data, int size)
 
 	DbgPrint("FB size: %d\n", size);
 
-	if (buffer_handler_load(info->buffer, 0) < 0) {
+	if (buffer_handler_load(info->buffer) < 0) {
 		ErrPrint("Failed to load buffer handler\n");
 		return NULL;
 	}
@@ -176,7 +176,14 @@ void *fb_pixmap_render_pre(struct fb_info *info)
 
 int fb_pixmap_render_post(struct fb_info *info)
 {
-	return buffer_handler_pixmap_release_buffer(info->buffer);
+	void *canvas;
+
+	/*!
+	 * \note
+	 * info->buffer == struct buffer_info
+	 */
+	canvas = buffer_handler_pixmap_buffer(info->buffer);
+	return buffer_handler_pixmap_release_buffer(canvas);
 }
 
 /* End of a file */

@@ -1542,6 +1542,208 @@ out:
 	return NULL;
 }
 
+static int release_pixmap_cb(struct client_node *client, void *canvas)
+{
+	DbgPrint("Forcely unref the \"buffer\"\n");
+	buffer_handler_pixmap_unref(canvas);
+	return -1; /* Delete this callback */
+}
+
+static struct packet *client_lb_acquire_pixmap(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+{
+	struct packet *result;
+	const char *pkgname;
+	const char *id;
+	struct client_node *client;
+	struct inst_info *inst;
+	int ret;
+	int pixmap = 0;
+	void *buf_ptr;
+
+	DbgPrint("Client[%d] request arrived\n", pid);
+
+	client = client_find_by_pid(pid);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		goto out;
+	}
+
+	ret = packet_get(packet, "ss", &pkgname, &id);
+	if (ret != 2) {
+		ErrPrint("Parameter is not matched\n");
+		goto out;
+	}
+
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst) {
+		ErrPrint("Failed to find an instance (%s - %s)\n", pkgname, id);
+		goto out;
+	}
+
+	DbgPrint("pkgname[%s] id[%s]\n", pkgname, id);
+
+	buf_ptr = buffer_handler_pixmap_ref(instance_lb_buffer(inst));
+	if (!buf_ptr) {
+		ErrPrint("Failed to ref pixmap\n");
+		goto out;
+	}
+
+	ret = client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, release_pixmap_cb, buf_ptr);
+	if (ret < 0) {
+		ErrPrint("Failed to add a new client deactivate callback\n");
+		buffer_handler_pixmap_unref(buf_ptr);
+		pixmap = 0;
+	} else {
+		pixmap = buffer_handler_pixmap(instance_lb_buffer(inst));
+	}
+out:
+	result = packet_create_reply(packet, "i", pixmap);
+	if (!result)
+		ErrPrint("Failed to create a reply packet\n");
+
+	return result;
+}
+
+static struct packet *client_lb_release_pixmap(pid_t pid, int handle, const struct packet *packet)
+{
+	const char *pkgname;
+	const char *id;
+	struct client_node *client;
+	struct inst_info *inst;
+	int pixmap;
+	void *buf_ptr;
+	int ret;
+
+	DbgPrint("Client[%d] request arrived\n", pid);
+
+	client = client_find_by_pid(pid);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssi", &pkgname, &id, &pixmap);
+	if (ret != 3) {
+		ErrPrint("Parameter is not matched\n");
+		goto out;
+	}
+	DbgPrint("pkgname[%s] id[%s] Pixmap[0x%X]\n", pkgname, id, pixmap);
+
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst) {
+		ErrPrint("Failed to find an instance (%s - %s)\n", pkgname, id);
+		goto out;
+	}
+
+	buf_ptr = buffer_handler_pixmap_find(pixmap);
+	if (!buf_ptr) {
+		ErrPrint("Failed to find a buf_ptr of 0x%X\n", pixmap);
+		goto out;
+	}
+
+	buffer_handler_pixmap_unref(buf_ptr);
+	client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, release_pixmap_cb, buf_ptr);
+
+out:
+	return NULL;
+}
+
+static struct packet *client_pd_acquire_pixmap(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+{
+	struct packet *result;
+	const char *pkgname;
+	const char *id;
+	struct client_node *client;
+	struct inst_info *inst;
+	int ret;
+	int pixmap = 0;
+	void *buf_ptr;
+
+	DbgPrint("Client[%d] request arrived\n", pid);
+
+	client = client_find_by_pid(pid);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		goto out;
+	}
+
+	ret = packet_get(packet, "ss", &pkgname, &id);
+	if (ret != 2) {
+		ErrPrint("Parameter is not matched\n");
+		goto out;
+	}
+
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst) {
+		ErrPrint("Failed to find an instance (%s - %s)\n", pkgname, id);
+		goto out;
+	}
+
+	DbgPrint("pkgname[%s] id[%s]\n", pkgname, id);
+
+	buf_ptr = buffer_handler_pixmap_ref(instance_pd_buffer(inst));
+	if (!buf_ptr) {
+		ErrPrint("Failed to ref pixmap\n");
+		goto out;
+	}
+
+	ret = client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, release_pixmap_cb, buf_ptr);
+	if (ret < 0)
+		buffer_handler_pixmap_unref(buf_ptr);
+
+	pixmap = buffer_handler_pixmap(instance_pd_buffer(inst));
+out:
+	result = packet_create_reply(packet, "i", pixmap);
+	if (!result)
+		ErrPrint("Failed to create a reply packet\n");
+
+	return result;
+}
+
+static struct packet *client_pd_release_pixmap(pid_t pid, int handle, const struct packet *packet)
+{
+	const char *pkgname;
+	const char *id;
+	struct client_node *client;
+	struct inst_info *inst;
+	int pixmap;
+	void *buf_ptr;
+	int ret;
+
+	DbgPrint("Client[%d] request arrived\n", pid);
+
+	client = client_find_by_pid(pid);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssi", &pkgname, &id, &pixmap);
+	if (ret != 2) {
+		ErrPrint("Parameter is not matched\n");
+		goto out;
+	}
+	DbgPrint("pkgname[%s] id[%s]\n", pkgname, id);
+
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst) {
+		ErrPrint("Failed to find an instance (%s - %s)\n", pkgname, id);
+		goto out;
+	}
+
+	buf_ptr = buffer_handler_pixmap_find(pixmap);
+	if (!buf_ptr) {
+		ErrPrint("Failed to find a buf_ptr of 0x%X\n", pixmap);
+		goto out;
+	}
+
+	buffer_handler_pixmap_unref(buf_ptr);
+	client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, release_pixmap_cb, buf_ptr);
+
+out:
+	return NULL;
+}
+
 static struct packet *client_pinup_changed(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, pinup, ret */
 {
 	struct client_node *client;
@@ -1658,7 +1860,6 @@ static int pd_buffer_close_cb(struct client_node *client, void *inst)
 
 	DbgPrint("Forcely close the PD\n");
 	ret = slave_send_pd_destroy(inst);
-	DbgPrint("Returns: %d\n", ret);
 	return -1; /* Delete this callback */
 }
 
@@ -1669,7 +1870,6 @@ static int pd_script_close_cb(struct client_node *client, void *inst)
 
 	DbgPrint("Forcely close the PD\n");
 	ret = script_handler_unload(instance_pd_script(inst), 1);
-	DbgPrint("Returns: %d\n", ret);
 	return -1; /* Delete this callback */
 }
 
@@ -2447,9 +2647,15 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 			}
 
 			ret = buffer_handler_resize(info, w, h);
+			DbgPrint("Buffer resize returns %d\n", ret);
 
-			if (buffer_handler_load(info, 0) == 0)
+			ret = buffer_handler_load(info);
+			if (ret == 0) {
 				id = buffer_handler_id(info);
+				DbgPrint("Buffer handler ID: %s\n", id);
+			} else {
+				DbgPrint("Failed to load a buffer(%d)\n", ret);
+			}
 		}
 	} else if (target == TYPE_PD) {
 		if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
@@ -2467,9 +2673,15 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 			}
 
 			ret = buffer_handler_resize(info, w, h);
+			DbgPrint("Buffer resize returns %d\n", ret);
 
-			if (buffer_handler_load(info, 0) == 0)
+			ret = buffer_handler_load(info);
+			if (ret == 0) {
 				id = buffer_handler_id(info);
+				DbgPrint("Buffer handler ID: %s\n", id);
+			} else {
+				DbgPrint("Failed to load a buffer (%d)\n", ret);
+			}
 		}
 	}
 
@@ -2615,7 +2827,7 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 	} else if (type == TYPE_PD) {
 		struct buffer_info *info;
 
-		info = instance_lb_buffer(inst);
+		info = instance_pd_buffer(inst);
 		ret = buffer_handler_unload(info);
 	}
 
@@ -2671,6 +2883,22 @@ static struct method s_table[] = {
 	{
 		.cmd = "lb_mouse_up",
 		.handler = client_lb_mouse_up, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = "lb_acquire_pixmap",
+		.handler = client_lb_acquire_pixmap,
+	},
+	{
+		.cmd = "lb_release_pixmap",
+		.handler = client_lb_release_pixmap,
+	},
+	{
+		.cmd = "pd_acquire_pixmap",
+		.handler = client_pd_acquire_pixmap,
+	},
+	{
+		.cmd = "pd_release_pixmap",
+		.handler = client_pd_release_pixmap,
 	},
 	{
 		.cmd = "acquire",

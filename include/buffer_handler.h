@@ -28,10 +28,9 @@ extern int buffer_handler_destroy(struct buffer_info *info);
 /*!
  * \brief
  * \param[in] info
- * \param[in] with_update_cb use the pixmap damage callback
  * \return int
  */
-extern int buffer_handler_load(struct buffer_info *info, int with_update_cb);
+extern int buffer_handler_load(struct buffer_info *info);
 
 /*!
  * \brief
@@ -83,7 +82,7 @@ extern enum buffer_type buffer_handler_type(const struct buffer_info *info);
  * \param[in] info
  * \return void*
  */
-extern void *buffer_handler_fb(const struct buffer_info *info);
+extern void *buffer_handler_fb(struct buffer_info *info);
 
 /*!
  * \brief
@@ -113,14 +112,14 @@ extern int buffer_handler_pixmap(const struct buffer_info *info);
  * \param[in] info
  * \return buffer
  */
-extern void *buffer_handler_pixmap_acquire_buffer(const struct buffer_info *info);
+extern void *buffer_handler_pixmap_acquire_buffer(struct buffer_info *info);
 
 /*!
  * \brief
  * \param[in] info
  * \return int
  */
-extern int buffer_handler_pixmap_release_buffer(const struct buffer_info *info);
+extern int buffer_handler_pixmap_release_buffer(void *canvas);
 
 /*!
  * \brief
@@ -134,4 +133,11 @@ extern int buffer_handler_init(void);
  */
 extern int buffer_handler_fini(void);
 
+extern void *buffer_handler_pixmap_ref(struct buffer_info *info);
+
+extern int buffer_handler_pixmap_unref(void *buffer_ptr);
+
+extern void *buffer_handler_pixmap_find(int pixmap);
+
+extern void *buffer_handler_pixmap_buffer(struct buffer_info *info);
 /* End of a file */

@@ -102,7 +102,6 @@ struct inst_info {
 static inline int pause_livebox(struct inst_info *inst)
 {
 	struct packet *packet;
-	int ret;
 
 	packet = packet_create_noack("lb_pause", "ss", package_name(inst->info), inst->id);
 	if (!packet) {
@@ -117,7 +116,6 @@ static inline int pause_livebox(struct inst_info *inst)
 static inline int resume_livebox(struct inst_info *inst)
 {
 	struct packet *packet;
-	int ret;
 
 	packet = packet_create_noack("lb_resume", "ss", package_name(inst->info), inst->id);
 	if (!packet) {
@@ -626,7 +624,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 			if (lb_type == LB_TYPE_SCRIPT && inst->lb.canvas.script)
 				script_handler_load(inst->lb.canvas.script, 0);
 			else if (lb_type == LB_TYPE_BUFFER && inst->lb.canvas.buffer)
-				buffer_handler_load(inst->lb.canvas.buffer, 0);
+				buffer_handler_load(inst->lb.canvas.buffer);
 
 			if (pd_type == PD_TYPE_SCRIPT && inst->pd.canvas.script && inst->pd.is_opened_for_reactivate)
 				script_handler_load(inst->pd.canvas.script, 1);

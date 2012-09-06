@@ -15,7 +15,6 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xproto.h>
-#include <X11/extensions/Xdamage.h>
 
 #include <dri2.h>
 #include <xf86drm.h>
@@ -58,9 +57,7 @@ struct gem_data {
 	int depth;
 	Pixmap pixmap;
 	void *data; /* Gem layer */
-
-	Ecore_Event_Handler *damage_handler;
-	Ecore_X_Damage damage;
+	int refcnt;
 };
 
 struct buffer_info
@@ -83,11 +80,13 @@ static struct {
 	int evt_base;
 	int err_base;
 	int fd;
+	Eina_List *pixmap_list;
 } s_info = {
 	.slp_bufmgr = NULL,
 	.evt_base = 0,
 	.err_base = 0,
 	.fd = -1,
+	.pixmap_list = NULL,
 };
 
 struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buffer_type type, int w, int h, int pixel_size)
@@ -133,6 +132,7 @@ struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buffer_ty
 	info->type = type;
 	info->is_loaded = 0;
 	info->inst = inst;
+	info->buffer = NULL;
 
 	return info;
 }
@@ -154,7 +154,7 @@ static inline struct buffer *create_gem(Display *disp, Window parent, int w, int
 	gem = (struct gem_data *)buffer->data;
 
 	buffer->type = BUFFER_TYPE_PIXMAP;
-	buffer->refcnt = 0;
+	buffer->refcnt = 1;
 	buffer->state = CREATED;
 
 	DbgPrint("Canvas %dx%d - %d is created\n", w, h, depth);
@@ -208,6 +208,7 @@ static inline struct buffer *create_gem(Display *disp, Window parent, int w, int
 		return NULL;
 	}
 
+	DbgPrint("Return buffer: %p\n", buffer);
 	return buffer;
 }
 
@@ -215,11 +216,20 @@ static inline void *acquire_gem(struct buffer *buffer)
 {
 	struct gem_data *gem;
 
-	gem = (struct gem_data *)buffer->data;
+	if (!buffer)
+		return NULL;
 
-	gem->data = (void *)drm_slp_bo_map(gem->pixmap_bo, DRM_SLP_DEVICE_CPU, DRM_SLP_OPTION_READ|DRM_SLP_OPTION_WRITE);
-	if (gem->data)
-		buffer->refcnt++;
+	gem = (struct gem_data *)buffer->data;
+	if (!gem->data) {
+		if (gem->refcnt) {
+			ErrPrint("Already acquired. but the buffer is not valid\n");
+			return NULL;
+		}
+
+		gem->data = (void *)drm_slp_bo_map(gem->pixmap_bo, DRM_SLP_DEVICE_CPU, DRM_SLP_OPTION_READ|DRM_SLP_OPTION_WRITE);
+	}
+
+	gem->refcnt++;
 
 	DbgPrint("gem->data %p is gotten\n", gem->data);
 	return gem->data;
@@ -230,16 +240,27 @@ static inline void release_gem(struct buffer *buffer)
 	struct gem_data *gem;
 
 	gem = (struct gem_data *)buffer->data;
-
-	DbgPrint("Release gem : %d (%p)\n", buffer->refcnt, gem->data);
-	if (buffer->refcnt == 0)
+	if (!gem->data) {
+		if (gem->refcnt > 0) {
+			ErrPrint("Reference count is not valid %d\n", gem->refcnt);
+			gem->refcnt = 0;
+		}
 		return;
+	}
 
-	drm_slp_bo_unmap(gem->pixmap_bo, DRM_SLP_DEVICE_CPU);
-	gem->data = NULL;
+	gem->refcnt--;
+	if (gem->refcnt == 0) {
+		gem = (struct gem_data *)buffer->data;
+		DbgPrint("Release gem : %d (%p)\n", buffer->refcnt, gem->data);
+		drm_slp_bo_unmap(gem->pixmap_bo, DRM_SLP_DEVICE_CPU);
+		gem->data = NULL;
+	} else if (gem->refcnt < 0) {
+		DbgPrint("Invalid refcnt: %d (reset)\n", gem->refcnt);
+		gem->refcnt = 0;
+	}
 }
 
-static inline int destroy_gem(Display *disp, struct buffer *buffer)
+static inline int destroy_gem(struct buffer *buffer)
 {
 	struct gem_data *gem;
 
@@ -250,59 +271,26 @@ static inline int destroy_gem(Display *disp, struct buffer *buffer)
 	 * Forcely release the acquire_buffer.
 	 */
 	gem = (struct gem_data *)buffer->data;
-
-	release_gem(buffer);
+	if (!gem)
+		return -EFAULT;
 
 	DbgPrint("unref pixmap bo\n");
 	drm_slp_bo_unref(gem->pixmap_bo);
 	gem->pixmap_bo = NULL;
 
 	DbgPrint("DRI2DestroyDrawable\n");
-	DRI2DestroyDrawable(disp, gem->pixmap);
+	DRI2DestroyDrawable(ecore_x_display_get(), gem->pixmap);
 	DbgPrint("After destroy drawable\n");
 
-	XFreePixmap(disp, gem->pixmap);
-	DbgPrint("Free pixmap\n");
+	XFreePixmap(ecore_x_display_get(), gem->pixmap);
+	DbgPrint("Free pixmap 0x%X\n", gem->pixmap);
 
 	buffer->state = DESTROYED;
 	free(buffer);
 	return 0;
 }
 
-static Eina_Bool damage_event_cb(void *data, int type, void *event)
-{
-	Ecore_X_Event_Damage *e = (Ecore_X_Event_Damage *)event;
-	struct buffer_info *info;
-	struct buffer *buffer;
-	struct gem_data *gem;
-
-	info = (struct buffer_info *)data;
-	if (!info)
-		return ECORE_CALLBACK_PASS_ON;
-
-	buffer = (struct buffer *)info->buffer;
-	if (!buffer)
-		return ECORE_CALLBACK_PASS_ON;
-
-	gem = (struct gem_data *)buffer->data;
-
-	DbgPrint("0x%X <> 0x%X\n", e->drawable, gem->pixmap);
-	if (e->drawable == gem->pixmap) {
-		if (instance_pd_buffer(info->inst) == info) {
-			instance_pd_updated_by_instance(info->inst, NULL);
-		} else if (instance_lb_buffer(info->inst) == info) {
-			instance_lb_updated_by_instance(info->inst);
-		} else {
-			ErrPrint("What happens?\n");
-		}
-
-		ecore_x_damage_subtract(gem->damage, None, None);
-	}
-
-	return ECORE_CALLBACK_PASS_ON;
-}
-
-int buffer_handler_load(struct buffer_info *info, int with_update_cb)
+int buffer_handler_load(struct buffer_info *info)
 {
 	int len;
 
@@ -349,6 +337,7 @@ int buffer_handler_load(struct buffer_info *info, int with_update_cb)
 		info->buffer = buffer;
 		buffer->info = info;
 		DbgPrint("FILE type %d created\n", size);
+		info->is_loaded = 1;
 	} else if (info->type == BUFFER_TYPE_SHM) {
 		int id;
 		int size;
@@ -398,54 +387,45 @@ int buffer_handler_load(struct buffer_info *info, int with_update_cb)
 		snprintf(info->id, len, SCHEMA_SHM "%d", id);
 		info->buffer = buffer;
 		buffer->info = NULL; /*!< This has not to be used */
+		info->is_loaded = 1;
 	} else if (info->type == BUFFER_TYPE_PIXMAP) {
-		/*
-		 */
-		Display *disp;
-		Window root;
 		struct buffer *buffer;
 		struct gem_data *gem;
+		char *new_id;
 
-		disp = ecore_x_display_get();
-		root = DefaultRootWindow(disp);
+		info->is_loaded = 1;
+		buffer = buffer_handler_pixmap_ref(info);
+		if (!buffer) {
+			DbgPrint("Failed to make a reference of a pixmap\n");
+			info->is_loaded = 0;
+			return -EFAULT;
+		}
 
-		info->buffer = create_gem(disp, root, info->w, info->h, info->pixel_size);
-		if (!info->buffer)
-			DbgPrint("No GEM initialized\n");
-
-		free(info->id);
+		DbgPrint("Make a reference of a Pixmap is ok\n");
 
 		len = strlen(SCHEMA_PIXMAP) + 30; /* strlen("pixmap://") + 30 */
-		info->id = malloc(len);
-		if (!info->id) {
-			destroy_gem(disp, info->buffer);
-			info->buffer = NULL;
+		new_id = malloc(len);
+		if (!new_id) {
+			info->is_loaded = 0;
+			ErrPrint("Heap: %s\n", strerror(errno));
+			buffer_handler_pixmap_unref(buffer);
 			return -ENOMEM;
 		}
 
-		buffer = info->buffer;
-		buffer->info = info;
+		DbgPrint("Releaseo old id\n");
+		free(info->id);
+		info->id = new_id;
 
 		gem = (struct gem_data *)buffer->data;
+		DbgPrint("gem pointer: %p\n", gem);
+
 		snprintf(info->id, len, SCHEMA_PIXMAP "%d", (int)gem->pixmap);
 		DbgPrint("info->id: %s\n", info->id);
-
-		if (with_update_cb) {
-			DbgPrint("Enable the damage event handler\n");
-			gem->damage_handler = ecore_event_handler_add(ECORE_X_EVENT_DAMAGE_NOTIFY, damage_event_cb, info);
-			if (!gem->damage_handler)
-				ErrPrint("Failed to add a damage event handler\n");
-
-			gem->damage = ecore_x_damage_new(gem->pixmap, ECORE_X_DAMAGE_REPORT_RAW_RECTANGLES);
-			if (!gem->damage)
-				ErrPrint("Failed to create a new damage\n");
-		}
 	} else {
 		ErrPrint("Invalid buffer\n");
 		return -EINVAL;
 	}
 
-	info->is_loaded = 1;
 	return 0;
 }
 
@@ -505,8 +485,6 @@ int buffer_handler_unload(struct buffer_info *info)
 			ErrPrint("Heap: %s\n", strerror(errno));
 	} else if (info->type == BUFFER_TYPE_PIXMAP) {
 		int id;
-		struct buffer *buffer;
-		struct gem_data *gem;
 
 		if (sscanf(info->id, SCHEMA_PIXMAP "%d", &id) != 1) {
 			ErrPrint("Invalid ID (%s)\n", info->id);
@@ -518,23 +496,16 @@ int buffer_handler_unload(struct buffer_info *info)
 			return -EINVAL;
 		}
 
-		buffer = (struct buffer *)info->buffer;
-		if (buffer) {
-			gem = (struct gem_data *)buffer->data;
-			if (gem) {
-				if (gem->damage) {
-					ecore_x_damage_free(gem->damage);
-					gem->damage = 0;
-				}
+		/*!
+		 * Decrease the reference counter.
+		 */
+		buffer_handler_pixmap_unref(info->buffer);
 
-				if (gem->damage_handler) {
-					ecore_event_handler_del(gem->damage_handler);
-					gem->damage_handler = NULL;
-				}
-			}
-		}
-
-		destroy_gem(ecore_x_display_get(), info->buffer);
+		/*!
+		 * \note
+		 * Just clear the info->buffer.
+		 * It will be reallocated again.
+		 */
 		info->buffer = NULL;
 
 		free(info->id);
@@ -583,7 +554,7 @@ enum buffer_type buffer_handler_type(const struct buffer_info *info)
 	return info ? info->type : BUFFER_TYPE_ERROR;
 }
 
-void *buffer_handler_fb(const struct buffer_info *info)
+void *buffer_handler_fb(struct buffer_info *info)
 {
 	struct buffer *buffer;
 
@@ -594,10 +565,11 @@ void *buffer_handler_fb(const struct buffer_info *info)
 
 	if (!strncasecmp(info->id, SCHEMA_PIXMAP, strlen(SCHEMA_PIXMAP))) {
 		void *canvas;
+		int ret;
 
 		canvas = buffer_handler_pixmap_acquire_buffer(info);
-		buffer_handler_pixmap_release_buffer(info);
-		DbgPrint("Canvas %p\n", canvas);
+		ret = buffer_handler_pixmap_release_buffer(canvas);
+		DbgPrint("Canvas %p(%d) (released but still in use)\n", canvas, ret);
 		return canvas;
 	}
 
@@ -614,50 +586,180 @@ int buffer_handler_pixmap(const struct buffer_info *info)
 	return id;
 }
 
-void *buffer_handler_pixmap_acquire_buffer(const struct buffer_info *info)
+void *buffer_handler_pixmap_acquire_buffer(struct buffer_info *info)
 {
 	struct buffer *buffer;
-	struct gem_data *gem;
 
-	if (!info->is_loaded)
+	if (!info->is_loaded) {
+		ErrPrint("Buffer is not loaded\n");
 		return NULL;
-
-	buffer = info->buffer;
-	if (!buffer || buffer->state != CREATED || buffer->type != BUFFER_TYPE_PIXMAP)
-		return NULL;
-
-	gem = (struct gem_data *)buffer->data;
-
-	if (buffer->refcnt > 0) {
-		DbgPrint("gem->data already exists: %p\n", gem->data);
-		buffer->refcnt++;
-		return gem->data;
 	}
+
+	buffer = buffer_handler_pixmap_ref(info);
+	if (!buffer)
+		return NULL;
 
 	return acquire_gem(buffer);
 }
 
-int buffer_handler_pixmap_release_buffer(const struct buffer_info *info)
+void *buffer_handler_pixmap_buffer(struct buffer_info *info)
+{
+	struct buffer *buffer;
+	struct gem_data *gem;
+
+	if (!info)
+		return NULL;
+
+	if (!info->is_loaded) {
+		ErrPrint("Buffer is not loaded\n");
+		return NULL;
+	}
+
+	buffer = info->buffer;
+	if (!buffer)
+		return NULL;
+
+	gem = (struct gem_data *)buffer->data;
+	return gem->data;
+}
+
+/*!
+ * \return "buffer" object (Not the buffer_info)
+ */
+void *buffer_handler_pixmap_ref(struct buffer_info *info)
 {
 	struct buffer *buffer;
 
-	if (!info->is_loaded)
-		return -EINVAL;
-
-	buffer = info->buffer;
-	if (!buffer || buffer->state != CREATED || buffer->type != BUFFER_TYPE_PIXMAP)
-		return -EINVAL;
-
-	buffer->refcnt--;
-	if (buffer->refcnt < 0) {
-		buffer->refcnt = 0;
-		return -EINVAL;
+	if (!info->is_loaded) {
+		ErrPrint("Buffer is not loaded\n");
+		return NULL;
 	}
 
-	if (buffer->refcnt > 0)
-		return 0;
+	if (info->type != BUFFER_TYPE_PIXMAP) {
+		ErrPrint("Buffer type is not matched\n");
+		return NULL;
+	}
 
-	release_gem(buffer);
+	buffer = info->buffer;
+	if (!buffer) {
+		Display *disp;
+		Window root;
+
+		disp = ecore_x_display_get();
+		root = DefaultRootWindow(disp);
+
+		buffer = create_gem(disp, root, info->w, info->h, info->pixel_size);
+		if (!buffer) {
+			DbgPrint("No GEM initialization\n");
+			return NULL;
+		}
+
+		DbgPrint("Buffer is created: %p\n", buffer);
+		info->buffer = buffer;
+	} else if (buffer->state != CREATED || buffer->type != BUFFER_TYPE_PIXMAP) {
+		ErrPrint("Invalid buffer\n");
+		return NULL;
+	} else if (buffer->refcnt > 0) {
+		buffer->refcnt++;
+		DbgPrint("Increase the refcnt - Return buffer %p\n", buffer);
+		return buffer;
+	}
+
+	s_info.pixmap_list = eina_list_append(s_info.pixmap_list, buffer);
+	DbgPrint("(List appended - Return buffer %p\n", buffer);
+	return buffer;
+}
+
+/*!
+ * \return "buffer"
+ */
+void *buffer_handler_pixmap_find(int pixmap)
+{
+	struct buffer *buffer;
+	struct gem_data *gem;
+	Eina_List *l;
+	Eina_List *n;
+
+	if (pixmap == 0)
+		return NULL;
+
+
+	EINA_LIST_FOREACH_SAFE(s_info.pixmap_list, l, n, buffer) {
+		if (!buffer || buffer->state != CREATED || buffer->type != BUFFER_TYPE_PIXMAP) {
+			s_info.pixmap_list = eina_list_remove(s_info.pixmap_list, buffer);
+			DbgPrint("Invalid buffer\n");
+			continue;
+		}
+
+		gem = (struct gem_data *)buffer->data;
+		if (gem->pixmap == pixmap)
+			return buffer;
+	}
+
+	return NULL;
+}
+
+
+int buffer_handler_pixmap_release_buffer(void *canvas)
+{
+	struct buffer *buffer;
+	struct gem_data *gem;
+	Eina_List *l;
+	Eina_List *n;
+	void *_ptr;
+
+	if (!canvas)
+		return -EINVAL;
+
+	EINA_LIST_FOREACH_SAFE(s_info.pixmap_list, l, n, buffer) {
+		if (!buffer || buffer->state != CREATED || buffer->type != BUFFER_TYPE_PIXMAP) {
+			s_info.pixmap_list = eina_list_remove(s_info.pixmap_list, buffer);
+			DbgPrint("Invalid buffer\n");
+			continue;
+		}
+
+		gem = (struct gem_data *)buffer->data;
+		_ptr = gem->data;
+
+		if (!_ptr) {
+			s_info.pixmap_list = eina_list_remove(s_info.pixmap_list, buffer);
+			DbgPrint("Invalid buffer (NIL)\n");
+			continue;
+		}
+		
+		if (_ptr == canvas) {
+			release_gem(buffer);
+			buffer_handler_pixmap_unref(buffer);
+			return 0;
+		}
+	}
+
+	return -ENOENT;
+}
+
+/*!
+ * \note
+ *
+ * \return Return NULL if the buffer is in still uses.
+ * 	   Return buffer_ptr if it needs to destroy
+ */
+int buffer_handler_pixmap_unref(void *buffer_ptr)
+{
+	struct buffer *buffer = buffer_ptr;
+	struct buffer_info *info;
+
+	buffer->refcnt--;
+	if (buffer->refcnt > 0)
+		return 0; /* Return NULL means, gem buffer still in use */
+
+	s_info.pixmap_list = eina_list_remove(s_info.pixmap_list, buffer);
+
+	destroy_gem(buffer);
+
+	info = buffer->info;
+	if (info && info->buffer == buffer)
+		info->buffer = NULL;
+
 	return 0;
 }
 
@@ -700,7 +802,7 @@ int buffer_handler_resize(struct buffer_info *info, int w, int h)
 	if (ret < 0)
 		ErrPrint("Unload: %d\n", ret);
 
-	ret = buffer_handler_load(info, 0);
+	ret = buffer_handler_load(info);
 	if (ret < 0)
 		ErrPrint("Load: %d\n", ret);
 
