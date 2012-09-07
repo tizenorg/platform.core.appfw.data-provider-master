@@ -290,9 +290,162 @@ static inline int destroy_gem(struct buffer *buffer)
 	return 0;
 }
 
+static inline int load_file_buffer(struct buffer_info *info)
+{
+	struct buffer *buffer;
+	double timestamp;
+	int size;
+	char *new_id;
+	int len;
+
+	len = strlen(g_conf.path.image) + 40;
+	new_id = malloc(len);
+	if (!new_id) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
+	timestamp = util_timestamp();
+	snprintf(new_id, len, SCHEMA_FILE "%s%lf", g_conf.path.image, timestamp);
+
+	size = sizeof(*buffer) + info->w * info->h * info->pixel_size;
+	if (!size) {
+		ErrPrint("Canvas buffer size is ZERO\n");
+		free(new_id);
+		return -EINVAL;
+	}
+
+	buffer = calloc(1, size);
+	if (!buffer) {
+		ErrPrint("Failed to allocate buffer\n");
+		free(new_id);
+		return -ENOMEM;
+	}
+
+	buffer->type = BUFFER_TYPE_FILE;
+	buffer->refcnt = 0;
+	buffer->state = CREATED;
+	buffer->info = info;
+
+	free(info->id);
+	info->id = new_id;
+	info->buffer = buffer;
+	info->is_loaded = 1;
+
+	DbgPrint("FILE type %d created\n", size);
+	return 0;
+}
+
+static inline int load_shm_buffer(struct buffer_info *info)
+{
+	int id;
+	int size;
+	struct buffer *buffer; /* Just for getting a size */
+	char *new_id;
+	int len;
+
+	size = info->w * info->h * info->pixel_size;
+	if (!size) {
+		ErrPrint("Invalid buffer size\n");
+		return -EINVAL;
+	}
+
+	id = shmget(IPC_PRIVATE, size + sizeof(*buffer), IPC_CREAT | 0666);
+	if (id < 0) {
+		ErrPrint("shmget: %s\n", strerror(errno));
+		return -EFAULT;
+	}
+
+	buffer = shmat(id, NULL, 0);
+	if (buffer == (void *)-1) {
+		ErrPrint("%s shmat: %s\n", info->id, strerror(errno));
+
+		if (shmctl(id, IPC_RMID, 0) < 0)
+			ErrPrint("%s shmctl: %s\n", info->id, strerror(errno));
+
+		return -EFAULT;
+	}
+
+	buffer->type = BUFFER_TYPE_SHM;
+	buffer->refcnt = id;
+	buffer->state = CREATED; /*!< Needless */
+	buffer->info = NULL; /*!< This has not to be used, every process will see this. So, don't try to save anything on here */
+
+	len = strlen(SCHEMA_SHM) + 30; /* strlen("shm://") + 30 */
+
+	new_id = malloc(len);
+	if (!new_id) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		if (shmdt(buffer) < 0)
+			ErrPrint("shmdt: %s\n", strerror(errno));
+
+		if (shmctl(id, IPC_RMID, 0) < 0)
+			ErrPrint("shmctl: %s\n", strerror(errno));
+
+		return -ENOMEM;
+	}
+
+	snprintf(new_id, len, SCHEMA_SHM "%d", id);
+
+	free(info->id);
+	info->id = new_id;
+	info->buffer = buffer;
+	info->is_loaded = 1;
+	return 0;
+}
+
+static inline int load_pixmap_buffer(struct buffer_info *info)
+{
+	struct buffer *buffer;
+	struct gem_data *gem;
+	char *new_id;
+	int len;
+
+	/*!
+	 * \NOTE
+	 * Before call the buffer_handler_pixmap_ref function,
+	 * You should make sure that the is_loaded value is toggled (1)
+	 * Or the buffer_handler_pixmap_ref function will return NULL
+	 */
+	info->is_loaded = 1;
+
+	if (info->buffer)
+		DbgPrint("Buffer is already exists, but override it with new one\n");
+
+	buffer = buffer_handler_pixmap_ref(info);
+	if (!buffer) {
+		DbgPrint("Failed to make a reference of a pixmap\n");
+		info->is_loaded = 0;
+		return -EFAULT;
+	}
+
+	DbgPrint("Make a reference of a Pixmap is ok\n");
+
+	len = strlen(SCHEMA_PIXMAP) + 30; /* strlen("pixmap://") + 30 */
+	new_id = malloc(len);
+	if (!new_id) {
+		info->is_loaded = 0;
+		ErrPrint("Heap: %s\n", strerror(errno));
+		buffer_handler_pixmap_unref(buffer);
+		return -ENOMEM;
+	}
+
+	DbgPrint("Releaseo old id\n");
+	free(info->id);
+	info->id = new_id;
+
+	gem = (struct gem_data *)buffer->data;
+	DbgPrint("gem pointer: %p\n", gem);
+
+	snprintf(info->id, len, SCHEMA_PIXMAP "%d", (int)gem->pixmap);
+	DbgPrint("info->id: %s\n", info->id);
+
+	return 0;
+}
+
 int buffer_handler_load(struct buffer_info *info)
 {
-	int len;
+	int ret;
 
 	if (!info) {
 		DbgPrint("buffer handler is nil\n");
@@ -304,133 +457,128 @@ int buffer_handler_load(struct buffer_info *info)
 		return 0;
 	}
 
-	if (info->type == BUFFER_TYPE_FILE) {
-		double timestamp;
-		int size;
-		struct buffer *buffer;
-
-		size = sizeof(*buffer) + info->w * info->h * info->pixel_size;
-		buffer = calloc(1, size);
-		if (!buffer) {
-			ErrPrint("Failed to allocate buffer\n");
-			return -ENOMEM;
-		}
-
-		buffer->type = BUFFER_TYPE_FILE;
-		buffer->refcnt = 0;
-		buffer->state = CREATED;
-
-		len = strlen(g_conf.path.image) + 40;
-		timestamp = util_timestamp();
-
-		free(info->id);
-
-		info->id = malloc(len);
-		if (!info->id) {
-			ErrPrint("Heap: %s\n", strerror(errno));
-			buffer->state = DESTROYED;
-			free(buffer);
-			return -ENOMEM;
-		}
-
-		snprintf(info->id, len, SCHEMA_FILE "%s%lf", g_conf.path.image, timestamp);
-		info->buffer = buffer;
-		buffer->info = info;
-		DbgPrint("FILE type %d created\n", size);
-		info->is_loaded = 1;
-	} else if (info->type == BUFFER_TYPE_SHM) {
-		int id;
-		int size;
-		struct buffer *buffer; /* Just for getting a size */
-
-		size = info->w * info->h * info->pixel_size;
-		if (!size) {
-			ErrPrint("Invalid buffer size\n");
-			return -EINVAL;
-		}
-
-		id = shmget(IPC_PRIVATE, size + sizeof(*buffer), IPC_CREAT | 0666);
-		if (id < 0) {
-			ErrPrint("shmget: %s\n", strerror(errno));
-			return -EFAULT;
-		}
-
-		buffer = shmat(id, NULL, 0);
-		if (buffer == (void *)-1) {
-			ErrPrint("%s shmat: %s\n", info->id, strerror(errno));
-
-			if (shmctl(id, IPC_RMID, 0) < 0)
-				ErrPrint("%s shmctl: %s\n", info->id, strerror(errno));
-
-			return -EFAULT;
-		}
-
-		buffer->type = BUFFER_TYPE_SHM;
-		buffer->refcnt = id;
-		buffer->state = CREATED; /*!< Needless */
-
-		free(info->id);
-
-		len = strlen(SCHEMA_SHM) + 30; /* strlen("shm://") + 30 */
-		info->id = malloc(len);
-		if (!info->id) {
-			ErrPrint("Heap: %s\n", strerror(errno));
-			if (shmdt(buffer) < 0)
-				ErrPrint("shmdt: %s\n", strerror(errno));
-
-			if (shmctl(id, IPC_RMID, 0) < 0)
-				ErrPrint("shmctl: %s\n", strerror(errno));
-
-			return -ENOMEM;
-		}
-
-		snprintf(info->id, len, SCHEMA_SHM "%d", id);
-		info->buffer = buffer;
-		buffer->info = NULL; /*!< This has not to be used */
-		info->is_loaded = 1;
-	} else if (info->type == BUFFER_TYPE_PIXMAP) {
-		struct buffer *buffer;
-		struct gem_data *gem;
-		char *new_id;
-
-		info->is_loaded = 1;
-		buffer = buffer_handler_pixmap_ref(info);
-		if (!buffer) {
-			DbgPrint("Failed to make a reference of a pixmap\n");
-			info->is_loaded = 0;
-			return -EFAULT;
-		}
-
-		DbgPrint("Make a reference of a Pixmap is ok\n");
-
-		len = strlen(SCHEMA_PIXMAP) + 30; /* strlen("pixmap://") + 30 */
-		new_id = malloc(len);
-		if (!new_id) {
-			info->is_loaded = 0;
-			ErrPrint("Heap: %s\n", strerror(errno));
-			buffer_handler_pixmap_unref(buffer);
-			return -ENOMEM;
-		}
-
-		DbgPrint("Releaseo old id\n");
-		free(info->id);
-		info->id = new_id;
-
-		gem = (struct gem_data *)buffer->data;
-		DbgPrint("gem pointer: %p\n", gem);
-
-		snprintf(info->id, len, SCHEMA_PIXMAP "%d", (int)gem->pixmap);
-		DbgPrint("info->id: %s\n", info->id);
-	} else {
+	switch (info->type) {
+	case BUFFER_TYPE_FILE:
+		ret = load_file_buffer(info);
+		break;
+	case BUFFER_TYPE_SHM:
+		ret = load_shm_buffer(info);
+		break;
+	case BUFFER_TYPE_PIXMAP:
+		ret = load_pixmap_buffer(info);
+		break;
+	default:
 		ErrPrint("Invalid buffer\n");
+		ret = -EINVAL;
+		break;
+	}
+
+	return ret;
+}
+
+static inline int unload_file_buffer(struct buffer_info *info)
+{
+	const char *path;
+	char *new_id;
+
+	new_id = strdup(SCHEMA_FILE "/tmp/.live.undefined");
+	if (!new_id) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
+	free(info->buffer);
+	info->buffer = NULL;
+
+	path = util_uri_to_path(info->id);
+	if (path && unlink(path) < 0)
+		ErrPrint("unlink: %s\n", strerror(errno));
+
+	free(info->id);
+	info->id = new_id;
+	return 0;
+}
+
+static inline int unload_shm_buffer(struct buffer_info *info)
+{
+	int id;
+	char *new_id;
+
+	new_id = strdup(SCHEMA_SHM "-1");
+	if (!new_id) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
+	if (sscanf(info->id, SCHEMA_SHM "%d", &id) != 1) {
+		ErrPrint("%s Invalid ID\n", info->id);
+		free(new_id);
 		return -EINVAL;
 	}
 
+	if (id < 0) {
+		ErrPrint("(%s) Invalid id: %d\n", info->id, id);
+		free(new_id);
+		return -EINVAL;
+	}
+
+	if (shmdt(info->buffer) < 0)
+		ErrPrint("Detach shm: %s\n", strerror(errno));
+
+	if (shmctl(id, IPC_RMID, 0) < 0)
+		ErrPrint("Remove shm: %s\n", strerror(errno));
+
+	info->buffer = NULL;
+
+	free(info->id);
+	info->id = new_id;
+	return 0;
+}
+
+static inline int unload_pixmap_buffer(struct buffer_info *info)
+{
+	int id;
+	char *new_id;
+
+	new_id = strdup(SCHEMA_PIXMAP "0");
+	if (!new_id) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
+	if (sscanf(info->id, SCHEMA_PIXMAP "%d", &id) != 1) {
+		ErrPrint("Invalid ID (%s)\n", info->id);
+		free(new_id);
+		return -EINVAL;
+	}
+
+	if (id == 0) {
+		ErrPrint("(%s) Invalid id: %d\n", info->id, id);
+		free(new_id);
+		return -EINVAL;
+	}
+
+	/*!
+	 * Decrease the reference counter.
+	 */
+	buffer_handler_pixmap_unref(info->buffer);
+
+	/*!
+	 * \note
+	 * Just clear the info->buffer.
+	 * It will be reallocated again.
+	 */
+	info->buffer = NULL;
+
+	free(info->id);
+	info->id = new_id;
 	return 0;
 }
 
 int buffer_handler_unload(struct buffer_info *info)
 {
+	int ret;
+
 	if (!info) {
 		DbgPrint("buffer handler is nil\n");
 		return -EINVAL;
@@ -441,104 +589,44 @@ int buffer_handler_unload(struct buffer_info *info)
 		return -EINVAL;
 	}
 
-	if (info->type == BUFFER_TYPE_FILE) {
-		const char *path;
-
-		free(info->buffer);
-		info->buffer = NULL;
-
-		path = util_uri_to_path(info->id);
-		if (path && unlink(path) < 0)
-			ErrPrint("unlink: %s\n", strerror(errno));
-
-		free(info->id);
-
-		info->id = strdup(SCHEMA_FILE "/tmp/.live.undefined");
-		if (!info->id)
-			ErrPrint("Heap: %s\n", strerror(errno));
-
-	} else if (info->type == BUFFER_TYPE_SHM) {
-		int id;
-
-		if (sscanf(info->id, SCHEMA_SHM "%d", &id) != 1) {
-			ErrPrint("%s Invalid ID\n", info->id);
-			return -EINVAL;
-		}
-
-		if (id < 0) {
-			ErrPrint("(%s) Invalid id: %d\n", info->id, id);
-			return -EINVAL;
-		}
-
-		if (shmdt(info->buffer) < 0)
-			ErrPrint("Detach shm: %s\n", strerror(errno));
-
-		if (shmctl(id, IPC_RMID, 0) < 0)
-			ErrPrint("Remove shm: %s\n", strerror(errno));
-
-		info->buffer = NULL;
-
-		free(info->id);
-
-		info->id = strdup(SCHEMA_SHM "-1");
-		if (!info->id)
-			ErrPrint("Heap: %s\n", strerror(errno));
-	} else if (info->type == BUFFER_TYPE_PIXMAP) {
-		int id;
-
-		if (sscanf(info->id, SCHEMA_PIXMAP "%d", &id) != 1) {
-			ErrPrint("Invalid ID (%s)\n", info->id);
-			return -EINVAL;
-		}
-
-		if (id == 0) {
-			ErrPrint("(%s) Invalid id: %d\n", info->id, id);
-			return -EINVAL;
-		}
-
-		/*!
-		 * Decrease the reference counter.
-		 */
-		buffer_handler_pixmap_unref(info->buffer);
-
-		/*!
-		 * \note
-		 * Just clear the info->buffer.
-		 * It will be reallocated again.
-		 */
-		info->buffer = NULL;
-
-		free(info->id);
-
-		info->id = strdup(SCHEMA_PIXMAP "0");
-		if (!info->id)
-			ErrPrint("Heap: %s\n", strerror(errno));
-	} else {
+	switch (info->type) {
+	case BUFFER_TYPE_FILE:
+		ret = unload_file_buffer(info);
+		break;
+	case BUFFER_TYPE_SHM:
+		ret = unload_shm_buffer(info);
+		break;
+	case BUFFER_TYPE_PIXMAP:
+		ret = unload_pixmap_buffer(info);
+		break;
+	default:
 		ErrPrint("Invalid buffer\n");
-		return -EINVAL;
+		ret = -EINVAL;
+		break;
 	}
 
-	info->is_loaded = 0;
-	return 0;
+	if (ret == 0)
+		info->is_loaded = 0;
+
+	return ret;
 }
 
 int buffer_handler_destroy(struct buffer_info *info)
 {
+	Eina_List *l;
+	struct buffer *buffer;
+
 	if (!info) {
 		DbgPrint("Buffer is not created yet. info is nil\n");
 		return 0;
 	}
 
-	if (info->type == BUFFER_TYPE_SHM) {
-		buffer_handler_unload(info);
-	} else if (info->type == BUFFER_TYPE_FILE) {
-		unlink(info->id);
-	} else if (info->type == BUFFER_TYPE_PIXMAP) {
-		buffer_handler_unload(info);
-	} else {
-		DbgPrint("Buffer info: unknown type\n");
+	EINA_LIST_FOREACH(s_info.pixmap_list, l, buffer) {
+		if (buffer->info == info)
+			buffer->info = NULL;
 	}
 
+	buffer_handler_unload(info);
 	free(info->id);
 	free(info);
 	return 0;
@@ -683,7 +771,6 @@ void *buffer_handler_pixmap_find(int pixmap)
 	if (pixmap == 0)
 		return NULL;
 
-
 	EINA_LIST_FOREACH_SAFE(s_info.pixmap_list, l, n, buffer) {
 		if (!buffer || buffer->state != CREATED || buffer->type != BUFFER_TYPE_PIXMAP) {
 			s_info.pixmap_list = eina_list_remove(s_info.pixmap_list, buffer);
@@ -698,7 +785,6 @@ void *buffer_handler_pixmap_find(int pixmap)
 
 	return NULL;
 }
-
 
 int buffer_handler_pixmap_release_buffer(void *canvas)
 {

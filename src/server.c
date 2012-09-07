@@ -152,6 +152,7 @@ static struct packet *client_clicked(pid_t pid, int handle, const struct packet 
 		ret = instance_clicked(inst, event, timestamp, x, y);
 
 out:
+	/*! \note No reply packet */
 	return NULL;
 }
 
@@ -395,6 +396,7 @@ static struct packet *client_change_visibility(pid_t pid, int handle, const stru
 		ret = instance_set_visible_state(inst, state);
 
 out:
+	/*! \note No reply packet */
 	return NULL;
 }
 
@@ -590,6 +592,7 @@ static struct packet *client_pd_mouse_enter(pid_t pid, int handle, const struct 
 	}
 
 out:
+	/*! \note No reply packet */
 	return NULL;
 }
 
@@ -695,6 +698,7 @@ static struct packet *client_pd_mouse_leave(pid_t pid, int handle, const struct 
 	}
 
 out:
+	/*! \note No reply packet */
 	return NULL;
 }
 
@@ -801,6 +805,7 @@ static struct packet *client_pd_mouse_down(pid_t pid, int handle, const struct p
 	}
 
 out:
+	/*! \note No reply packet */
 	return NULL;
 }
 
@@ -907,6 +912,7 @@ static struct packet *client_pd_mouse_up(pid_t pid, int handle, const struct pac
 	}
 
 out:
+	/*! \note No reply packet */
 	return NULL;
 }
 
@@ -1012,6 +1018,7 @@ static struct packet *client_pd_mouse_move(pid_t pid, int handle, const struct p
 	}
 
 out:
+	/*! \note No reply packet */
 	return NULL;
 }
 
@@ -1117,6 +1124,7 @@ static struct packet *client_lb_mouse_move(pid_t pid, int handle, const struct p
 	}
 
 out:
+	/*! \note No reply packet */
 	return NULL;
 }
 
@@ -1222,6 +1230,7 @@ static struct packet *client_lb_mouse_enter(pid_t pid, int handle, const struct 
 	}
 
 out:
+	/*! \note No reply packet */
 	return NULL;
 }
 
@@ -1327,6 +1336,7 @@ static struct packet *client_lb_mouse_leave(pid_t pid, int handle, const struct 
 	}
 
 out:
+	/*! \note No reply packet */
 	return NULL;
 }
 
@@ -1433,6 +1443,7 @@ static struct packet *client_lb_mouse_down(pid_t pid, int handle, const struct p
 	}
 
 out:
+	/*! \note No reply packet */
 	return NULL;
 }
 
@@ -1539,6 +1550,7 @@ static struct packet *client_lb_mouse_up(pid_t pid, int handle, const struct pac
 	}
 
 out:
+	/*! \note No reply packet */
 	return NULL;
 }
 
@@ -1645,6 +1657,7 @@ static struct packet *client_lb_release_pixmap(pid_t pid, int handle, const stru
 	client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, release_pixmap_cb, buf_ptr);
 
 out:
+	/*! \note No reply packet */
 	return NULL;
 }
 
@@ -1741,6 +1754,7 @@ static struct packet *client_pd_release_pixmap(pid_t pid, int handle, const stru
 	client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, release_pixmap_cb, buf_ptr);
 
 out:
+	/*! \note No reply packet */
 	return NULL;
 }
 
@@ -2050,6 +2064,7 @@ static struct packet *client_subscribed(pid_t pid, int handle, const struct pack
 		package_alter_instances_to_client(client);
 
 out:
+	/*! \note No reply packet */
 	return NULL;
 }
 
@@ -2165,6 +2180,7 @@ static struct packet *client_refresh_group(pid_t pid, int handle, const struct p
 	group_list_category_pkgs(category, update_pkg_cb, NULL);
 
 out:
+	/*! \note No reply packet */
 	return NULL;
 }
 
@@ -2238,6 +2254,7 @@ static struct packet *client_unsubscribed(pid_t pid, int handle, const struct pa
 	ret = client_unsubscribe(client, cluster, category);
 
 out:
+	/*! \note No reply packet */
 	return NULL;
 }
 
@@ -2392,9 +2409,8 @@ static inline char *get_file_kept_in_safe(const char *id)
 	/*!
 	 * TODO: Remove me
 	 */
-	if (getenv("DISABLE_PREVENT_OVERWRITE")) {
+	if (getenv("DISABLE_PREVENT_OVERWRITE"))
 		return strdup(path);
-	}
 
 	len = strlen(path);
 	base_idx = len - 1;
@@ -2611,21 +2627,19 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 	}
 
 	if (util_free_space(g_conf.path.image) < MINIMUM_SPACE) {
-		result = packet_create_reply(packet, "is", -ENOSPC, "");
-		if (!result)
-			ErrPrint("Failed to create a packet\n");
-
-		return result;
+		DbgPrint("No space\n");
+		ret = -ENOSPC;
+		id = "";
+		goto out;
 	}
 
 	/* TODO: */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
-		result = packet_create_reply(packet, "is", -EINVAL, "");
-		if (!result)
-			ErrPrint("Failed to create a packet\n");
-
-		return result;
+		DbgPrint("Package[%s] Id[%s] is not found\n", pkgname, id);
+		ret = -EINVAL;
+		id = "";
+		goto out;
 	}
 
 	pkg = instance_package(inst);
@@ -2685,6 +2699,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 		}
 	}
 
+out:
 	result = packet_create_reply(packet, "is", ret, id);
 	if (!result)
 		ErrPrint("Failed to create a packet\n");
@@ -2712,32 +2727,25 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 		return NULL;
 	}
 
+	id = "";
+
 	if (util_free_space(g_conf.path.image) < MINIMUM_SPACE) {
 		ErrPrint("Not enough space\n");
-		result = packet_create_reply(packet, "i", -ENOSPC);
-		if (!result)
-			ErrPrint("Failed to create a packet\n");
-
-		return result;
+		ret = -ENOSPC;
+		goto out;
 	}
 
 	if (packet_get(packet, "isssii", &type, &slavename, &pkgname, &id, &w, &h) != 6) {
 		ErrPrint("Invalid argument\n");
-		result = packet_create_reply(packet, "i", -EINVAL);
-		if (!result)
-			ErrPrint("Failed to create a packet\n");
-
-		return result;
+		ret = -EINVAL;
+		goto out;
 	}
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		DbgPrint("Instance is not found[%s] [%s]\n", pkgname, id);
-		result = packet_create_reply(packet, "i", -ENOENT);
-		if (!result)
-			ErrPrint("Failed to create a packet\n");
-
-		return result;
+		ret = -ENOENT;
+		goto out;
 	}
 
 	pkg = instance_package(inst);
@@ -2747,10 +2755,8 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 		 * THIS statement should not be entered.
 		 */
 		ErrPrint("PACKAGE INFORMATION IS NOT VALID\n");
-		result = packet_create_reply(packet, "i", -EFAULT);
-		if (!result)
-			ErrPrint("Failed to create a packet\n");
-		return result;
+		ret = -EFAULT;
+		goto out;
 	}
 
 	ret = -EINVAL;
@@ -2781,6 +2787,7 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 		}
 	}
 
+out:
 	result = packet_create_reply(packet, "is", ret, id);
 	if (!result)
 		ErrPrint("Failed to create a packet\n");
