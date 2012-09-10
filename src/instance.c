@@ -648,6 +648,13 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 			 * \note After recreated, send the update event to the client
 			 */
 			instance_lb_updated_by_instance(inst);
+
+			/*!
+			 * \note
+			 * After create an instance again,
+			 * Send resize request to the livebox.
+			 */
+			instance_resize(inst, inst->lb.width, inst->lb.height);
 		default:
 			break;
 		}
