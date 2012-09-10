@@ -1,15 +1,8 @@
 #include <stdio.h>
 #include <unistd.h> /* access */
-#include <sys/mman.h>
 #include <errno.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <sys/shm.h>
-#include <sys/ipc.h>
 
 #include <dlog.h>
-
 #include <Ecore_Evas.h>
 
 #include "util.h"

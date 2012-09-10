@@ -120,4 +120,17 @@ const char *abi_find_slave(const char *abi)
 	return NULL;
 }
 
+const char *abi_find_by_pkgname(const char *pkgname)
+{
+	Eina_List *l;
+	struct item *item;
+
+	EINA_LIST_FOREACH(s_abi.list, l, item) {
+		if (!strcmp(item->pkgname, pkgname))
+			return item->abi;
+	}
+
+	return NULL;
+}
+
 /* End of a file */

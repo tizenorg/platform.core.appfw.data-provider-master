@@ -5,6 +5,7 @@
 #include <dlog.h>
 #include <Evas.h>
 #include <Ecore_Evas.h> /* fb.h */
+#include <aul.h>
 
 #include <packet.h>
 #include <com-core_packet.h>
@@ -25,6 +26,7 @@
 #include "fb.h" /* fb_type */
 #include "group.h"
 #include "xmonitor.h"
+#include "abi.h"
 
 static struct info {
 	int fd;
@@ -2265,18 +2267,57 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 	const char *slavename;
 	int ret;
 
-	slave = slave_find_by_pid(pid);
-	if (!slave) {
-		ErrPrint("Slave[%d] is not exists\n", pid);
-		ret = -ENOENT;
-		goto out;
-	}
-
 	ret = packet_get(packet, "s", &slavename);
 	if (ret != 1) {
 		ErrPrint("Parameter is not matched\n");
 		ret = -EINVAL;
 		goto out;
+	}
+
+	DbgPrint("New slave[%s](%d) is arrived\n", slavename, pid);
+
+	slave = slave_find_by_pid(pid);
+	if (!slave) {
+		const char *dbg;
+
+		dbg = getenv("DEBUG_PROVIDER");
+		if (dbg && !strcasecmp(dbg, "true")) {
+			char pkgname[pathconf("/", _PC_PATH_MAX)];
+			const char *abi;
+
+			if (aul_app_get_pkgname_bypid(pid, pkgname, sizeof(pkgname)) != AUL_R_OK) {
+				ErrPrint("pid[%d] is not authroized provider package\n", pid);
+				ret = -EINVAL;
+				goto out;
+			}
+
+			slave = slave_find_by_pkgname(pkgname);
+			if (!slave) {
+				abi = abi_find_by_pkgname(pkgname);
+				if (!abi)
+					abi = "unknown";
+
+				slave = slave_create(slavename, 1, abi, pkgname);
+				if (!slave) {
+					ErrPrint("Failed to create a new slave for %s\n", slavename);
+					ret = -EFAULT;
+					goto out;
+				}
+
+				slave_rpc_initialize(slave);
+				DbgPrint("New slave is created\n");
+			} else {
+				DbgPrint("Registered slave is replaced with this new one\n");
+				abi = slave_abi(slave);
+			}
+
+			slave_set_pid(slave, pid);
+			DbgPrint("Provider is forcely activated, pkgname(%s), abi(%s), slavename(%s)\n", pkgname, abi, slavename);
+		} else {
+			ErrPrint("Slave[%d] is not exists\n", pid);
+			ret = -ENOENT;
+			goto out;
+		}
 	}
 
 	/*!

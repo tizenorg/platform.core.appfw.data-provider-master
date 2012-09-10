@@ -15,6 +15,8 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xproto.h>
+#include <X11/extensions/Xdamage.h>
+#include <X11/extensions/Xfixes.h>
 
 #include <dri2.h>
 #include <xf86drm.h>
@@ -651,7 +653,7 @@ void *buffer_handler_fb(struct buffer_info *info)
 
 	buffer = info->buffer;
 
-	if (!strncasecmp(info->id, SCHEMA_PIXMAP, strlen(SCHEMA_PIXMAP))) {
+	if (info->type == BUFFER_TYPE_PIXMAP) {
 		void *canvas;
 		int ret;
 
@@ -667,11 +669,27 @@ void *buffer_handler_fb(struct buffer_info *info)
 int buffer_handler_pixmap(const struct buffer_info *info)
 {
 	int id;
+	struct buffer *buf;
+	struct gem_data *gem;
 
-	if (sscanf(info->id, SCHEMA_PIXMAP "%d", &id) != 1)
+	if (!info) {
+		ErrPrint("Inavlid buffer handler\n");
 		return 0;
+	}
 
-	return id;
+	if (info->type != BUFFER_TYPE_PIXMAP) {
+		ErrPrint("Invalid buffer type\n");
+		return 0;
+	}
+
+	buf = (struct buffer *)info->buffer;
+	if (!buf) {
+		ErrPrint("Invalid buffer data\n");
+		return 0;
+	}
+
+	gem = (struct gem_data *)buf->data;
+	return gem->pixmap;
 }
 
 void *buffer_handler_pixmap_acquire_buffer(struct buffer_info *info)
@@ -920,7 +938,20 @@ void buffer_handler_flush(struct buffer_info *info)
 	buffer = info->buffer;
 
 	if (buffer->type == BUFFER_TYPE_PIXMAP) {
-		DbgPrint("PIXMAP: Nothing to be done\n");
+		XRectangle rect;
+		XserverRegion region;
+
+		rect.x = 0;
+		rect.y = 0;
+		rect.width = info->w;
+		rect.height = info->h;
+
+		region = XFixesCreateRegion(ecore_x_display_get(), &rect, 1);
+		XDamageAdd(ecore_x_display_get(), buffer_handler_pixmap(info), region);
+		XFixesDestroyRegion(ecore_x_display_get(), region);
+		XFlush(ecore_x_display_get());
+		DbgPrint("PIXMAP: Generate the damage event (%dx%d)-(%dx%d)\n",
+						rect.x, rect.y, rect.width, rect.height);
 	} else if (buffer->type == BUFFER_TYPE_FILE) {
 		fd = open(util_uri_to_path(info->id), O_WRONLY | O_CREAT, 0644);
 		if (fd < 0) {

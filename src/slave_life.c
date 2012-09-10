@@ -637,6 +637,22 @@ struct slave_node *slave_find_available(const char *abi)
 	return NULL;
 }
 
+struct slave_node *slave_find_by_pkgname(const char *pkgname)
+{
+	Eina_List *l;
+	struct slave_node *slave;
+
+	EINA_LIST_FOREACH(s_info.slave_list, l, slave) {
+		if (!strcmp(slave->pkgname, pkgname)) {
+			if (slave->pid == (pid_t)-1) {
+				return slave;
+			}
+		}
+	}
+
+	return NULL;
+}
+
 void slave_load_package(struct slave_node *slave)
 {
 	slave->loaded_package++;
@@ -713,9 +729,25 @@ const char * const slave_name(const struct slave_node *slave)
 	return slave->name;
 }
 
+const char * const slave_abi(const struct slave_node *slave)
+{
+	return slave->abi;
+}
+
 const pid_t const slave_pid(const struct slave_node *slave)
 {
 	return slave->pid;
+}
+
+int slave_set_pid(struct slave_node *slave, pid_t pid)
+{
+	if (!slave)
+		return -EINVAL;
+
+	DbgPrint("Slave PID is updated to %d from %d\n", pid, slave->pid);
+
+	slave->pid = pid;
+	return 0;
 }
 
 static void resume_cb(struct slave_node *slave, const struct packet *packet, void *data)
