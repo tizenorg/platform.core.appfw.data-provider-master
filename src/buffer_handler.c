@@ -668,7 +668,6 @@ void *buffer_handler_fb(struct buffer_info *info)
 
 int buffer_handler_pixmap(const struct buffer_info *info)
 {
-	int id;
 	struct buffer *buf;
 	struct gem_data *gem;
 

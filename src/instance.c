@@ -126,6 +126,27 @@ static inline int resume_livebox(struct inst_info *inst)
 	return slave_rpc_request_only(package_slave(inst->info), package_name(inst->info), packet);
 }
 
+static inline int instance_recover_visible_state(struct inst_info *inst)
+{
+	int ret;
+
+	switch (inst->visible) {
+	case LB_SHOW:
+	case LB_HIDE:
+		ret = 0;
+		break;
+	case LB_HIDE_WITH_PAUSE:
+		ret = pause_livebox(inst);
+		break;
+	default:
+		ret = -EINVAL;
+		break;
+	}
+
+	DbgPrint("Visible state is recovered to %d\n", ret);
+	return ret;
+}
+
 int instance_unicast_created_event(struct inst_info *inst, struct client_node *client)
 {
 	struct packet *packet;
@@ -629,25 +650,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 			if (pd_type == PD_TYPE_SCRIPT && inst->pd.canvas.script && inst->pd.is_opened_for_reactivate)
 				script_handler_load(inst->pd.canvas.script, 1);
 
-			switch (inst->visible) {
-			case LB_SHOW:
-				/* Do nothing */
-				break;
-			case LB_HIDE:
-				/* Do nothing */
-				break;
-			case LB_HIDE_WITH_PAUSE:
-				pause_livebox(inst);
-				break;
-			default:
-				ErrPrint("Unknown visibility\n");
-				break;
-			}
-
-			/*!
-			 * \note After recreated, send the update event to the client
-			 */
-			instance_lb_updated_by_instance(inst);
+			instance_recover_visible_state(inst);
 
 			/*!
 			 * \note
