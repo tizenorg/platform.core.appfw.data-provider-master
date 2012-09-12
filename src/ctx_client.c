@@ -49,7 +49,7 @@ static int update_pkg_cb(struct category *category, const char *pkgname, void *d
 		return EXIT_FAILURE;
 	}
 
-	slave_rpc_request_update(pkgname, c_name, s_name);
+	slave_rpc_request_update(pkgname, "", c_name, s_name);
 
 	/* Just try to create a new package */
 	;

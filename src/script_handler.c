@@ -205,7 +205,7 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double sx,
 	pkgname = package_name(instance_package(info->inst));
 	id = instance_id(info->inst);
 	slave = package_slave(instance_package(info->inst));
-	packet = packet_create("script", "ssssddddddi",
+	packet = packet_create_noack("script", "ssssddddddi",
 			pkgname, id,
 			signal, part,
 			sx, sy, ex, ey,
@@ -215,7 +215,7 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double sx,
 		return -EFAULT;
 	}
 
-	ret = slave_rpc_async_request(slave, pkgname, packet, NULL, NULL); 
+	ret = slave_rpc_request_only(slave, pkgname, packet, 0); 
 	return ret;
 }
 

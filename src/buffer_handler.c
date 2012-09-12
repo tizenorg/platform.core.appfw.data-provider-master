@@ -925,6 +925,11 @@ int buffer_handler_get_size(struct buffer_info *info, int *w, int *h)
 	return 0;
 }
 
+struct inst_info *buffer_handler_instance(struct buffer_info *info)
+{
+	return info->inst;
+}
+
 void buffer_handler_flush(struct buffer_info *info)
 {
 	int fd;

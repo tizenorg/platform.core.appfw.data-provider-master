@@ -140,4 +140,7 @@ extern int buffer_handler_pixmap_unref(void *buffer_ptr);
 extern void *buffer_handler_pixmap_find(int pixmap);
 
 extern void *buffer_handler_pixmap_buffer(struct buffer_info *info);
+
+extern struct inst_info *buffer_handler_instance(struct buffer_info *info);
+
 /* End of a file */

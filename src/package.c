@@ -117,6 +117,7 @@ static int slave_activated_cb(struct slave_node *slave, void *data)
 	Eina_List *l;
 	Eina_List *n;
 	int cnt;
+	int ret;
 
 	if (!slave_is_faulted(slave)) {
 		DbgPrint("No need to recover state of instances of %s\n", package_name(info));
@@ -125,7 +126,12 @@ static int slave_activated_cb(struct slave_node *slave, void *data)
 
 	cnt = 0;
 	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
-		cnt += instance_recover_state(inst);
+		ret = instance_recover_state(inst);
+		if (!ret)
+			continue;
+
+		instance_thaw_updator(inst);
+		cnt++;
 	}
 
 	DbgPrint("Recover state for %d instances of %s\n", cnt, package_name(info));
@@ -162,6 +168,32 @@ static int slave_deactivated_cb(struct slave_node *slave, void *data)
 	return cnt ? SLAVE_NEED_TO_REACTIVATE : 0;
 }
 
+static int slave_paused_cb(struct slave_node *slave, void *data)
+{
+	struct pkg_info *info = (struct pkg_info *)data;
+	struct inst_info *inst;
+	Eina_List *l;
+
+	EINA_LIST_FOREACH(info->inst_list, l, inst) {
+		instance_freeze_updator(inst);
+	}
+
+	return 0;
+}
+
+static int slave_resume_cb(struct slave_node *slave, void *data)
+{
+	struct pkg_info *info = (struct pkg_info *)data;
+	struct inst_info *inst;
+	Eina_List *l;
+
+	EINA_LIST_FOREACH(info->inst_list, l, inst) {
+		instance_thaw_updator(inst);
+	}
+
+	return 0;
+}
+
 static inline void destroy_package(struct pkg_info *info)
 {
 	s_info.pkg_list = eina_list_remove(s_info.pkg_list, info);
@@ -185,8 +217,14 @@ static inline void destroy_package(struct pkg_info *info)
 
 	if (info->slave) {
 		slave_unload_package(info->slave);
+
 		slave_event_callback_del(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
 		slave_event_callback_del(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
+
+		if (info->secured) {
+			slave_event_callback_del(info->slave, SLAVE_EVENT_PAUSE, slave_paused_cb, info);
+			slave_event_callback_del(info->slave, SLAVE_EVENT_RESUME, slave_resume_cb, info);
+		}
 	}
 
 	free(info);
@@ -450,6 +488,11 @@ struct pkg_info *package_create(const char *pkgname)
 	slave_load_package(info->slave);
 	slave_event_callback_add(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
 	slave_event_callback_add(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
+
+	if (info->secured) {
+		slave_event_callback_add(info->slave, SLAVE_EVENT_PAUSE, slave_paused_cb, info);
+		slave_event_callback_add(info->slave, SLAVE_EVENT_RESUME, slave_resume_cb, info);
+	}
 
 	s_info.pkg_list = eina_list_append(s_info.pkg_list, info);
 	return info;

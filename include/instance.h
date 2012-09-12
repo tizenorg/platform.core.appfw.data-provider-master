@@ -124,6 +124,7 @@ extern void instance_pd_updated(const char *pkgname, const char *id, const char 
 extern void instance_lb_updated(const char *pkgname, const char *id);
 extern void instance_lb_updated_by_instance(struct inst_info *inst);
 extern void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfile);
+extern void instance_pd_destroyed(struct inst_info *inst);
 
 extern int instance_set_pinup(struct inst_info *inst, int pinup);
 extern int instance_resize(struct inst_info *inst, int w, int h);
@@ -169,4 +170,9 @@ extern int instance_unicast_deleted_event(struct inst_info *inst);
 extern int instance_create_lb_buffer(struct inst_info *inst);
 extern int instance_create_pd_buffer(struct inst_info *inst);
 
+extern int instance_slave_open_pd(struct inst_info *inst);
+extern int instance_slave_close_pd(struct inst_info *inst);
+
+extern int instance_freeze_updator(struct inst_info *inst);
+extern int instance_thaw_updator(struct inst_info *inst);
 /* End of a file */

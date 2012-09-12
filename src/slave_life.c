@@ -36,38 +36,7 @@ struct slave_node {
 	int secured;	/* Only A package(livebox) is loaded for security requirements */
 	int refcnt;
 	int fault_count;
-	enum pause_state {
-		/*!
-		 * Launch the slave but not yet receives "hello" packet
-		 */
-		SLAVE_REQUEST_TO_LAUNCH,
-
-		/*!
-		 * \note
-		 * Terminate the slave but not yet receives dead signal
-		 */
-		SLAVE_REQUEST_TO_TERMINATE,
-
-		/*!
-		 * \note
-		 * No slave process exists, just slave object created
-		 */
-		SLAVE_TERMINATED,
-
-		/*!
-		 * \note
-		 * State change request is sent,
-		 */
-		SLAVE_REQUEST_TO_PAUSE,
-		SLAVE_REQUEST_TO_RESUME,
-
-		/*!
-		 * \note
-		 * SLAVE_ACTIVATED = { SLAVE_PAUSED, SLAVE_RESUMED }
-		 */
-		SLAVE_PAUSED,
-		SLAVE_RESUMED,
-	} state;
+	enum slave_state state;
 
 	int loaded_instance;
 	int loaded_package;
@@ -77,10 +46,14 @@ struct slave_node {
 	Eina_List *event_activate_list;
 	Eina_List *event_deactivate_list;
 	Eina_List *event_delete_list;
+	Eina_List *event_pause_list;
+	Eina_List *event_resume_list;
 
 	Eina_List *data_list;
 
 	int faulted;
+
+	Ecore_Timer *ttl_timer; /* Time to live */
 };
 
 struct event {
@@ -102,6 +75,27 @@ static struct {
 	.slave_list = NULL,
 	.paused = 0,
 };
+
+static Eina_Bool slave_ttl_cb(void *data)
+{
+	struct slave_node *slave = (struct slave_node *)data;
+	int ret;
+
+	/*!
+	 * \note
+	 * ttl_timer must has to be set to NULL before deactivate the slave
+	 * It will be used for making decision of the expired TTL timer or the fault of a livebox.
+	 */
+	slave->ttl_timer = NULL;
+
+	ret = slave_deactivate(slave);
+	if (ret == -EALREADY)
+		DbgPrint("Slave is already terminated\n");
+
+	/*! To recover all instances state it is activated again */
+	slave->faulted = 1;
+	return ECORE_CALLBACK_CANCEL;
+}
 
 static inline struct slave_node *create_slave_node(const char *name, int is_secured, const char *abi, const char *pkgname)
 {
@@ -196,6 +190,10 @@ static inline void destroy_slave_node(struct slave_node *slave)
 	}
 
 	s_info.slave_list = eina_list_remove(s_info.slave_list, slave);
+
+	if (slave->ttl_timer)
+		ecore_timer_del(slave->ttl_timer);
+
 	free(slave->abi);
 	free(slave->name);
 	free(slave->pkgname);
@@ -214,6 +212,17 @@ static inline struct slave_node *find_slave(const char *name)
 	}
 	
 	return NULL;
+}
+
+int slave_expired_ttl(struct slave_node *slave)
+{
+	if (!slave)
+		return 0;
+
+	if (!slave->secured)
+		return 0;
+
+	return !!slave->ttl_timer;
 }
 
 struct slave_node *slave_ref(struct slave_node *slave)
@@ -340,9 +349,67 @@ int slave_activate(struct slave_node *slave)
 	return 0;
 }
 
+int slave_give_more_ttl(struct slave_node *slave)
+{
+	double delay;
+
+	if (!slave->secured) {
+		ErrPrint("Slave is not secured. invalid slave\n");
+		return -EINVAL;
+	}
+
+	if (!slave->ttl_timer) {
+		DbgPrint("TTL timer is not exists\n");
+		return -EINVAL;
+	}
+
+	delay = SLAVE_TTL - ecore_timer_pending_get(slave->ttl_timer);
+	ecore_timer_delay(slave->ttl_timer, delay);
+	DbgPrint("Slave TTL is delayed more %lf secs\n", delay);
+	return 0;
+}
+
+int slave_freeze_ttl(struct slave_node *slave)
+{
+	if (!slave->secured) {
+		ErrPrint("Slave is not secured. invalid slave\n");
+		return -EINVAL;
+	}
+
+	if (!slave->ttl_timer) {
+		DbgPrint("TTL timer is not exists\n");
+		return -EINVAL;
+	}
+
+	ecore_timer_freeze(slave->ttl_timer);
+	return 0;
+}
+
+int slave_thaw_ttl(struct slave_node *slave)
+{
+	double delay;
+
+	if (!slave->secured) {
+		ErrPrint("Slave is not secured. invalid slave\n");
+		return -EINVAL;
+	}
+
+	if (!slave->ttl_timer) {
+		DbgPrint("TTL timer is not exists\n");
+		return -EINVAL;
+	}
+
+	ecore_timer_thaw(slave->ttl_timer);
+
+	delay = SLAVE_TTL - ecore_timer_pending_get(slave->ttl_timer);
+	ecore_timer_delay(slave->ttl_timer, delay);
+	return 0;
+}
+
 int slave_activated(struct slave_node *slave)
 {
 	int paused;
+
 	slave->state = SLAVE_RESUMED;
 
 	paused = client_is_all_paused() || setting_is_lcd_off();
@@ -351,6 +418,13 @@ int slave_activated(struct slave_node *slave)
 			slave_pause(slave);
 	} else {
 		slave_handle_state_change();
+	}
+
+	if (slave->secured == 1) {
+		DbgPrint("Slave deactivation timer is added (%s - %lf)\n", slave->name, SLAVE_TTL);
+		slave->ttl_timer = ecore_timer_add(SLAVE_TTL, slave_ttl_cb, slave);
+		if (!slave->ttl_timer)
+			ErrPrint("Failed to create a TTL timer\n");
 	}
 
 	invoke_activate_cb(slave);
@@ -409,6 +483,12 @@ int slave_deactivate(struct slave_node *slave)
 	invoke_deactivate_cb(slave, 0);
 
 	slave->state = SLAVE_TERMINATED;
+
+	if (slave->ttl_timer) {
+		ecore_timer_del(slave->ttl_timer);
+		slave->ttl_timer = NULL;
+	}
+
 	slave_unref(slave);
 	return 0;
 }
@@ -432,6 +512,12 @@ void slave_deactivated_by_fault(struct slave_node *slave)
 
 	invoke_deactivate_cb(slave, 1);
 	slave->state = SLAVE_TERMINATED;
+
+	if (slave->ttl_timer) {
+		ecore_timer_del(slave->ttl_timer);
+		slave->ttl_timer = NULL;
+	}
+
 	slave_unref(slave);
 }
 
@@ -442,7 +528,22 @@ void slave_reset_fault(struct slave_node *slave)
 
 const int const slave_is_activated(struct slave_node *slave)
 {
-	return slave->pid != (pid_t)-1;
+	switch (slave->state) {
+	case SLAVE_REQUEST_TO_LAUNCH:
+	case SLAVE_REQUEST_TO_TERMINATE:
+	case SLAVE_TERMINATED:
+		return 0;
+	case SLAVE_REQUEST_TO_PAUSE:
+	case SLAVE_REQUEST_TO_RESUME:
+	case SLAVE_PAUSED:
+	case SLAVE_RESUMED:
+		return 1;
+	default:
+		return slave->pid != (pid_t)-1;
+	}
+
+	/* Could not be reach to here */
+	return 0;
 }
 
 int slave_event_callback_add(struct slave_node *slave, enum slave_event event, int (*cb)(struct slave_node *, void *), void *data)
@@ -468,6 +569,12 @@ int slave_event_callback_add(struct slave_node *slave, enum slave_event event, i
 		break;
 	case SLAVE_EVENT_DEACTIVATE:
 		slave->event_deactivate_list = eina_list_append(slave->event_deactivate_list, ev);
+		break;
+	case SLAVE_EVENT_PAUSE:
+		slave->event_pause_list = eina_list_append(slave->event_pause_list, ev);
+		break;
+	case SLAVE_EVENT_RESUME:
+		slave->event_resume_list = eina_list_append(slave->event_resume_list, ev);
 		break;
 	default:
 		free(ev);
@@ -506,6 +613,24 @@ int slave_event_callback_del(struct slave_node *slave, enum slave_event event, i
 		EINA_LIST_FOREACH_SAFE(slave->event_activate_list, l, n, ev) {
 			if (ev->evt_cb == cb && ev->cbdata == data) {
 				slave->event_activate_list = eina_list_remove(slave->event_activate_list, ev);
+				free(ev);
+				return 0;
+			}
+		}
+		break;
+	case SLAVE_EVENT_PAUSE:
+		EINA_LIST_FOREACH_SAFE(slave->event_pause_list, l, n, ev) {
+			if (ev->evt_cb == cb && ev->cbdata == data) {
+				slave->event_pause_list = eina_list_remove(slave->event_pause_list, ev);
+				free(ev);
+				return 0;
+			}
+		}
+		break;
+	case SLAVE_EVENT_RESUME:
+		EINA_LIST_FOREACH_SAFE(slave->event_resume_list, l, n, ev) {
+			if (ev->evt_cb == cb && ev->cbdata == data) {
+				slave->event_resume_list = eina_list_remove(slave->event_resume_list, ev);
 				free(ev);
 				return 0;
 			}
@@ -733,6 +858,24 @@ int slave_set_pid(struct slave_node *slave, pid_t pid)
 	return 0;
 }
 
+static inline void invoke_resumed_cb(struct slave_node *slave)
+{
+	Eina_List *l;
+	Eina_List *n;
+	struct event *event;
+	int ret;
+
+	EINA_LIST_FOREACH_SAFE(slave->event_resume_list, l, n, event) {
+		ret = event->evt_cb(event->slave, event->cbdata);
+		if (ret < 0) {
+			if (eina_list_data_find(slave->event_resume_list, event)) {
+				slave->event_resume_list = eina_list_remove(slave->event_resume_list, event);
+				free(event);
+			}
+		}
+	}
+}
+
 static void resume_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	int ret;
@@ -751,6 +894,25 @@ static void resume_cb(struct slave_node *slave, const struct packet *packet, voi
 	if (ret == 0) {
 		slave->state = SLAVE_RESUMED;
 		slave_rpc_ping_thaw(slave);
+		invoke_resumed_cb(slave);
+	}
+}
+
+static inline void invoke_paused_cb(struct slave_node *slave)
+{
+	Eina_List *l;
+	Eina_List *n;
+	struct event *event;
+	int ret;
+
+	EINA_LIST_FOREACH_SAFE(slave->event_pause_list, l, n, event) {
+		ret = event->evt_cb(event->slave, event->cbdata);
+		if (ret < 0) {
+			if (eina_list_data_find(slave->event_pause_list, event)) {
+				slave->event_pause_list = eina_list_remove(slave->event_pause_list, event);
+				free(event);
+			}
+		}
 	}
 }
 
@@ -772,6 +934,7 @@ static void pause_cb(struct slave_node *slave, const struct packet *packet, void
 	if (ret == 0) {
 		slave->state = SLAVE_PAUSED;
 		slave_rpc_ping_freeze(slave);
+		invoke_paused_cb(slave);
 	}
 }
 
@@ -801,7 +964,7 @@ int slave_resume(struct slave_node *slave)
 	}
 
 	slave->state = SLAVE_REQUEST_TO_RESUME;
-	return slave_rpc_async_request(slave, NULL, packet, resume_cb, NULL);
+	return slave_rpc_async_request(slave, NULL, packet, resume_cb, NULL, 0);
 }
 
 int slave_pause(struct slave_node *slave)
@@ -830,12 +993,17 @@ int slave_pause(struct slave_node *slave)
 	}
 
 	slave->state = SLAVE_REQUEST_TO_PAUSE;
-	return slave_rpc_async_request(slave, NULL, packet, pause_cb, NULL);
+	return slave_rpc_async_request(slave, NULL, packet, pause_cb, NULL, 0);
 }
 
 const char *slave_pkgname(const struct slave_node *slave)
 {
 	return slave ? slave->pkgname : NULL;
+}
+
+enum slave_state slave_state(const struct slave_node *slave)
+{
+	return slave ? slave->state : SLAVE_ERROR;
 }
 
 /* End of a file */

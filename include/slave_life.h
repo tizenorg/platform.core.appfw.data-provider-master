@@ -9,7 +9,45 @@ enum slave_event {
 	SLAVE_EVENT_DEACTIVATE, /* deactivate callback, can return REACTIVATE, DEFAULT */
 	SLAVE_EVENT_DELETE,
 
+	SLAVE_EVENT_PAUSE,
+	SLAVE_EVENT_RESUME,
+
 	SLAVE_NEED_TO_REACTIVATE,
+};
+
+enum slave_state {
+	/*!
+	 * Launch the slave but not yet receives "hello" packet
+	 */
+	SLAVE_REQUEST_TO_LAUNCH,
+
+	/*!
+	 * \note
+	 * Terminate the slave but not yet receives dead signal
+	 */
+	SLAVE_REQUEST_TO_TERMINATE,
+
+	/*!
+	 * \note
+	 * No slave process exists, just slave object created
+	 */
+	SLAVE_TERMINATED,
+
+	/*!
+	 * \note
+	 * State change request is sent,
+	 */
+	SLAVE_REQUEST_TO_PAUSE,
+	SLAVE_REQUEST_TO_RESUME,
+
+	/*!
+	 * \note
+	 * SLAVE_ACTIVATED = { SLAVE_PAUSED, SLAVE_RESUMED }
+	 */
+	SLAVE_PAUSED,
+	SLAVE_RESUMED,
+
+	SLAVE_ERROR = 0xFF, /* Explicitly define the size of this enum type */
 };
 
 extern struct slave_node *slave_ref(struct slave_node *slave);
@@ -17,15 +55,37 @@ extern struct slave_node *slave_unref(struct slave_node *slave);
 extern const int const slave_refcnt(struct slave_node *slave);
 
 /*!
+ * \brief
  * Create a new slave object or destroy it
+ *
+ * \param[in] name
+ * \param[in] is_secured
+ * \param[in] abi
+ * \param[in] pkgname
+ * \param[in] period
+ * \return slave_node
  */
 extern struct slave_node *slave_create(const char *name, int is_secured, const char *abi, const char *pkgname);
+
+/*!
+ * \brief
+ * \param[in] slave
+ * \return void
+ */
 extern void slave_destroy(struct slave_node *slave);
 
 /*!
+ * \brief
  * Launch or terminate a slave
+ * \param[in] slave
+ * \return int
  */
 extern int slave_activate(struct slave_node *slave);
+
+/*!
+ * \brief
+ * \param[in] slave
+ */
 extern int slave_deactivate(struct slave_node *slave);
 
 /*!
@@ -33,6 +93,11 @@ extern int slave_deactivate(struct slave_node *slave);
  */
 extern const int const slave_is_activated(struct slave_node *slave);
 extern int slave_activated(struct slave_node *slave);
+
+extern int slave_give_more_ttl(struct slave_node *slave);
+extern int slave_freeze_ttl(struct slave_node *slave);
+extern int slave_thaw_ttl(struct slave_node *slave);
+extern int slave_expired_ttl(struct slave_node *slave);
 
 /*!
  * To mangage the unexpected termination of a slave

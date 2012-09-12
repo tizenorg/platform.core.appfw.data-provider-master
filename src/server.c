@@ -568,7 +568,7 @@ static struct packet *client_pd_mouse_enter(pid_t pid, int handle, const struct 
 			goto out;
 		}
 
-		ret = slave_rpc_request_only(slave, pkgname, packet);
+		ret = slave_rpc_request_only(slave, pkgname, packet, 0);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -674,7 +674,7 @@ static struct packet *client_pd_mouse_leave(pid_t pid, int handle, const struct 
 			goto out;
 		}
 
-		ret = slave_rpc_request_only(slave, pkgname, packet);
+		ret = slave_rpc_request_only(slave, pkgname, packet, 0);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -780,7 +780,7 @@ static struct packet *client_pd_mouse_down(pid_t pid, int handle, const struct p
 			goto out;
 		}
 
-		ret = slave_rpc_request_only(slave, pkgname, packet);
+		ret = slave_rpc_request_only(slave, pkgname, packet, 0);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -887,7 +887,7 @@ static struct packet *client_pd_mouse_up(pid_t pid, int handle, const struct pac
 			goto out;
 		}
 
-		ret = slave_rpc_request_only(slave, pkgname, packet);
+		ret = slave_rpc_request_only(slave, pkgname, packet, 0);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -994,7 +994,7 @@ static struct packet *client_pd_mouse_move(pid_t pid, int handle, const struct p
 			goto out;
 		}
 
-		ret = slave_rpc_request_only(slave, pkgname, packet);
+		ret = slave_rpc_request_only(slave, pkgname, packet, 0);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -1100,7 +1100,7 @@ static struct packet *client_lb_mouse_move(pid_t pid, int handle, const struct p
 			goto out;
 		}
 
-		ret = slave_rpc_request_only(slave, pkgname, packet);
+		ret = slave_rpc_request_only(slave, pkgname, packet, 0);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -1206,7 +1206,7 @@ static struct packet *client_lb_mouse_enter(pid_t pid, int handle, const struct 
 			goto out;
 		}
 
-		ret = slave_rpc_request_only(slave, pkgname, packet);
+		ret = slave_rpc_request_only(slave, pkgname, packet, 0);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -1312,7 +1312,7 @@ static struct packet *client_lb_mouse_leave(pid_t pid, int handle, const struct 
 			goto out;
 		}
 
-		ret = slave_rpc_request_only(slave, pkgname, packet);
+		ret = slave_rpc_request_only(slave, pkgname, packet, 0);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -1418,7 +1418,7 @@ static struct packet *client_lb_mouse_down(pid_t pid, int handle, const struct p
 			goto out;
 		}
 
-		ret = slave_rpc_request_only(slave, pkgname, packet);
+		ret = slave_rpc_request_only(slave, pkgname, packet, 0);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -1525,7 +1525,7 @@ static struct packet *client_lb_mouse_up(pid_t pid, int handle, const struct pac
 			goto out;
 		}
 
-		ret = slave_rpc_request_only(slave, pkgname, packet);
+		ret = slave_rpc_request_only(slave, pkgname, packet, 0);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -1807,75 +1807,19 @@ out:
 	return result;
 }
 
-static inline int slave_send_pd_create(struct inst_info *inst)
-{
-	const char *pkgname;
-	const char *id;
-	struct packet *packet;
-	struct slave_node *slave;
-	const struct pkg_info *info;
-
-	slave = package_slave(instance_package(inst));
-	if (!slave)
-		return -EFAULT;
-
-	info = instance_package(inst);
-	if (!info)
-		return -EINVAL;
-
-	pkgname = package_name(info);
-	id = instance_id(inst);
-
-	if (!pkgname || !id)
-		return -EINVAL;
-
-	packet = packet_create("pd_show", "ssii", pkgname, id, instance_pd_width(inst), instance_pd_height(inst));
-	if (!packet) {
-		ErrPrint("Failed to create a packet\n");
-		return -EFAULT;
-	}
-
-	return slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
-}
-
-static inline int slave_send_pd_destroy(struct inst_info *inst)
-{
-	const char *pkgname;
-	const char *id;
-	struct packet *packet;
-	struct slave_node *slave;
-	struct pkg_info *info;
-
-	slave = package_slave(instance_package(inst));
-	if (!slave)
-		return -EFAULT;
-
-	info = instance_package(inst);
-	if (!info)
-		return -EINVAL;
-
-	pkgname = package_name(info);
-	id = instance_id(inst);
-
-	if (!pkgname || !id)
-		return -EINVAL;
-
-	packet = packet_create("pd_hide", "ss", pkgname, id);
-	if (!packet) {
-		ErrPrint("Failed to create a packet\n");
-		return -EFAULT;
-	}
-
-	return slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
-}
-
 /* Client Deactivated Callback */
 static int pd_buffer_close_cb(struct client_node *client, void *inst)
 {
 	int ret;
+	struct slave_node *slave;
 
 	DbgPrint("Forcely close the PD\n");
-	ret = slave_send_pd_destroy(inst);
+	ret = instance_slave_close_pd(inst);
+
+	slave = package_slave(instance_package(inst));
+	if (slave)
+		slave_thaw_ttl(slave);
+
 	return -1; /* Delete this callback */
 }
 
@@ -1883,9 +1827,15 @@ static int pd_buffer_close_cb(struct client_node *client, void *inst)
 static int pd_script_close_cb(struct client_node *client, void *inst)
 {
 	int ret;
+	struct slave_node *slave;
 
 	DbgPrint("Forcely close the PD\n");
 	ret = script_handler_unload(instance_pd_script(inst), 1);
+
+	slave = package_slave(instance_package(inst));
+	if (slave)
+		slave_thaw_ttl(slave);
+
 	return -1; /* Delete this callback */
 }
 
@@ -1924,10 +1874,20 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 	else if (util_free_space(g_conf.path.image) < MINIMUM_SPACE)
 		ret = -ENOSPC;
 	else if (package_pd_type(instance_package(inst)) == PD_TYPE_BUFFER) {
-		ret = slave_send_pd_create(inst);
+		struct slave_node *slave;
+		slave = package_slave(instance_package(inst));
+		if (slave)
+			slave_freeze_ttl(slave);
+
+		ret = instance_slave_open_pd(inst);
 		client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, pd_buffer_close_cb, inst);
 	} else {
-		ret = slave_send_pd_create(inst);
+		struct slave_node *slave;
+		slave = package_slave(instance_package(inst));
+		if (slave)
+			slave_freeze_ttl(slave);
+
+		ret = instance_slave_open_pd(inst);
 		ret = script_handler_load(instance_pd_script(inst), 1);
 		client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, pd_script_close_cb, inst);
 	}
@@ -1973,10 +1933,22 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 	else if (package_is_fault(instance_package(inst)))
 		ret = -EFAULT;
 	else if (package_pd_type(instance_package(inst)) == PD_TYPE_BUFFER) {
-		ret = slave_send_pd_destroy(inst);
+		struct slave_node *slave;
+
+		slave = package_slave(instance_package(inst));
+		if (slave)
+			slave_thaw_ttl(slave);
+
+		ret = instance_slave_close_pd(inst);
 		client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, pd_buffer_close_cb, inst);
 	} else {
-		ret = slave_send_pd_destroy(inst);
+		struct slave_node *slave;
+
+		slave = package_slave(instance_package(inst));
+		if (slave)
+			slave_thaw_ttl(slave);
+
+		ret = instance_slave_close_pd(inst);
 		ret = script_handler_unload(instance_pd_script(inst), 1);
 		client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, pd_script_close_cb, inst);
 	}
@@ -2121,7 +2093,7 @@ static int update_pkg_cb(struct category *category, const char *pkgname, void *d
 	}
 
 	DbgPrint("Send refresh request: %s (%s/%s)\n", pkgname, c_name, s_name);
-	slave_rpc_request_update(pkgname, c_name, s_name);
+	slave_rpc_request_update(pkgname, "", c_name, s_name);
 
 	/* Just try to create a new package */
 	if (util_free_space(g_conf.path.image) > MINIMUM_SPACE) {
@@ -2391,6 +2363,7 @@ static struct packet *slave_call(pid_t pid, int handle, const struct packet *pac
 	}
 
 	ret = fault_func_call(slave, pkgname, id, func);
+	slave_give_more_ttl(slave);
 
 out:
 	result = packet_create_reply(packet, "i", ret);
@@ -2425,6 +2398,7 @@ static struct packet *slave_ret(pid_t pid, int handle, const struct packet *pack
 	}
 
 	ret = fault_func_ret(slave, pkgname, id, func);
+	slave_give_more_ttl(slave);
 
 out:
 	result = packet_create_reply(packet, "i", ret);
@@ -2533,6 +2507,8 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 			instance_lb_updated_by_instance(inst);
 			ret = 0;
 		}
+
+		slave_give_more_ttl(slave);
 	}
 
 out:
@@ -2587,6 +2563,7 @@ static struct packet *slave_desc_updated(pid_t pid, int handle, const struct pac
 		instance_pd_updated(pkgname, id, descfile);
 		ret = 0;
 	} else {
+		DbgPrint("Ignore the DESC update event\n");
 		ret = 0;
 	}
 
@@ -2636,6 +2613,17 @@ out:
 		ErrPrint("Failed to create a packet\n");
 
 	return result;
+}
+
+static int slave_deactivated_cb(struct slave_node *slave, void *data)
+{
+	struct buffer_info *info = data;
+	int ret;
+
+	ret = buffer_handler_unload(info);
+	DbgPrint("Unload buffer: %d\n", ret);
+
+	return 0; /* SLAVE_NEED_TO_REACTIVATE */
 }
 
 /*!
@@ -2708,6 +2696,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 			if (ret == 0) {
 				id = buffer_handler_id(info);
 				DbgPrint("Buffer handler ID: %s\n", id);
+				slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
 			} else {
 				DbgPrint("Failed to load a buffer(%d)\n", ret);
 			}
@@ -2734,6 +2723,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 			if (ret == 0) {
 				id = buffer_handler_id(info);
 				DbgPrint("Buffer handler ID: %s\n", id);
+				slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
 			} else {
 				DbgPrint("Failed to load a buffer (%d)\n", ret);
 			}
@@ -2872,11 +2862,15 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 
 		info = instance_lb_buffer(inst);
 		ret = buffer_handler_unload(info);
+
+		slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
 	} else if (type == TYPE_PD) {
 		struct buffer_info *info;
 
 		info = instance_pd_buffer(inst);
 		ret = buffer_handler_unload(info);
+
+		slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
 	}
 
 out:

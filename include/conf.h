@@ -78,6 +78,7 @@ extern void conf_update_size(void);
 #define MINIMUM_SPACE	(5 << 20)
 
 #define REPLACE_TAG_APPID "/APPID/"
+#define SLAVE_TTL 30.0f
 
 #define MAX_LOG_LINE 1000
 #define MAX_LOG_FILE 3

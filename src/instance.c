@@ -6,6 +6,7 @@
 #include <Ecore_Evas.h>
 #include <Eina.h>
 #include <gio/gio.h>
+#include <Ecore.h>
 
 #include <packet.h>
 #include <com-core_packet.h>
@@ -22,6 +23,7 @@
 #include "script_handler.h"
 #include "buffer_handler.h"
 #include "fb.h"
+#include "setting.h"
 
 int errno;
 
@@ -95,6 +97,8 @@ struct inst_info {
 
 	struct client_node *client;
 	int refcnt;
+
+	Ecore_Timer *update_timer; /* Only used for secured livebox */
 };
 
 #define CLIENT_SEND_EVENT(instance, packet)	((instance)->client ? client_rpc_async_request((instance)->client, (packet)) : client_rpc_broadcast((instance), (packet)))
@@ -109,7 +113,7 @@ static inline int pause_livebox(struct inst_info *inst)
 		return -EFAULT;
 	}
 
-	return slave_rpc_request_only(package_slave(inst->info), package_name(inst->info), packet);
+	return slave_rpc_request_only(package_slave(inst->info), package_name(inst->info), packet, 0);
 }
 
 /*! \TODO Wake up the freeze'd timer */
@@ -123,7 +127,7 @@ static inline int resume_livebox(struct inst_info *inst)
 		return -EFAULT;
 	}
 
-	return slave_rpc_request_only(package_slave(inst->info), package_name(inst->info), packet);
+	return slave_rpc_request_only(package_slave(inst->info), package_name(inst->info), packet, 0);
 }
 
 static inline int instance_recover_visible_state(struct inst_info *inst)
@@ -133,10 +137,14 @@ static inline int instance_recover_visible_state(struct inst_info *inst)
 	switch (inst->visible) {
 	case LB_SHOW:
 	case LB_HIDE:
+		instance_thaw_updator(inst);
+
 		ret = 0;
 		break;
 	case LB_HIDE_WITH_PAUSE:
 		ret = pause_livebox(inst);
+
+		instance_freeze_updator(inst);
 		break;
 	default:
 		ret = -EINVAL;
@@ -315,6 +323,9 @@ static inline void destroy_instance(struct inst_info *inst)
 		client_unref(inst->client);
 	}
 
+	if (inst->update_timer)
+		ecore_timer_del(inst->update_timer);
+
 	free(inst->category);
 	free(inst->cluster);
 	free(inst->content);
@@ -323,6 +334,15 @@ static inline void destroy_instance(struct inst_info *inst)
 	free(inst->id);
 	package_del_instance(inst->info, inst);
 	free(inst);
+}
+
+static Eina_Bool update_timer_cb(void *data)
+{
+	struct inst_info *inst = (struct inst_info *)data;
+
+	DbgPrint("Update instance %s (%s) %s/%s\n", package_name(inst->info), inst->id, inst->cluster, inst->category);
+	slave_rpc_request_update(package_name(inst->info), inst->id, inst->cluster, inst->category);
+	return ECORE_CALLBACK_RENEW;
 }
 
 static inline int fork_package(struct inst_info *inst, const char *pkgname)
@@ -344,6 +364,16 @@ static inline int fork_package(struct inst_info *inst, const char *pkgname)
 	inst->period = package_period(info);
 
 	inst->info = info;
+
+	if (package_secured(info)) {
+		DbgPrint("Register the update timer for secured livebox [%s]\n", pkgname);
+		inst->update_timer = ecore_timer_add(inst->period, update_timer_cb, inst);
+		if (!inst->update_timer)
+			ErrPrint("Failed to add an update timer for instance %s\n", inst->id);
+		else
+			ecore_timer_freeze(inst->update_timer); /* Freeze the update timer as default */
+	}
+
 	return 0;
 }
 
@@ -642,15 +672,46 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 			lb_type = package_lb_type(info);
 			pd_type = package_pd_type(info);
 
+			/*!
+			 * \note
+			 * Optimization point.
+			 *   In case of the BUFFER type,
+			 *   the slave will request the buffer to render its contents.
+			 *   so the buffer will be automatcially recreated when it gots the
+			 *   buffer request packet.
+			 *   so load a buffer from here is not neccessary.
+			 *   I should to revise it and concrete the concept.
+			 *   Just leave it only for now.
+			 */
+
 			if (lb_type == LB_TYPE_SCRIPT && inst->lb.canvas.script)
 				script_handler_load(inst->lb.canvas.script, 0);
 			else if (lb_type == LB_TYPE_BUFFER && inst->lb.canvas.buffer)
 				buffer_handler_load(inst->lb.canvas.buffer);
 
-			if (pd_type == PD_TYPE_SCRIPT && inst->pd.canvas.script && inst->pd.is_opened_for_reactivate)
+			if (pd_type == PD_TYPE_SCRIPT && inst->pd.canvas.script && inst->pd.is_opened_for_reactivate) {
 				script_handler_load(inst->pd.canvas.script, 1);
 
-			instance_recover_visible_state(inst);
+				/*!
+				 * \note
+				 * We should to send a request to open a PD to slave.
+				 * if we didn't send it, the slave will not recognize the state of a PD.
+				 * We have to keep the view of PD seamless even if the livebox is reactivated.
+				 * To do that, send open request from here.
+				 */
+				instance_slave_open_pd(inst);
+			} else if (pd_type == PD_TYPE_BUFFER && inst->pd.canvas.buffer && inst->pd.is_opened_for_reactivate) {
+				buffer_handler_load(inst->lb.canvas.buffer);
+
+				/*!
+				 * \note
+				 * We should to send a request to open a PD to slave.
+				 * if we didn't send it, the slave will not recognize the state of a PD.
+				 * We have to keep the view of PD seamless even if the livebox is reactivated.
+				 * To do that, send open request from here.
+				 */
+				instance_slave_open_pd(inst);
+			}
 
 			/*!
 			 * \note
@@ -658,6 +719,13 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 			 * Send resize request to the livebox.
 			 */
 			instance_resize(inst, inst->lb.width, inst->lb.height);
+
+			/*!
+			 * \note
+			 * This function will check the visiblity of a livebox and
+			 * make decision whether it thaw the update timer or not.
+			 */
+			instance_recover_visible_state(inst);
 		default:
 			break;
 		}
@@ -784,6 +852,8 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 
 			slave_load_instance(package_slave(inst->info));
 			instance_broadcast_created_event(inst);
+
+			instance_thaw_updator(inst);
 			break;
 		}
 		break;
@@ -934,7 +1004,7 @@ int instance_destroy(struct inst_info *inst)
 	inst->requested_state = INST_DESTROYED;
 	inst->state = INST_REQUEST_TO_DESTROY;
 	inst->changing_state = 1;
-	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, deactivate_cb, instance_ref(inst));
+	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, deactivate_cb, instance_ref(inst), 0);
 }
 
 int instance_state_reset(struct inst_info *inst)
@@ -1033,7 +1103,7 @@ int instance_reactivate(struct inst_info *inst)
 	inst->state = INST_REQUEST_TO_REACTIVATE;
 	inst->changing_state = 1;
 
-	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, reactivate_cb, instance_ref(inst));
+	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, reactivate_cb, instance_ref(inst), 1);
 }
 
 int instance_activate(struct inst_info *inst)
@@ -1102,7 +1172,7 @@ int instance_activate(struct inst_info *inst)
 	 * \note
 	 * Try to activate a slave if it is not activated
 	 */
-	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, activate_cb, instance_ref(inst));
+	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, activate_cb, instance_ref(inst), 1);
 }
 
 void instance_lb_updated(const char *pkgname, const char *id)
@@ -1185,6 +1255,22 @@ void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfil
 			inst->pd.width, inst->pd.height);
 	if (!packet) {
 		ErrPrint("Failed to create param (%s - %s)\n", package_name(inst->info), inst->id);
+		return;
+	}
+
+	(void)CLIENT_SEND_EVENT(inst, packet);
+}
+
+void instance_pd_destroyed(struct inst_info *inst)
+{
+	struct packet *packet;
+
+	if (!inst)
+		return;
+
+	packet = packet_create_noack("pd_destroyed", "ss", package_name(inst->info), inst->id);
+	if (!packet) {
+		ErrPrint("Failed to create a packet\n");
 		return;
 	}
 
@@ -1335,7 +1421,41 @@ int instance_set_pinup(struct inst_info *inst, int pinup)
 		return -EFAULT;
 	}
 
-	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, pinup_cb, cbdata);
+	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, pinup_cb, cbdata, 0);
+}
+
+int instance_freeze_updator(struct inst_info *inst)
+{
+	if (!inst->update_timer) {
+		DbgPrint("Update timer is not exists\n");
+		return -EINVAL;
+	}
+
+	DbgPrint("Freeze the update timer\n");
+	ecore_timer_freeze(inst->update_timer);
+	return 0;
+}
+
+int instance_thaw_updator(struct inst_info *inst)
+{
+	if (!inst->update_timer) {
+		DbgPrint("Update timer is not exists\n");
+		return -EINVAL;
+	}
+
+	if (client_is_all_paused() || setting_is_lcd_off()) {
+		DbgPrint("Skip thaw\n");
+		return -EINVAL;
+	}
+
+	if (inst->visible == LB_HIDE_WITH_PAUSE) {
+		DbgPrint("Live box is invisible\n");
+		return -EINVAL;
+	}
+
+	DbgPrint("Thaw the update timer\n");
+	ecore_timer_thaw(inst->update_timer);
+	return 0;
 }
 
 int instance_set_visible_state(struct inst_info *inst, enum livebox_visible_state state)
@@ -1351,6 +1471,8 @@ int instance_set_visible_state(struct inst_info *inst, enum livebox_visible_stat
 		if (inst->visible == LB_HIDE_WITH_PAUSE) {
 			if (resume_livebox(inst) == 0)
 				inst->visible = state;
+
+			instance_thaw_updator(inst);
 		} else {
 			inst->visible = state;
 		}
@@ -1359,6 +1481,8 @@ int instance_set_visible_state(struct inst_info *inst, enum livebox_visible_stat
 	case LB_HIDE_WITH_PAUSE:
 		if (pause_livebox(inst) == 0)
 			inst->visible = LB_HIDE_WITH_PAUSE;
+
+		instance_freeze_updator(inst);
 		break;
 
 	default:
@@ -1427,13 +1551,12 @@ int instance_resize(struct inst_info *inst, int w, int h)
 	packet = packet_create("resize", "ssii", package_name(inst->info), inst->id, w, h);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
-		ret = -EFAULT;
 		instance_unref(cbdata->inst);
 		free(cbdata);
-	} else {
-		ret = slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, resize_cb, cbdata);
+		return -EFAULT;
 	}
 
+	ret = slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, resize_cb, cbdata, 0);
 	return ret;
 }
 
@@ -1508,7 +1631,7 @@ int instance_set_period(struct inst_info *inst, double period)
 		return -EFAULT;
 	}
 
-	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, set_period_cb, cbdata);
+	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, set_period_cb, cbdata, 0);
 }
 
 int instance_clicked(struct inst_info *inst, const char *event, double timestamp, double x, double y)
@@ -1526,13 +1649,13 @@ int instance_clicked(struct inst_info *inst, const char *event, double timestamp
 	}
 
 	/* NOTE: param is resued from here */
-	packet = packet_create("clicked", "sssddd", package_name(inst->info), inst->id, event, timestamp, x, y);
+	packet = packet_create_noack("clicked", "sssddd", package_name(inst->info), inst->id, event, timestamp, x, y);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return -EFAULT;
 	}
 
-	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, NULL, NULL);
+	return slave_rpc_request_only(package_slave(inst->info), package_name(inst->info), packet, 0);
 }
 
 int instance_text_signal_emit(struct inst_info *inst, const char *emission, const char *source, double sx, double sy, double ex, double ey)
@@ -1549,13 +1672,13 @@ int instance_text_signal_emit(struct inst_info *inst, const char *emission, cons
 		return -EFAULT;
 	}
 
-	packet = packet_create("text_signal", "ssssdddd", package_name(inst->info), inst->id, emission, source, sx, sy, ex, ey);
+	packet = packet_create_noack("text_signal", "ssssdddd", package_name(inst->info), inst->id, emission, source, sx, sy, ex, ey);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return -EFAULT;
 	}
 
-	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, NULL, NULL);
+	return slave_rpc_request_only(package_slave(inst->info), package_name(inst->info), packet, 0);
 }
 
 static void change_group_cb(struct slave_node *slave, const struct packet *packet, void *data)
@@ -1651,7 +1774,7 @@ int instance_change_group(struct inst_info *inst, const char *cluster, const cha
 		return -EFAULT;
 	}
 
-	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, change_group_cb, cbdata);
+	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, change_group_cb, cbdata, 0);
 }
 
 const int const instance_auto_launch(const struct inst_info *inst)
@@ -1935,6 +2058,68 @@ int instance_need_slave(struct inst_info *inst)
 	}
 
 	return ret;
+}
+
+int instance_slave_open_pd(struct inst_info *inst)
+{
+	const char *pkgname;
+	const char *id;
+	struct packet *packet;
+	struct slave_node *slave;
+	const struct pkg_info *info;
+
+	slave = package_slave(instance_package(inst));
+	if (!slave)
+		return -EFAULT;
+
+	info = instance_package(inst);
+	if (!info)
+		return -EINVAL;
+
+	pkgname = package_name(info);
+	id = instance_id(inst);
+
+	if (!pkgname || !id)
+		return -EINVAL;
+
+	packet = packet_create_noack("pd_show", "ssii", pkgname, id, instance_pd_width(inst), instance_pd_height(inst));
+	if (!packet) {
+		ErrPrint("Failed to create a packet\n");
+		return -EFAULT;
+	}
+
+	return slave_rpc_request_only(slave, pkgname, packet, 0);
+}
+
+int instance_slave_close_pd(struct inst_info *inst)
+{
+	const char *pkgname;
+	const char *id;
+	struct packet *packet;
+	struct slave_node *slave;
+	struct pkg_info *info;
+
+	slave = package_slave(instance_package(inst));
+	if (!slave)
+		return -EFAULT;
+
+	info = instance_package(inst);
+	if (!info)
+		return -EINVAL;
+
+	pkgname = package_name(info);
+	id = instance_id(inst);
+
+	if (!pkgname || !id)
+		return -EINVAL;
+
+	packet = packet_create_noack("pd_hide", "ss", pkgname, id);
+	if (!packet) {
+		ErrPrint("Failed to create a packet\n");
+		return -EFAULT;
+	}
+
+	return slave_rpc_request_only(slave, pkgname, packet, 0);
 }
 
 /* End of a file */

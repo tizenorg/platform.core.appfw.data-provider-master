@@ -58,6 +58,8 @@ static struct info {
 	.rpc_list = NULL,
 };
 
+static inline void prepend_command(struct command *command);
+
 static inline struct command *create_command(struct slave_node *slave, const char *pkgname, struct packet *packet)
 {
 	struct command *command;
@@ -141,11 +143,6 @@ out:
 	return 0;
 }
 
-static inline void prepend_command(struct command *command)
-{
-	s_info.command_list = eina_list_prepend(s_info.command_list, command);
-}
-
 static Eina_Bool command_consumer_cb(void *data)
 {
 	struct command *command;
@@ -157,7 +154,7 @@ static Eina_Bool command_consumer_cb(void *data)
 		return ECORE_CALLBACK_CANCEL;
 	}
 
-	if (!slave_is_activated(command->slave) || slave_is_faulted(command->slave)) {
+	if (slave_is_faulted(command->slave) || !slave_is_activated(command->slave)) {
 		ErrPrint("Slave is not activated: %s(%d)\n",
 				slave_name(command->slave), slave_pid(command->slave));
 		goto errout;
@@ -174,25 +171,24 @@ static Eina_Bool command_consumer_cb(void *data)
 	}
 
 	rpc = slave_data(command->slave, "rpc");
-	if (!rpc) {
+	if (!rpc || rpc->handle < 0) {
 		ErrPrint("Slave has no rpc info\n");
 		goto errout;
 	}
 
-	if (rpc->handle < 0) {
-		DbgPrint("(handle is not valid) Send this packet again\n");
-		prepend_command(command);
-		return ECORE_CALLBACK_RENEW;
-	}
-
 	if (command->type == TYPE_NOACK) {
 		if (com_core_packet_send_only(rpc->handle, command->packet) == 0) {
+			/* Keep a slave alive, while processing events */
+			slave_give_more_ttl(command->slave);
 			destroy_command(command);
 			return ECORE_CALLBACK_RENEW;
 		}
 	} else {
-		if (com_core_packet_async_send(rpc->handle, command->packet, 0.0f, slave_async_cb, command) == 0)
+		if (com_core_packet_async_send(rpc->handle, command->packet, 0.0f, slave_async_cb, command) == 0) {
+			/* Keep a slave alive, while processing events */
+			slave_give_more_ttl(command->slave);
 			return ECORE_CALLBACK_RENEW;
+		}
 	}
 
 	/*!
@@ -216,6 +212,21 @@ errout:
 		command->ret_cb(command->slave, NULL, command->cbdata);
 	destroy_command(command);
 	return ECORE_CALLBACK_RENEW;
+}
+
+static inline void prepend_command(struct command *command)
+{
+	s_info.command_list = eina_list_prepend(s_info.command_list, command);
+
+	if (s_info.command_consuming_timer)
+		return;
+
+	s_info.command_consuming_timer = ecore_timer_add(PACKET_TIME, command_consumer_cb, NULL);
+	if (!s_info.command_consuming_timer) {
+		ErrPrint("Failed to add command consumer\n");
+		s_info.command_list = eina_list_remove(s_info.command_list, command);
+		destroy_command(command);
+	}
 }
 
 static inline void push_command(struct command *command)
@@ -324,7 +335,7 @@ static Eina_Bool ping_timeout_cb(void *data)
 	return ECORE_CALLBACK_CANCEL;
 }
 
-int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, struct packet *packet, void (*ret_cb)(struct slave_node *slave, const struct packet *packet, void *data), void *data)
+int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, struct packet *packet, void (*ret_cb)(struct slave_node *slave, const struct packet *packet, void *data), void *data, int urgent)
 {
 	struct command *command;
 	struct slave_rpc *rpc;
@@ -346,28 +357,40 @@ int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, struc
 
 	rpc = slave_data(slave, "rpc");
 	if (!rpc) {
-		ErrPrint("Slave has no RPC yet\n");
+		ErrPrint("Slave has no RPC\n");
 		if (ret_cb)
 			ret_cb(slave, NULL, data);
-
 		destroy_command(command);
 		packet_unref(packet);
 		return -EFAULT;
 	}
 
 	if (rpc->handle < 0) {
-		DbgPrint("RPC info is not ready to use, push this to pending list\n");
-		rpc->pending_list = eina_list_append(rpc->pending_list, command);
+		DbgPrint("RPC handle is not ready to use it\n");
+		if (slave_is_secured(slave) && !slave_is_activated(slave)) {
+			DbgPrint("Activate slave forcely\n");
+			slave_activate(slave);
+		}
+
+		if (urgent)
+			rpc->pending_list = eina_list_prepend(rpc->pending_list, command);
+		else
+			rpc->pending_list = eina_list_append(rpc->pending_list, command);
+
 		packet_unref(packet);
 		return 0;
 	}
 
-	push_command(command);
+	if (urgent)
+		prepend_command(command);
+	else
+		push_command(command);
+
 	packet_unref(packet);
 	return 0;
 }
 
-int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, struct packet *packet)
+int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, struct packet *packet, int urgent)
 {
 	struct command *command;
 	struct slave_rpc *rpc;
@@ -385,20 +408,34 @@ int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, struct
 
 	rpc = slave_data(slave, "rpc");
 	if (!rpc) {
-		ErrPrint("Slave has no RPC yet\n");
+		ErrPrint("Slave has no RPC\n");
 		destroy_command(command);
 		packet_unref(packet);
 		return -EFAULT;
 	}
 
 	if (rpc->handle < 0) {
-		DbgPrint("RPC info is not ready to use, delete this\n");
-		rpc->pending_list = eina_list_append(rpc->pending_list, command);
+		DbgPrint("RPC handle is not ready to use it\n");
+
+		if (slave_is_secured(slave) && !slave_is_activated(slave)) {
+			DbgPrint("Activate slave forcely\n");
+			slave_activate(slave);
+		}
+
+		if (urgent)
+			rpc->pending_list = eina_list_prepend(rpc->pending_list, command);
+		else
+			rpc->pending_list = eina_list_append(rpc->pending_list, command);
+
 		packet_unref(packet);
 		return 0;
 	}
 
-	push_command(command);
+	if (urgent)
+		prepend_command(command);
+	else
+		push_command(command);
+
 	packet_unref(packet);
 	return 0;
 }
@@ -528,7 +565,7 @@ int slave_rpc_ping_thaw(struct slave_node *slave)
 	return 0;
 }
 
-void slave_rpc_request_update(const char *pkgname, const char *cluster, const char *category)
+void slave_rpc_request_update(const char *pkgname, const char *id, const char *cluster, const char *category)
 {
 	struct slave_node *slave;
 	struct pkg_info *info;
@@ -546,13 +583,13 @@ void slave_rpc_request_update(const char *pkgname, const char *cluster, const ch
 		return;
 	}
 
-	packet = packet_create("update_content", "sss", pkgname, cluster, category);
+	packet = packet_create_noack("update_content", "ssss", pkgname, id, cluster, category);
 	if (!packet) {
 		ErrPrint("Failed to create a new param\n");
 		return;
 	}
 
-	(void)slave_rpc_async_request(slave, pkgname, packet, NULL, NULL);
+	(void)slave_rpc_request_only(slave, pkgname, packet, 0);
 }
 
 struct slave_node *slave_rpc_find_by_handle(int handle)
