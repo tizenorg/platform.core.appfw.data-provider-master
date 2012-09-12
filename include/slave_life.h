@@ -46,7 +46,6 @@ extern int slave_set_data(struct slave_node *slave, const char *tag, void *data)
 extern void *slave_del_data(struct slave_node *slave, const char *tag);
 extern void *slave_data(struct slave_node *slave, const char *tag);
 
-extern void slave_faulted(struct slave_node *slave);
 extern void slave_reset_fault(struct slave_node *slave);
 extern const int const slave_is_faulted(const struct slave_node *slave);
 

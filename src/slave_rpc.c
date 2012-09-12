@@ -129,7 +129,7 @@ static int slave_async_cb(pid_t pid, int handle, const struct packet *packet, vo
 		if (command->ret_cb)
 			command->ret_cb(command->slave, packet, command->cbdata);
 
-		slave_faulted(command->slave);
+		slave_deactivated_by_fault(command->slave);
 		goto out;
 	}
 
@@ -307,19 +307,20 @@ static Eina_Bool ping_timeout_cb(void *data)
 
 	rpc = slave_data(slave, "rpc");
 	if (!rpc) {
-		ErrPrint("Slave RPC is not valid\n");
+		ErrPrint("Slave RPC is not valid (%s)\n", slave_name(slave));
 		return ECORE_CALLBACK_CANCEL;
 	}
 
 	if (!slave_is_activated(slave)) {
-		ErrPrint("Slave is not activated\n");
+		ErrPrint("Slave is not activated (%s)\n", slave_name(slave));
 		return ECORE_CALLBACK_CANCEL;
 	}
 
 	/*!
 	 * Dead callback will handling this
 	 */
-	slave_faulted(slave);
+	DbgPrint("Slave PING TIMEOUT: %s(%d)\n", slave_name(slave), slave_pid(slave));
+	slave_deactivated_by_fault(slave);
 	return ECORE_CALLBACK_CANCEL;
 }
 

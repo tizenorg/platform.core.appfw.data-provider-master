@@ -357,7 +357,7 @@ int slave_activated(struct slave_node *slave)
 	return 0;
 }
 
-static inline void invoke_deactivate_cb(struct slave_node *slave)
+static inline void invoke_deactivate_cb(struct slave_node *slave, int revoke)
 {
 	Eina_List *l;
 	Eina_List *n;
@@ -377,7 +377,7 @@ static inline void invoke_deactivate_cb(struct slave_node *slave)
 		}
 	}
 
-	if (reactivate) {
+	if (reactivate && revoke) {
 		DbgPrint("Need to reactivate a slave\n");
 		ret = slave_activate(slave);
 		if (ret < 0 && ret != -EALREADY)
@@ -406,14 +406,14 @@ int slave_deactivate(struct slave_node *slave)
 	if (aul_terminate_pid(pid) < 0)
 		ErrPrint("Terminate failed. pid %d\n", pid);
 
-	invoke_deactivate_cb(slave);
+	invoke_deactivate_cb(slave, 0);
 
 	slave->state = SLAVE_TERMINATED;
 	slave_unref(slave);
 	return 0;
 }
 
-void slave_faulted(struct slave_node *slave)
+void slave_deactivated_by_fault(struct slave_node *slave)
 {
 	pid_t pid;
 	if (slave->faulted || !slave_is_activated(slave))
@@ -421,7 +421,7 @@ void slave_faulted(struct slave_node *slave)
 
 	slave->faulted = 1;
 
-	fault_check_pkgs(slave);
+	(void)fault_check_pkgs(slave);
 	pid = slave->pid;
 	slave->pid = (pid_t)-1;
 	slave->fault_count++;
@@ -430,7 +430,7 @@ void slave_faulted(struct slave_node *slave)
 	if (pid > 0 && aul_terminate_pid(pid) < 0)
 		ErrPrint("Terminate failed, pid %d\n", pid);
 
-	invoke_deactivate_cb(slave);
+	invoke_deactivate_cb(slave, 1);
 	slave->state = SLAVE_TERMINATED;
 	slave_unref(slave);
 }
@@ -438,23 +438,6 @@ void slave_faulted(struct slave_node *slave)
 void slave_reset_fault(struct slave_node *slave)
 {
 	slave->faulted = 0;
-}
-
-void slave_deactivated_by_fault(struct slave_node *slave)
-{
-	if (slave->faulted || !slave_is_activated(slave))
-		return;
-
-	slave->faulted = 1;
-
-	(void)fault_check_pkgs(slave);
-
-	slave->pid = (pid_t)-1;
-	slave->fault_count++;
-
-	invoke_deactivate_cb(slave);
-	slave->state = SLAVE_TERMINATED;
-	slave_unref(slave);
 }
 
 const int const slave_is_activated(struct slave_node *slave)
