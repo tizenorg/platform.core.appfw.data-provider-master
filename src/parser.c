@@ -636,7 +636,7 @@ struct parser *parser_load(const char *pkgname)
 	item->size = 0x00000001;
 	item->group = NULL;
 	item->secured = 0;
-	item->pinup = 1;
+	item->pinup = 0;
 
 	fp = fopen(item->filename, "rt");
 	if (!fp) {
