@@ -6,6 +6,7 @@
 #include <Evas.h>
 #include <Ecore_Evas.h> /* fb.h */
 #include <aul.h>
+#include <Ecore.h>
 
 #include <packet.h>
 #include <com-core_packet.h>
@@ -378,24 +379,27 @@ static struct packet *client_change_visibility(pid_t pid, int handle, const stru
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
+		ret = -ENOENT;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssi", &pkgname, &id, (int *)&state);
 	if (ret != 3) {
 		ErrPrint("Parameter is not matched\n");
+		ret = -EINVAL;
 		goto out;
 	}
 
 	DbgPrint("pkgname[%s] id[%s] state[%d]\n", pkgname, id, state);
 
 	inst = package_find_instance_by_id(pkgname, id);
-	if (!inst)
-		goto out;
-	else if (package_is_fault(instance_package(inst)))
-		goto out;
-	else
+	if (!inst) {
+		ret = -ENOENT;
+	} else if (package_is_fault(instance_package(inst))) {
+		ret = -EFAULT;
+	} else {
 		ret = instance_set_visible_state(inst, state);
+	}
 
 out:
 	/*! \note No reply packet */
@@ -418,7 +422,6 @@ static struct packet *client_set_period(pid_t pid, int handle, const struct pack
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
 		ret = -ENOENT;
-		period = -1.0f;
 		goto out;
 	}
 
@@ -515,7 +518,7 @@ static struct packet *client_pd_mouse_enter(pid_t pid, int handle, const struct 
 
 	ret = packet_get(packet, "ssiiddd", &pkgname, &id, &w, &h, &timestamp, &x, &y);
 	if (ret != 7) {
-		ErrPrint("Parameter is not matched\n");
+		ErrPrint("Invalid parameter\n");
 		ret = -EINVAL;
 		goto out;
 	}
@@ -1610,6 +1613,7 @@ static struct packet *client_lb_acquire_pixmap(pid_t pid, int handle, const stru
 	} else {
 		pixmap = buffer_handler_pixmap(instance_lb_buffer(inst));
 	}
+
 out:
 	result = packet_create_reply(packet, "i", pixmap);
 	if (!result)
@@ -1734,7 +1738,7 @@ static struct packet *client_pd_release_pixmap(pid_t pid, int handle, const stru
 	}
 
 	ret = packet_get(packet, "ssi", &pkgname, &id, &pixmap);
-	if (ret != 2) {
+	if (ret != 3) {
 		ErrPrint("Parameter is not matched\n");
 		goto out;
 	}
@@ -1791,13 +1795,12 @@ static struct packet *client_pinup_changed(pid_t pid, int handle, const struct p
 	DbgPrint("pkgname[%s] id[%s] pinup[%d]\n", pkgname, id, pinup);
 
 	inst = package_find_instance_by_id(pkgname, id);
-	if (!inst) {
+	if (!inst)
 		ret = -ENOENT;
-	} else if (package_is_fault(instance_package(inst))) {
+	else if (package_is_fault(instance_package(inst)))
 		ret = -EFAULT;
-	} else {
+	else
 		ret = instance_set_pinup(inst, pinup);
-	}
 
 out:
 	result = packet_create_reply(packet, "i", ret);
@@ -1839,6 +1842,24 @@ static int pd_script_close_cb(struct client_node *client, void *inst)
 	return -1; /* Delete this callback */
 }
 
+static Eina_Bool lazy_pd_created_cb(void *data)
+{
+	DbgPrint("Send PD Create event\n");
+	instance_client_pd_created(data, 0);
+
+	instance_unref(data);
+	return ECORE_CALLBACK_CANCEL;
+}
+
+static Eina_Bool lazy_pd_destroyed_cb(void *data)
+{
+	DbgPrint("Send PD Destroy event\n");
+	instance_client_pd_destroyed(data, 0);
+
+	instance_unref(data);
+	return ECORE_CALLBACK_CANCEL;
+}
+
 static struct packet *client_create_pd(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, ret */
 {
 	struct client_node *client;
@@ -1875,21 +1896,79 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		ret = -ENOSPC;
 	else if (package_pd_type(instance_package(inst)) == PD_TYPE_BUFFER) {
 		struct slave_node *slave;
+
 		slave = package_slave(instance_package(inst));
 		if (slave)
 			slave_freeze_ttl(slave);
 
 		ret = instance_slave_open_pd(inst);
-		client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, pd_buffer_close_cb, inst);
-	} else {
+
+		/*!
+		 * \note
+		 * PD craeted event will be send by the acquire_buffer function.
+		 * Because the slave will make request the acquire_buffer to
+		 * render the PD
+		 *
+		 * instance_client_pd_created(inst);
+		 */
+
+		/*!
+		 * \note
+		 * If a client is disconnected, the slave has to close the PD
+		 * So the pd_buffer_close_cb will catch the disconnection event
+		 * of a client,
+		 * and it will send the close request to the slave
+		 */
+		client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE,
+						pd_buffer_close_cb, inst);
+	} else if (package_pd_type(instance_package(inst)) == PD_TYPE_SCRIPT) {
 		struct slave_node *slave;
+
 		slave = package_slave(instance_package(inst));
 		if (slave)
 			slave_freeze_ttl(slave);
 
+		/*!
+		 * \note
+		 * ret value should be cared but in this case,
+		 * we ignore this for this moment, so we have to handle this error later.
+		 *
+		 * if ret is less than 0, the slave has some problem.
+		 * but the script mode doesn't need slave for rendering default view of PD
+		 * so we can hanle it later.
+		 */
 		ret = instance_slave_open_pd(inst);
+
 		ret = script_handler_load(instance_pd_script(inst), 1);
-		client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, pd_script_close_cb, inst);
+
+		/*!
+		 * \note
+		 * Send the PD created event to the clients,
+		 */
+		if (ret == 0) {
+			/*!
+			 * \note
+			 * But the created event has to be send afte return
+			 * from this function or the viewer couldn't care
+			 * the event correctly.
+			 */
+			inst = instance_ref(inst); /* To guarantee the inst */
+			if (!ecore_timer_add(0.0000001f, lazy_pd_created_cb, inst))
+				instance_unref(inst);
+		}
+
+		/*!
+		 * \note
+		 * If a client is disconnected, the slave has to close the PD
+		 * So the pd_buffer_close_cb will catch the disconnection event
+		 * of a client,
+		 * and it will send the close request to the slave
+		 */
+		client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE,
+						pd_script_close_cb, inst);
+	} else {
+		ErrPrint("Invalid PD TYPE\n");
+		ret = -EINVAL;
 	}
 
 out:
@@ -1940,8 +2019,21 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 			slave_thaw_ttl(slave);
 
 		ret = instance_slave_close_pd(inst);
+
+		/*!
+		 * \note
+		 * release_buffer will be called by the slave after this.
+		 * Then it will send the "pd_destroyed" event to the client
+		 *
+		 * instance_client_pd_destroyed(inst);
+		 */
+
+		/*!
+		 * \note
+		 * Clean up the resoruces
+		 */
 		client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, pd_buffer_close_cb, inst);
-	} else {
+	} else if (package_pd_type(instance_package(inst)) == PD_TYPE_SCRIPT) {
 		struct slave_node *slave;
 
 		slave = package_slave(instance_package(inst));
@@ -1949,8 +2041,27 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 			slave_thaw_ttl(slave);
 
 		ret = instance_slave_close_pd(inst);
+
 		ret = script_handler_unload(instance_pd_script(inst), 1);
+
+		/*!
+		 * \note
+		 * Send the destroyed PD event to the client
+		 */
+		if (ret == 0) {
+			inst = instance_ref(inst);
+			if (!ecore_timer_add(0.0000001f, lazy_pd_destroyed_cb, inst))
+				instance_unref(inst);
+		}
+
+		/*!
+		 * \note
+		 * Clean up the resources
+		 */
 		client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, pd_script_close_cb, inst);
+	} else {
+		ErrPrint("Invalid PD TYPE\n");
+		ret = -EINVAL;
 	}
 
 out:
@@ -2466,7 +2577,9 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 		goto out;
 	}
 
-	ret = packet_get(packet, "sssiidss", &slavename, &pkgname, &id, &w, &h, &priority, &content_info, &title);
+	ret = packet_get(packet, "sssiidss", &slavename, &pkgname, &id,
+						&w, &h, &priority,
+						&content_info, &title);
 	if (ret != 8) {
 		ErrPrint("Parameter is not matched\n");
 		ret = -EINVAL;
@@ -2483,29 +2596,36 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 		ErrPrint("Instance is already destroyed\n");
 		ret = -EINVAL;
 	} else {
+		char *filename;
+
 		instance_set_lb_info(inst, w, h, priority, content_info, title);
 
-		if (package_lb_type(instance_package(inst)) == LB_TYPE_SCRIPT) {
-			char *filename;
-
+		switch (package_lb_type(instance_package(inst))) {
+		case LB_TYPE_SCRIPT:
 			script_handler_resize(instance_lb_script(inst), w, h);
 
 			filename = get_file_kept_in_safe(id);
 			if (filename) {
-				ret = script_handler_parse_desc(pkgname, id, filename, 0);
+				ret = script_handler_parse_desc(pkgname, id,
+								filename, 0);
 				free(filename);
 			} else {
-				ret = script_handler_parse_desc(pkgname, id, util_uri_to_path(id), 0);
+				ret = script_handler_parse_desc(pkgname, id,
+							util_uri_to_path(id), 0);
 			}
-		} else if (package_lb_type(instance_package(inst)) == LB_TYPE_BUFFER) {
+			break;
+		case LB_TYPE_BUFFER:
 			instance_lb_updated_by_instance(inst);
-		} else {
+			ret = 0;
+			break;
+		default:
 			/*!
 			 * \check
 			 * text format (inst)
 			 */
 			instance_lb_updated_by_instance(inst);
 			ret = 0;
+			break;
 		}
 
 		slave_give_more_ttl(slave);
@@ -2553,18 +2673,28 @@ static struct packet *slave_desc_updated(pid_t pid, int handle, const struct pac
 	} else if (instance_state(inst) == INST_DESTROYED) {
 		ErrPrint("Instance is already destroyed\n");
 		ret = -EINVAL;
-	} else if (package_pd_type(instance_package(inst)) == PD_TYPE_TEXT) {
-		instance_set_pd_info(inst, 0, 0);
-		instance_pd_updated(pkgname, id, descfile);
-		ret = 0;
-	} else if (script_handler_is_loaded(instance_pd_script(inst))) {
-		ret = script_handler_parse_desc(pkgname, id, descfile, 1);
-	} else if (package_pd_type(instance_package(inst)) == PD_TYPE_BUFFER) {
-		instance_pd_updated(pkgname, id, descfile);
-		ret = 0;
 	} else {
-		DbgPrint("Ignore updated DESC(%s - %s - %s)\n", pkgname, id, descfile);
-		ret = 0;
+		switch (package_pd_type(instance_package(inst))) {
+		case PD_TYPE_SCRIPT:
+			DbgPrint("Script (%s)\n", id);
+			if (script_handler_is_loaded(instance_pd_script(inst))) {
+				ret = script_handler_parse_desc(pkgname, id,
+								descfile, 1);
+			}
+			break;
+		case PD_TYPE_TEXT:
+			instance_set_pd_info(inst, 0, 0);
+		case PD_TYPE_BUFFER:
+			DbgPrint("Buffer (%s)\n", id);
+			instance_pd_updated(pkgname, id, descfile);
+			ret = 0;
+			break;
+		default:
+			DbgPrint("Ignore updated DESC(%s - %s - %s)\n",
+							pkgname, id, descfile);
+			ret = 0;
+			break;
+		}
 	}
 
 out:
@@ -2615,7 +2745,24 @@ out:
 	return result;
 }
 
-static int slave_deactivated_cb(struct slave_node *slave, void *data)
+static int slave_deactivated_pd_cb(struct slave_node *slave, void *data)
+{
+	struct buffer_info *info = data;
+	int ret;
+
+	ret = buffer_handler_unload(info);
+	DbgPrint("Unload buffer: %d\n", ret);
+
+	/*!
+	 * \note
+	 * If a slave is accidently deactivated,
+	 * Master should send the PD destroyed event to the client
+	 */
+	instance_client_pd_destroyed(buffer_handler_instance(info), ret);
+	return 0;
+}
+
+static int slave_deactivated_lb_cb(struct slave_node *slave, void *data)
 {
 	struct buffer_info *info = data;
 	int ret;
@@ -2647,12 +2794,17 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
 		ErrPrint("Failed to find a slave\n");
-		return NULL;
+		id = "";
+		ret = -ENOENT;
+		goto out;
 	}
 
-	if (packet_get(packet, "isssiii", &target, &slavename, &pkgname, &id, &w, &h, &pixel_size) != 7) {
+	ret = packet_get(packet, "isssiii", &target, &slavename, &pkgname, &id, &w, &h, &pixel_size);
+	if (ret != 7) {
 		ErrPrint("Invalid argument\n");
-		return NULL;
+		id = "";
+		ret = -EINVAL;
+		goto out;
 	}
 
 	if (util_free_space(IMAGE_PATH) < MINIMUM_SPACE) {
@@ -2696,7 +2848,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 			if (ret == 0) {
 				id = buffer_handler_id(info);
 				DbgPrint("Buffer handler ID: %s\n", id);
-				slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
+				slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_lb_cb, info);
 			} else {
 				DbgPrint("Failed to load a buffer(%d)\n", ret);
 			}
@@ -2723,10 +2875,15 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 			if (ret == 0) {
 				id = buffer_handler_id(info);
 				DbgPrint("Buffer handler ID: %s\n", id);
-				slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
+				slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_pd_cb, info);
 			} else {
 				DbgPrint("Failed to load a buffer (%d)\n", ret);
 			}
+
+			/*!
+			 * Send the PD created event to the client
+			 */
+			instance_client_pd_created(inst, ret);
 		}
 	}
 
@@ -2755,20 +2912,23 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
 		ErrPrint("Failed to find a slave\n");
-		return NULL;
+		ret = -ENOENT;
+		id = "";
+		goto out;
 	}
-
-	id = "";
 
 	if (util_free_space(IMAGE_PATH) < MINIMUM_SPACE) {
 		ErrPrint("Not enough space\n");
 		ret = -ENOSPC;
+		id = "";
 		goto out;
 	}
 
-	if (packet_get(packet, "isssii", &type, &slavename, &pkgname, &id, &w, &h) != 6) {
+	ret = packet_get(packet, "isssii", &type, &slavename, &pkgname, &id, &w, &h);
+	if (ret != 6) {
 		ErrPrint("Invalid argument\n");
 		ret = -EINVAL;
+		id = "";
 		goto out;
 	}
 
@@ -2776,6 +2936,7 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 	if (!inst) {
 		DbgPrint("Instance is not found[%s] [%s]\n", pkgname, id);
 		ret = -ENOENT;
+		id = "";
 		goto out;
 	}
 
@@ -2787,10 +2948,15 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 		 */
 		ErrPrint("PACKAGE INFORMATION IS NOT VALID\n");
 		ret = -EFAULT;
+		id = "";
 		goto out;
 	}
 
 	ret = -EINVAL;
+	/*!
+	 * \note
+	 * Reset "id", It will be re-used from here
+	 */
 	id = "";
 	if (type == TYPE_LB) {
 		if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
@@ -2840,7 +3006,8 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
 		ErrPrint("Failed to find a slave\n");
-		return NULL;
+		ret = -ENOENT;
+		goto out;
 	}
 
 	if (packet_get(packet, "isss", &type, &slavename, &pkgname, &id) != 4) {
@@ -2863,14 +3030,20 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 		info = instance_lb_buffer(inst);
 		ret = buffer_handler_unload(info);
 
-		slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
+		slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_lb_cb, info);
 	} else if (type == TYPE_PD) {
 		struct buffer_info *info;
 
 		info = instance_pd_buffer(inst);
 		ret = buffer_handler_unload(info);
 
-		slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
+		/*!
+		 * \note
+		 * Send the PD destroyed event to the client
+		 */
+		instance_client_pd_destroyed(inst, ret);
+
+		slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_pd_cb, info);
 	}
 
 out:

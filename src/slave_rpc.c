@@ -368,8 +368,18 @@ int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, struc
 	if (rpc->handle < 0) {
 		DbgPrint("RPC handle is not ready to use it\n");
 		if (slave_is_secured(slave) && !slave_is_activated(slave)) {
+			int ret;
 			DbgPrint("Activate slave forcely\n");
-			slave_activate(slave);
+			ret = slave_activate(slave);
+			if (ret < 0 && ret != -EALREADY) {
+
+				if (ret_cb)
+					ret_cb(slave, NULL, data);
+
+				destroy_command(command);
+				packet_unref(packet);
+				return ret;
+			}
 		}
 
 		if (urgent)
@@ -418,8 +428,15 @@ int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, struct
 		DbgPrint("RPC handle is not ready to use it\n");
 
 		if (slave_is_secured(slave) && !slave_is_activated(slave)) {
+			int ret;
+
 			DbgPrint("Activate slave forcely\n");
-			slave_activate(slave);
+			ret = slave_activate(slave);
+			if (ret < 0 && ret != -EALREADY) {
+				destroy_command(command);
+				packet_unref(packet);
+				return ret;
+			}
 		}
 
 		if (urgent)

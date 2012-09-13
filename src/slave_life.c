@@ -538,21 +538,39 @@ int slave_event_callback_add(struct slave_node *slave, enum slave_event event, i
 	ev->cbdata = data;
 	ev->evt_cb = cb;
 
+	/*!
+	 * \note
+	 * Use the eina_list_prepend API.
+	 * To keep the sequence of a callback invocation.
+	 *
+	 * Here is an example sequence.
+	 *
+	 * slave_event_callback_add(CALLBACK_01);
+	 * slave_event_callback_add(CALLBACK_02);
+	 * slave_event_callback_add(CALLBACK_03);
+	 *
+	 * Then the invoke_event_callback function will call the CALLBACKS as below sequence
+	 *
+	 * invoke_CALLBACK_03
+	 * invoke_CALLBACK_02
+	 * invoke_CALLBACK_01
+	 */
+
 	switch (event) {
 	case SLAVE_EVENT_ACTIVATE:
-		slave->event_activate_list = eina_list_append(slave->event_activate_list, ev);
+		slave->event_activate_list = eina_list_prepend(slave->event_activate_list, ev);
 		break;
 	case SLAVE_EVENT_DELETE:
-		slave->event_delete_list = eina_list_append(slave->event_delete_list, ev);
+		slave->event_delete_list = eina_list_prepend(slave->event_delete_list, ev);
 		break;
 	case SLAVE_EVENT_DEACTIVATE:
-		slave->event_deactivate_list = eina_list_append(slave->event_deactivate_list, ev);
+		slave->event_deactivate_list = eina_list_prepend(slave->event_deactivate_list, ev);
 		break;
 	case SLAVE_EVENT_PAUSE:
-		slave->event_pause_list = eina_list_append(slave->event_pause_list, ev);
+		slave->event_pause_list = eina_list_prepend(slave->event_pause_list, ev);
 		break;
 	case SLAVE_EVENT_RESUME:
-		slave->event_resume_list = eina_list_append(slave->event_resume_list, ev);
+		slave->event_resume_list = eina_list_prepend(slave->event_resume_list, ev);
 		break;
 	default:
 		free(ev);

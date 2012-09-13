@@ -325,12 +325,30 @@ int client_event_callback_add(struct client_node *client, enum client_event even
 	item->cb = cb;
 	item->data = data;
 
+	/*!
+	 * \note
+	 * Use the eina_list_prepend API.
+	 * To keep the sequence of a callback invocation.
+	 *
+	 * Here is an example sequence.
+	 *
+	 * client_event_callback_add(CALLBACK_01);
+	 * client_event_callback_add(CALLBACK_02);
+	 * client_event_callback_add(CALLBACK_03);
+	 *
+	 * Then the invoke_event_callback function will call the CALLBACKS as below sequence
+	 *
+	 * invoke_CALLBACK_03
+	 * invoke_CALLBACK_02
+	 * invoke_CALLBACK_01
+	 */
+
 	switch (event) {
 	case CLIENT_EVENT_DEACTIVATE:
-		client->event_deactivate_list = eina_list_append(client->event_deactivate_list, item);
+		client->event_deactivate_list = eina_list_prepend(client->event_deactivate_list, item);
 		break;
 	case CLIENT_EVENT_DESTROY:
-		client->event_destroy_list = eina_list_append(client->event_destroy_list, item);
+		client->event_destroy_list = eina_list_prepend(client->event_destroy_list, item);
 		break;
 	default:
 		free(item);

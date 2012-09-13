@@ -455,7 +455,13 @@ struct inst_info *instance_create(struct client_node *client, double timestamp, 
 	inst->state = INST_INIT;
 	inst->requested_state = INST_INIT;
 	instance_ref(inst);
-	package_add_instance(inst->info, inst);
+
+	if (package_add_instance(inst->info, inst) < 0) {
+		instance_state_reset(inst);
+		instance_destroy(inst);
+		return NULL;
+	}
+
 	slave_load_instance(package_slave(inst->info));
 
 	if (instance_activate(inst) < 0) {
@@ -1228,7 +1234,6 @@ void instance_lb_updated_by_instance(struct inst_info *inst)
 void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfile)
 {
 	struct packet *packet;
-	enum pd_type pd_type;
 	const char *id;
 
 	if (inst->client && inst->visible != LB_SHOW) {
@@ -1239,35 +1244,24 @@ void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfil
 	if (!descfile)
 		descfile = inst->id;
 
-	pd_type = package_pd_type(inst->info);
-	if (pd_type == PD_TYPE_SCRIPT)
+	switch (package_pd_type(inst->info)) {
+	case PD_TYPE_SCRIPT:
 		id = fb_id(script_handler_fb(inst->pd.canvas.script));
-	else if (pd_type == PD_TYPE_BUFFER)
+		break;
+	case PD_TYPE_BUFFER:
 		id = buffer_handler_id(inst->pd.canvas.buffer);
-	else
+		break;
+	case PD_TYPE_TEXT:
+	default:
 		id = "";
+		break;
+	}
 
 	packet = packet_create_noack("pd_updated", "ssssii",
 			package_name(inst->info), inst->id, descfile, id,
 			inst->pd.width, inst->pd.height);
 	if (!packet) {
 		ErrPrint("Failed to create param (%s - %s)\n", package_name(inst->info), inst->id);
-		return;
-	}
-
-	(void)CLIENT_SEND_EVENT(inst, packet);
-}
-
-void instance_pd_destroyed(struct inst_info *inst)
-{
-	struct packet *packet;
-
-	if (!inst)
-		return;
-
-	packet = packet_create_noack("pd_destroyed", "ss", package_name(inst->info), inst->id);
-	if (!packet) {
-		ErrPrint("Failed to create a packet\n");
 		return;
 	}
 
@@ -2113,6 +2107,48 @@ int instance_slave_close_pd(struct inst_info *inst)
 	}
 
 	return slave_rpc_request_only(slave, pkgname, packet, 0);
+}
+
+int instance_client_pd_created(struct inst_info *inst, int status)
+{
+	struct packet *packet;
+	const char *buf_id;
+
+	switch (package_pd_type(inst->info)) {
+	case PD_TYPE_SCRIPT:
+		buf_id = fb_id(script_handler_fb(inst->pd.canvas.script));
+		break;
+	case PD_TYPE_BUFFER:
+		buf_id = buffer_handler_id(inst->pd.canvas.buffer);
+		break;
+	case PD_TYPE_TEXT:
+	default:
+		buf_id = "";
+		break;
+	}
+
+	packet = packet_create_noack("pd_created", "sssiii", 
+			package_name(inst->info), inst->id, buf_id,
+			inst->pd.width, inst->pd.height, status);
+	if (!packet) {
+		ErrPrint("Failed to create a packet\n");
+		return -EFAULT;
+	}
+
+	return CLIENT_SEND_EVENT(inst, packet);
+}
+
+int instance_client_pd_destroyed(struct inst_info *inst, int status)
+{
+	struct packet *packet;
+
+	packet = packet_create_noack("pd_destroyed", "ssi", package_name(inst->info), inst->id, status);
+	if (!packet) {
+		ErrPrint("Failed to create a packet\n");
+		return -EFAULT;
+	}
+
+	return CLIENT_SEND_EVENT(inst, packet);
 }
 
 /* End of a file */
