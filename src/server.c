@@ -336,7 +336,7 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		ret = -EFAULT;
 	} else if (package_is_fault(info)) {
 		ret = -EFAULT;
-	} else if (util_free_space(g_conf.path.image) < MINIMUM_SPACE) {
+	} else if (util_free_space(IMAGE_PATH) < MINIMUM_SPACE) {
 		ErrPrint("Not enough space\n");
 		ret = -ENOSPC;
 	} else {
@@ -1871,7 +1871,7 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		ret = -ENOENT;
 	else if (package_is_fault(instance_package(inst)))
 		ret = -EFAULT;
-	else if (util_free_space(g_conf.path.image) < MINIMUM_SPACE)
+	else if (util_free_space(IMAGE_PATH) < MINIMUM_SPACE)
 		ret = -ENOSPC;
 	else if (package_pd_type(instance_package(inst)) == PD_TYPE_BUFFER) {
 		struct slave_node *slave;
@@ -2096,7 +2096,7 @@ static int update_pkg_cb(struct category *category, const char *pkgname, void *d
 	slave_rpc_request_update(pkgname, "", c_name, s_name);
 
 	/* Just try to create a new package */
-	if (util_free_space(g_conf.path.image) > MINIMUM_SPACE) {
+	if (util_free_space(IMAGE_PATH) > MINIMUM_SPACE) {
 		double timestamp;
 		struct inst_info *inst;
 
@@ -2655,7 +2655,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 		return NULL;
 	}
 
-	if (util_free_space(g_conf.path.image) < MINIMUM_SPACE) {
+	if (util_free_space(IMAGE_PATH) < MINIMUM_SPACE) {
 		DbgPrint("No space\n");
 		ret = -ENOSPC;
 		id = "";
@@ -2760,7 +2760,7 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 
 	id = "";
 
-	if (util_free_space(g_conf.path.image) < MINIMUM_SPACE) {
+	if (util_free_space(IMAGE_PATH) < MINIMUM_SPACE) {
 		ErrPrint("Not enough space\n");
 		ret = -ENOSPC;
 		goto out;

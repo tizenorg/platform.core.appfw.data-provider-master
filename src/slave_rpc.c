@@ -454,7 +454,7 @@ int slave_rpc_update_handle(struct slave_node *slave, int handle)
 	if (rpc->pong_timer)
 		ecore_timer_del(rpc->pong_timer);
 
-	rpc->pong_timer = ecore_timer_add(g_conf.ping_time, ping_timeout_cb, slave);
+	rpc->pong_timer = ecore_timer_add(DEFAULT_PING_TIME, ping_timeout_cb, slave);
 	if (!rpc->pong_timer)
 		ErrPrint("Failed to add ping timer\n");
 

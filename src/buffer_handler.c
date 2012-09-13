@@ -300,7 +300,7 @@ static inline int load_file_buffer(struct buffer_info *info)
 	char *new_id;
 	int len;
 
-	len = strlen(g_conf.path.image) + 40;
+	len = strlen(IMAGE_PATH) + 40;
 	new_id = malloc(len);
 	if (!new_id) {
 		ErrPrint("Heap: %s\n", strerror(errno));
@@ -308,7 +308,7 @@ static inline int load_file_buffer(struct buffer_info *info)
 	}
 
 	timestamp = util_timestamp();
-	snprintf(new_id, len, SCHEMA_FILE "%s%lf", g_conf.path.image, timestamp);
+	snprintf(new_id, len, SCHEMA_FILE "%s%lf", IMAGE_PATH, timestamp);
 
 	size = sizeof(*buffer) + info->w * info->h * info->pixel_size;
 	if (!size) {

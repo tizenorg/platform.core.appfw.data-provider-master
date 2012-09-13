@@ -738,7 +738,7 @@ struct slave_node *slave_find_available(const char *abi)
 			continue;
 
 		DbgPrint("slave[%s] %d\n", slave_name(slave), slave->loaded_package);
-		if (slave->loaded_package < g_conf.slave_max_load)
+		if (slave->loaded_package < SLAVE_MAX_LOAD)
 			return slave;
 	}
 

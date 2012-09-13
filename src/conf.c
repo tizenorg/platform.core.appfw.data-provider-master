@@ -27,6 +27,39 @@ struct conf g_conf = {
 	.width = 0,
 	.height = 0,
 
+	.base_width = 720,
+	.base_height = 1280,
+
+	.minimum_period = 1.0f,
+
+	.default_conf.script = "edje",
+	.default_conf.abi = "c",
+	.default_conf.pd_group = "disclosure",
+	.default_conf.period = -1.0f,
+
+	.launch_key.name = "name",
+	.launch_key.secured = "secured",
+	.launch_key.abi = "abi",
+
+	.default_packet_time = 0.0001f,
+
+	.empty_content = "",
+	.empty_title = "",
+
+	.default_content = "default",
+	.default_title = "",
+
+	.minimum_space = 5242880,
+
+	.replace_tag = "/APPID/",
+
+	.slave_ttl = 30.0f,
+
+	.max_log_line = 1000,
+	.max_log_file = 3,
+
+	.sqlite_flush_max = 1048576,
+
 	.path = {
 		.conf = "/opt/live/%s/etc/%s.conf",
 		.image = "/opt/share/live_magazine/",
@@ -34,6 +67,7 @@ struct conf g_conf = {
 		.script = "/opt/live/%s/res/script/%s.edj",
 		.root = "/opt/live/",
 		.script_port = "/opt/live/script_port/",
+		.db = "/opt/dbspace/.livebox.db",
 	},
 
 	.size = {

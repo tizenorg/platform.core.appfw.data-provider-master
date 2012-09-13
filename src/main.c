@@ -73,8 +73,8 @@ static inline int app_create(void *data)
 
 	conf_update_size();
 
-	if (access(g_conf.path.slave_log, R_OK|W_OK) != 0) {
-		mkdir(g_conf.path.slave_log, 755);
+	if (access(SLAVE_LOG_PATH, R_OK|W_OK) != 0) {
+		mkdir(SLAVE_LOG_PATH, 755);
 	}
 
 	/*!

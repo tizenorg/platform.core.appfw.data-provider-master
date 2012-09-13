@@ -55,7 +55,7 @@ static inline int check_native_livebox(const char *pkgname)
 	char *path;
 
 	len = strlen(pkgname) * 2;
-	len += strlen(g_conf.path.root);
+	len += strlen(ROOT_PATH);
 	len += strlen("%s/libexec/liblive-%s.so");
 
 	path = malloc(len + 1);
@@ -64,7 +64,7 @@ static inline int check_native_livebox(const char *pkgname)
 		return -ENOMEM;
 	}
 
-	snprintf(path, len, "%s%s/libexec/liblive-%s.so", g_conf.path.root, pkgname, pkgname);
+	snprintf(path, len, "%s%s/libexec/liblive-%s.so", ROOT_PATH, pkgname, pkgname);
 	if (access(path, F_OK | R_OK) != 0) {
 		ErrPrint("%s is not a valid package\n", pkgname);
 		free(path);

@@ -103,7 +103,7 @@ int virtual_canvas_flush_data_to_file(Evas *e, char *data, const char *filename,
 	evas_object_image_data_set(output, data);
 	evas_object_image_data_update_add(output, 0, 0, w, h);
 
-	if (evas_object_image_save(output, filename, NULL, g_conf.quality)
+	if (evas_object_image_save(output, filename, NULL, DEFAULT_QUALITY)
 								== EINA_FALSE) {
 		evas_object_del(output);
 		ErrPrint("Faield to save a captured image (%s)\n", filename);

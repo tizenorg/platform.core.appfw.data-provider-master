@@ -25,6 +25,43 @@ struct conf {
 	int width;
 	int height;
 
+	int base_width;
+	int base_height;
+	double minimum_period;
+
+	struct {
+		const char *script;
+		const char *abi;
+		const char *pd_group;
+		double period;
+	} default_conf;
+
+	struct {
+		const char *name;
+		const char *secured;
+		const char *abi;
+	} launch_key;
+
+
+	double default_packet_time;
+
+	const char *empty_content;
+	const char *empty_title;
+
+	const char *default_content;
+	const char *default_title;
+
+	unsigned long minimum_space;
+
+	const char *replace_tag;
+
+	double slave_ttl;
+
+	int max_log_line;
+	int max_log_file;
+
+	unsigned long sqlite_flush_max;
+
 	struct {
 		const char *conf;
 		const char *image;
@@ -32,6 +69,7 @@ struct conf {
 		const char *root;
 		const char *script_port;
 		const char *slave_log;
+		const char *db;
 	} path;
 
 	struct {
@@ -54,35 +92,52 @@ extern struct conf g_conf;
 
 extern void conf_update_size(void);
 
-#define BASE_W 720
-#define BASE_H 1280
+#define BASE_W			g_conf.base_width
+#define BASE_H			g_conf.base_height
 
 #define CR 13
 #define LF 10
 
-#define MINIMUM_PERIOD 1.0f
+#define MINIMUM_PERIOD		g_conf.minimum_period
 
-#define DEFAULT_SCRIPT	"edje"
-#define DEFAULT_ABI	"c"
-#define DEFAULT_GROUP	"disclosure"
-#define BUNDLE_SLAVE_NAME "name"
-#define BUNDLE_SLAVE_SECURED "secured"
-#define BUNDLE_SLAVE_ABI "abi"
-#define PACKET_TIME 0.0001f
-#define NO_CHANGE -1.0f
-#define CONTENT_NO_CHANGE ""
-#define TITLE_NO_CHANGE ""
-#define DEFAULT_TITLE ""
-#define DEFAULT_CONTENT "default"
-#define DEFAULT_PERIOD	-1.0f
-#define MINIMUM_SPACE	(5 << 20)
+#define DEFAULT_SCRIPT		g_conf.default_conf.script
+#define DEFAULT_ABI		g_conf.default_conf.abi
+#define DEFAULT_GROUP		g_conf.default_conf.pd_group
+#define NO_CHANGE		g_conf.default_conf.period
+#define DEFAULT_PERIOD		g_conf.default_conf.period
 
-#define REPLACE_TAG_APPID "/APPID/"
-#define SLAVE_TTL 30.0f
+#define BUNDLE_SLAVE_NAME	g_conf.launch_key.name
+#define BUNDLE_SLAVE_SECURED	g_conf.launch_key.secured
+#define BUNDLE_SLAVE_ABI	g_conf.launch_key.abi
+#define PACKET_TIME		g_conf.default_packet_time
+#define CONTENT_NO_CHANGE	g_conf.empty_content
+#define TITLE_NO_CHANGE		g_conf.empty_title
+#define DEFAULT_TITLE		g_conf.default_title
+#define DEFAULT_CONTENT		g_conf.default_content
+#define MINIMUM_SPACE		g_conf.minimum_space
 
-#define MAX_LOG_LINE 1000
-#define MAX_LOG_FILE 3
+#define IMAGE_PATH		g_conf.path.image
+#define SCRIPT_PATH		g_conf.path.script
+#define SCRIPT_PORT_PATH	g_conf.path.script_port
+#define CONF_PATH		g_conf.path.conf
+#define ROOT_PATH		g_conf.path.root
+#define SLAVE_LOG_PATH		g_conf.path.slave_log
 
-#define SQLITE_FLUSH_MAX 1048576
+#define REPLACE_TAG_APPID	g_conf.replace_tag
+#define SLAVE_TTL		g_conf.slave_ttl
+
+#define MAX_LOG_LINE		g_conf.max_log_line
+#define MAX_LOG_FILE		g_conf.max_log_file
+
+#define SQLITE_FLUSH_MAX	g_conf.sqlite_flush_max
+#define DBFILE			g_conf.path.db
+
+#define DEFAULT_QUALITY		g_conf.quality
+
+#define SLAVE_MAX_LOAD		g_conf.slave_max_load
+#define DEFAULT_PING_TIME	g_conf.ping_time
+
+#define MAX_ABI		256
+#define MAX_PKGNAME	512
 
 /* End of a file */

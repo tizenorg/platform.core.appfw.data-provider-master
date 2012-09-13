@@ -167,13 +167,13 @@ int parser_find(const char *pkgname)
 	int len;
 	int ret;
 
-	len = strlen(pkgname) * 2 + strlen(g_conf.path.conf);
+	len = strlen(pkgname) * 2 + strlen(CONF_PATH);
 
 	filename = malloc(len);
 	if (!filename)
 		return 0;
 
-	ret = snprintf(filename, len, g_conf.path.conf, pkgname, pkgname);
+	ret = snprintf(filename, len, CONF_PATH, pkgname, pkgname);
 	if (ret < 0) {
 		free(filename);
 		return -EFAULT;
@@ -612,7 +612,7 @@ struct parser *parser_load(const char *pkgname)
 		return 0;
 
 	/* live-, .conf */
-	len = strlen(g_conf.path.conf) + strlen(pkgname) * 2;
+	len = strlen(CONF_PATH) + strlen(pkgname) * 2;
 	item->filename = malloc(len);
 	if (!item->filename) {
 		LOGD("Error: %s\n", strerror(errno));
@@ -620,7 +620,7 @@ struct parser *parser_load(const char *pkgname)
 		return 0;
 	}
 
-	ret = snprintf(item->filename, len, g_conf.path.conf, pkgname, pkgname);
+	ret = snprintf(item->filename, len, CONF_PATH, pkgname, pkgname);
 	if (ret < 0) {
 		LOGD("Error: %s\n", strerror(errno));
 		free(item->filename);

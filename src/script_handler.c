@@ -1079,7 +1079,7 @@ int script_init(void)
 	char *path;
 	int pathlen;
 
-	dir = opendir(g_conf.path.script_port);
+	dir = opendir(SCRIPT_PORT_PATH);
 	if (!dir) {
 		ErrPrint("Error: %s\n", strerror(errno));
 		return -EIO;
@@ -1089,7 +1089,7 @@ int script_init(void)
 		if (ent->d_name[0] == '.')
 			continue;
 
-		pathlen = strlen(ent->d_name) + strlen(g_conf.path.script_port) + 1;
+		pathlen = strlen(ent->d_name) + strlen(SCRIPT_PORT_PATH) + 1;
 		path = malloc(pathlen);
 		if (!path) {
 			ErrPrint("Heap: %s %d\n", strerror(errno), pathlen);
@@ -1097,7 +1097,7 @@ int script_init(void)
 			return -ENOMEM;
 		}
 
-		snprintf(path, pathlen, "%s%s", g_conf.path.script_port, ent->d_name);
+		snprintf(path, pathlen, "%s%s", SCRIPT_PORT_PATH, ent->d_name);
 
 		item = malloc(sizeof(*item));
 		if (!item) {

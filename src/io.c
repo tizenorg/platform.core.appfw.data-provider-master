@@ -25,14 +25,9 @@
 
 int errno;
 
-#define MAX_ABI	256
-#define MAX_PKGNAME	512
-
 static struct {
-	const char *dbfile;
 	sqlite3 *handle;
 } s_info = {
-	.dbfile = "/opt/dbspace/.livebox.db",
 	.handle = NULL,
 };
 
@@ -511,13 +506,13 @@ static inline int db_init(void)
 	int ret;
 	struct stat stat;
 
-	ret = db_util_open(s_info.dbfile, &s_info.handle, DB_UTIL_REGISTER_HOOK_METHOD);
+	ret = db_util_open(DBFILE, &s_info.handle, DB_UTIL_REGISTER_HOOK_METHOD);
 	if (ret != SQLITE_OK) {
 		ErrPrint("Failed to open a DB\n");
 		return -EIO;
 	}
 
-	if (lstat(s_info.dbfile, &stat) < 0) {
+	if (lstat(DBFILE, &stat) < 0) {
 		db_util_close(s_info.handle);
 		s_info.handle = NULL;
 		ErrPrint("%s\n", strerror(errno));
@@ -558,7 +553,7 @@ static inline void crawling_liveboxes(void)
 	DIR *dir;
 	struct pkg_info *info;
 
-	dir = opendir(g_conf.path.root);
+	dir = opendir(ROOT_PATH);
 	if (!dir) {
 		ErrPrint("Error: %s\n", strerror(errno));
 		return;

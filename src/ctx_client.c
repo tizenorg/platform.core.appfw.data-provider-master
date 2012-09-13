@@ -53,7 +53,7 @@ static int update_pkg_cb(struct category *category, const char *pkgname, void *d
 
 	/* Just try to create a new package */
 	;
-	if (util_free_space(g_conf.path.image) > MINIMUM_SPACE) {
+	if (util_free_space(IMAGE_PATH) > MINIMUM_SPACE) {
 		double timestamp;
 		timestamp = util_timestamp();
 		inst = instance_create(NULL, timestamp, pkgname, DEFAULT_CONTENT, c_name, s_name, DEFAULT_PERIOD);

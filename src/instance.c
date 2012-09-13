@@ -390,7 +390,7 @@ struct inst_info *instance_create(struct client_node *client, double timestamp, 
 
 	inst->timestamp = timestamp;
 
-	snprintf(id, sizeof(id), SCHEMA_FILE "%s%s_%d_%lf.png", g_conf.path.image, pkgname, client_pid(client), inst->timestamp);
+	snprintf(id, sizeof(id), SCHEMA_FILE "%s%s_%d_%lf.png", IMAGE_PATH, pkgname, client_pid(client), inst->timestamp);
 	inst->id = strdup(id);
 	if (!inst->id) {
 		ErrPrint("Heap: %s\n", strerror(errno));
@@ -781,7 +781,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 
 	switch (ret) {
 	case 1: /*!< need to create */
-		if (util_free_space(g_conf.path.image) > MINIMUM_SPACE) {
+		if (util_free_space(IMAGE_PATH) > MINIMUM_SPACE) {
 			struct inst_info *new_inst;
 			new_inst = instance_create(inst->client, util_timestamp(), package_name(inst->info),
 							inst->content, inst->cluster, inst->category,
