@@ -2563,7 +2563,7 @@ static struct packet *slave_desc_updated(pid_t pid, int handle, const struct pac
 		instance_pd_updated(pkgname, id, descfile);
 		ret = 0;
 	} else {
-		DbgPrint("Ignore the DESC update event\n");
+		DbgPrint("Ignore updated DESC(%s - %s - %s)\n", pkgname, id, descfile);
 		ret = 0;
 	}
 

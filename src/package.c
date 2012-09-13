@@ -215,18 +215,6 @@ static inline void destroy_package(struct pkg_info *info)
 	free(info->pkgname);
 	free(info->libexec);
 
-	if (info->slave) {
-		slave_unload_package(info->slave);
-
-		slave_event_callback_del(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
-		slave_event_callback_del(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
-
-		if (info->secured) {
-			slave_event_callback_del(info->slave, SLAVE_EVENT_PAUSE, slave_paused_cb, info);
-			slave_event_callback_del(info->slave, SLAVE_EVENT_RESUME, slave_resume_cb, info);
-		}
-	}
-
 	free(info);
 }
 
@@ -419,80 +407,7 @@ struct pkg_info *package_create(const char *pkgname)
 		return NULL;
 	}
 
-	if (!info->secured)
-		info->slave = slave_find_available(info->abi);
-
 	package_ref(info);
-
-	if (!info->slave) {
-		char *s_name;
-		char *s_pkgname;
-		const char *tmp;
-
-		s_name = util_slavename();
-		if (!s_name) {
-			package_destroy(info);
-			return NULL;
-		}
-
-		tmp = abi_find_slave(info->abi);
-		if (!tmp) {
-			free(s_name);
-			package_destroy(info);
-			return NULL;
-		}
-
-		DbgPrint("Slave package: \"%s\" (abi: %s)\n", tmp, info->abi);
-		s_pkgname = util_replace_string(tmp, REPLACE_TAG_APPID, pkgname);
-		if (!s_pkgname) {
-			s_pkgname = strdup(tmp);
-			if (!s_pkgname) {
-				ErrPrint("Heap: %s\n", strerror(errno));
-				free(s_name);
-				package_destroy(info);
-				return NULL;
-			}
-		} else if (!info->secured) {
-			DbgPrint("Slave package name is specified but the livebox is not secured\n");
-			DbgPrint("Forcely set secured flag for livebox %s\n", pkgname);
-			info->secured = 1;
-		}
-
-		DbgPrint("New slave name is %s, it is assigned for livebox %s (using %s)\n", s_name, pkgname, s_pkgname);
-		info->slave = slave_create(s_name, info->secured, info->abi, s_pkgname);
-		free(s_name);
-		free(s_pkgname);
-
-		if (info->slave) {
-			slave_rpc_initialize(info->slave);
-		} else {
-			/*!
-			 * \note
-			 * package_destroy will try to remove "info" from the pkg_list.
-			 * but we didn't add this to it yet.
-			 * If the list method couldn't find an "info" from the list,
-			 * it just do nothing so I'll leave this.
-			 */
-			package_destroy(info);
-			return NULL;
-		}
-		/*!
-		 * \note
-		 * Slave is not activated yet.
-		 */
-
-	} else {
-		DbgPrint("Slave %s is assigned for %s\n", slave_name(info->slave), pkgname);
-	}
-
-	slave_load_package(info->slave);
-	slave_event_callback_add(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
-	slave_event_callback_add(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
-
-	if (info->secured) {
-		slave_event_callback_add(info->slave, SLAVE_EVENT_PAUSE, slave_paused_cb, info);
-		slave_event_callback_add(info->slave, SLAVE_EVENT_RESUME, slave_resume_cb, info);
-	}
 
 	s_info.pkg_list = eina_list_append(s_info.pkg_list, info);
 	return info;
@@ -947,6 +862,79 @@ void package_set_pd_type(struct pkg_info *info, enum pd_type type)
 
 int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 {
+	if (!info->inst_list) {
+		if (!info->secured)
+			info->slave = slave_find_available(info->abi);
+
+		if (!info->slave) {
+			char *s_name;
+			char *s_pkgname;
+			const char *tmp;
+
+			s_name = util_slavename();
+			if (!s_name) {
+				ErrPrint("Failed to get a new slave name\n");
+				return -EFAULT;
+			}
+
+			tmp = abi_find_slave(info->abi);
+			if (!tmp) {
+				free(s_name);
+				ErrPrint("Failed to find a proper pkgname of a slave\n");
+				return -EINVAL;
+			}
+
+			DbgPrint("Slave package: \"%s\" (abi: %s)\n", tmp, info->abi);
+			s_pkgname = util_replace_string(tmp, REPLACE_TAG_APPID, info->pkgname);
+			if (!s_pkgname) {
+				s_pkgname = strdup(tmp);
+				if (!s_pkgname) {
+					ErrPrint("Heap: %s\n", strerror(errno));
+					free(s_name);
+					return -ENOMEM;
+				}
+			} else if (!info->secured) {
+				DbgPrint("Slave package name is specified but the livebox is not secured\n");
+				DbgPrint("Forcely set secured flag for livebox %s\n", info->pkgname);
+				info->secured = 1;
+			}
+
+			DbgPrint("New slave name is %s, it is assigned for livebox %s (using %s)\n", s_name, info->pkgname, s_pkgname);
+			info->slave = slave_create(s_name, info->secured, info->abi, s_pkgname);
+
+			free(s_name);
+			free(s_pkgname);
+
+			if (info->slave) {
+				slave_rpc_initialize(info->slave);
+			} else {
+				/*!
+				 * \note
+				 * package_destroy will try to remove "info" from the pkg_list.
+				 * but we didn't add this to it yet.
+				 * If the list method couldn't find an "info" from the list,
+				 * it just do nothing so I'll leave this.
+				 */
+				return -EFAULT;
+			}
+			/*!
+			 * \note
+			 * Slave is not activated yet.
+			 */
+		} else {
+			DbgPrint("Slave %s is assigned for %s\n", slave_name(info->slave), info->pkgname);
+		}
+
+		slave_load_package(info->slave);
+		slave_event_callback_add(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
+		slave_event_callback_add(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
+
+		if (info->secured) {
+			slave_event_callback_add(info->slave, SLAVE_EVENT_PAUSE, slave_paused_cb, info);
+			slave_event_callback_add(info->slave, SLAVE_EVENT_RESUME, slave_resume_cb, info);
+		}
+	}
+
 	info->inst_list = eina_list_append(info->inst_list, inst);
 	return 0;
 }
@@ -954,6 +942,23 @@ int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 int package_del_instance(struct pkg_info *info, struct inst_info *inst)
 {
 	info->inst_list = eina_list_remove(info->inst_list, inst);
+
+	if (!info->inst_list) {
+		if (info->slave) {
+			slave_unload_package(info->slave);
+
+			slave_event_callback_del(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
+			slave_event_callback_del(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
+
+			if (info->secured) {
+				slave_event_callback_del(info->slave, SLAVE_EVENT_PAUSE, slave_paused_cb, info);
+				slave_event_callback_del(info->slave, SLAVE_EVENT_RESUME, slave_resume_cb, info);
+			}
+
+			info->slave = NULL;
+		}
+	}
+
 	return 0;
 }
 

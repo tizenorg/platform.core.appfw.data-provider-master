@@ -332,6 +332,7 @@ static inline void destroy_instance(struct inst_info *inst)
 	free(inst->title);
 	util_unlink(inst->id);
 	free(inst->id);
+	slave_unload_instance(package_slave(inst->info));
 	package_del_instance(inst->info, inst);
 	free(inst);
 }
@@ -455,6 +456,7 @@ struct inst_info *instance_create(struct client_node *client, double timestamp, 
 	inst->requested_state = INST_INIT;
 	instance_ref(inst);
 	package_add_instance(inst->info, inst);
+	slave_load_instance(package_slave(inst->info));
 
 	if (instance_activate(inst) < 0) {
 		instance_state_reset(inst);
@@ -553,7 +555,6 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 			instance_state_reset(inst);
 			instance_destroy(inst);
 			DbgPrint("== %s\n", package_name(info));
-			slave_unload_instance(package_slave(info));
 		default:
 			/*!< Unable to reach here */
 			break;
@@ -590,7 +591,6 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 		instance_broadcast_deleted_event(inst);
 		instance_state_reset(inst);
 		instance_destroy(inst);
-		slave_unload_instance(package_slave(info));
 		break;
 	}
 
@@ -736,7 +736,6 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 		instance_broadcast_deleted_event(inst);
 		instance_state_reset(inst);
 		instance_destroy(inst);
-		slave_unload_instance(package_slave(info));
 		break;
 	}
 
@@ -850,7 +849,6 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 				instance_create_pd_buffer(inst);
 			}
 
-			slave_load_instance(package_slave(inst->info));
 			instance_broadcast_created_event(inst);
 
 			instance_thaw_updator(inst);
@@ -958,7 +956,6 @@ int instance_destroyed(struct inst_info *inst)
 		inst->state = INST_DESTROYED;
 		inst->requested_state = INST_DESTROYED;
 		instance_unref(inst);
-		slave_unload_instance(package_slave(info));
 	case INST_DESTROYED:
 		break;
 	default:
@@ -1897,7 +1894,6 @@ void instance_faulted(struct inst_info *inst)
 		instance_broadcast_deleted_event(inst);
 		instance_destroy(inst);
 		DbgPrint("== %s\n", package_name(info));
-		slave_unload_instance(package_slave(info));
 		break;
 	case INST_DESTROYED:
 	default:
@@ -1934,7 +1930,6 @@ int instance_recover_state(struct inst_info *inst)
 			info = inst->info;
 			instance_state_reset(inst);
 			instance_destroy(inst);
-			slave_unload_instance(package_slave(info));
 			break;
 		default:
 			break;
@@ -2000,7 +1995,6 @@ int instance_need_slave(struct inst_info *inst)
 		case INST_REQUEST_TO_DESTROY:
 			instance_state_reset(inst);
 			instance_destroy(inst);
-			slave_unload_instance(package_slave(info));
 			break;
 		case INST_INIT:
 		case INST_REQUEST_TO_ACTIVATE:
@@ -2029,7 +2023,6 @@ int instance_need_slave(struct inst_info *inst)
 			info = inst->info;
 			instance_state_reset(inst);
 			instance_destroy(inst);
-			slave_unload_instance(package_slave(info));
 			break;
 		default:
 			break;

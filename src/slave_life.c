@@ -353,33 +353,18 @@ int slave_give_more_ttl(struct slave_node *slave)
 {
 	double delay;
 
-	if (!slave->secured) {
-		ErrPrint("Slave is not secured. invalid slave\n");
+	if (!slave->secured || !slave->ttl_timer)
 		return -EINVAL;
-	}
-
-	if (!slave->ttl_timer) {
-		DbgPrint("TTL timer is not exists\n");
-		return -EINVAL;
-	}
 
 	delay = SLAVE_TTL - ecore_timer_pending_get(slave->ttl_timer);
 	ecore_timer_delay(slave->ttl_timer, delay);
-	DbgPrint("Slave TTL is delayed more %lf secs\n", delay);
 	return 0;
 }
 
 int slave_freeze_ttl(struct slave_node *slave)
 {
-	if (!slave->secured) {
-		ErrPrint("Slave is not secured. invalid slave\n");
+	if (!slave->secured || !slave->ttl_timer)
 		return -EINVAL;
-	}
-
-	if (!slave->ttl_timer) {
-		DbgPrint("TTL timer is not exists\n");
-		return -EINVAL;
-	}
 
 	ecore_timer_freeze(slave->ttl_timer);
 	return 0;
@@ -389,15 +374,8 @@ int slave_thaw_ttl(struct slave_node *slave)
 {
 	double delay;
 
-	if (!slave->secured) {
-		ErrPrint("Slave is not secured. invalid slave\n");
+	if (!slave->secured || !slave->ttl_timer)
 		return -EINVAL;
-	}
-
-	if (!slave->ttl_timer) {
-		DbgPrint("TTL timer is not exists\n");
-		return -EINVAL;
-	}
 
 	ecore_timer_thaw(slave->ttl_timer);
 
