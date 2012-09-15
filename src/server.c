@@ -2685,7 +2685,6 @@ static struct packet *slave_desc_updated(pid_t pid, int handle, const struct pac
 		case PD_TYPE_TEXT:
 			instance_set_pd_info(inst, 0, 0);
 		case PD_TYPE_BUFFER:
-			DbgPrint("Buffer (%s)\n", id);
 			instance_pd_updated(pkgname, id, descfile);
 			ret = 0;
 			break;

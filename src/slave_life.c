@@ -439,7 +439,7 @@ static inline void invoke_deactivate_cb(struct slave_node *slave, int revoke)
 
 int slave_deactivate(struct slave_node *slave)
 {
-	pid_t pid;
+	int ret;
 
 	if (!slave_is_activated(slave) || slave->faulted) {
 		ErrPrint("Slave is already deactivated\n");
@@ -451,15 +451,23 @@ int slave_deactivate(struct slave_node *slave)
 	 * \todo
 	 * check the return value of the aul_terminate_pid
 	 */
-	pid = slave->pid;
+	slave->state = SLAVE_REQUEST_TO_TERMINATE;
+
+	DbgPrint("Terminate PID: %d\n", slave->pid);
+	if (slave->pid > 0) {
+		ret = aul_terminate_pid(slave->pid);
+		if (ret < 0) {
+			ErrPrint("Terminate failed. pid %d (%d)\n", slave->pid, ret);
+			slave_deactivated(slave);
+		}
+	}
+
+	return 0;
+}
+
+static inline void deactivate_slave(struct slave_node *slave)
+{
 	slave->pid = (pid_t)-1;
-
-	DbgPrint("Terminate PID: %d\n", pid);
-	if (aul_terminate_pid(pid) < 0)
-		ErrPrint("Terminate failed. pid %d\n", pid);
-
-	invoke_deactivate_cb(slave, 0);
-
 	slave->state = SLAVE_TERMINATED;
 
 	if (slave->ttl_timer) {
@@ -468,35 +476,36 @@ int slave_deactivate(struct slave_node *slave)
 	}
 
 	slave_unref(slave);
-	return 0;
+}
+
+void slave_deactivated(struct slave_node *slave)
+{
+	invoke_deactivate_cb(slave, 0);
+	deactivate_slave(slave);
 }
 
 void slave_deactivated_by_fault(struct slave_node *slave)
 {
-	pid_t pid;
+	int ret;
+
 	if (slave->faulted || !slave_is_activated(slave))
 		return;
 
 	slave->faulted = 1;
-
-	(void)fault_check_pkgs(slave);
-	pid = slave->pid;
-	slave->pid = (pid_t)-1;
 	slave->fault_count++;
 
-	DbgPrint("Terminate PID: %d\n", pid);
-	if (pid > 0 && aul_terminate_pid(pid) < 0)
-		ErrPrint("Terminate failed, pid %d\n", pid);
+	(void)fault_check_pkgs(slave);
 
-	invoke_deactivate_cb(slave, 1);
-	slave->state = SLAVE_TERMINATED;
-
-	if (slave->ttl_timer) {
-		ecore_timer_del(slave->ttl_timer);
-		slave->ttl_timer = NULL;
+	if (slave->pid > 0) {
+		DbgPrint("Try to terminate PID: %d\n", slave->pid);
+		ret = aul_terminate_pid(slave->pid);
+		if (ret < 0) {
+			ErrPrint("Terminate failed, pid %d\n", slave->pid);
+		}
 	}
 
-	slave_unref(slave);
+	invoke_deactivate_cb(slave, 1);
+	deactivate_slave(slave);
 }
 
 void slave_reset_fault(struct slave_node *slave)
@@ -764,7 +773,7 @@ void slave_load_package(struct slave_node *slave)
 
 void slave_unload_package(struct slave_node *slave)
 {
-	if (slave->loaded_package == 0) {
+	if (!slave || slave->loaded_package == 0) {
 		ErrPrint("Slave loaded package is not correct\n");
 		return;
 	}
@@ -785,7 +794,7 @@ int const slave_loaded_instance(struct slave_node *slave)
 
 void slave_unload_instance(struct slave_node *slave)
 {
-	if (slave->loaded_instance == 0) {
+	if (!slave || slave->loaded_instance == 0) {
 		ErrPrint("Slave loaded instance is not correct\n");
 		return;
 	}

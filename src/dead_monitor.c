@@ -23,8 +23,13 @@ static int evt_cb(int handle, void *data)
 	slave = slave_rpc_find_by_handle(handle);
 	if (slave) {
 		DbgPrint("Slave is disconnected\n");
-		if (slave_pid(slave) != (pid_t)-1)
-			slave_deactivated_by_fault(slave);
+		if (slave_pid(slave) != (pid_t)-1) {
+			if (slave_state(slave) == SLAVE_REQUEST_TO_TERMINATE)
+				slave_deactivated(slave);
+			else
+				slave_deactivated_by_fault(slave);
+		}
+
 		return 0;
 	}
 
@@ -33,6 +38,7 @@ static int evt_cb(int handle, void *data)
 		DbgPrint("Client is disconnected\n");
 		if (client_pid(client) != (pid_t)-1)
 			client_deactivated_by_fault(client);
+
 		return 0;
 	}
 

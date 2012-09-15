@@ -103,6 +103,7 @@ extern int slave_expired_ttl(struct slave_node *slave);
  * To mangage the unexpected termination of a slave
  */
 extern void slave_deactivated_by_fault(struct slave_node *slave);
+extern void slave_deactivated(struct slave_node *slave);
 
 extern int slave_event_callback_add(struct slave_node *slave, enum slave_event event, int (*cb)(struct slave_node *, void *), void *data);
 extern int slave_event_callback_del(struct slave_node *slave, enum slave_event event, int (*cb)(struct slave_node *, void *), void *data);
@@ -147,4 +148,5 @@ extern int slave_resume(struct slave_node *slave);
 extern int slave_pause(struct slave_node *slave);
 
 extern const char *slave_pkgname(const struct slave_node *slave);
+extern enum slave_state slave_state(const struct slave_node *slave);
 /* End of a file */
