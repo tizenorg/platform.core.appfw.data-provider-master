@@ -134,7 +134,10 @@ extern int slave_set_pid(struct slave_node *slave, pid_t pid);
  */
 extern void slave_load_package(struct slave_node *slave);
 extern void slave_unload_package(struct slave_node *slave);
+extern int const slave_loaded_package(struct slave_node *slave);
 extern struct slave_node *slave_find_available(const char *abi);
+
+extern double const slave_ttl(const struct slave_node *slave);
 
 /*!
  * \note
@@ -142,11 +145,16 @@ extern struct slave_node *slave_find_available(const char *abi);
  */
 extern void slave_load_instance(struct slave_node *slave);
 extern void slave_unload_instance(struct slave_node *slave);
-extern int const lave_loaded_instance(struct slave_node *slave);
+extern int const slave_loaded_instance(struct slave_node *slave);
 
 extern int slave_resume(struct slave_node *slave);
 extern int slave_pause(struct slave_node *slave);
 
 extern const char *slave_pkgname(const struct slave_node *slave);
 extern enum slave_state slave_state(const struct slave_node *slave);
+extern const char *slave_state_string(const struct slave_node *slave);
+
+extern const void *slave_list(void);
+extern int const slave_fault_count(const struct slave_node *slave);
+
 /* End of a file */

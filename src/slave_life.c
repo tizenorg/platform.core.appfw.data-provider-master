@@ -792,6 +792,11 @@ int const slave_loaded_instance(struct slave_node *slave)
 	return slave->loaded_instance;
 }
 
+int const slave_loaded_package(struct slave_node *slave)
+{
+	return slave->loaded_package;
+}
+
 void slave_unload_instance(struct slave_node *slave)
 {
 	if (!slave || slave->loaded_instance == 0) {
@@ -1009,6 +1014,50 @@ const char *slave_pkgname(const struct slave_node *slave)
 enum slave_state slave_state(const struct slave_node *slave)
 {
 	return slave ? slave->state : SLAVE_ERROR;
+}
+
+const char *slave_state_string(const struct slave_node *slave)
+{
+	switch (slave->state) {
+	case SLAVE_REQUEST_TO_LAUNCH:
+		return "Request to launch";
+	case SLAVE_REQUEST_TO_TERMINATE:
+		return "Request to terminate";
+	case SLAVE_TERMINATED:
+		return "Terminated";
+	case SLAVE_REQUEST_TO_PAUSE:
+		return "Request to pause";
+	case SLAVE_REQUEST_TO_RESUME:
+		return "Request to resume";
+	case SLAVE_PAUSED:
+		return "Paused";
+	case SLAVE_RESUMED:
+		return "Resumed";
+	case SLAVE_ERROR:
+		return "Error";
+	default:
+		break;
+	}
+
+	return "Unknown";
+}
+
+const void *slave_list(void)
+{
+	return s_info.slave_list;
+}
+
+int const slave_fault_count(const struct slave_node *slave)
+{
+	return slave->fault_count;
+}
+
+double const slave_ttl(const struct slave_node *slave)
+{
+	if (!slave->ttl_timer)
+		return 0.0f;
+
+	return ecore_timer_pending_get(slave->ttl_timer);
 }
 
 /* End of a file */

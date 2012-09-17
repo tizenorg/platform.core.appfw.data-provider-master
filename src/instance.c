@@ -90,6 +90,7 @@ struct inst_info {
 		} canvas;
 
 		int is_opened_for_reactivate;
+		int need_to_send_close_event;
 	} pd;
 
 	int timeout;
@@ -291,6 +292,19 @@ static int client_deactivated_cb(struct client_node *client, void *data)
 	return 0;
 }
 
+static int send_pd_destroyed_to_client(struct inst_info *inst, int status)
+{
+	struct packet *packet;
+
+	packet = packet_create_noack("pd_destroyed", "ssi", package_name(inst->info), inst->id, status);
+	if (!packet) {
+		ErrPrint("Failed to create a packet\n");
+		return -EFAULT;
+	}
+
+	return CLIENT_SEND_EVENT(inst, packet);
+}
+
 static inline void destroy_instance(struct inst_info *inst)
 {
 	struct pkg_info *pkg;
@@ -301,6 +315,9 @@ static inline void destroy_instance(struct inst_info *inst)
 
 	lb_type = package_lb_type(pkg);
 	pd_type = package_pd_type(pkg);
+
+	if (inst->pd.need_to_send_close_event)
+		send_pd_destroyed_to_client(inst, 0);
 
 	if (lb_type == LB_TYPE_SCRIPT) {
 		script_handler_unload(inst->lb.canvas.script, 0);
@@ -335,6 +352,8 @@ static inline void destroy_instance(struct inst_info *inst)
 	slave_unload_instance(package_slave(inst->info));
 	package_del_instance(inst->info, inst);
 	free(inst);
+
+	DbgPrint("Instance is destroyed (%p)\n", inst);
 }
 
 static Eina_Bool update_timer_cb(void *data)
@@ -1449,6 +1468,11 @@ int instance_thaw_updator(struct inst_info *inst)
 	return 0;
 }
 
+enum livebox_visible_state instance_visible_state(struct inst_info *inst)
+{
+	return inst->visible;
+}
+
 int instance_set_visible_state(struct inst_info *inst, enum livebox_visible_state state)
 {
 	if (inst->visible == state) {
@@ -2114,6 +2138,11 @@ int instance_client_pd_created(struct inst_info *inst, int status)
 	struct packet *packet;
 	const char *buf_id;
 
+	if (inst->pd.need_to_send_close_event) {
+		DbgPrint("PD is already created\n");
+		return -EINVAL;
+	}
+
 	switch (package_pd_type(inst->info)) {
 	case PD_TYPE_SCRIPT:
 		buf_id = fb_id(script_handler_fb(inst->pd.canvas.script));
@@ -2126,6 +2155,8 @@ int instance_client_pd_created(struct inst_info *inst, int status)
 		buf_id = "";
 		break;
 	}
+
+	inst->pd.need_to_send_close_event = 1;
 
 	packet = packet_create_noack("pd_created", "sssiii", 
 			package_name(inst->info), inst->id, buf_id,
@@ -2140,15 +2171,14 @@ int instance_client_pd_created(struct inst_info *inst, int status)
 
 int instance_client_pd_destroyed(struct inst_info *inst, int status)
 {
-	struct packet *packet;
-
-	packet = packet_create_noack("pd_destroyed", "ssi", package_name(inst->info), inst->id, status);
-	if (!packet) {
-		ErrPrint("Failed to create a packet\n");
-		return -EFAULT;
+	if (!inst->pd.need_to_send_close_event) {
+		DbgPrint("PD is not created\n");
+		return -EINVAL;
 	}
 
-	return CLIENT_SEND_EVENT(inst, packet);
+	inst->pd.need_to_send_close_event = 0;
+
+	return send_pd_destroyed_to_client(inst, status);
 }
 
 /* End of a file */

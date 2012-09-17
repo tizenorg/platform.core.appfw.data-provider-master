@@ -34,7 +34,7 @@ stop ()
 	touch /tmp/.stop.provider
 	PID=`ps ax | grep 'data-provider-master' | grep -v "$PID" | grep -v "sh" | grep -v "grep" | grep -v "rpm" | grep -v "dlogutil" | awk '{print $1}'`
 	if [ x"$PID" != x"" ]; then
-		KIL=`kill -9 $PID 2>&1 > /dev/null`
+		KIL=`kill $PID 2>&1 > /dev/null`
 		KIL_RET=$?
 		if [ $KIL_RET -ne 0 ]; then
 			echo "Data provider is already stopped ($KIL_RET)"

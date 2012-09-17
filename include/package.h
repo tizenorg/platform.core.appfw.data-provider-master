@@ -91,6 +91,9 @@ extern Eina_List *package_instance_list(struct pkg_info *info);
 extern int package_clear_fault(struct pkg_info *info);
 extern int package_alter_instances_to_client(struct client_node *client);
 
+extern const Eina_List *package_list(void);
+extern int const package_fault_count(struct pkg_info *info);
+
 extern int package_init(void);
 extern int package_fini(void);
 

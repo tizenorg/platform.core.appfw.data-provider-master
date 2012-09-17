@@ -14,11 +14,13 @@
 #include "fault_manager.h"
 #include "util.h"
 #include "debug.h"
+#include "liveinfo.h"
 
 static int evt_cb(int handle, void *data)
 {
 	struct slave_node *slave;
 	struct client_node *client;
+	struct liveinfo *liveinfo;
 
 	slave = slave_rpc_find_by_handle(handle);
 	if (slave) {
@@ -26,7 +28,7 @@ static int evt_cb(int handle, void *data)
 		if (slave_pid(slave) != (pid_t)-1) {
 			if (slave_state(slave) == SLAVE_REQUEST_TO_TERMINATE)
 				slave_deactivated(slave);
-			else
+			else if (slave_state(slave) != SLAVE_TERMINATED)
 				slave_deactivated_by_fault(slave);
 		}
 
@@ -39,6 +41,13 @@ static int evt_cb(int handle, void *data)
 		if (client_pid(client) != (pid_t)-1)
 			client_deactivated_by_fault(client);
 
+		return 0;
+	}
+
+	liveinfo = liveinfo_find_by_handle(handle);
+	if (liveinfo) {
+		DbgPrint("Utility is disconnected\n");
+		liveinfo_destroy(liveinfo);
 		return 0;
 	}
 

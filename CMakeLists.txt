@@ -76,6 +76,7 @@ ADD_EXECUTABLE(${PROJECT_NAME}
 	src/server.c
 	src/abi.c
 	src/critical_log.c
+	src/liveinfo.c
 )
 
 TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${pkg_LDFLAGS} "-ldl")
@@ -88,3 +89,4 @@ INSTALL(TARGETS ${PROJECT_NAME} DESTINATION /usr/bin PERMISSIONS OWNER_READ OWNE
 ADD_SUBDIRECTORY(res)
 ADD_SUBDIRECTORY(data)
 ADD_SUBDIRECTORY(pkgmgr_livebox)
+ADD_SUBDIRECTORY(util_liveinfo)

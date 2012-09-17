@@ -28,6 +28,7 @@
 #include "group.h"
 #include "xmonitor.h"
 #include "abi.h"
+#include "liveinfo.h"
 
 static struct info {
 	int fd;
@@ -1832,6 +1833,8 @@ static int pd_script_close_cb(struct client_node *client, void *inst)
 	int ret;
 	struct slave_node *slave;
 
+	ret = instance_slave_close_pd(inst);
+
 	DbgPrint("Forcely close the PD\n");
 	ret = script_handler_unload(instance_pd_script(inst), 1);
 
@@ -2744,34 +2747,6 @@ out:
 	return result;
 }
 
-static int slave_deactivated_pd_cb(struct slave_node *slave, void *data)
-{
-	struct buffer_info *info = data;
-	int ret;
-
-	ret = buffer_handler_unload(info);
-	DbgPrint("Unload buffer: %d\n", ret);
-
-	/*!
-	 * \note
-	 * If a slave is accidently deactivated,
-	 * Master should send the PD destroyed event to the client
-	 */
-	instance_client_pd_destroyed(buffer_handler_instance(info), ret);
-	return 0;
-}
-
-static int slave_deactivated_lb_cb(struct slave_node *slave, void *data)
-{
-	struct buffer_info *info = data;
-	int ret;
-
-	ret = buffer_handler_unload(info);
-	DbgPrint("Unload buffer: %d\n", ret);
-
-	return 0; /* SLAVE_NEED_TO_REACTIVATE */
-}
-
 /*!
  * \note for the BUFFER Type slave
  */
@@ -2835,8 +2810,12 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 					ErrPrint("Failed to create a LB buffer\n");
 				} else {
 					info = instance_lb_buffer(inst);
-					if (!info)
+					if (!info) {
 						ErrPrint("LB buffer is not valid\n");
+						ret = -EINVAL;
+						id = "";
+						goto out;
+					}
 				}
 			}
 
@@ -2847,7 +2826,6 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 			if (ret == 0) {
 				id = buffer_handler_id(info);
 				DbgPrint("Buffer handler ID: %s\n", id);
-				slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_lb_cb, info);
 			} else {
 				DbgPrint("Failed to load a buffer(%d)\n", ret);
 			}
@@ -2856,14 +2834,21 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 		if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
 			struct buffer_info *info;
 
+			DbgPrint("Slave acquire buffer for PD\n");
+
 			info = instance_pd_buffer(inst);
 			if (!info) {
 				if (!instance_create_pd_buffer(inst)) {
 					ErrPrint("Failed to create a PD buffer\n");
 				} else {
 					info = instance_pd_buffer(inst);
-					if (!info)
+					if (!info) {
 						ErrPrint("PD buffer is not valid\n");
+						ret = -EINVAL;
+						id = "";
+						instance_client_pd_created(inst, ret);
+						goto out;
+					}
 				}
 			}
 
@@ -2874,7 +2859,6 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 			if (ret == 0) {
 				id = buffer_handler_id(info);
 				DbgPrint("Buffer handler ID: %s\n", id);
-				slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_pd_cb, info);
 			} else {
 				DbgPrint("Failed to load a buffer (%d)\n", ret);
 			}
@@ -3028,10 +3012,10 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 
 		info = instance_lb_buffer(inst);
 		ret = buffer_handler_unload(info);
-
-		slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_lb_cb, info);
 	} else if (type == TYPE_PD) {
 		struct buffer_info *info;
+
+		DbgPrint("Slave release buffer for PD\n");
 
 		info = instance_pd_buffer(inst);
 		ret = buffer_handler_unload(info);
@@ -3041,8 +3025,6 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 		 * Send the PD destroyed event to the client
 		 */
 		instance_client_pd_destroyed(inst, ret);
-
-		slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_pd_cb, info);
 	}
 
 out:
@@ -3051,6 +3033,285 @@ out:
 		ErrPrint("Failed to create a packet\n");
 
 	return result;
+}
+
+static struct packet *liveinfo_hello(pid_t pid, int handle, const struct packet *packet)
+{
+	struct liveinfo *info;
+	struct packet *result;
+	int ret;
+	const char *fifo_name;
+	double timestamp;
+
+	DbgPrint("Request arrived from %d\n", pid);
+
+	if (packet_get(packet, "d", &timestamp) != 1) {
+		ErrPrint("Invalid packet\n");
+		fifo_name = "";
+		ret = -EINVAL;
+		goto out;
+	}
+
+	info = liveinfo_create(pid, handle);
+	if (!info) {
+		ErrPrint("Failed to create a liveinfo object\n");
+		fifo_name = "";
+		ret = -EINVAL;
+		goto out;
+	}
+
+	ret = 0;
+	fifo_name = liveinfo_filename(info);
+	DbgPrint("FIFO Created: %s (Serve for %d)\n", fifo_name, pid);
+
+out:
+	result = packet_create_reply(packet, "si", fifo_name, ret);
+	if (!result)
+		ErrPrint("Failed to create a result packet\n");
+
+	return result;
+}
+
+static struct packet *liveinfo_slave_list(pid_t pid, int handle, const struct packet *packet)
+{
+	Eina_List *l;
+	Eina_List *list;
+	struct liveinfo *info;
+	struct slave_node *slave;
+	FILE *fp;
+	double timestamp;
+
+	if (packet_get(packet, "d", &timestamp) != 1) {
+		ErrPrint("Invalid argument\n");
+		goto out;
+	}
+
+	info = liveinfo_find_by_pid(pid);
+	if (!info) {
+		ErrPrint("Invalid request\n");
+		goto out;
+	}
+
+	liveinfo_open_fifo(info);
+
+	fp = liveinfo_fifo(info);
+	if (!fp)
+		goto out;
+
+	fprintf(fp, "----------------------------------------------------------------------[Slave List]------------------------------------------------------------------------------\n");
+	fprintf(fp, "    pid          slave name                     package name                   abi     secured   refcnt   fault           state           inst   pkg     ttl    \n");
+	fprintf(fp, "----------------------------------------------------------------------------------------------------------------------------------------------------------------\n");
+	list = (Eina_List *)slave_list();
+	EINA_LIST_FOREACH(list, l, slave) {
+		fprintf(fp, "  %7d   %20s   %39s   %7s   %7s   %6d   %5d   %21s   %4d   %3d   %3.4lf  \n", 
+			slave_pid(slave),
+			slave_name(slave),
+			slave_pkgname(slave),
+			slave_abi(slave),
+			slave_is_secured(slave) ? "true" : "false",
+			slave_refcnt(slave),
+			slave_fault_count(slave),
+			slave_state_string(slave),
+			slave_loaded_instance(slave),
+			slave_loaded_package(slave),
+			slave_ttl(slave)
+		);
+	}
+	liveinfo_close_fifo(info);
+
+out:
+	return NULL;
+}
+
+static struct packet *liveinfo_slave_load(pid_t pid, int handle, const struct packet *packet)
+{
+	struct liveinfo *info;
+	pid_t slave_pid;
+	struct slave_node *slave;
+	struct pkg_info *pkg;
+	Eina_List *pkg_list;
+	Eina_List *l;
+	FILE *fp;
+
+	if (packet_get(packet, "i", &slave_pid) != 1) {
+		ErrPrint("Invalid argument\n");
+		goto out;
+	}
+
+	info = liveinfo_find_by_pid(pid);
+	if (!info) {
+		ErrPrint("Invalid request\n");
+		goto out;
+	}
+
+	slave = slave_find_by_pid(slave_pid);
+	if (!slave) {
+		ErrPrint("Slave is not exists\n");
+		goto out;
+	}
+
+	liveinfo_open_fifo(info);
+	fp = liveinfo_fifo(info);
+	if (!fp)
+		goto out;
+
+	fprintf(fp, "%s = { ", slave_name(slave));
+	pkg_list = (Eina_List *)package_list();
+	EINA_LIST_FOREACH(pkg_list, l, pkg) {
+		if (package_slave(pkg) == slave)
+			fprintf(fp, "%s, ", package_name(pkg));
+	}
+	fprintf(fp, "}\n");
+
+	liveinfo_close_fifo(info);
+
+out:
+	return NULL;
+}
+
+static inline const char *visible_state_string(enum livebox_visible_state state)
+{
+	switch (state) {
+	case LB_SHOW:
+		return "Show";
+	case LB_HIDE:
+		return "Hide";
+	case LB_HIDE_WITH_PAUSE:
+		return "Paused";
+	default:
+		break;
+	}
+
+	return "Unknown";
+}
+
+static struct packet *liveinfo_inst_list(pid_t pid, int handle, const struct packet *packet)
+{
+	const char *pkgname;
+	struct liveinfo *info;
+	struct pkg_info *pkg;
+	Eina_List *l;
+	Eina_List *inst_list;
+	struct inst_info *inst;
+	FILE *fp;
+
+	if (packet_get(packet, "s", &pkgname) != 1) {
+		ErrPrint("Invalid argument\n");
+		goto out;
+	}
+
+	pkg = package_find(pkgname);
+	if (!pkg) {
+		ErrPrint("Package is not exists\n");
+		goto out;
+	}
+
+	info = liveinfo_find_by_pid(pid);
+	if (!info) {
+		ErrPrint("Invalid request\n");
+		goto out;
+	}
+
+	liveinfo_open_fifo(info);
+
+	fp = liveinfo_fifo(info);
+	if (!fp) {
+		ErrPrint("Invalid fp\n");
+		goto out;
+	}
+
+	fprintf(fp, "-----------------------------------------------[Instance List]---------------------------------------\n");
+	fprintf(fp, "         ID         |      Cluster ID    |   Sub cluster ID   | Period | Visibility | Width | Height \n");
+	fprintf(fp, "-----------------------------------------------------------------------------------------------------\n");
+
+	inst_list = package_instance_list(pkg);
+	EINA_LIST_FOREACH(inst_list, l, inst) {
+		fprintf(fp, " %18s %18s %18s %3.3lf %10s %5d %6d\n",
+						instance_id(inst),
+						instance_cluster(inst),
+						instance_category(inst),
+						instance_period(inst),
+						visible_state_string(instance_visible_state(inst)),
+						instance_lb_width(inst),
+						instance_lb_height(inst));
+	}
+
+	liveinfo_close_fifo(info);
+
+out:
+	return NULL;
+}
+
+static struct packet *liveinfo_pkg_list(pid_t pid, int handle, const struct packet *packet)
+{
+	Eina_List *l;
+	Eina_List *list;
+	Eina_List *inst_list;
+	struct liveinfo *info;
+	struct pkg_info *pkg;
+	struct slave_node *slave;
+	FILE *fp;
+	const char *slavename;
+	double timestamp;
+
+	if (packet_get(packet, "d", &timestamp) != 1) {
+		ErrPrint("Invalid argument\n");
+		goto out;
+	}
+
+	info = liveinfo_find_by_pid(pid);
+	if (!info) {
+		ErrPrint("Invalid request\n");
+		goto out;
+	}
+
+	liveinfo_open_fifo(info);
+
+	fp = liveinfo_fifo(info);
+	if (!fp)
+		goto out;
+
+	fprintf(fp, "+----------------------------------------------[Package List]------------------------------------------------+\n");
+	fprintf(fp, "    pid          slave name                     package name                   abi     refcnt   fault   inst  \n");
+	fprintf(fp, "+------------------------------------------------------------------------------------------------------------+\n");
+	list = (Eina_List *)package_list();
+	EINA_LIST_FOREACH(list, l, pkg) {
+		slave = package_slave(pkg);
+
+		if (slave) {
+			slavename = slave_name(slave);
+			pid = slave_pid(slave);
+		} else {
+			pid = (pid_t)-1;
+			slavename = "";
+		}
+
+		inst_list = (Eina_List *)package_instance_list(pkg);
+
+		fprintf(fp, "  %7d   %20s   %39s   %7s   %6d   %5d   %4d  \n",
+			pid,
+			slavename,
+			package_name(pkg),
+			package_abi(pkg),
+			package_refcnt(pkg),
+			package_fault_count(pkg),
+			eina_list_count(inst_list)
+		);
+	}
+	liveinfo_close_fifo(info);
+
+out:
+	return NULL;
+}
+
+static struct packet *liveinfo_slave_ctrl(pid_t pid, int handle, const struct packet *packet)
+{
+	return NULL;
+}
+
+static struct packet *liveinfo_pkg_ctrl(pid_t pid, int handle, const struct packet *packet)
+{
+	return NULL;
 }
 
 static struct method s_table[] = {
@@ -3232,6 +3493,37 @@ static struct method s_table[] = {
 	{
 		.cmd = "release_buffer",
 		.handler = slave_release_buffer, /* slave_name, id - ret */
+	},
+	/*!
+	 * \note services for liveinfo (liveinfo)
+	 */
+	{
+		.cmd = "liveinfo_hello",
+		.handler = liveinfo_hello,
+	},
+	{
+		.cmd = "slave_list",
+		.handler = liveinfo_slave_list,
+	},
+	{
+		.cmd = "pkg_list",
+		.handler = liveinfo_pkg_list,
+	},
+	{
+		.cmd = "inst_list",
+		.handler = liveinfo_inst_list,
+	},
+	{
+		.cmd = "slave_load",
+		.handler = liveinfo_slave_load,
+	},
+	{
+		.cmd = "slave_ctrl",
+		.handler = liveinfo_slave_ctrl,
+	},
+	{
+		.cmd = "pkg_ctrl",
+		.handler = liveinfo_pkg_ctrl,
 	},
 	{
 		.cmd = NULL,

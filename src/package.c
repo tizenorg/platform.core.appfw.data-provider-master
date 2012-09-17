@@ -1089,4 +1089,14 @@ int package_alter_instances_to_client(struct client_node *client)
 	return 0;
 }
 
+const Eina_List *package_list(void)
+{
+	return s_info.pkg_list;
+}
+
+int const package_fault_count(struct pkg_info *info)
+{
+	return info ? info->fault_count : 0;
+}
+
 /* End of a file */
