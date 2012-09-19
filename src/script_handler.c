@@ -249,12 +249,12 @@ int script_handler_load(struct script_info *info, int is_pd)
 
 	e = script_handler_evas(info);
 	if (e) {
-		evas_event_callback_add(e, EVAS_CALLBACK_RENDER_FLUSH_PRE, render_pre_cb, info->inst);
-		evas_event_callback_add(e, EVAS_CALLBACK_RENDER_FLUSH_POST, render_post_cb, info->inst);
+		evas_event_callback_add(e, EVAS_CALLBACK_RENDER_PRE, render_pre_cb, info->inst);
+		evas_event_callback_add(e, EVAS_CALLBACK_RENDER_POST, render_post_cb, info->inst);
 		if (info->port->load(info->port_data, e, info->w, info->h) < 0) {
 			ErrPrint("Failed to add new script object\n");
-			evas_event_callback_del(e, EVAS_CALLBACK_RENDER_FLUSH_POST, render_post_cb);
-			evas_event_callback_del(e, EVAS_CALLBACK_RENDER_FLUSH_PRE, render_pre_cb);
+			evas_event_callback_del(e, EVAS_CALLBACK_RENDER_POST, render_post_cb);
+			evas_event_callback_del(e, EVAS_CALLBACK_RENDER_PRE, render_pre_cb);
 			fb_destroy_buffer(info->fb);
 			return -EFAULT;
 		}
@@ -295,8 +295,8 @@ int script_handler_unload(struct script_info *info, int is_pd)
 		script_signal_emit(e, util_uri_to_path(instance_id(info->inst)), is_pd ? "pd,hide" : "lb,hide", 0.0f, 0.0f, 0.0f, 0.0f);
 		if (info->port->unload(info->port_data, e) < 0)
 			ErrPrint("Failed to unload script object. but go ahead\n");
-		evas_event_callback_del(e, EVAS_CALLBACK_RENDER_FLUSH_POST, render_post_cb);
-		evas_event_callback_del(e, EVAS_CALLBACK_RENDER_FLUSH_PRE, render_pre_cb);
+		evas_event_callback_del(e, EVAS_CALLBACK_RENDER_POST, render_post_cb);
+		evas_event_callback_del(e, EVAS_CALLBACK_RENDER_PRE, render_pre_cb);
 	} else {
 		ErrPrint("Evas(nil): Unload script\n");
 	}

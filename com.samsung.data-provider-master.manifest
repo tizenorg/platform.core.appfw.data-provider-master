@@ -1,31 +1,34 @@
 <manifest>
 	<!-- Provider master label -->
 	<define>
-		<domain name="provider" policy="shared" />
+		<domain name="data-provider-master" policy="restricted" />
 		<provide>
-			<label name="provider::bin" />
-			<label name="provider::log" />
-			<label name="provider::data" />
+			<label name="data-provider-master::bin" />
+			<label name="data-provider-master::log" />
+			<label name="data-provider-master::db" />
+			<label name="data-provider-master::data" />
 		</provide>
 	</define>
-
 	<request>
-		<domain name="provider" />
+		<domain name="_" />
 	</request>
 
 	<assign>
 		<!-- Executable file -->
-		<filesystem path="/opt/apps/com.samsung.data-provider-master/bin/data-provider-master" label="provider::bin" />
-		<filesystem path="/opt/apps/com.samsung.data-provider-master/bin/data-provider-master" exec_label="provider::bin" />
+		<filesystem path="/usr/bin/data-provider-master" label="data-provider-master::bin" />
+		<filesystem path="/usr/bin/data-provider-master" exec_label="data-provider-master::bin" />
 
-		<!-- Shared folder home, providers(master, slave) -->
-		<filesystem path="/opt/share/live_magazine" label="provider::data" />
+		<filesystem path="/usr/bin/liveinfo" label="data-provider-master::bin" />
+		<filesystem path="/usr/bin/liveinfo" exec_label="data-provider-master::bin" />
 
-		<!-- Shared folder providers(master, slave) -->
-		<filesystem path="/opt/share/live_magazine/log" label="provider::log" />
+		<!-- Configuration data -->
+		<filesystem path="/usr/share/data-provider-master" label="data-provider-master::data" />
+		<filesystem path="/usr/share/data-provider-master/abi.ini" label="data-provider-master::data" />
 
 		<!-- Package manager & Init script -->
-		<filesystem path="/opt/share/applications/com.samsung.data-provider-master.desktop" label="_" />
 		<filesystem path="/etc/rc.d/init.d/data-provider-master" label="_" />
+
+		<!-- Package manager plugin -->
+		<filesystem path="/usr/etc/package-manager/parserlib/liblivebox.so" label="_" />
 	</assign>
 </manifest>

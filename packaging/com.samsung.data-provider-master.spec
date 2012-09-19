@@ -1,6 +1,6 @@
 Name: com.samsung.data-provider-master
 Summary: Master data provider
-Version: 0.10.0
+Version: 0.10.1
 Release: 1
 Group: main/app
 License: Samsung Proprietary License
@@ -47,18 +47,26 @@ rm -rf %{buildroot}
 %make_install
 
 %post
-mkdir -p /opt/share/live_magazine/log
-mkdir -p /opt/share/live_magazine/reader
+mkdir -p /opt/share/live_magazine
 chown 5000:5000 /opt/share/live_magazine
+chsmack -a "_" /opt/share/live_magazine
+chsmack -t /opt/share/live_magazine
+# According to this transmute attribute, below log, reader folder will be set as same label
+
+mkdir /opt/share/live_magazine/log
 chown 5000:5000 /opt/share/live_magazine/log
+
+mkdir /opt/share/live_magazine/reader
 chown 5000:5000 /opt/share/live_magazine/reader
 
-# Menu daemon will launch the data provider master automatically
-#if [ -f "/etc/rc.d/rc3.d/S41data-provider-master" ]; then
-#	rm -f /etc/rc.d/rc3.d/S41data-provider-master
-#fi
+# End of a list of affected folder by the transmute attribute
+
+touch /opt/dbspace/.lviebox.db
+chsmack -a "data-provider-master::db" /opt/dbspace/.livebox.db
 
 ln -sf /etc/rc.d/init.d/data-provider-master /etc/rc.d/rc3.d/S99data-provider-master
+chsmack -a "_" /etc/rc.d/rc3.d/S99data-provider-master
+chsmack -e "_" /etc/rc.d/rc3.d/S99data-provider-master
 
 TMP=`which ps`
 if [ $? -ne 0 ]; then
@@ -66,35 +74,33 @@ if [ $? -ne 0 ]; then
 	exit 0
 fi
 
-TMP=`which aul_test`
+TMP=`which grep`
 if [ $? -ne 0 ]; then
-	echo "'aul_test' is not exists"
+	echo "'grep' is not exists"
 	exit 0
 fi
 
-PID=`ps ax | grep 'data-provider-master' | grep -v 'grep' | grep -v 'rpm' | grep -v 'dlogutil' | awk '{print $1}'`
-if [ x"$PID" != x"" ]; then
-	aul_test term_pid $PID
-	sleep 1
+TMP=`which awk`
+if [ $? -ne 0 ]; then
+	echo "'awk' is not exists"
+	exit 0
 fi
 
-PID_LIST=`ps ax | grep 'data-provider-slave' | grep -v 'grep' | grep -v 'rpm' | grep -v 'dlogutil' | awk '{print $1}'`
-for PID in $PID_LIST
+BIN_INODE=`stat -Lc "%i" /usr/bin/data-provider-master`
+
+PID=`ps ax | grep 'data-provider-master' | grep -v 'grep' | grep -v 'rpm' | grep -v 'dlogutil' | awk '{print $1}'`
+for I in $PID;
 do
-	echo "Terminate old data provider slave $PID"
-	aul_test term_pid $PID
+	INODE=`stat -Lc "%i"  /proc/$I/exe`
+	if [ x"$BIN_INODE" == x"$INODE" ]; then
+		echo "Send TERM to $I"
+		kill $I # Try to terminate a master which is launched already
+	fi
 done
 
-#
-# menu-daemon will relaunch the data provider master
-#
-# aul_test launch com.samsung.data-provider-master
-
 %files -n com.samsung.data-provider-master
-#%manifest com.samsung.data-provider-master.manifest
+%manifest com.samsung.data-provider-master.manifest
 %defattr(-,root,root,-)
-#/opt/apps/com.samsung.data-provider-master/bin/data-provider-master
-#/opt/share/applications/com.samsung.data-provider-master.desktop
 /etc/rc.d/init.d/data-provider-master
 /usr/bin/data-provider-master
 /usr/bin/liveinfo
