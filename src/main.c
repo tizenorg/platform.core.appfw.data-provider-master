@@ -39,34 +39,6 @@
 FILE *__file_log_fp;
 #endif
 
-static Eina_Bool lazy_init_cb(void *data)
-{
-	int ret;
-
-	ret = dead_init();
-	DbgPrint("Dead callback is registered: %d\n", ret);
-
-	ret = group_init();
-	DbgPrint("group init: %d\n", ret);
-
-	ret = io_init();
-	DbgPrint("Init I/O: %d\n", ret);
-
-	ret = package_init();
-	DbgPrint("pkgmgr initialized: %d\n", ret);
-
-	ret = ctx_client_init();
-	DbgPrint("Context engine is initialized: %d\n", ret);
-
-	ret = xmonitor_init();
-	DbgPrint("XMonitor init is done: %d\n", ret);
-
-	ret = buffer_handler_init();
-	DbgPrint("Buffer handler init is done: %d\n", ret);
-
-	return ECORE_CALLBACK_CANCEL;
-}
-
 static inline int app_create(void *data)
 {
 	int ret;
@@ -90,17 +62,40 @@ static inline int app_create(void *data)
 	 * To enable the dead signal handler,
 	 * dead_init should be done before other components are initiated.
 	 */
-	ret = server_init();
-	DbgPrint("Server initialized: %d\n", ret);
-
 	ret = setting_init();
 	DbgPrint("Setting initialized: %d\n", ret);
 
 	ret = client_init();
 	DbgPrint("Client initialized: %d\n", ret);
 
-	if (!ecore_timer_add(0.1f, lazy_init_cb, NULL))
-		lazy_init_cb(NULL);
+	ret = dead_init();
+	DbgPrint("Dead callback is registered: %d\n", ret);
+
+	ret = group_init();
+	DbgPrint("group init: %d\n", ret);
+
+	ret = io_init();
+	DbgPrint("Init I/O: %d\n", ret);
+
+	ret = package_init();
+	DbgPrint("pkgmgr initialized: %d\n", ret);
+
+	ret = ctx_client_init();
+	DbgPrint("Context engine is initialized: %d\n", ret);
+
+	ret = xmonitor_init();
+	DbgPrint("XMonitor init is done: %d\n", ret);
+
+	ret = buffer_handler_init();
+	DbgPrint("Buffer handler init is done: %d\n", ret);
+
+	/*!
+	 * \note
+	 * After initiate all other sub-systtems,
+	 * Enable the server socket.
+	 */
+	ret = server_init();
+	DbgPrint("Server initialized: %d\n", ret);
 
 	return 0;
 }
