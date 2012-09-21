@@ -187,8 +187,8 @@ static Eina_Bool read_cb(void *data, Ecore_Fd_Handler *fd_handler)
 
 	fd = ecore_main_fd_handler_fd_get(fd_handler);
 
-	while ((len = read(fd, buffer, sizeof(buffer))) > 0) {
-		buffer[len - 1] = '\0';
+	while ((len = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
+		buffer[len] = '\0';
 		fputs(buffer, stdout);
 	}
 

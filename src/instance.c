@@ -1894,9 +1894,6 @@ const enum instance_state const instance_state(const struct inst_info *inst)
 
 void instance_faulted(struct inst_info *inst)
 {
-	struct pkg_info *info;
-	DbgPrint("Fault. DESTROYING (%s)\n", package_name(inst->info));
-
 	switch (inst->state) {
 	case INST_INIT:
 	case INST_REQUEST_TO_ACTIVATE:
@@ -1907,11 +1904,14 @@ void instance_faulted(struct inst_info *inst)
 	case INST_REQUEST_TO_REACTIVATE:
 	case INST_REQUEST_TO_DESTROY:
 	case INST_ACTIVATED:
-		info = inst->info;
-		instance_state_reset(inst);
+		/*!
+		 * Send deleted event to the client
+		 * If this instance has owned by a client, send deleted event to it
+		 * or send deleted event to all clients which subscribe this instance's cluster & sub-cluster
+		 */
 		instance_broadcast_deleted_event(inst);
+		instance_state_reset(inst);
 		instance_destroy(inst);
-		DbgPrint("== %s\n", package_name(info));
 		break;
 	case INST_DESTROYED:
 	default:

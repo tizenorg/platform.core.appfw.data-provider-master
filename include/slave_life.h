@@ -112,9 +112,6 @@ extern int slave_set_data(struct slave_node *slave, const char *tag, void *data)
 extern void *slave_del_data(struct slave_node *slave, const char *tag);
 extern void *slave_data(struct slave_node *slave, const char *tag);
 
-extern void slave_reset_fault(struct slave_node *slave);
-extern const int const slave_is_faulted(const struct slave_node *slave);
-
 extern struct slave_node *slave_find_by_pid(pid_t pid);
 extern struct slave_node *slave_find_by_name(const char *name);
 extern struct slave_node *slave_find_by_pkgname(const char *pkgname);
@@ -135,7 +132,7 @@ extern int slave_set_pid(struct slave_node *slave, pid_t pid);
 extern void slave_load_package(struct slave_node *slave);
 extern void slave_unload_package(struct slave_node *slave);
 extern int const slave_loaded_package(struct slave_node *slave);
-extern struct slave_node *slave_find_available(const char *abi);
+extern struct slave_node *slave_find_available(const char *abi, int secured);
 
 extern double const slave_ttl(const struct slave_node *slave);
 
@@ -156,5 +153,11 @@ extern const char *slave_state_string(const struct slave_node *slave);
 
 extern const void *slave_list(void);
 extern int const slave_fault_count(const struct slave_node *slave);
+
+extern int slave_need_to_reactivate_instances(struct slave_node *slave);
+extern void slave_set_reactivate_instances(struct slave_node *slave, int reactivate);
+
+extern void slave_set_reactivation(struct slave_node *slave, int flag);
+extern int slave_need_to_reactivate(struct slave_node *slave);
 
 /* End of a file */

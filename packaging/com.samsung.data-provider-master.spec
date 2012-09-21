@@ -1,6 +1,6 @@
 Name: com.samsung.data-provider-master
 Summary: Master data provider
-Version: 0.10.2
+Version: 0.10.3
 Release: 1
 Group: main/app
 License: Samsung Proprietary License
@@ -61,7 +61,7 @@ chown 5000:5000 /opt/share/live_magazine/reader
 
 # End of a list of affected folder by the transmute attribute
 
-touch /opt/dbspace/.lviebox.db
+touch /opt/dbspace/.livebox.db
 chsmack -a "data-provider-master::db" /opt/dbspace/.livebox.db
 
 ln -sf /etc/rc.d/init.d/data-provider-master /etc/rc.d/rc3.d/S99data-provider-master

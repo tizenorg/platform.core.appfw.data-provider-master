@@ -154,7 +154,7 @@ static Eina_Bool command_consumer_cb(void *data)
 		return ECORE_CALLBACK_CANCEL;
 	}
 
-	if (slave_is_faulted(command->slave) || !slave_is_activated(command->slave)) {
+	if (!slave_is_activated(command->slave)) {
 		ErrPrint("Slave is not activated: %s(%d)\n",
 				slave_name(command->slave), slave_pid(command->slave));
 		goto errout;
@@ -482,7 +482,6 @@ int slave_rpc_update_handle(struct slave_node *slave, int handle)
 	 * so the reset_fault should be called after slave_activated function.
 	 */
 	slave_activated(slave);
-	slave_reset_fault(slave);
 
 	EINA_LIST_FREE(rpc->pending_list, command) {
 		push_command(command);

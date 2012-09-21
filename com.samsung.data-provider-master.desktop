@@ -1,6 +1,6 @@
 Name=Live Data Provider - Master
 Type=Application
-Exec=/opt/apps/com.samsung.data-provider-master/bin/data-provider-master
+Exec=/usr/bin/data-provider-master
 Icon=com.samsung.data-provider-master.png
 NoDisplay=True
 Network=True

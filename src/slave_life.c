@@ -41,6 +41,9 @@ struct slave_node {
 	int loaded_instance;
 	int loaded_package;
 
+	int reactivate_instances;
+	int reactivate_slave;
+
 	pid_t pid;
 
 	Eina_List *event_activate_list;
@@ -50,8 +53,6 @@ struct slave_node {
 	Eina_List *event_resume_list;
 
 	Eina_List *data_list;
-
-	int faulted;
 
 	Ecore_Timer *ttl_timer; /* Time to live */
 };
@@ -88,12 +89,14 @@ static Eina_Bool slave_ttl_cb(void *data)
 	 */
 	slave->ttl_timer = NULL;
 
+	slave_set_reactivation(slave, 0);
+	slave_set_reactivate_instances(slave, 1);
+
 	ret = slave_deactivate(slave);
 	if (ret == -EALREADY)
 		DbgPrint("Slave is already terminated\n");
 
 	/*! To recover all instances state it is activated again */
-	slave->faulted = 1;
 	return ECORE_CALLBACK_CANCEL;
 }
 
@@ -306,11 +309,6 @@ static inline void invoke_activate_cb(struct slave_node *slave)
 	}
 }
 
-const int const slave_is_faulted(const struct slave_node *slave)
-{
-	return slave->faulted;
-}
-
 int slave_activate(struct slave_node *slave)
 {
 	bundle *param;
@@ -406,10 +404,13 @@ int slave_activated(struct slave_node *slave)
 	}
 
 	invoke_activate_cb(slave);
+
+	slave_set_reactivation(slave, 0);
+	slave_set_reactivate_instances(slave, 0);
 	return 0;
 }
 
-static inline void invoke_deactivate_cb(struct slave_node *slave, int revoke)
+static inline int invoke_deactivate_cb(struct slave_node *slave)
 {
 	Eina_List *l;
 	Eina_List *n;
@@ -429,19 +430,14 @@ static inline void invoke_deactivate_cb(struct slave_node *slave, int revoke)
 		}
 	}
 
-	if (reactivate && revoke) {
-		DbgPrint("Need to reactivate a slave\n");
-		ret = slave_activate(slave);
-		if (ret < 0 && ret != -EALREADY)
-			ErrPrint("Failed to reactivate a slave\n");
-	}
+	return reactivate;
 }
 
 int slave_deactivate(struct slave_node *slave)
 {
 	int ret;
 
-	if (!slave_is_activated(slave) || slave->faulted) {
+	if (!slave_is_activated(slave)) {
 		ErrPrint("Slave is already deactivated\n");
 		return -EALREADY;
 	}
@@ -480,18 +476,31 @@ static inline void deactivate_slave(struct slave_node *slave)
 
 void slave_deactivated(struct slave_node *slave)
 {
-	invoke_deactivate_cb(slave, 0);
+	int reactivate;
+
+	reactivate = invoke_deactivate_cb(slave);
+
 	deactivate_slave(slave);
+
+	if (reactivate && slave_need_to_reactivate(slave)) {
+		int ret;
+
+		DbgPrint("Need to reactivate a slave\n");
+		ret = slave_activate(slave);
+		if (ret < 0 && ret != -EALREADY)
+			ErrPrint("Failed to reactivate a slave\n");
+	}
 }
 
 void slave_deactivated_by_fault(struct slave_node *slave)
 {
 	int ret;
 
-	if (slave->faulted || !slave_is_activated(slave))
+	if (!slave_is_activated(slave)) {
+		DbgPrint("Deactivating in progress\n");
 		return;
+	}
 
-	slave->faulted = 1;
 	slave->fault_count++;
 
 	(void)fault_check_pkgs(slave);
@@ -504,13 +513,10 @@ void slave_deactivated_by_fault(struct slave_node *slave)
 		}
 	}
 
-	invoke_deactivate_cb(slave, 1);
-	deactivate_slave(slave);
-}
+	slave_set_reactivation(slave, 1);
+	slave_set_reactivate_instances(slave, 1);
 
-void slave_reset_fault(struct slave_node *slave)
-{
-	slave->faulted = 0;
+	slave_deactivated(slave);
 }
 
 const int const slave_is_activated(struct slave_node *slave)
@@ -730,21 +736,40 @@ struct slave_node *slave_find_by_name(const char *name)
 	return NULL;
 }
 
-struct slave_node *slave_find_available(const char *abi)
+struct slave_node *slave_find_available(const char *abi, int secured)
 {
 	Eina_List *l;
 	struct slave_node *slave;
 
 	EINA_LIST_FOREACH(s_info.slave_list, l, slave) {
-		if (slave->secured)
+		if (slave->secured != secured)
 			continue;
+
+		if (slave->state == SLAVE_REQUEST_TO_TERMINATE && slave->loaded_instance == 0) {
+			/*!
+			 * \note
+			 * If a slave is in request_to_terminate state,
+			 * and the slave object has no more intances,
+			 * the slave object will be deleted soon.
+			 * so we cannot reuse it.
+			 *
+			 * This object is not usable.
+			 */
+			continue;
+		}
 
 		if (strcmp(slave->abi, abi))
 			continue;
 
-		DbgPrint("slave[%s] %d\n", slave_name(slave), slave->loaded_package);
-		if (slave->loaded_package < SLAVE_MAX_LOAD)
-			return slave;
+		if (slave->secured) {
+			DbgPrint("Found secured slave - has no instances (%s)\n", slave_name(slave));
+			if (slave->loaded_package == 0)
+				return slave;
+		} else {
+			DbgPrint("slave[%s] %d\n", slave_name(slave), slave->loaded_package);
+			if (slave->loaded_package < SLAVE_MAX_LOAD)
+				return slave;
+		}
 	}
 
 	return NULL;
@@ -806,8 +831,19 @@ void slave_unload_instance(struct slave_node *slave)
 
 	slave->loaded_instance--;
 	DbgPrint("Instance: (%d)%d\n", slave->pid, slave->loaded_instance);
-	if (slave->loaded_instance == 0)
+	if (slave->loaded_instance == 0) {
+		slave_set_reactivation(slave, 0);
+		slave_set_reactivate_instances(slave, 0);
+
 		slave_deactivate(slave);
+
+		/*!
+		 * \note
+		 * If a slave has no more instances,
+		 * Destroy it
+		 */
+		slave_unref(slave);
+	}
 }
 
 void slave_handle_state_change(void)
@@ -1058,6 +1094,26 @@ double const slave_ttl(const struct slave_node *slave)
 		return 0.0f;
 
 	return ecore_timer_pending_get(slave->ttl_timer);
+}
+
+void slave_set_reactivate_instances(struct slave_node *slave, int reactivate)
+{
+	slave->reactivate_instances = reactivate;
+}
+
+int slave_need_to_reactivate_instances(struct slave_node *slave)
+{
+	return slave->reactivate_instances;
+}
+
+void slave_set_reactivation(struct slave_node *slave, int flag)
+{
+	slave->reactivate_slave = flag;
+}
+
+int slave_need_to_reactivate(struct slave_node *slave)
+{
+	return slave->reactivate_slave;
 }
 
 /* End of a file */

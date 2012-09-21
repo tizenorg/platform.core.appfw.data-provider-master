@@ -119,8 +119,8 @@ static int slave_activated_cb(struct slave_node *slave, void *data)
 	int cnt;
 	int ret;
 
-	if (!slave_is_faulted(slave)) {
-		DbgPrint("No need to recover state of instances of %s\n", package_name(info));
+	if (!slave_need_to_reactivate_instances(slave)) {
+		DbgPrint("Do not need to reactivate instances\n");
 		return 0;
 	}
 
@@ -863,8 +863,7 @@ void package_set_pd_type(struct pkg_info *info, enum pd_type type)
 int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 {
 	if (!info->inst_list) {
-		if (!info->secured)
-			info->slave = slave_find_available(info->abi);
+		info->slave = slave_find_available(info->abi, info->secured);
 
 		if (!info->slave) {
 			char *s_name;
