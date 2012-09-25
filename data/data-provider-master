@@ -6,7 +6,7 @@ launch_provider()
 	while [ ! -f "/tmp/.stop.provider" ]; do
 		# default method is "file"
 		# available type: "shm", "pixmap", "file"
-		DEBUG_PROVIDER="false" USE_SHM_FOR_LIVE_CONTENT="file" /usr/bin/data-provider-master
+		BUFMGR_LOCK_TYPE="once" BUFMGR_MAP_CACHE="true" DEBUG_PROVIDER="false" USE_SHM_FOR_LIVE_CONTENT="pixmap" /usr/bin/data-provider-master
 		let RETRY_COUNT=$RETRY_COUNT+1
 		if [ $RETRY_COUNT -gt 5 ]; then
 			echo "EXCEED THE MAXIMUM RETRY COUNT: $RETRY_COUNT (max 5)"

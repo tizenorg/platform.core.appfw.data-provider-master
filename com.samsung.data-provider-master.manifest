@@ -1,9 +1,8 @@
 <manifest>
 	<!-- Provider master label -->
 	<define>
-		<domain name="data-provider-master" policy="restricted" />
+		<domain name="com.samsung.data-provider-master" policy="restricted" />
 		<provide>
-			<label name="data-provider-master::bin" />
 			<label name="data-provider-master::log" />
 			<label name="data-provider-master::db" />
 			<label name="data-provider-master::data" />
@@ -15,11 +14,8 @@
 
 	<assign>
 		<!-- Executable file -->
-		<filesystem path="/usr/bin/data-provider-master" label="data-provider-master::bin" />
-		<filesystem path="/usr/bin/data-provider-master" exec_label="data-provider-master::bin" />
-
-		<filesystem path="/usr/bin/liveinfo" label="data-provider-master::bin" />
-		<filesystem path="/usr/bin/liveinfo" exec_label="data-provider-master::bin" />
+		<filesystem path="/usr/bin/data-provider-master" label="com.samsung.data-provider-master" exec_label="com.samsung.data-provider-master" />
+		<filesystem path="/usr/bin/liveinfo" label="com.samsung.data-provider-master" exec_label="com.samsung.data-provider-master" />
 
 		<!-- Configuration data -->
 		<filesystem path="/usr/share/data-provider-master" label="data-provider-master::data" />
