@@ -3035,6 +3035,35 @@ out:
 	return result;
 }
 
+static struct packet *service_update(pid_t pid, int handle, const struct packet *packet)
+{
+	struct packet *result;
+	const char *pkgname;
+	const char *cluster;
+	const char *category;
+	int ret;
+
+	ret = packet_get(packet, "sss", &pkgname, &cluster, &category);
+	if (ret != 3) {
+		ErrPrint("Invalid Packet\n");
+		goto out;
+	}
+
+	/*!
+	 * \TODO
+	 * Validate the update requstor.
+	 */
+	slave_rpc_request_update(pkgname, "", cluster, category);
+	ret = 0;
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a packet\n");
+
+	return result;
+}
+
 static struct packet *liveinfo_hello(pid_t pid, int handle, const struct packet *packet)
 {
 	struct liveinfo *info;
@@ -3493,6 +3522,13 @@ static struct method s_table[] = {
 	{
 		.cmd = "release_buffer",
 		.handler = slave_release_buffer, /* slave_name, id - ret */
+	},
+	/*!
+	 * \note Service
+	 */
+	{
+		.cmd = "service_update",
+		.handler = service_update,
 	},
 	/*!
 	 * \note services for liveinfo (liveinfo)
