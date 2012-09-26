@@ -26,7 +26,7 @@
  *
  * pkgmap
  * +-------+-------+---------+
- * | appid | pkgid | prime |
+ * | appid | pkgid | prime   |
  * +-------+-------+---------+
  * |   -   |   -   |         |
  * +-------+-------+---------+
@@ -1112,11 +1112,15 @@ static inline int db_init(void)
 
 	if (lstat(s_info.dbfile, &stat) < 0) {
 		ErrPrint("%s\n", strerror(errno));
+		db_util_close(s_info.handle);
+		s_info.handle = NULL;
 		return -EIO;
 	}
 
 	if (!S_ISREG(stat.st_mode)) {
 		ErrPrint("Invalid file\n");
+		db_util_close(s_info.handle);
+		s_info.handle = NULL;
 		return -EINVAL;
 	}
 
