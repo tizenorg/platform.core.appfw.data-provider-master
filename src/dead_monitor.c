@@ -27,11 +27,12 @@ static int evt_cb(int handle, void *data)
 		DbgPrint("Slave is disconnected\n");
 		if (slave_pid(slave) != (pid_t)-1) {
 			if (slave_state(slave) == SLAVE_REQUEST_TO_TERMINATE)
-				slave_deactivated(slave);
+				slave = slave_deactivated(slave);
 			else if (slave_state(slave) != SLAVE_TERMINATED)
-				slave_deactivated_by_fault(slave);
+				slave = slave_deactivated_by_fault(slave);
 		}
 
+		DbgPrint("Slave pointer: %p (0x0 means deleted)\n", slave);
 		return 0;
 	}
 

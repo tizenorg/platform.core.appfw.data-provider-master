@@ -310,11 +310,13 @@ static inline void destroy_instance(struct inst_info *inst)
 	struct pkg_info *pkg;
 	enum lb_type lb_type;
 	enum pd_type pd_type;
+	struct slave_node *slave;
 
 	pkg = inst->info;
 
 	lb_type = package_lb_type(pkg);
 	pd_type = package_pd_type(pkg);
+	slave = package_slave(inst->info);
 
 	if (inst->pd.need_to_send_close_event)
 		send_pd_destroyed_to_client(inst, 0);
@@ -349,11 +351,11 @@ static inline void destroy_instance(struct inst_info *inst)
 	free(inst->title);
 	util_unlink(inst->id);
 	free(inst->id);
-	slave_unload_instance(package_slave(inst->info));
 	package_del_instance(inst->info, inst);
 	free(inst);
 
-	DbgPrint("Instance is destroyed (%p)\n", inst);
+	slave = slave_unload_instance(slave);
+	DbgPrint("Instance is destroyed (%p), slave(%p)\n", inst, slave);
 }
 
 static Eina_Bool update_timer_cb(void *data)

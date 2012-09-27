@@ -83,10 +83,10 @@ extern void slave_destroy(struct slave_node *slave);
 extern int slave_activate(struct slave_node *slave);
 
 /*!
- * \brief
+ * \brief After this function call, the slave object can be deleted
  * \param[in] slave
  */
-extern int slave_deactivate(struct slave_node *slave);
+extern struct slave_node *slave_deactivate(struct slave_node *slave) __attribute__((warn_unused_result));
 
 /*!
  * To check the slave's activation state
@@ -100,10 +100,17 @@ extern int slave_thaw_ttl(struct slave_node *slave);
 extern int slave_expired_ttl(struct slave_node *slave);
 
 /*!
+ * \NOTE
  * To mangage the unexpected termination of a slave
+ * After this function call, the slave object can be deleted
  */
-extern void slave_deactivated_by_fault(struct slave_node *slave);
-extern void slave_deactivated(struct slave_node *slave);
+extern struct slave_node *slave_deactivated_by_fault(struct slave_node *slave) __attribute__((warn_unused_result));
+
+/*!
+ * \NOTE
+ * After this function, the slave object can be deleted
+ */
+extern struct slave_node *slave_deactivated(struct slave_node *slave) __attribute__((warn_unused_result));
 
 extern int slave_event_callback_add(struct slave_node *slave, enum slave_event event, int (*cb)(struct slave_node *, void *), void *data);
 extern int slave_event_callback_del(struct slave_node *slave, enum slave_event event, int (*cb)(struct slave_node *, void *), void *data);
@@ -141,7 +148,13 @@ extern double const slave_ttl(const struct slave_node *slave);
  * Used for making decision of activating a slave or not
  */
 extern void slave_load_instance(struct slave_node *slave);
-extern void slave_unload_instance(struct slave_node *slave);
+
+/*!
+ * \NOTE
+ * After this function call, the slave object can be deleted.
+ */
+extern struct slave_node *slave_unload_instance(struct slave_node *slave) __attribute__((warn_unused_result));
+
 extern int const slave_loaded_instance(struct slave_node *slave);
 
 extern int slave_resume(struct slave_node *slave);
