@@ -88,9 +88,9 @@
  * CREATE TABLE groupinfo ( id INTEGER PRIMARY KEY AUTOINCREMENT, cluster TEXT NOT NULL, category TEXT NOT NULL, appid TEXT NOT NULL, FOREIGN KEY(appid) REFERENCES pkgmap(appid) ))
  *
  * groupmap
- * +----+-------+----------+-----------+
- * | id | appid | ctx_item | option_id |
- * +----+-------+----------+-----------+
+ * +-------+----+----------+-----------+
+ * | appid | id | ctx_item | option_id |
+ * +-------+----+----------+-----------+
  * CREATE TABLE groupmap ( option_id INTEGER PRIMARY KEY AUTOINCREMENT, id INTEGER, appid TEXT NOT NULL, ctx_item TEXT NOT NULL, FOREIGN KEY(id) REFERENCES groupinfo(id), FOREIGN KEY(appid) REFERENCES pkgmap(appid) )
  *
  *

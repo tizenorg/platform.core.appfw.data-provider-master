@@ -85,7 +85,8 @@ struct conf {
 	const int slave_max_load;
 
 	double ping_time;
-	double delayed_ctx_init_time;
+
+	const char *vconf_sys_cluster;
 };
 
 extern struct conf g_conf;
@@ -139,5 +140,7 @@ extern void conf_update_size(void);
 
 #define MAX_ABI		256
 #define MAX_PKGNAME	512
+
+#define SYS_CLUSTER_KEY		g_conf.vconf_sys_cluster
 
 /* End of a file */

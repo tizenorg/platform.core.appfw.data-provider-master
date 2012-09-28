@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <stdbool.h>
 #include <unistd.h>
 
 #include <Ecore.h>
@@ -7,7 +6,7 @@
 
 #include <vconf.h>
 #include <dlog.h>
-#include <context_subscribe.h>
+
 #include <packet.h>
 
 #include "debug.h"
@@ -22,398 +21,143 @@
 #include "util.h"
 #include "rpc_to_slave.h"
 #include "setting.h"
+#include "ctx_wrapper.h"
 
-#define SYS_CLUSTER_KEY "file/private/com.samsung.cluster-home/system_cluster"
-
-static struct info {
-	int updated;
-	int enabled;
-	unsigned long pending_mask;
-} s_info = {
-	.updated = 0,
-	.enabled = 0,
-	.pending_mask = 0x0,
-};
-
-static int update_pkg_cb(struct category *category, const char *pkgname, void *data)
+static int ctx_changed_cb(struct context_item *item, void *user_data)
 {
 	const char *c_name;
 	const char *s_name;
-	struct inst_info *inst;
+	const char *pkgname;
+	struct context_info *info;
+	struct category *category;
+
+	if ((client_count() && client_is_all_paused()) || setting_is_lcd_off()) {
+		ErrPrint("Context event is ignored\n");
+		return 0;
+	}
+
+	info = group_context_info_from_item(item);
+	category = group_category_from_context_info(info);
 
 	c_name = group_cluster_name_by_category(category);
 	s_name = group_category_name(category);
+	pkgname = group_pkgname_from_context_info(info);
 
 	if (!c_name || !s_name || !pkgname) {
-		ErrPrint("Name is not valid\n");
-		return EXIT_FAILURE;
+		ErrPrint("Name is not valid (%s/%s/%s)\n", c_name, s_name, pkgname);
+		return 0;
 	}
 
 	slave_rpc_request_update(pkgname, "", c_name, s_name);
-
-	/* Just try to create a new package */
-	;
 	if (util_free_space(IMAGE_PATH) > MINIMUM_SPACE) {
 		double timestamp;
+		struct inst_info *inst;
+
 		timestamp = util_timestamp();
 		inst = instance_create(NULL, timestamp, pkgname, DEFAULT_CONTENT, c_name, s_name, DEFAULT_PERIOD);
 	} else {
-		ErrPrint("No enough space\n");
+		ErrPrint("Not enough space\n");
 	}
-	return EXIT_SUCCESS;
+
+	DbgPrint("Context event is updated\n");
+	return 0;
 }
 
-static inline void update_location(void)
+static inline void register_callbacks(void)
 {
+	Eina_List *cluster_list;
+	Eina_List *l1;
 	struct cluster *cluster;
+
+	Eina_List *category_list;
+	Eina_List *l2;
 	struct category *category;
 
-	DbgPrint("Processing events: Location\n");
+	Eina_List *info_list;
+	Eina_List *l3;
+	struct context_info *info;
 
-	cluster = group_find_cluster("location");
-	if (cluster) {
-		category = group_find_category(cluster, "location_now");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
+	Eina_List *item_list;
+	Eina_List *l4;
+	struct context_item *item;
 
-		category = group_find_category(cluster, "location_apps");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "location_appointments");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "location_weather");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "location_around");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "location_facebook");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "location_task");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-	}
-
-	cluster = group_find_cluster("apps");
-	if (cluster) {
-		category = group_find_category(cluster, "apps_location");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-	}
-
-	cluster = group_find_cluster("people");
-	if (cluster) {
-		category = group_find_category(cluster, "people_at");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-	}
-
-	cluster = group_find_cluster("photos_videos");
-	if (cluster) {
-		category = group_find_category(cluster, "media_location");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-	}
+	cluster_list = group_cluster_list();
+	EINA_LIST_FOREACH(cluster_list, l1, cluster) {
+		category_list = group_category_list(cluster);
+		EINA_LIST_FOREACH(category_list, l2, category) {
+			info_list = group_context_info_list(category);
+			EINA_LIST_FOREACH(info_list, l3, info) {
+				item_list = group_context_item_list(info);
+				EINA_LIST_FOREACH(item_list, l4, item) {
+					void *handler;
+					handler = ctx_wrapper_register_callback(item, ctx_changed_cb, NULL);
+					if (group_context_item_add_data(item, "callback", handler) < 0)
+						ctx_wrapper_unregister_callback(handler);
+				} // item
+			} // info
+		} // category
+	} // cluster
 }
 
-static inline void update_contacts(void)
+static inline void unregister_callbacks(void)
 {
+	Eina_List *cluster_list;
+	Eina_List *l1;
 	struct cluster *cluster;
+
+	Eina_List *category_list;
+	Eina_List *l2;
 	struct category *category;
 
-	DbgPrint("Processing events: Contacts\n");
+	Eina_List *info_list;
+	Eina_List *l3;
+	struct context_info *info;
 
-	cluster = group_find_cluster("people");
-	if (cluster) {
-		category = group_find_category(cluster, "people_frequently");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
+	Eina_List *item_list;
+	Eina_List *l4;
+	struct context_item *item;
 
-		category = group_find_category(cluster, "people_rarely");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "people_during");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "people_at");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-	}
-}
-
-static inline void update_apps(void)
-{
-	struct cluster *cluster;
-	struct category *category;
-
-	DbgPrint("Processing events: Apps\n");
-
-	cluster = group_find_cluster("apps");
-	if (cluster) {
-		category = group_find_category(cluster, "apps_frequently");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "apps_location");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "apps_frequently_now");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "apps_similar");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "apps_suggestion");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-	}
-
-	cluster = group_find_cluster("location");
-	if (cluster) {
-		category = group_find_category(cluster, "location_apps");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-	}
-
-	cluster = group_find_cluster("photo_videos");
-	if (cluster) {
-		category = group_find_category(cluster, "media_facebook");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "media_category");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "media_top");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "media_facebook_like");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-	}
-
-	cluster = group_find_cluster("music");
-	if (cluster) {
-		category = group_find_category(cluster, "music_similar_artist");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "music_about");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "music_friend_playlist");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-	}
-
-	cluster = group_find_cluster("news");
-	if (cluster) {
-		category = group_find_category(cluster, "news_search");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "news_shared_by_friends");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-	}
-
-	cluster = group_find_cluster("people");
-	if (cluster) {
-		category = group_find_category(cluster, "people_frequently");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "people_rarely");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-	}
-}
-
-static inline void update_music(void)
-{
-	struct cluster *cluster;
-	struct category *category;
-
-	DbgPrint("Processing events: Music\n");
-
-	cluster = group_find_cluster("music");
-	if (!cluster)
-		return;
-
-	category = group_find_category(cluster, "music_top_album");
-	if (category)
-		group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-	category = group_find_category(cluster, "music_new_album");
-	if (category)
-		group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-	category = group_find_category(cluster, "music_recently");
-	if (category)
-		group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-	category = group_find_category(cluster, "music_top_track");
-	if (category)
-		group_list_category_pkgs(category, update_pkg_cb, NULL);
-}
-
-static inline void update_photo(void)
-{
-	struct cluster *cluster;
-	struct category *category;
-
-	DbgPrint("Processing events: Photo\n");
-
-	cluster = group_find_cluster("photos_videos");
-	if (!cluster)
-		return;
-
-	category = group_find_category(cluster, "media_latest");
-	if (category)
-		group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-	category = group_find_category(cluster, "media_location");
-	if (category)
-		group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-	category = group_find_category(cluster, "media_facebook");
-	if (category)
-		group_list_category_pkgs(category, update_pkg_cb, NULL);
-}
-
-static inline void update_events(void)
-{
-	struct cluster *cluster;
-	struct category *category;
-
-	DbgPrint("Processing events: Events\n");
-
-	cluster = group_find_cluster("location");
-	if (cluster) {
-		category = group_find_category(cluster, "location_task");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "location_appointments");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-	}
-}
-
-static inline void update_keyword(void)
-{
-	struct cluster *cluster;
-	struct category *category;
-
-	DbgPrint("Processing events: Keyword\n");
-
-	cluster = group_find_cluster("news");
-	if (cluster) {
-		category = group_find_category(cluster, "news_from");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "news_rss");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "news_friends");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-
-		category = group_find_category(cluster, "news_twitter");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-	}
-
-	cluster = group_find_cluster("photos_videos");
-	if (cluster) {
-		category = group_find_category(cluster, "media_youtube");
-		if (category)
-			group_list_category_pkgs(category, update_pkg_cb, NULL);
-	}
-}
-
-void ctx_update(unsigned long mask)
-{
-	if (!mask)
-		return;
-
-	if (mask & CONTEXT_NOTI_LOCATION)
-		update_location();
-
-	if (mask & CONTEXT_NOTI_CONTACTS)
-		update_contacts();
-
-	if (mask & CONTEXT_NOTI_APPS)
-		update_apps();
-
-	if (mask & CONTEXT_NOTI_MUSIC)
-		update_music();
-
-	if (mask & CONTEXT_NOTI_PHOTOS)
-		update_photo();
-
-	if (mask & CONTEXT_NOTI_KEYWORD)
-		update_keyword();
-
-	if (mask & CONTEXT_NOTI_EVENTS)
-		update_events();
-
-	return;
-}
-
-static bool ctx_changed_cb(context_type_e type, void *user_data)
-{
-	s_info.pending_mask |= type;
-	if (!s_info.enabled || (client_count() && client_is_all_paused()) || setting_is_lcd_off())
-		return ECORE_CALLBACK_RENEW;
-
-	ctx_update(s_info.pending_mask);
-	s_info.pending_mask = 0x0;
-	return false;
+	cluster_list = group_cluster_list();
+	EINA_LIST_FOREACH(cluster_list, l1, cluster) {
+		category_list = group_category_list(cluster);
+		EINA_LIST_FOREACH(category_list, l2, category) {
+			info_list = group_context_info_list(category);
+			EINA_LIST_FOREACH(info_list, l3, info) {
+				item_list = group_context_item_list(info);
+				EINA_LIST_FOREACH(item_list, l4, item) {
+					void *handler;
+					handler = group_context_item_del_data(item, "callback");
+					if (handler)
+						ctx_wrapper_unregister_callback(handler);
+				} // item
+			} // info
+		} // category
+	} // cluster
 }
 
 static void ctx_vconf_cb(keynode_t *node, void *data)
 {
+	int enabled;
+
 	if (!node) {
-		if (vconf_get_int(SYS_CLUSTER_KEY, &s_info.enabled) < 0) {
-			s_info.enabled = 1; /*!< Enable this for default option */
-		}
+		/*!< Enable this for default option */
+		if (vconf_get_int(SYS_CLUSTER_KEY, &enabled) < 0)
+			enabled = 0;
 	} else {
-		s_info.enabled = vconf_keynode_get_int(node);
+		enabled = vconf_keynode_get_int(node);
 	}
-}
 
-static Eina_Bool delayed_ctx_init_cb(void *data)
-{
-	context_set_context_changed_cb(ctx_changed_cb,
-		CONTEXT_NOTI_LOCATION | CONTEXT_NOTI_CONTACTS | CONTEXT_NOTI_APPS |
-		CONTEXT_NOTI_MUSIC | CONTEXT_NOTI_PHOTOS | CONTEXT_NOTI_KEYWORD |
-		CONTEXT_NOTI_EVENTS, NULL);
+	if (!enabled) {
+		unregister_callbacks();
+		ctx_wrapper_disable();
+		return;
+	}
 
+	ctx_wrapper_enable();
 	/*!
-	 * Triggering all events first
+	 * Register event callbacks for every liveboxes
 	 */
-	if (s_info.enabled)
-		ctx_update(0xFFFFFFFF);
-
-	return ECORE_CALLBACK_CANCEL;
+	register_callbacks();
 }
 
 int ctx_client_init(void)
@@ -425,12 +169,6 @@ int ctx_client_init(void)
 		ErrPrint("Failed to register the system_cluster vconf\n");
 
 	ctx_vconf_cb(NULL, NULL);
-
-	if (!ecore_timer_add(g_conf.delayed_ctx_init_time, delayed_ctx_init_cb, NULL)) {
-		ErrPrint("Failed to add timer for delayed ctx init\n");
-		delayed_ctx_init_cb(NULL);
-	}
-
 	return 0;
 }
 
