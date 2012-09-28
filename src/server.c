@@ -2193,7 +2193,7 @@ out:
 	return result;
 }
 
-static int update_pkg_cb(struct category *category, const char *pkgname, void *data)
+static inline int update_pkg_cb(struct category *category, const char *pkgname)
 {
 	const char *c_name;
 	const char *s_name;
@@ -2232,6 +2232,9 @@ static struct packet *client_refresh_group(pid_t pid, int handle, const struct p
 	int ret;
 	struct cluster *cluster;
 	struct category *category;
+	struct context_info *info;
+	Eina_List *info_list;
+	Eina_List *l;
 
 	DbgPrint("Client[%d] request arrived\n", pid);
 
@@ -2265,7 +2268,10 @@ static struct packet *client_refresh_group(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
-	group_list_category_pkgs(category, update_pkg_cb, NULL);
+	info_list = group_context_info_list(category);
+	EINA_LIST_FOREACH(info_list, l, info) {
+		update_pkg_cb(category, group_pkgname_from_context_info(info));
+	}
 
 out:
 	/*! \note No reply packet */

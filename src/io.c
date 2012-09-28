@@ -330,14 +330,13 @@ static inline int build_box_size_info(struct pkg_info *info)
 	return 0;
 }
 
-static inline int get_group_name(int id, char **cluster, char **category)
+static inline int load_context_option(struct context_item *item, int id)
 {
-	static const char *dml = "SELECT cluster, category FROM groupinfo WHERE id = ?";
+	static const char *dml = "SELECT key, value FROM option WHERE option_id = ?";
 	sqlite3_stmt *stmt;
+	const char *key;
+	const char *value;
 	int ret;
-	const char *tmp;
-	char *_cluster = NULL;
-	char *_category = NULL;
 
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
@@ -345,79 +344,96 @@ static inline int get_group_name(int id, char **cluster, char **category)
 		return -EIO;
 	}
 
-	if (sqlite3_bind_int(stmt, 1, id) != SQLITE_OK) {
-		ErrPrint("Failed to bind a package name(%d) %s\n", id, sqlite3_errmsg(s_info.handle));
-		sqlite3_finalize(stmt);
-		return -EIO;
+	ret = sqlite3_bind_int(stmt, 1, id);
+	if (ret != SQLITE_OK) {
+		ErrPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
 	}
 
-	if (sqlite3_step(stmt) != SQLITE_ROW) {
-		ErrPrint("No matched cluster info\n");
-		return -ENOENT;
+	ret = -ENOENT;
+	while (sqlite3_step(stmt) == SQLITE_ROW) {
+		key = (const char *)sqlite3_column_text(stmt, 0);
+		if (!key) {
+			ErrPrint("KEY is nil\n");
+			continue;
+		}
+
+		value = (const char *)sqlite3_column_text(stmt, 1);
+		if (!value) {
+			ErrPrint("VALUE is nil\n");
+			continue;
+		}
+
+		ret = group_add_option(item, key, value);
+		if (ret < 0)
+			break;
 	}
 
-	if (cluster) {
-		tmp = (const char *)sqlite3_column_text(stmt, 0);
-		if (!tmp) {
-			ErrPrint("Invalid cluster name\n");
-			sqlite3_reset(stmt);
-			sqlite3_clear_bindings(stmt);
-			sqlite3_finalize(stmt);
-			return -EINVAL;
-		}
-
-		_cluster = strdup(tmp);
-		if (!_cluster) {
-			ErrPrint("Heap: %s\n", strerror(errno));
-			sqlite3_reset(stmt);
-			sqlite3_clear_bindings(stmt);
-			sqlite3_finalize(stmt);
-			return -ENOMEM;
-		}
-
-		*cluster = _cluster;
-	}
-
-	if (category) {
-		tmp = (const char *)sqlite3_column_text(stmt, 1);
-		if (!tmp) {
-			ErrPrint("Invalid category name\n");
-			free(_cluster);
-			sqlite3_reset(stmt);
-			sqlite3_clear_bindings(stmt);
-			sqlite3_finalize(stmt);
-			return -EINVAL;
-		}
-
-		_category = strdup(tmp);
-		if (!_category) {
-			ErrPrint("Heap: %s\n", strerror(errno));
-			free(_cluster);
-			sqlite3_reset(stmt);
-			sqlite3_clear_bindings(stmt);
-			sqlite3_finalize(stmt);
-			return -ENOMEM;
-		}
-
-		*category = _category;
-	}
-
+out:
 	sqlite3_reset(stmt);
 	sqlite3_clear_bindings(stmt);
 	sqlite3_finalize(stmt);
-	return 0;
+	return ret;
+}
+
+static inline int load_context_item(struct context_info *info, int id)
+{
+	static const char *dml = "SELECT ctx_item, option_id FROM groupmap WHERE id = ?";
+	struct context_item *item;
+	sqlite3_stmt *stmt;
+	const char *ctx_item;
+	int option_id;
+	int ret;
+
+	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		ErrPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		return -EIO;
+	}
+
+	ret = sqlite3_bind_int(stmt, 1, id);
+	if (ret != SQLITE_OK) {
+		ErrPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = -ENOENT;
+	while (sqlite3_step(stmt) == SQLITE_ROW) {
+		ctx_item = (const char *)sqlite3_column_text(stmt, 0);
+		option_id = sqlite3_column_int(stmt, 1);
+
+		item = group_add_context_item(info, ctx_item);
+		if (!item) {
+			ErrPrint("Failed to add a new context item\n");
+			ret = -EFAULT;
+			break;
+		}
+
+		ret = load_context_option(item, option_id);
+		if (ret < 0)
+			break;
+	}
+
+out:
+	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+	sqlite3_finalize(stmt);
+	return ret;
 }
 
 static inline int build_group_info(struct pkg_info *info)
 {
-	static const char *dml = "SELECT id FROM groupmap WHERE appid = ?";
+	static const char *dml = "SELECT id, cluster, category FROM groupinfo WHERE appid = ?";
 	sqlite3_stmt *stmt;
 	int ret;
 	int id;
-	char *cluster_name;
-	char *category_name;
+	const char *cluster_name;
+	const char *category_name;
 	struct cluster *cluster;
 	struct category *category;
+	struct context_info *ctx_info;
 
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
@@ -425,7 +441,8 @@ static inline int build_group_info(struct pkg_info *info)
 		return -EIO;
 	}
 
-	if (sqlite3_bind_text(stmt, 1, package_name(info), -1, NULL) != SQLITE_OK) {
+	ret = sqlite3_bind_text(stmt, 1, package_name(info), -1, NULL);
+	if (ret != SQLITE_OK) {
 		ErrPrint("Failed to bind a package name(%s)\n", package_name(info));
 		sqlite3_finalize(stmt);
 		return -EIO;
@@ -433,18 +450,14 @@ static inline int build_group_info(struct pkg_info *info)
 
 	while (sqlite3_step(stmt) == SQLITE_ROW) {
 		id = sqlite3_column_int(stmt, 0);
-		if (get_group_name(id, &cluster_name, &category_name) < 0) {
-			ErrPrint("ID: %d has no group info\n", id);
-			continue;
-		}
+		cluster_name = (const char *)sqlite3_column_text(stmt, 1);
+		category_name = (const char *)sqlite3_column_text(stmt, 2);
 
 		cluster = group_find_cluster(cluster_name);
 		if (!cluster) {
 			cluster = group_create_cluster(cluster_name);
 			if (!cluster) {
 				ErrPrint("Failed to create a cluster(%s)\n", cluster_name);
-				free(cluster_name);
-				free(category_name);
 				continue;
 			}
 		}
@@ -454,17 +467,23 @@ static inline int build_group_info(struct pkg_info *info)
 			category = group_create_category(cluster, category_name);
 			if (!category) {
 				ErrPrint("Failed to create a category(%s)\n", category_name);
-				free(cluster_name);
-				free(category_name);
 				continue;
 			}
 		}
 
-		if (group_add_package(category, package_name(info)) < 0)
-			ErrPrint("Failed to add a package(%s) to %s/%s\n", package_name(info), cluster_name, category_name);
-
-		free(cluster_name);
-		free(category_name);
+		/*!
+		 * \TODO
+		 * Step 1. Get the list of the context item from the DB using 'id'
+		 *         {context_item, option_id}
+		 * Step 2. Get the list of the options from the DB using option_id
+		 *         key, value
+		 */
+		ctx_info = group_create_context_info(category, package_name(info));
+		if (ctx_info) {
+			ret = load_context_item(ctx_info, id);
+			if (ret < 0)
+				group_destroy_context_info(ctx_info);
+		}
 	}
 
 	sqlite3_reset(stmt);

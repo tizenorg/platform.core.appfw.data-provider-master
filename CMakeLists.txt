@@ -16,7 +16,6 @@ pkg_check_modules(pkg REQUIRED
 	ecore
 	evas
 	ecore-evas
-	capi-context-engine
 	com-core
 	heynoti
 	x11
@@ -27,6 +26,7 @@ pkg_check_modules(pkg REQUIRED
 	dri2proto
 	xext
 	xdamage
+	capi-context
 )
 
 SET(PACKAGE "${PROJECT_NAME}")
@@ -77,6 +77,7 @@ ADD_EXECUTABLE(${PROJECT_NAME}
 	src/abi.c
 	src/critical_log.c
 	src/liveinfo.c
+	src/ctx_wrapper.c
 )
 
 TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${pkg_LDFLAGS} "-ldl")
