@@ -19,8 +19,19 @@
  *
  */
 
+enum xmonitor_event {
+	XMONITOR_PAUSED,
+	XMONITOR_RESUMED,
+
+	XMONITOR_ERROR = 0xFFFFFFFF, /* To specify the size of this enum */
+};
+
 extern int xmonitor_init(void);
 extern void xmonitor_fini(void);
 extern int xmonitor_update_state(int pid);
+extern int xmonitor_add_event_callback(enum xmonitor_event event, int (*cb)(void *user_data), void *user_data);
+extern int xmonitor_del_event_callback(enum xmonitor_event event, int (*cb)(void *user_data), void *user_data);
+extern int xmonitor_is_paused(void);
+extern void xmonitor_handle_state_changes(void);
 
 /* End of a file */

@@ -183,6 +183,13 @@ void *ctx_wrapper_register_callback(struct context_item *item, int (*cb)(struct 
 
 		cbdata->item = item;
 		cbdata->option.array_size = eina_list_count(option_list);
+		if (!cbdata->option.array_size) {
+			ErrPrint("Option is not exists. ignore this context event\n");
+			free(cbfunc);
+			free(cbdata);
+			return NULL;
+		}
+
 		cbdata->option.array = calloc(cbdata->option.array_size, sizeof(*cbdata->option.array));
 		if (!cbdata->option.array) {
 			ErrPrint("Heap: %s\n", strerror(errno));
@@ -195,6 +202,11 @@ void *ctx_wrapper_register_callback(struct context_item *item, int (*cb)(struct 
 		EINA_LIST_FOREACH(option_list, l, option) {
 			key = group_option_item_key(option);
 			value = group_option_item_value(option);
+
+			if (!key || !value) {
+				ErrPrint("Key[%p], value[%p]\n", key, value);
+				continue;
+			}
 
 			cbdata->option.array[idx].key = (char *)key;
 			cbdata->option.array[idx].value = (char *)value;

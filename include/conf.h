@@ -87,6 +87,8 @@ struct conf {
 	double ping_time;
 
 	const char *vconf_sys_cluster;
+
+	const int max_pended_ctx_events;
 };
 
 extern struct conf g_conf;
@@ -142,5 +144,7 @@ extern void conf_update_size(void);
 #define MAX_PKGNAME	512
 
 #define SYS_CLUSTER_KEY		g_conf.vconf_sys_cluster
+
+#define MAX_PENDED_CTX_EVENTS	g_conf.max_pended_ctx_events
 
 /* End of a file */

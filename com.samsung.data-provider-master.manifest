@@ -23,6 +23,7 @@
 
 		<!-- Package manager & Init script -->
 		<filesystem path="/etc/rc.d/init.d/data-provider-master" label="_" />
+		<filesystem path="/usr/lib/systemd/user/data-provider.service" label="_" />
 
 		<!-- Package manager plugin -->
 		<filesystem path="/usr/etc/package-manager/parserlib/liblivebox.so" label="_" />

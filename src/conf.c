@@ -103,6 +103,7 @@ struct conf g_conf = {
 	.ping_time = 240.0f,
 	.slave_max_load = 10,
 	.vconf_sys_cluster = "file/private/com.samsung.cluster-home/system_cluster",
+	.max_pended_ctx_events = 256,
 };
 
 void conf_update_size(void)

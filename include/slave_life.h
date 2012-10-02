@@ -124,7 +124,6 @@ extern struct slave_node *slave_find_by_name(const char *name);
 extern struct slave_node *slave_find_by_pkgname(const char *pkgname);
 
 extern void slave_dead_handler(struct slave_node *slave);
-extern void slave_handle_state_change(void);
 extern const int const slave_is_secured(const struct slave_node *slave);
 extern const char * const slave_name(const struct slave_node *slave);
 extern const pid_t const slave_pid(const struct slave_node *slave);

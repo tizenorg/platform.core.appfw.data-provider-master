@@ -16,6 +16,7 @@
 #include "debug.h"
 #include "slave_life.h"
 #include "critical_log.h"
+#include "xmonitor.h"
 
 int errno;
 
@@ -30,7 +31,7 @@ static void lcd_state_cb(keynode_t *node, void *user_data)
 	if (!node)
 		return;
 
-	slave_handle_state_change();
+	xmonitor_handle_state_changes();
 }
 
 int setting_is_lcd_off(void)

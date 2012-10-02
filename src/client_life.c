@@ -12,6 +12,7 @@
 #include "debug.h"
 #include "util.h"
 #include "slave_life.h"
+#include "xmonitor.h"
 
 int errno;
 
@@ -141,7 +142,7 @@ static inline void destroy_client_data(struct client_node *client)
 	 * If there is any changes of clients,
 	 * We should check the pause/resume states again.
 	 */
-	slave_handle_state_change();
+	xmonitor_handle_state_changes();
 }
 
 static inline struct client_node *create_client_data(pid_t pid)

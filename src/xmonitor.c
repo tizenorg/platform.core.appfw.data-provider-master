@@ -24,10 +24,13 @@
 #include <sys/shm.h>
 #include <assert.h>
 #include <errno.h>
+#include <malloc.h>
 
 #include <Evas.h>
 #include <Ecore_X.h>
 #include <Ecore.h>
+
+#include <sqlite3.h>
 
 #include <gio/gio.h>
 #include <dlog.h>
@@ -43,14 +46,29 @@
 
 int errno;
 
+struct event_item {
+	int (*cb)(void *user_data);
+	void *user_data;
+};
+
 static struct info {
 	Ecore_Event_Handler *create_handler;
 	Ecore_Event_Handler *destroy_handler;
 	Ecore_Event_Handler *client_handler;
+
+	Eina_List *pause_list;
+	Eina_List *resume_list;
+
+	int paused;
 } s_info = {
 	.create_handler = NULL,
 	.destroy_handler = NULL,
 	.client_handler = NULL,
+
+	.pause_list = NULL,
+	.resume_list = NULL,
+
+	.paused = 0,
 };
 
 static inline int get_pid(Ecore_X_Window win)
@@ -89,6 +107,34 @@ static Eina_Bool destroy_cb(void *data, int type, void *event)
 	return ECORE_CALLBACK_RENEW;
 }
 
+void xmonitor_handle_state_changes(void)
+{
+	int paused;
+	Eina_List *l;
+	struct event_item *item;
+
+	paused = client_is_all_paused() || setting_is_lcd_off();
+	if (s_info.paused == paused)
+		return;
+
+	s_info.paused = paused;
+
+	if (s_info.paused) {
+		EINA_LIST_FOREACH(s_info.pause_list, l, item) {
+			if (item->cb)
+				item->cb(item->user_data);
+		}
+
+		sqlite3_release_memory(SQLITE_FLUSH_MAX);
+		malloc_trim(0);
+	} else {
+		EINA_LIST_FOREACH(s_info.resume_list, l, item) {
+			if (item->cb)
+				item->cb(item->user_data);
+		}
+	}
+}
+
 int xmonitor_update_state(int target_pid)
 {
 	Ecore_X_Window win;
@@ -102,7 +148,7 @@ int xmonitor_update_state(int target_pid)
 		DbgPrint("Focused window has no PID %X\n", win);
 		client = client_find_by_pid(target_pid);
 		if (client) {
-			DbgPrint("Client window has not focus now\n");
+			DbgPrint("Client window has no focus now\n");
 			client_paused(client);
 		}
 		return -ENOENT;
@@ -113,7 +159,7 @@ int xmonitor_update_state(int target_pid)
 		DbgPrint("Client %d is not registered yet\n", pid);
 		client = client_find_by_pid(target_pid);
 		if (client) {
-			DbgPrint("Client window has not focus now\n");
+			DbgPrint("Client window has no focus now\n");
 			client_paused(client);
 		}
 		return -EINVAL;
@@ -127,7 +173,7 @@ int xmonitor_update_state(int target_pid)
 		client_resumed(client);
 	}
 
-	slave_handle_state_change();
+	xmonitor_handle_state_changes();
 	return 0;
 }
 
@@ -154,12 +200,12 @@ static Eina_Bool client_cb(void *data, int type, void *event)
 		DbgPrint("PAUSE EVENT\n");
 		client_paused(client);
 
-		slave_handle_state_change();
+		xmonitor_handle_state_changes();
 	} else if (!strcmp(name, "_X_ILLUME_ACTIVATE_WINDOW")) {
 		DbgPrint("RESUME EVENT\n");
 		client_resumed(client);
 
-		slave_handle_state_change();
+		xmonitor_handle_state_changes();
 	} else {
 		/* ignore event */
 	}
@@ -286,6 +332,8 @@ int xmonitor_init(void)
 	}
 
 	sniff_all_windows();
+
+	s_info.paused = client_is_all_paused() || setting_is_lcd_off();
 	return 0;
 }
 
@@ -298,6 +346,73 @@ void xmonitor_fini(void)
 	s_info.create_handler = NULL;
 	s_info.destroy_handler = NULL;
 	s_info.client_handler = NULL;
+}
+
+int xmonitor_add_event_callback(enum xmonitor_event event, int (*cb)(void *user_data), void *user_data)
+{
+	struct event_item *item;
+
+	item = malloc(sizeof(*item));
+	if (!item) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
+	item->cb = cb;
+	item->user_data = user_data;
+
+	switch (event) {
+	case XMONITOR_PAUSED:
+		s_info.pause_list = eina_list_append(s_info.pause_list, item);
+		break;
+	case XMONITOR_RESUMED:
+		s_info.resume_list = eina_list_append(s_info.resume_list, item);
+		break;
+	default:
+		ErrPrint("Invalid event type\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+int xmonitor_del_event_callback(enum xmonitor_event event, int (*cb)(void *user_data), void *user_data)
+{
+	struct event_item *item;
+	Eina_List *l;
+	Eina_List *n;
+
+	switch (event) {
+	case XMONITOR_PAUSED:
+		EINA_LIST_FOREACH_SAFE(s_info.pause_list, l, n, item) {
+			if (item->cb == cb && item->user_data == user_data) {
+				s_info.pause_list = eina_list_remove(s_info.pause_list, item);
+				free(item);
+				return 0;
+			}
+		}
+		break;
+
+	case XMONITOR_RESUMED:
+		EINA_LIST_FOREACH_SAFE(s_info.resume_list, l, n, item) {
+			if (item->cb == cb && item->user_data == user_data) {
+				s_info.resume_list = eina_list_remove(s_info.resume_list, item);
+				free(item);
+				return 0;
+			}
+		}
+		break;
+	default:
+		ErrPrint("Invalid event type\n");
+		return -EINVAL;
+	}
+
+	return -ENOENT;
+}
+
+int xmonitor_is_paused(void)
+{
+	return s_info.paused;
 }
 
 /* End of a file */

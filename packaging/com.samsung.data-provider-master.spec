@@ -46,6 +46,13 @@ CFLAGS="${CFLAGS} -Wall -Winline -Werror" LDFLAGS="${LDFLAGS}" make %{?jobs:-j%j
 rm -rf %{buildroot}
 %make_install
 
+%pre
+
+# Executing the stop script for stopping the service of installed provider (old version)
+if [ -x /etc/rc.d/init.d/data-provider-master ]; then
+	/etc/rc.d/init.d/data-provider-master stop
+fi
+
 %post
 mkdir -p /opt/share/live_magazine
 chown 5000:5000 /opt/share/live_magazine
@@ -64,39 +71,14 @@ chown 5000:5000 /opt/share/live_magazine/reader
 touch /opt/dbspace/.livebox.db
 chsmack -a "data-provider-master::db" /opt/dbspace/.livebox.db
 
+mkdir -p /etc/rc.d/rc3.d
 ln -sf /etc/rc.d/init.d/data-provider-master /etc/rc.d/rc3.d/S99data-provider-master
 chsmack -a "_" /etc/rc.d/rc3.d/S99data-provider-master
 chsmack -e "_" /etc/rc.d/rc3.d/S99data-provider-master
 
-TMP=`which ps`
-if [ $? -ne 0 ]; then
-	echo "'ps' is not exists"
-	exit 0
-fi
-
-TMP=`which grep`
-if [ $? -ne 0 ]; then
-	echo "'grep' is not exists"
-	exit 0
-fi
-
-TMP=`which awk`
-if [ $? -ne 0 ]; then
-	echo "'awk' is not exists"
-	exit 0
-fi
-
-BIN_INODE=`stat -Lc "%i" /usr/bin/data-provider-master`
-
-PID=`ps ax | grep 'data-provider-master' | grep -v 'grep' | grep -v 'rpm' | grep -v 'dlogutil' | awk '{print $1}'`
-for I in $PID;
-do
-	INODE=`stat -Lc "%i"  /proc/$I/exe`
-	if [ x"$BIN_INODE" == x"$INODE" ]; then
-		echo "Send TERM to $I"
-		kill $I # Try to terminate a master which is launched already
-	fi
-done
+mkdir -p /usr/lib/systemd/user/tizen-middleware.target.wants
+ln -sf /usr/lib/systemd/user/data-provider-master.service /usr/lib/systemd/user/tizen-middleware.target.wants/data-provider-master.service
+chsmack -a "_" /usr/lib/systemd/user/tizen-middleware.target.wants/data-provider-master.service
 
 %files -n com.samsung.data-provider-master
 %manifest com.samsung.data-provider-master.manifest
@@ -106,3 +88,4 @@ done
 /usr/bin/liveinfo
 /usr/etc/package-manager/parserlib/*
 /usr/share/data-provider-master/*
+/usr/lib/systemd/user/data-provider-master.service

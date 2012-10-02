@@ -12,7 +12,6 @@
 #include <aul.h> /* aul_launch_app */
 #include <dlog.h>
 #include <bundle.h>
-#include <sqlite3.h>
 
 #include <packet.h>
 
@@ -26,6 +25,7 @@
 #include "setting.h"
 #include "util.h"
 #include "abi.h"
+#include "xmonitor.h"
 
 int errno;
 
@@ -71,10 +71,8 @@ struct priv_data {
 
 static struct {
 	Eina_List *slave_list;
-	int paused;
 } s_info = {
 	.slave_list = NULL,
-	.paused = 0,
 };
 
 static Eina_Bool slave_ttl_cb(void *data)
@@ -96,6 +94,18 @@ static Eina_Bool slave_ttl_cb(void *data)
 
 	/*! To recover all instances state it is activated again */
 	return ECORE_CALLBACK_CANCEL;
+}
+
+static inline int xmonitor_pause_cb(void *data)
+{
+	slave_pause(data);
+	return 0;
+}
+
+static inline int xmonitor_resume_cb(void *data)
+{
+	slave_resume(data);
+	return 0;
 }
 
 static inline struct slave_node *create_slave_node(const char *name, int is_secured, const char *abi, const char *pkgname)
@@ -136,6 +146,9 @@ static inline struct slave_node *create_slave_node(const char *name, int is_secu
 	slave->pid = (pid_t)-1;
 	slave->state = SLAVE_TERMINATED;
 
+	xmonitor_add_event_callback(XMONITOR_PAUSED, xmonitor_pause_cb, slave);
+	xmonitor_add_event_callback(XMONITOR_RESUMED, xmonitor_resume_cb, slave);
+
 	s_info.slave_list = eina_list_append(s_info.slave_list, slave);
 	DbgPrint("slave data is created %p\n", slave);
 	return slave;
@@ -170,6 +183,9 @@ static inline void destroy_slave_node(struct slave_node *slave)
 	}
 
 	DbgPrint("Slave data is destroyed %p\n", slave);
+
+	xmonitor_del_event_callback(XMONITOR_PAUSED, xmonitor_pause_cb, slave);
+	xmonitor_del_event_callback(XMONITOR_RESUMED, xmonitor_resume_cb, slave);
 
 	invoke_delete_cb(slave);
 
@@ -382,17 +398,10 @@ int slave_thaw_ttl(struct slave_node *slave)
 
 int slave_activated(struct slave_node *slave)
 {
-	int paused;
-
 	slave->state = SLAVE_RESUMED;
 
-	paused = client_is_all_paused() || setting_is_lcd_off();
-	if (s_info.paused == paused) {
-		if (paused)
-			slave_pause(slave);
-	} else {
-		slave_handle_state_change();
-	}
+	if (xmonitor_is_paused())
+		slave_pause(slave);
 
 	if (slave->secured == 1) {
 		DbgPrint("Slave deactivation timer is added (%s - %lf)\n", slave->name, SLAVE_TTL);
@@ -856,33 +865,6 @@ struct slave_node *slave_unload_instance(struct slave_node *slave)
 	}
 
 	return slave;
-}
-
-void slave_handle_state_change(void)
-{
-	int paused;
-	Eina_List *l;
-	struct slave_node *slave;
-
-	paused = client_is_all_paused() || setting_is_lcd_off();
-
-	if (s_info.paused == paused)
-		return;
-
-	s_info.paused = paused;
-
-	if (s_info.paused) {
-		EINA_LIST_FOREACH(s_info.slave_list, l, slave) {
-			slave_pause(slave);
-		}
-
-		sqlite3_release_memory(SQLITE_FLUSH_MAX);
-		malloc_trim(0);
-	} else {
-		EINA_LIST_FOREACH(s_info.slave_list, l, slave) {
-			slave_resume(slave);
-		}
-	}
 }
 
 const int const slave_is_secured(const struct slave_node *slave)

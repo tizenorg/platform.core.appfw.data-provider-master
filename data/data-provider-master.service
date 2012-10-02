@@ -1,0 +1,10 @@
+[Unit]
+Description=Data Provider daemon
+After=xorg.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/data-provider-master
+
+[Install]
+WantedBy=tizen-middleware.target

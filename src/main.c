@@ -80,11 +80,11 @@ static inline int app_create(void *data)
 	ret = package_init();
 	DbgPrint("pkgmgr initialized: %d\n", ret);
 
-	ret = ctx_client_init();
-	DbgPrint("Context engine is initialized: %d\n", ret);
-
 	ret = xmonitor_init();
 	DbgPrint("XMonitor init is done: %d\n", ret);
+
+	ret = ctx_client_init();
+	DbgPrint("Context engine is initialized: %d\n", ret);
 
 	ret = buffer_handler_init();
 	DbgPrint("Buffer handler init is done: %d\n", ret);
@@ -107,10 +107,10 @@ static inline int app_terminate(void *data)
 	ret = setting_fini();
 	DbgPrint("Finalize setting : %d\n", ret);
 
-	xmonitor_fini();
-
 	ret = ctx_client_fini();
 	DbgPrint("ctx_client_fini returns %d\n", ret);
+
+	xmonitor_fini();
 
 	ret = package_fini();
 	DbgPrint("Finalize package info: %d\n", ret);
