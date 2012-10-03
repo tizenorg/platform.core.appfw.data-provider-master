@@ -80,21 +80,25 @@
  * = box_size_list = { WIDTHxHEIGHT; WIDTHxHEIGHT; ... }
  *
  * groupinfo
- * +----+---------+----------+
- * | id | cluster | category |
- * +----+---------+----------+
- * |  - |    -    |    -     |
- * +----+---------+----------+
- * CREATE TABLE groupinfo ( id INTEGER PRIMARY KEY AUTOINCREMENT, cluster TEXT NOT NULL, category TEXT NOT NULL)
+ * +----+---------+----------+-------+
+ * | id | cluster | category | appid |
+ * +----+---------+----------+-------+
+ * |  - |    -    |    -     |   -   |
+ * +----+---------+----------+-------|
+ * CREATE TABLE groupinfo ( id INTEGER PRIMARY KEY AUTOINCREMENT, cluster TEXT NOT NULL, category TEXT NOT NULL, appid TEXT NOT NULL, FOREIGN KEY(appid) REFERENCES pkgmap(appid) ))
  *
  * groupmap
- * +----+-------+
- * | id | appid |
- * +----+-------+
- * CREATE TABLE groupmap ( id INTEGER, appid TEXT NOT NULL, FOREIGN KEY(id) REFERENCES groupinfo(id), FOREIGN KEY(appid) REFERENCES pkgmap(appid) )
+ * +----+-------+----------+-----------+
+ * | id | appid | ctx_item | option_id |
+ * +----+-------+----------+-----------+
+ * CREATE TABLE groupmap ( option_id INTEGER PRIMARY KEY AUTOINCREMENT, id INTEGER, appid TEXT NOT NULL, ctx_item TEXT NOT NULL, FOREIGN KEY(id) REFERENCES groupinfo(id), FOREIGN KEY(appid) REFERENCES pkgmap(appid) )
  *
  *
- *
+ * option
+ * +-------+-----------+-----+-------+
+ * | appid | option_id | key | value |
+ * +-------+-----------+-----+-------+
+ * CREATE TABLE option ( appid TEXT NOT NULL, option_id INTEGER, key TEXT NOT NULL, value TEXT NOT NULL, FOREIGN KEY(option_id) REFERENCES groupmap(option_id), FOREIGN KEY(appid) REFERENCES pkgmap(appid)  )
  */
 
 #if !defined(LIBXML_TREE_ENABLED)
@@ -722,7 +726,7 @@ static inline int db_create_group(void)
 	char *err;
 	static const char *ddl;
 
-	ddl = "CREATE TABLE groupinfo ( id INTEGER PRIMARY KEY AUTOINCREMENT, cluster TEXT NOT NULL, category TEXT NOT NULL)";
+	ddl = "CREATE TABLE groupinfo ( id INTEGER PRIMARY KEY AUTOINCREMENT, cluster TEXT NOT NULL, category TEXT NOT NULL, appid TEXT NOT NULL, FOREIGN KEY(appid) REFERENCES pkgmap(appid) )";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -734,13 +738,13 @@ static inline int db_create_group(void)
 	return 0;
 }
 
-static inline int db_insert_group(const char *cluster, const char *category)
+static inline int db_insert_group(const char *appid, const char *cluster, const char *category)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	dml = "INSERT INTO groupinfo ( cluster, category ) VALUES (?, ?)";
+	dml = "INSERT INTO groupinfo ( cluster, category, appid ) VALUES (?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
@@ -755,6 +759,13 @@ static inline int db_insert_group(const char *cluster, const char *category)
 	}
 
 	ret = sqlite3_bind_text(stmt, 2, category, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 3, appid, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -816,27 +827,20 @@ out:
 	return ret;
 }
 
-static inline int db_remove_group(const char *cluster, const char *category)
+static inline int db_remove_group(const char *appid)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	dml = "DELETE FROM groupinfo WHERE cluster = ? AND category = ?";
+	dml = "DELETE FROM groupinfo WHERE appid = ?";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		return -EIO;
 	}
 
-	ret = sqlite3_bind_text(stmt, 1, cluster, -1, NULL);
-	if (ret != SQLITE_OK) {
-		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
-		ret = -EIO;
-		goto out;
-	}
-
-	ret = sqlite3_bind_text(stmt, 2, category, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -864,7 +868,7 @@ static inline int db_create_groupmap(void)
 	char *err;
 	static const char *ddl;
 
- 	ddl = "CREATE TABLE groupmap (id INTEGER, appid TEXT NOT NULL, FOREIGN KEY(id) REFERENCES groupinfo(id), FOREIGN KEY(appid) REFERENCES pkgmap(appid))";
+ 	ddl = "CREATE TABLE groupmap (option_id INTEGER PRIMARY KEY AUTOINCREMENT, id INTEGER, appid TEXT NOT NULL, ctx_item TEXT NOT NULL, FOREIGN KEY(id) REFERENCES groupinfo(id), FOREIGN KEY(appid) REFERENCES pkgmap(appid))";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -876,15 +880,13 @@ static inline int db_create_groupmap(void)
 	return 0;
 }
 
-static inline int db_insert_groupmap(int id, const char *appid)
+static inline int db_get_option_id(int id, const char *appid, const char *ctx_item)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	DbgPrint("%d (%s) add to groupmap\n", id, appid);
-
-	dml = "INSERT INTO groupmap ( id, appid ) VALUES (?, ?)";
+	dml = "SELECT option_id FROM groupmap WHERE id = ? AND appid = ? AND ctx_item = ?";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
@@ -899,6 +901,65 @@ static inline int db_insert_groupmap(int id, const char *appid)
 	}
 
 	ret = sqlite3_bind_text(stmt, 2, appid, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 3, ctx_item, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = 0;
+	if (sqlite3_step(stmt) != SQLITE_ROW) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_column_int(stmt, 0);
+
+out:
+	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+	sqlite3_finalize(stmt);
+	return ret;
+}
+
+static inline int db_insert_groupmap(int id, const char *appid, const char *ctx_item)
+{
+	static const char *dml;
+	int ret;
+	sqlite3_stmt *stmt;
+
+	DbgPrint("%d (%s) add to groupmap\n", id, appid);
+
+	dml = "INSERT INTO groupmap ( id, appid, ctx_item ) VALUES (?, ?, ?)";
+	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		return -EIO;
+	}
+
+	ret = sqlite3_bind_int(stmt, 1, id);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 2, appid, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 3, ctx_item, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -953,6 +1014,115 @@ out:
 	sqlite3_finalize(stmt);
 	return ret;
 }
+
+static inline int db_create_option(void)
+{
+	char *err;
+	static const char *ddl;
+
+	ddl = "CREATE TABLE option ( appid TEXT NOT NULL, option_id INTEGER, key TEXT NOT NULL, value TEXT NOT NULL, " \
+		"FOREIGN KEY(option_id) REFERENCES groupmap(option_id), " \
+		"FOREIGN KEY(appid) REFERENCES pkgmap(appid) )";
+	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
+		ErrPrint("Failed to execute the DDL (%s)\n", err);
+		return -EIO;
+	}
+
+	if (sqlite3_changes(s_info.handle) == 0)
+		ErrPrint("No changes to DB\n");
+
+	return 0;
+}
+
+static inline int db_insert_option(const char *appid, int option_id, const char *key, const char *value)
+{
+	static const char *dml;
+	int ret;
+	sqlite3_stmt *stmt;
+
+	dml = "INSERT INTO option (appid, option_id, key, value) VALUES (?, ?, ?, ?)";
+	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		return -EIO;
+	}
+
+	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_int(stmt, 2, option_id);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 3, key, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 4, value, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = 0;
+	if (sqlite3_step(stmt) != SQLITE_DONE) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+	}
+out:
+	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+	sqlite3_finalize(stmt);
+	return ret;
+}
+
+static inline int db_remove_option(const char *appid)
+{
+	static const char *dml;
+	int ret;
+	sqlite3_stmt *stmt;
+
+	dml = "DELETE FROM option WHERE appid = ?";
+	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		return -EIO;
+	}
+
+	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = 0;
+	if (sqlite3_step(stmt) != SQLITE_DONE) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+	}
+
+	if (sqlite3_changes(s_info.handle) == 0)
+		DbgPrint("No changes\n");
+
+out:
+	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+	sqlite3_finalize(stmt);
+	return ret;
+}
+
 
 static inline int db_create_box_size(void)
 {
@@ -1090,6 +1260,12 @@ static inline void db_create_table(void)
 		return;
 	}
 
+	ret = db_create_option();
+	if (ret < 0) {
+		rollback_transaction();
+		return;
+	}
+
 	ret = db_create_groupmap();
 	if (ret < 0) {
 		rollback_transaction();
@@ -1202,9 +1378,15 @@ struct livebox {
 };
 
 struct group {
-	char *cluster;
-	char *category;
-	int id;
+	xmlChar *cluster;
+	xmlChar *category;
+	xmlChar *ctx_item;
+	struct dlist *option_list;
+};
+
+struct option {
+	xmlChar *key;
+	xmlChar *value;
 };
 
 static inline int validate_appid(const char *pkgname, const char *appid)
@@ -1218,6 +1400,9 @@ static inline int livebox_destroy(struct livebox *livebox)
 	struct dlist *n;
 	struct i18n *i18n;
 	struct group *group;
+	struct option *option;
+	struct dlist *il;
+	struct dlist *in;
 
 	xmlFree(livebox->appid);
 	xmlFree(livebox->abi);
@@ -1242,8 +1427,18 @@ static inline int livebox_destroy(struct livebox *livebox)
 	dlist_foreach_safe(livebox->group_list, l, n, group) {
 		livebox->group_list = dlist_remove(livebox->group_list, l);
 		DbgPrint("Release %s/%s\n", group->cluster, group->category);
-		free(group->cluster);
-		free(group->category);
+
+		dlist_foreach_safe(group->option_list, il, in, option) {
+			group->option_list = dlist_remove(group->option_list, il);
+			DbgPrint("Release option %s(%s)\n", option->key, option->value);
+			xmlFree(option->key);
+			xmlFree(option->value);
+			free(option);
+		}
+
+		xmlFree(group->cluster);
+		xmlFree(group->category);
+		xmlFree(group->ctx_item);
 		free(group);
 	}
 
@@ -1445,10 +1640,16 @@ static inline void update_group(struct livebox *livebox, xmlNodePtr node)
 {
 	xmlNodePtr cluster;
 	xmlNodePtr category;
-	int id;
+	xmlNodePtr option_item;
 	xmlChar *cluster_name;
 	xmlChar *category_name;
+	xmlChar *ctx_item;
+
+	xmlChar *key;
+	xmlChar *value;
+
 	struct group *group;
+	struct option *option;
 
 	cluster = node;
 	for (cluster = cluster->children; cluster; cluster = cluster->next) {
@@ -1485,41 +1686,72 @@ static inline void update_group(struct livebox *livebox, xmlNodePtr node)
 				continue;
 			}
 
-			id = db_get_group_id((char *)cluster_name, (char *)category_name);
-			if (id < 0) {
-				int ret;
-				
-				ret = db_insert_group((const char *)cluster_name, (const char *)category_name);
-				if (ret < 0) {
-					ErrPrint("[%s]-[%s] is not exists\n", cluster_name, category_name);
-					xmlFree(category_name);
-					continue;
-				}
-
-				DbgPrint("New group name is built - %s/%s\n", cluster_name, category_name);
-				id = db_get_group_id((char *)cluster_name, (char *)category_name);
-				if (id < 0) {
-					ErrPrint("Failed to get group id for %s/%s\n", cluster_name, category_name);
-					xmlFree(category_name);
-					continue;
-				}
+			ctx_item = xmlGetProp(category, (const xmlChar *)"context");
+			if (!ctx_item) {
+				ErrPrint("Invalid context\n");
+				xmlFree(category_name);
+				continue;
 			}
 
 			group = calloc(1, sizeof(*group));
 			if (!group) {
 				ErrPrint("Heap: %s\n", strerror(errno));
 				xmlFree(category_name);
+				xmlFree(ctx_item);
 				continue;
 			}
 
-			group->id = id;
-			group->cluster = strdup((char *)cluster_name);
-			group->category = strdup((char *)category_name);
-			DbgPrint("Build group item: %s - %s - %d\n", group->cluster, group->category, group->id);
+			group->cluster = xmlStrdup(cluster_name);
+			group->category = category_name;
+			group->ctx_item = ctx_item;
+			DbgPrint("Build group item: %s - %s - %s\n", group->cluster, group->category, group->ctx_item);
+
+			for (option_item = category->children; option_item; option_item = option_item->next) {
+				if (xmlStrcasecmp(option_item->name, (const xmlChar *)"option")) {
+					DbgPrint("Skip: %s\n", option_item->name);
+					continue;
+				}
+
+				if (!xmlHasProp(option_item, (const xmlChar *)"key")) {
+					ErrPrint("Invalid option, has no key\n");
+					continue;
+				}
+
+				if (!xmlHasProp(option_item, (const xmlChar *)"value")) {
+					ErrPrint("Invalid option, has no value\n");
+					continue;
+				}
+
+				key = xmlGetProp(option_item, (const xmlChar *)"key");
+				if (!key) {
+					ErrPrint("Invalid key. NIL\n");
+					continue;
+				}
+
+				value = xmlGetProp(option_item, (const xmlChar *)"value");
+				if (!value) {
+					ErrPrint("Invalid valid. NIL\n");
+					xmlFree(key);
+					continue;
+				}
+
+				option = calloc(1, sizeof(*option));
+				if (!option) {
+					ErrPrint("Heap: %s\n", strerror(errno));
+					xmlFree(key);
+					xmlFree(value);
+					continue;
+				}
+
+				option->key = key;
+				option->value = value;
+
+				group->option_list = dlist_append(group->option_list, option);
+			}
 
 			livebox->group_list = dlist_append(livebox->group_list, group);
-			xmlFree(category_name);
 		}
+
 		xmlFree(cluster_name);
 	}
 }
@@ -1604,9 +1836,12 @@ static inline void update_pd(struct livebox *livebox, xmlNodePtr node)
 static inline int db_insert_livebox(struct livebox *livebox, const char *pkgname)
 {
 	struct dlist *l;
+	struct dlist *il;
 	struct i18n *i18n;
 	struct group *group;
 	int ret;
+	int id;
+	struct option *option;
 
 	begin_transaction();
 	ret = db_insert_pkgmap((char *)livebox->appid, pkgname, livebox->primary);
@@ -1664,9 +1899,39 @@ static inline int db_insert_livebox(struct livebox *livebox, const char *pkgname
 	}
 
 	dlist_foreach(livebox->group_list, l, group) {
-		ret = db_insert_groupmap(group->id, (char *)livebox->appid);
+		/* group ID "id" */
+		id = db_get_group_id((char *)group->cluster, (char *)group->category);
+		if (id < 0) {
+			int ret;
+			
+			ret = db_insert_group((char *)livebox->appid, (char *)group->cluster, (char *)group->category);
+			if (ret < 0) {
+				ErrPrint("[%s]-[%s] is not exists\n", group->cluster, group->category);
+				continue;
+			}
+
+			DbgPrint("New group name is built - %s/%s\n", group->cluster, group->category);
+			id = db_get_group_id((char *)group->cluster, (char *)group->category);
+			if (id < 0) {
+				ErrPrint("Failed to get group id for %s/%s\n", group->cluster, group->category);
+				continue;
+			}
+		}
+
+		ret = db_insert_groupmap(id, (char *)livebox->appid, (char *)group->ctx_item);
 		if (ret < 0)
 			goto errout;
+
+		/* REUSE "id" from here , option ID */
+		id = db_get_option_id(id, (char *)livebox->appid, (char *)group->ctx_item);
+		if (id < 0)
+			goto errout;
+
+		dlist_foreach(group->option_list, il, option) {
+			ret = db_insert_option((char *)livebox->appid, id, (char *)option->key, (char *)option->value);
+			if (ret < 0)
+				goto errout;
+		}
 	}
 
 	commit_transaction();
@@ -1936,15 +2201,23 @@ int PKGMGR_PARSER_PLUGIN_UNINSTALL(xmlDocPtr docPtr, const char *pkgname)
 	if (ret < 0)
 		goto errout;
 
-	ret = db_remove_pkgmap((char *)appid);
+	ret = db_remove_option((char *)appid);
+	if (ret < 0)
+		goto errout;
+
+	ret = db_remove_group((char *)appid);
 	if (ret < 0)
 		goto errout;
 
 	ret = db_remove_groupmap((char *)appid);
 	if (ret < 0)
 		goto errout;
-	commit_transaction();
 
+	ret = db_remove_pkgmap((char *)appid);
+	if (ret < 0)
+		goto errout;
+
+	commit_transaction();
 	xmlFree(appid);
 	return 0;
 

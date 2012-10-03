@@ -24,18 +24,39 @@
 
 	<group>
 		<cluster name="cluster1">
-			<category name="category1" />
-			<category name="category2" />
-			<category name="category3" />
+			<category name="category1" context="APP_USED_FREQUENTLY">
+				<option key="time_span" value="value" />
+				<option key="result_size" value="value" />
+			</category>
+
+			<category name="category2" context="APP_USED_FREQUENTLY_THISTIME">
+				<option key="time_span" value="value" />
+				<option key="result_size" value="value" />
+				<option key="time_interval" value="value" />
+			</category>
 		</cluster>
 		<cluster name="cluster2">
-			<category name="category1" />
-			<category name="category2" />
-			<category name="category3" />
+			<category name="category1" context="CONTACT_COMMUNICATED_FREQUENTLY">
+				<option key="data_provider" value="com.samsung.contact" />
+				<option key="time_span" value="value" />
+				<option key="result_size" value="size" />
+			</category>
+			<category name="category2" context="CONTACT_COMMUNICATED_FREQUENTLY_THISTIME">
+				<option key="data_provider" value="com.samsung.contact" />
+				<option key="time_span" value="value" />
+				<option key="result_size" value="value" />
+				<option key="time_interval" value="value" />
+			</category>
+			<category name="category3" context="CONTACT_COMMUNICATED_ATLEASTONCE">
+				<option key="data_provider" value="value" />
+				<option key="time_span" value="value" />
+				<option key="result_size" value="value" />
+			</category>
 		</cluster>
-		<cluster name="user,created">
-			<category name="default" />
-		</cluster>
+		<!--
+		     KEYWORD_SEARCHED_FREQUENTLY(DATA_PROVIDER, TIME_SPAN, RESULT_SIZE)
+		     MUSIC_PLAYED_FREQUENTLY(DATA_PROVIDER, TIME_SPAN, RESULT_SIZE)
+		-->
 	</group>
 </livebox>
 </manifest>
