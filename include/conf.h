@@ -87,7 +87,6 @@ struct conf {
 	double ping_time;
 
 	const char *vconf_sys_cluster;
-
 	const int max_pended_ctx_events;
 };
 
