@@ -1660,8 +1660,8 @@ static struct packet *client_lb_release_pixmap(pid_t pid, int handle, const stru
 		goto out;
 	}
 
-	buffer_handler_pixmap_unref(buf_ptr);
-	client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, release_pixmap_cb, buf_ptr);
+	if (client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, release_pixmap_cb, buf_ptr) == 0)
+		buffer_handler_pixmap_unref(buf_ptr);
 
 out:
 	/*! \note No reply packet */
@@ -1757,8 +1757,8 @@ static struct packet *client_pd_release_pixmap(pid_t pid, int handle, const stru
 		goto out;
 	}
 
-	buffer_handler_pixmap_unref(buf_ptr);
-	client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, release_pixmap_cb, buf_ptr);
+	if (client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, release_pixmap_cb, buf_ptr) == 0)
+		buffer_handler_pixmap_unref(buf_ptr);
 
 out:
 	/*! \note No reply packet */
@@ -1842,6 +1842,7 @@ static int pd_script_close_cb(struct client_node *client, void *inst)
 	if (slave)
 		slave_thaw_ttl(slave);
 
+	instance_unref(inst);
 	return -1; /* Delete this callback */
 }
 
@@ -1922,8 +1923,10 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		 * of a client,
 		 * and it will send the close request to the slave
 		 */
-		client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE,
-						pd_buffer_close_cb, inst);
+		instance_ref(inst);
+		if (client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, pd_buffer_close_cb, inst) < 0) {
+			instance_unref(inst);
+		}
 	} else if (package_pd_type(instance_package(inst)) == PD_TYPE_SCRIPT) {
 		struct slave_node *slave;
 
@@ -1967,8 +1970,9 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		 * of a client,
 		 * and it will send the close request to the slave
 		 */
-		client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE,
-						pd_script_close_cb, inst);
+		instance_ref(inst);
+		if (client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, pd_script_close_cb, inst) < 0)
+			instance_unref(inst);
 	} else {
 		ErrPrint("Invalid PD TYPE\n");
 		ret = -EINVAL;
@@ -2035,7 +2039,9 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 		 * \note
 		 * Clean up the resoruces
 		 */
-		client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, pd_buffer_close_cb, inst);
+		if (client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, pd_buffer_close_cb, inst) == 0) {
+			instance_unref(inst);
+		}
 	} else if (package_pd_type(instance_package(inst)) == PD_TYPE_SCRIPT) {
 		struct slave_node *slave;
 
@@ -2061,7 +2067,14 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 		 * \note
 		 * Clean up the resources
 		 */
-		client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, pd_script_close_cb, inst);
+		if (client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, pd_script_close_cb, inst) == 0) {
+			/*!
+			 * \note
+			 * Only if this function succeed to remove the script_close_cb,
+			 * Decrease the reference count of this instance
+			 */
+			instance_unref(inst);
+		}
 	} else {
 		ErrPrint("Invalid PD TYPE\n");
 		ret = -EINVAL;
