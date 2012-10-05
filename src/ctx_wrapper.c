@@ -127,14 +127,85 @@ void ctx_wrapper_disable(void)
 	s_info.enabled = !(ret == CONTEXT_ERROR_NONE);
 }
 
+static inline void register_ctx_callback(struct context_item *item, const char *ctx_item, struct cbfunc *cbfunc)
+{
+	Eina_List *l;
+	Eina_List *option_list;
+	struct context_option *option;
+	const char *key;
+	const char *value;
+	int idx;
+	int ret;
+
+	option_list = group_context_option_list(item);
+	if (!option_list) {
+		ErrPrint("Has no option list\n");
+		return;
+	}
+
+	cbdata = find_registered_callback(ctx_item, option_list);
+	if (cbdata) {
+		DbgPrint("Already registered\n");
+		return;
+	}
+
+	cbdata = malloc(sizeof(*cbdata));
+	if (!cbdata) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return;
+	}
+
+	cbdata->item = item;
+	cbdata->option.array_size = eina_list_count(option_list);
+	if (!cbdata->option.array_size) {
+		ErrPrint("Option is not exists. ignore this context event\n");
+		free(cbdata);
+		return;
+	}
+
+	cbdata->option.array = calloc(cbdata->option.array_size, sizeof(*cbdata->option.array));
+	if (!cbdata->option.array) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		free(cbdata);
+		return;
+	}
+
+	idx = 0;
+	EINA_LIST_FOREACH(option_list, l, option) {
+		key = group_option_item_key(option);
+		value = group_option_item_value(option);
+
+		if (!key || !value) {
+			ErrPrint("Key[%p], value[%p]\n", key, value);
+			continue;
+		}
+
+		cbdata->option.array[idx].key = (char *)key;
+		cbdata->option.array[idx].value = (char *)value;
+		idx++;
+	}
+
+	/*!
+	 * WHY DO WE NEED TO KEEP THE req_id?
+	 * Every callback function has their own callback_data.
+	 * then...... we don't need to use req_id -_-;;
+	 */
+	ret = context_manager_add_context_updates_cb(ctx_item, &cbdata->option, update_context_cb, cbdata, &cbdata->req_id);
+	if (ret != CONTEXT_ERROR_NONE) {
+		free(cbdata->option.array);
+		free(cbdata);
+		return;
+	}
+
+	s_info.cbdata_list = eina_list_append(s_info.cbdata_list, cbdata);
+
+	cbdata->cbfunc_list = eina_list_append(cbdata->cbfunc_list, cbfunc);
+	cbfunc->cbdata = cbdata;
+}
+
 void *ctx_wrapper_register_callback(struct context_item *item, int (*cb)(struct context_item *item, void *user_data), void *user_data)
 {
-	int ret;
-	Eina_List *option_list;
-	Eina_List *l;
-	struct context_option *option;
 	const char *ctx_item;
-	struct cbdata *cbdata;
 	struct cbfunc *cbfunc;
 
 	if (!item) {
@@ -147,18 +218,6 @@ void *ctx_wrapper_register_callback(struct context_item *item, int (*cb)(struct 
 		return NULL;
 	}
 
-	ctx_item = group_context_item(item);
-	if (!ctx_item) {
-		ErrPrint("Has no context item\n");
-		return NULL;
-	}
-
-	option_list = group_context_option_list(item);
-	if (!option_list) {
-		ErrPrint("Has no option list\n");
-		return NULL;
-	}
-
 	cbfunc = malloc(sizeof(*cbfunc));
 	if (!cbfunc) {
 		ErrPrint("Heap: %s\n", strerror(errno));
@@ -168,69 +227,12 @@ void *ctx_wrapper_register_callback(struct context_item *item, int (*cb)(struct 
 	cbfunc->cb = cb;
 	cbfunc->user_data = user_data;
 
-	cbdata = find_registered_callback(ctx_item, option_list);
-	if (!cbdata) {
-		const char *key;
-		const char *value;
-		int idx;
+	ctx_item = group_context_item(item);
+	if (ctx_item)
+		register_ctx_callback(item, ctx_item, cbfunc);
+	else
+		cbfunc->cbdata = NULL;
 
-		cbdata = malloc(sizeof(*cbdata));
-		if (!cbdata) {
-			ErrPrint("Heap: %s\n", strerror(errno));
-			free(cbfunc);
-			return NULL;
-		}
-
-		cbdata->item = item;
-		cbdata->option.array_size = eina_list_count(option_list);
-		if (!cbdata->option.array_size) {
-			ErrPrint("Option is not exists. ignore this context event\n");
-			free(cbfunc);
-			free(cbdata);
-			return NULL;
-		}
-
-		cbdata->option.array = calloc(cbdata->option.array_size, sizeof(*cbdata->option.array));
-		if (!cbdata->option.array) {
-			ErrPrint("Heap: %s\n", strerror(errno));
-			free(cbdata);
-			free(cbfunc);
-			return NULL;
-		}
-
-		idx = 0;
-		EINA_LIST_FOREACH(option_list, l, option) {
-			key = group_option_item_key(option);
-			value = group_option_item_value(option);
-
-			if (!key || !value) {
-				ErrPrint("Key[%p], value[%p]\n", key, value);
-				continue;
-			}
-
-			cbdata->option.array[idx].key = (char *)key;
-			cbdata->option.array[idx].value = (char *)value;
-			idx++;
-		}
-
-		/*!
-		 * WHY DO WE NEED TO KEEP THE req_id?
-		 * Every callback function has their own callback_data.
-		 * then...... we don't need to use req_id -_-;;
-		 */
-		ret = context_manager_add_context_updates_cb(ctx_item, &cbdata->option, update_context_cb, cbdata, &cbdata->req_id);
-		if (ret != CONTEXT_ERROR_NONE) {
-			free(cbfunc);
-			free(cbdata->option.array);
-			free(cbdata);
-			return NULL;
-		}
-
-		s_info.cbdata_list = eina_list_append(s_info.cbdata_list, cbdata);
-	}
-
-	cbdata->cbfunc_list = eina_list_append(cbdata->cbfunc_list, cbfunc);
-	cbfunc->cbdata = cbdata;
 	return cbfunc;
 }
 
@@ -246,20 +248,22 @@ void *ctx_wrapper_unregister_callback(void *_cbfunc)
 	}
 
 	cbdata = cbfunc->cbdata;
-	cbdata->cbfunc_list = eina_list_remove(cbdata->cbfunc_list, cbfunc);
-	if (!eina_list_count(cbdata->cbfunc_list)) {
-		/*!
-		 * \TODO
-		 * Remove CALLBACK
-		 *
-		 * context_manager_remove_context_updates_for_item_cb
-		 * context_manager_remove_context_updates_cb
-		 */
+	if (cbdata) {
+		cbdata->cbfunc_list = eina_list_remove(cbdata->cbfunc_list, cbfunc);
+		if (!eina_list_count(cbdata->cbfunc_list)) {
+			/*!
+			 * \TODO
+			 * Remove CALLBACK
+			 *
+			 * context_manager_remove_context_updates_for_item_cb
+			 * context_manager_remove_context_updates_cb
+			 */
 
-		s_info.cbdata_list = eina_list_remove(s_info.cbdata_list, cbdata);
-		free(cbdata->option.array);
-		free(cbdata);
-		DbgPrint("Callback removed\n");
+			s_info.cbdata_list = eina_list_remove(s_info.cbdata_list, cbdata);
+			free(cbdata->option.array);
+			free(cbdata);
+			DbgPrint("Callback removed\n");
+		}
 	}
 
 	data = cbfunc->user_data;

@@ -1428,17 +1428,19 @@ static inline int livebox_destroy(struct livebox *livebox)
 		livebox->group_list = dlist_remove(livebox->group_list, l);
 		DbgPrint("Release %s/%s\n", group->cluster, group->category);
 
-		dlist_foreach_safe(group->option_list, il, in, option) {
-			group->option_list = dlist_remove(group->option_list, il);
-			DbgPrint("Release option %s(%s)\n", option->key, option->value);
-			xmlFree(option->key);
-			xmlFree(option->value);
-			free(option);
+		if (group->ctx_item) {
+			dlist_foreach_safe(group->option_list, il, in, option) {
+				group->option_list = dlist_remove(group->option_list, il);
+				DbgPrint("Release option %s(%s)\n", option->key, option->value);
+				xmlFree(option->key);
+				xmlFree(option->value);
+				free(option);
+			}
+			xmlFree(group->ctx_item);
 		}
 
 		xmlFree(group->cluster);
 		xmlFree(group->category);
-		xmlFree(group->ctx_item);
 		free(group);
 	}
 
@@ -1686,67 +1688,65 @@ static inline void update_group(struct livebox *livebox, xmlNodePtr node)
 				continue;
 			}
 
-			ctx_item = xmlGetProp(category, (const xmlChar *)"context");
-			if (!ctx_item) {
-				ErrPrint("Invalid context\n");
-				xmlFree(category_name);
-				continue;
-			}
-
 			group = calloc(1, sizeof(*group));
 			if (!group) {
 				ErrPrint("Heap: %s\n", strerror(errno));
 				xmlFree(category_name);
-				xmlFree(ctx_item);
 				continue;
 			}
 
 			group->cluster = xmlStrdup(cluster_name);
 			group->category = category_name;
-			group->ctx_item = ctx_item;
-			DbgPrint("Build group item: %s - %s - %s\n", group->cluster, group->category, group->ctx_item);
 
-			for (option_item = category->children; option_item; option_item = option_item->next) {
-				if (xmlStrcasecmp(option_item->name, (const xmlChar *)"option")) {
-					DbgPrint("Skip: %s\n", option_item->name);
-					continue;
+			ctx_item = xmlGetProp(category, (const xmlChar *)"context");
+			if (!ctx_item) {
+				DbgPrint("Category has no CONTEXT_ID\n");
+			} else {
+				group->ctx_item = ctx_item;
+				DbgPrint("Build group item: %s - %s - %s\n", group->cluster, group->category, group->ctx_item);
+
+				for (option_item = category->children; option_item; option_item = option_item->next) {
+					if (xmlStrcasecmp(option_item->name, (const xmlChar *)"option")) {
+						DbgPrint("Skip: %s\n", option_item->name);
+						continue;
+					}
+
+					if (!xmlHasProp(option_item, (const xmlChar *)"key")) {
+						ErrPrint("Invalid option, has no key\n");
+						continue;
+					}
+
+					if (!xmlHasProp(option_item, (const xmlChar *)"value")) {
+						ErrPrint("Invalid option, has no value\n");
+						continue;
+					}
+
+					key = xmlGetProp(option_item, (const xmlChar *)"key");
+					if (!key) {
+						ErrPrint("Invalid key. NIL\n");
+						continue;
+					}
+
+					value = xmlGetProp(option_item, (const xmlChar *)"value");
+					if (!value) {
+						ErrPrint("Invalid valid. NIL\n");
+						xmlFree(key);
+						continue;
+					}
+
+					option = calloc(1, sizeof(*option));
+					if (!option) {
+						ErrPrint("Heap: %s\n", strerror(errno));
+						xmlFree(key);
+						xmlFree(value);
+						continue;
+					}
+
+					option->key = key;
+					option->value = value;
+
+					group->option_list = dlist_append(group->option_list, option);
 				}
-
-				if (!xmlHasProp(option_item, (const xmlChar *)"key")) {
-					ErrPrint("Invalid option, has no key\n");
-					continue;
-				}
-
-				if (!xmlHasProp(option_item, (const xmlChar *)"value")) {
-					ErrPrint("Invalid option, has no value\n");
-					continue;
-				}
-
-				key = xmlGetProp(option_item, (const xmlChar *)"key");
-				if (!key) {
-					ErrPrint("Invalid key. NIL\n");
-					continue;
-				}
-
-				value = xmlGetProp(option_item, (const xmlChar *)"value");
-				if (!value) {
-					ErrPrint("Invalid valid. NIL\n");
-					xmlFree(key);
-					continue;
-				}
-
-				option = calloc(1, sizeof(*option));
-				if (!option) {
-					ErrPrint("Heap: %s\n", strerror(errno));
-					xmlFree(key);
-					xmlFree(value);
-					continue;
-				}
-
-				option->key = key;
-				option->value = value;
-
-				group->option_list = dlist_append(group->option_list, option);
 			}
 
 			livebox->group_list = dlist_append(livebox->group_list, group);
@@ -1899,6 +1899,9 @@ static inline int db_insert_livebox(struct livebox *livebox, const char *pkgname
 	}
 
 	dlist_foreach(livebox->group_list, l, group) {
+		if (!group->ctx_item)
+			continue;
+
 		/* group ID "id" */
 		id = db_get_group_id((char *)group->cluster, (char *)group->category);
 		if (id < 0) {
@@ -2077,6 +2080,8 @@ int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *pkgname)
 			livebox_destroy(livebox);
 			return -ENOMEM;
 		}
+
+		DbgPrint("Use the default libexec: %s\n", filename);
 	}
 
 	for (node = node->children; node; node = node->next) {
@@ -2202,14 +2207,12 @@ int PKGMGR_PARSER_PLUGIN_UNINSTALL(xmlDocPtr docPtr, const char *pkgname)
 		goto errout;
 
 	ret = db_remove_option((char *)appid);
-	if (ret < 0)
-		goto errout;
-
-	ret = db_remove_group((char *)appid);
-	if (ret < 0)
-		goto errout;
+	DbgPrint("Remove option: %d\n", ret);
 
 	ret = db_remove_groupmap((char *)appid);
+	DbgPrint("Remove groupmap: %d\n", ret);
+
+	ret = db_remove_group((char *)appid);
 	if (ret < 0)
 		goto errout;
 

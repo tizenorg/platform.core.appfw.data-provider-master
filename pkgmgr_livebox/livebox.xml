@@ -53,6 +53,9 @@
 				<option key="result_size" value="value" />
 			</category>
 		</cluster>
+		<cluster name="noctx_cluster">
+			<category name="noctx_category" />
+		</cluster>
 		<!--
 		     KEYWORD_SEARCHED_FREQUENTLY(DATA_PROVIDER, TIME_SPAN, RESULT_SIZE)
 		     MUSIC_PLAYED_FREQUENTLY(DATA_PROVIDER, TIME_SPAN, RESULT_SIZE)

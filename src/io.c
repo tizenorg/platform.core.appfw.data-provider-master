@@ -481,8 +481,14 @@ static inline int build_group_info(struct pkg_info *info)
 		ctx_info = group_create_context_info(category, package_name(info));
 		if (ctx_info) {
 			ret = load_context_item(ctx_info, id);
-			if (ret < 0)
-				group_destroy_context_info(ctx_info);
+			if (ret < 0) {
+				if (ret == -ENOENT) {
+					DbgPrint("Has no specific context info\n");
+				} else {
+					DbgPrint("Context info is not valid\n");
+					group_destroy_context_info(ctx_info);
+				}
+			}
 		}
 	}
 
