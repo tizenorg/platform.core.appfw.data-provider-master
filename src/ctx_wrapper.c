@@ -132,6 +132,7 @@ static inline void register_ctx_callback(struct context_item *item, const char *
 	Eina_List *l;
 	Eina_List *option_list;
 	struct context_option *option;
+	struct cbdata *cbdata;
 	const char *key;
 	const char *value;
 	int idx;

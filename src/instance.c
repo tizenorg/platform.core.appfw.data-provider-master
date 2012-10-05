@@ -63,6 +63,7 @@ struct inst_info {
 	char *cluster;
 	char *category;
 	char *title;
+	int is_pinned_up;
 
 	enum livebox_visible_state visible;
 
@@ -70,7 +71,6 @@ struct inst_info {
 		int width;
 		int height;
 		double priority;
-		int is_pinned_up;
 
 		union {
 			struct script_info *script;
@@ -187,7 +187,7 @@ int instance_unicast_created_event(struct inst_info *inst, struct client_node *c
 	else
 		pd_file = "";
 
-	packet = packet_create_noack("created", "dsssiiiissssidiiiiids",
+	packet = packet_create_noack("created", "dsssiiiissssidiiiiidsd",
 			inst->timestamp,
 			package_name(inst->info), inst->id, inst->content,
 			inst->lb.width, inst->lb.height,
@@ -200,7 +200,8 @@ int instance_unicast_created_event(struct inst_info *inst, struct client_node *c
 			!!inst->client,
 			package_pinup(inst->info),
 			lb_type, pd_type,
-			inst->period, inst->title);
+			inst->period, inst->title,
+			inst->is_pinned_up);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return -EFAULT;
@@ -234,7 +235,7 @@ int instance_broadcast_created_event(struct inst_info *inst)
 	else
 		pd_file = "";
 
-	packet = packet_create_noack("created", "dsssiiiissssidiiiiids", 
+	packet = packet_create_noack("created", "dsssiiiissssidiiiiidsd", 
 			inst->timestamp,
 			package_name(inst->info), inst->id, inst->content,
 			inst->lb.width, inst->lb.height,
@@ -247,7 +248,8 @@ int instance_broadcast_created_event(struct inst_info *inst)
 			!!inst->client,
 			package_pinup(inst->info),
 			lb_type, pd_type,
-			inst->period, inst->title);
+			inst->period, inst->title,
+			inst->is_pinned_up);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return -EFAULT;
@@ -634,6 +636,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 	int ret;
 	const char *content;
 	const char *title;
+	int is_pinned_up;
 
 	if (!packet) {
 		DbgPrint("Consuming a request of a dead process\n");
@@ -645,13 +648,14 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 		goto out;
 	}
 
-	if (packet_get(packet, "iss", &ret, &content, &title) != 3) {
+	if (packet_get(packet, "issi", &ret, &content, &title, &is_pinned_up) != 4) {
 		ErrPrint("Invalid parameter\n");
 		goto out;
 	}
 
 	if (strlen(content)) {
 		char *tmp;
+
 		tmp = strdup(content);
 		if (!tmp) {
 			ErrPrint("Heap: %s\n", strerror(errno));
@@ -666,6 +670,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 
 	if (strlen(title)) {
 		char *tmp;
+
 		tmp = strdup(title);
 		if (!tmp) {
 			ErrPrint("Heap: %s\n", strerror(errno));
@@ -695,6 +700,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 			instance_destroy(inst);
 			break;
 		case INST_ACTIVATED:
+			inst->is_pinned_up = is_pinned_up;
 			info = inst->info;
 			lb_type = package_lb_type(info);
 			pd_type = package_pd_type(info);
@@ -780,6 +786,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 	double priority;
 	char *content;
 	char *title;
+	int is_pinned_up;
 
 	if (!packet) {
 		DbgPrint("Consuming a request of a dead process\n");
@@ -791,7 +798,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 		goto out;
 	}
 
-	if (packet_get(packet, "iiidss", &ret, &w, &h, &priority, &content, &title) != 6) {
+	if (packet_get(packet, "iiidssi", &ret, &w, &h, &priority, &content, &title, &is_pinned_up) != 7) {
 		ErrPrint("Invalid parameter\n");
 		goto out;
 	}
@@ -840,6 +847,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 			 * \note
 			 * LB should be created at the create time
 			 */
+			inst->is_pinned_up = is_pinned_up;
 			if (package_lb_type(inst->info) == LB_TYPE_SCRIPT) {
 				if (inst->lb.width == 0 && inst->lb.height == 0) {
 					inst->lb.width = g_conf.size[0].width;
@@ -1094,7 +1102,7 @@ int instance_reactivate(struct inst_info *inst)
 		break;
 	}
 
-	packet = packet_create("renew", "sssiidssiiis",
+	packet = packet_create("renew", "sssiidssiis",
 			package_name(inst->info),
 			inst->id,
 			inst->content,
@@ -1103,7 +1111,6 @@ int instance_reactivate(struct inst_info *inst)
 			inst->period,
 			inst->cluster,
 			inst->category,
-			inst->lb.is_pinned_up,
 			inst->lb.width, inst->lb.height,
 			package_abi(inst->info));
 	if (!packet) {
@@ -1159,7 +1166,7 @@ int instance_activate(struct inst_info *inst)
 		break;
 	}
 
-	packet = packet_create("new", "sssiidssiis",
+	packet = packet_create("new", "sssiidssis",
 			package_name(inst->info),
 			inst->id,
 			inst->content,
@@ -1168,7 +1175,6 @@ int instance_activate(struct inst_info *inst)
 			inst->period,
 			inst->cluster,
 			inst->category,
-			inst->lb.is_pinned_up,
 			!!inst->client,
 			package_abi(inst->info));
 	if (!packet) {
@@ -1374,7 +1380,7 @@ static void pinup_cb(struct slave_node *slave, const struct packet *packet, void
 			goto out;
 		}
 	
-		cbdata->inst->lb.is_pinned_up = cbdata->pinup;
+		cbdata->inst->is_pinned_up = cbdata->pinup;
 		free(cbdata->inst->content);
 
 		cbdata->inst->content = new_content;
@@ -1386,7 +1392,7 @@ out:
 	 * Send PINUP Result to client.
 	 * Client should wait this event.
 	 */
-	result = packet_create_noack("pinup", "iisss", ret, cbdata->inst->lb.is_pinned_up,
+	result = packet_create_noack("pinup", "iisss", ret, cbdata->inst->is_pinned_up,
 							package_name(cbdata->inst->info), cbdata->inst->id, cbdata->inst->content);
 	if (result)
 		(void)CLIENT_SEND_EVENT(cbdata->inst, result);
@@ -1415,7 +1421,7 @@ int instance_set_pinup(struct inst_info *inst, int pinup)
 	if (!package_pinup(inst->info))
 		return -EINVAL;
 
-	if (pinup == inst->lb.is_pinned_up)
+	if (pinup == inst->is_pinned_up)
 		return -EINVAL;
 
 	cbdata = malloc(sizeof(*cbdata));
