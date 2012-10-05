@@ -197,7 +197,7 @@ static inline int load_abi_table(void)
 
 static inline int build_client_info(struct pkg_info *info)
 {
-	static const char *dml = "SELECT auto_launch, pd_size FROM client WHERE appid = ?";
+	static const char *dml = "SELECT auto_launch, pd_size FROM client WHERE pkgid = ?";
 	sqlite3_stmt *stmt;
 	int width;
 	int height;
@@ -244,7 +244,7 @@ static inline int build_client_info(struct pkg_info *info)
 
 static inline int build_provider_info(struct pkg_info *info)
 {
-	static const char *dml = "SELECT network, abi, secured, box_type, box_src, box_group, pd_type, pd_src, pd_group, libexec, timeout, period, script, pinup FROM provider WHERE appid = ?";
+	static const char *dml = "SELECT network, abi, secured, box_type, box_src, box_group, pd_type, pd_src, pd_group, libexec, timeout, period, script, pinup FROM provider WHERE pkgid = ?";
 	sqlite3_stmt *stmt;
 	int ret;
 	const char *tmp;
@@ -298,7 +298,7 @@ static inline int build_provider_info(struct pkg_info *info)
 
 static inline int build_box_size_info(struct pkg_info *info)
 {
-	static const char *dml = "SELECT size_type FROM box_size WHERE appid = ?";
+	static const char *dml = "SELECT size_type FROM box_size WHERE pkgid = ?";
 	sqlite3_stmt *stmt;
 	int ret;
 	unsigned int size_type;
@@ -425,7 +425,7 @@ out:
 
 static inline int build_group_info(struct pkg_info *info)
 {
-	static const char *dml = "SELECT id, cluster, category FROM groupinfo WHERE appid = ?";
+	static const char *dml = "SELECT id, cluster, category FROM groupinfo WHERE pkgid = ?";
 	sqlite3_stmt *stmt;
 	int ret;
 	int id;
@@ -496,6 +496,62 @@ static inline int build_group_info(struct pkg_info *info)
 	sqlite3_clear_bindings(stmt);
 	sqlite3_finalize(stmt);
 	return 0;
+}
+
+char *io_livebox_pkgname(const char *pkgname)
+{
+	sqlite3_stmt *stmt;
+	char *pkgid;
+	char *tmp;
+	int ret;
+
+	pkgid = NULL;
+
+	if (!s_info.handle) {
+		ErrPrint("DB is not ready\n");
+		return NULL;
+	}
+
+	ret = sqlite3_prepare_v2(s_info.handle, "SELECT pkgid FROM pkgmap WHERE (appid = ? AND is_prime = 1) OR pkgid = ?", -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		ErrPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 1, pkgname, -1, NULL);
+	if (ret != SQLITE_OK) {
+		ErrPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		sqlite3_reset(stmt);
+		sqlite3_finalize(stmt);
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 2, pkgname, -1, NULL);
+	if (ret != SQLITE_OK) {
+		ErrPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		sqlite3_reset(stmt);
+		sqlite3_finalize(stmt);
+		goto out;
+	}
+
+	if (sqlite3_step(stmt) != SQLITE_ROW) {
+		ErrPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		sqlite3_reset(stmt);
+		sqlite3_finalize(stmt);
+		goto out;
+	}
+
+	tmp = (char *)sqlite3_column_text(stmt, 0);
+	if (tmp) {
+		pkgid = strdup(tmp);
+		if (!pkgid)
+			ErrPrint("Heap: %s\n", strerror(errno));
+	}
+
+	sqlite3_reset(stmt);
+	sqlite3_finalize(stmt);
+out:
+	return pkgid;
 }
 
 int io_load_package_db(struct pkg_info *info)

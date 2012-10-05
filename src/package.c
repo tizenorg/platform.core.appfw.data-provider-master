@@ -380,31 +380,37 @@ struct pkg_info *package_create(const char *pkgname)
 {
 	struct pkg_info *info;
 
-	if (util_validate_livebox_package(pkgname) < 0)
-		return NULL;
-
 	info = calloc(1, sizeof(*info));
 	if (!info) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		return NULL;
 	}
 
-	info->pkgname = strdup(pkgname);
+	info->pkgname = io_livebox_pkgname(pkgname);
 	if (!info->pkgname) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		free(info);
-		return NULL;
+		ErrPrint("Failed to get pkgname, fallback to fs checker\n");
+		if (util_validate_livebox_package(pkgname) < 0) {
+			ErrPrint("Invalid package name: %s\n", pkgname);
+			free(info);
+			return NULL;
+		}
+
+		info->pkgname = strdup(pkgname);
+		if (!info->pkgname) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			free(info);
+			return NULL;
+		}
 	}
 
 	if (io_load_package_db(info) < 0) {
 		ErrPrint("Failed to load DB, fall back to conf file loader\n");
-	}
-
-	if (load_conf(info) < 0) {
-		ErrPrint("Failed to initiate the conf file loader\n");
-		free(info->pkgname);
-		free(info);
-		return NULL;
+		if (load_conf(info) < 0) {
+			ErrPrint("Failed to initiate the conf file loader\n");
+			free(info->pkgname);
+			free(info);
+			return NULL;
+		}
 	}
 
 	package_ref(info);

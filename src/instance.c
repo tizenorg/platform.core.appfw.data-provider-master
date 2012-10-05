@@ -187,7 +187,7 @@ int instance_unicast_created_event(struct inst_info *inst, struct client_node *c
 	else
 		pd_file = "";
 
-	packet = packet_create_noack("created", "dsssiiiissssidiiiiidsd",
+	packet = packet_create_noack("created", "dsssiiiissssidiiiiidsi",
 			inst->timestamp,
 			package_name(inst->info), inst->id, inst->content,
 			inst->lb.width, inst->lb.height,
@@ -235,7 +235,7 @@ int instance_broadcast_created_event(struct inst_info *inst)
 	else
 		pd_file = "";
 
-	packet = packet_create_noack("created", "dsssiiiissssidiiiiidsd", 
+	packet = packet_create_noack("created", "dsssiiiissssidiiiiidsi", 
 			inst->timestamp,
 			package_name(inst->info), inst->id, inst->content,
 			inst->lb.width, inst->lb.height,

@@ -30,16 +30,16 @@
  * +-------+-------+---------+
  * |   -   |   -   |         |
  * +-------+-------+---------+
- * CREATE TABLE pkgmap ( appid TEXT PRIMARY KEY NOT NULL, pkgid TEXT, prime INTEGER )
+ * CREATE TABLE pkgmap ( pkgid TEXT PRIMARY KEY NOT NULL, appid TEXT, prime INTEGER )
  *
  *
  * provider
  * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+---------+---------+--------+--------+-------+
- * | appid | network | abi | secured | box_type | box_src | box_group | pd_type | pd_src | pd_group | libexec | timeout | period | script | pinup |
+ * | pkgid | network | abi | secured | box_type | box_src | box_group | pd_type | pd_src | pd_group | libexec | timeout | period | script | pinup |
  * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+---------+---------+--------+--------+-------+
  * |   -   |    -    |  -  |    -    |     -    |    -    |     -     |    -    |    -   |     -    |     -   |    -    |    -   |    -   |   -   |
  * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+---------+---------+--------+--------+-------+
- * CREATE TABLE provider ( appid TEXT PRIMARY KEY NOT NULL, network INTEGER, abi TEXT, secured INTEGER, box_type INTEGER, box_src TEXT, box_group TEXT, pd_type TEXT, pd_src TEXT, pd_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, FOREIGN KEY(appid) REFERENCES pkgmap(appid))
+ * CREATE TABLE provider ( pkgid TEXT PRIMARY KEY NOT NULL, network INTEGER, abi TEXT, secured INTEGER, box_type INTEGER, box_src TEXT, box_group TEXT, pd_type TEXT, pd_src TEXT, pd_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid))
  *
  * = box_type = { text | buffer | script | image }
  * = pd_type = { text | buffer | script }
@@ -50,11 +50,11 @@
  *
  * client
  * +-------+------+---------+-------------+---------+
- * | appid | Icon |  Name   | auto_launch | pd_size |
+ * | pkgid | Icon |  Name   | auto_launch | pd_size |
  * +-------+------+---------+-------------+---------+
  * |   -   |   -  |    -    |      -      |    -    |
  * +-------+------+---------+-------------+---------+
- * CREATE TABLE client ( appid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch INTEGER, pd_size TEXT,FOREIGN KEY(appid) REFERENCES pkgmap(appid) )
+ * CREATE TABLE client ( pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch INTEGER, pd_size TEXT,FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
  *
  * = auto_launch = { 1 | 0 }
  * = pd_size = WIDTHxHEIGHT
@@ -64,41 +64,41 @@
  * +-------+------+------+------+
  * |   fk  | lang | name | icon |
  * +-------+------+------+------+
- * | appid |   -  |   -  |   -  |
+ * | pkgid |   -  |   -  |   -  |
  * +-------+------+------+------+
- * CREATE TABLE i18n ( appid TEXT NOT NULL, lang TEXT, name TEXT, icon TEXT, FOREIGN KEY(appid) REFERENCES pkgmap(appid) )
+ * CREATE TABLE i18n ( pkgid TEXT NOT NULL, lang TEXT, name TEXT, icon TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
  *
  *
  * box_size
  * +-------+-----------+
- * | appid | size_type |
+ * | pkgid | size_type |
  * +-------+-----------+
  * |   -   |     -     |
  * +-------+-----------+
- * CREATE TABLE box_size ( appid TEXT NOT NULL, size_type INTEGER, FOREIGN KEY(appid) REFERENCES pkgmap(appid) )
+ * CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
  *
  * = box_size_list = { WIDTHxHEIGHT; WIDTHxHEIGHT; ... }
  *
  * groupinfo
  * +----+---------+----------+-------+
- * | id | cluster | category | appid |
+ * | id | cluster | category | pkgid |
  * +----+---------+----------+-------+
  * |  - |    -    |    -     |   -   |
  * +----+---------+----------+-------|
- * CREATE TABLE groupinfo ( id INTEGER PRIMARY KEY AUTOINCREMENT, cluster TEXT NOT NULL, category TEXT NOT NULL, appid TEXT NOT NULL, FOREIGN KEY(appid) REFERENCES pkgmap(appid) ))
+ * CREATE TABLE groupinfo ( id INTEGER PRIMARY KEY AUTOINCREMENT, cluster TEXT NOT NULL, category TEXT NOT NULL, appid TEXT NOT NULL, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ))
  *
  * groupmap
  * +-------+----+----------+-----------+
- * | appid | id | ctx_item | option_id |
+ * | pkgid | id | ctx_item | option_id |
  * +-------+----+----------+-----------+
- * CREATE TABLE groupmap ( option_id INTEGER PRIMARY KEY AUTOINCREMENT, id INTEGER, appid TEXT NOT NULL, ctx_item TEXT NOT NULL, FOREIGN KEY(id) REFERENCES groupinfo(id), FOREIGN KEY(appid) REFERENCES pkgmap(appid) )
+ * CREATE TABLE groupmap ( option_id INTEGER PRIMARY KEY AUTOINCREMENT, id INTEGER, pkgid TEXT NOT NULL, ctx_item TEXT NOT NULL, FOREIGN KEY(id) REFERENCES groupinfo(id), FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
  *
  *
  * option
  * +-------+-----------+-----+-------+
- * | appid | option_id | key | value |
+ * | pkgid | option_id | key | value |
  * +-------+-----------+-----+-------+
- * CREATE TABLE option ( appid TEXT NOT NULL, option_id INTEGER, key TEXT NOT NULL, value TEXT NOT NULL, FOREIGN KEY(option_id) REFERENCES groupmap(option_id), FOREIGN KEY(appid) REFERENCES pkgmap(appid)  )
+ * CREATE TABLE option ( pkgid TEXT NOT NULL, option_id INTEGER, key TEXT NOT NULL, value TEXT NOT NULL, FOREIGN KEY(option_id) REFERENCES groupmap(option_id), FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid)  )
  */
 
 #if !defined(LIBXML_TREE_ENABLED)
@@ -193,7 +193,7 @@ static inline int db_create_pkgmap(void)
 	char *err;
 	static const char *ddl;
 
-	ddl = "CREATE TABLE pkgmap ( appid TEXT PRIMARY KEY NOT NULL, pkgid TEXT, prime INTEGER )";
+	ddl = "CREATE TABLE pkgmap ( pkgid TEXT PRIMARY KEY NOT NULL, appid TEXT, prime INTEGER )";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -252,20 +252,20 @@ out:
 	return ret;
 }
 
-static inline int db_remove_pkgmap(const char *appid)
+static inline int db_remove_pkgmap(const char *pkgid)
 {
 	int ret;
 	static const char *dml;
 	sqlite3_stmt *stmt;
 
-	dml = "DELETE FROM pkgmap WHERE appid = ?";
+	dml = "DELETE FROM pkgmap WHERE pkgid = ?";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		return -EIO;
 	}
 
-	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 1, pkgid, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -291,11 +291,11 @@ static inline int db_create_provider(void)
 	static const char *ddl;
 
 	ddl = "CREATE TABLE provider (" \
-		"appid TEXT PRIMARY KEY NOT NULL, network INTEGER, " \
+		"pkgid TEXT PRIMARY KEY NOT NULL, network INTEGER, " \
 		"abi TEXT, secured INTEGER, box_type INTEGER, " \
 		"box_src TEXT, box_group TEXT, pd_type INTEGER, " \
 		"pd_src TEXT, pd_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, "\
-		"FOREIGN KEY(appid) REFERENCES pkgmap(appid))";
+		"FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid))";
 
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
@@ -308,20 +308,20 @@ static inline int db_create_provider(void)
 	return 0;
 }
 
-static inline int db_remove_provider(const char *appid)
+static inline int db_remove_provider(const char *pkgid)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	dml = "DELETE FROM provider WHERE appid = ?";
+	dml = "DELETE FROM provider WHERE pkgid = ?";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		return -EIO;
 	}
 
-	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 1, pkgid, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -341,7 +341,7 @@ out:
 	return ret;
 }
 
-static inline int db_insert_provider(const char *appid, int net, const char *abi, int secured, int box_type, const char *box_src, const char *box_group, int pd_type, const char *pd_src, const char *pd_group, const char *libexec, const char *timeout, const char *period, const char *script, int pinup)
+static inline int db_insert_provider(const char *pkgid, int net, const char *abi, int secured, int box_type, const char *box_src, const char *box_group, int pd_type, const char *pd_src, const char *pd_group, const char *libexec, const char *timeout, const char *period, const char *script, int pinup)
 {
 	static const char *dml;
 	int ret;
@@ -374,14 +374,14 @@ static inline int db_insert_provider(const char *appid, int net, const char *abi
 	if (!script)
 		script = "edje";
 
-	dml = "INSERT INTO provider ( appid, network, abi, secured, box_type, box_src, box_group, pd_type, pd_src, pd_group, libexec, timeout, period, script, pinup ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	dml = "INSERT INTO provider ( pkgid, network, abi, secured, box_type, box_src, box_group, pd_type, pd_src, pd_group, libexec, timeout, period, script, pinup ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		return -EIO;
 	}
 
-	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 1, pkgid, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -505,8 +505,8 @@ static inline int db_create_client(void)
 	static const char *ddl;
 
 	ddl = "CREATE TABLE client (" \
-		"appid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, " \
-		"auto_launch INTEGER, pd_size TEXT, FOREIGN KEY(appid) REFERENCES pkgmap(appid) )";
+		"pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, " \
+		"auto_launch INTEGER, pd_size TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -518,20 +518,20 @@ static inline int db_create_client(void)
 	return 0;
 }
 
-static inline int db_insert_client(const char *appid, const char *icon, const char *name, int auto_launch, const char *pd_size)
+static inline int db_insert_client(const char *pkgid, const char *icon, const char *name, int auto_launch, const char *pd_size)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	dml = "INSERT INTO client ( appid, icon, name, auto_launch, pd_size ) VALUES (?, ?, ?, ?, ?)";
+	dml = "INSERT INTO client ( pkgid, icon, name, auto_launch, pd_size ) VALUES (?, ?, ?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		return -EIO;
 	}
 
-	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 1, pkgid, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -579,20 +579,20 @@ out:
 	return ret;
 }
 
-static inline int db_remove_client(const char *appid)
+static inline int db_remove_client(const char *pkgid)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	dml = "DELETE FROM client WHERE appid = ?";
+	dml = "DELETE FROM client WHERE pkgid = ?";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		return -EIO;
 	}
 
-	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 1, pkgid, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -617,8 +617,8 @@ static inline int db_create_i18n(void)
 	char *err;
 	static const char *ddl;
 
-	ddl = "CREATE TABLE i18n ( appid TEXT NOT NULL, lang TEXT, name TEXT, " \
-		"icon TEXT, FOREIGN KEY(appid) REFERENCES pkgmap(appid) )";
+	ddl = "CREATE TABLE i18n ( pkgid TEXT NOT NULL, lang TEXT, name TEXT, " \
+		"icon TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -630,21 +630,21 @@ static inline int db_create_i18n(void)
 	return 0;
 }
 
-static inline int db_insert_i18n(const char *appid, const char *lang, const char *name, const char *icon)
+static inline int db_insert_i18n(const char *pkgid, const char *lang, const char *name, const char *icon)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	DbgPrint("%s - lang[%s] name[%s] icon[%s]\n", appid, lang, name, icon);
-	dml = "INSERT INTO i18n ( appid, lang, name, icon ) VALUES (?, ?, ?, ?)";
+	DbgPrint("%s - lang[%s] name[%s] icon[%s]\n", pkgid, lang, name, icon);
+	dml = "INSERT INTO i18n ( pkgid, lang, name, icon ) VALUES (?, ?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		return -EIO;
 	}
 
-	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 1, pkgid, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -685,20 +685,20 @@ out:
 	return ret;
 }
 
-static inline int db_remove_i18n(const char *appid)
+static inline int db_remove_i18n(const char *pkgid)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	dml = "DELETE FROM i18n WHERE appid = ?";
+	dml = "DELETE FROM i18n WHERE pkgid = ?";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		return -EIO;
 	}
 
-	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 1, pkgid, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -726,7 +726,7 @@ static inline int db_create_group(void)
 	char *err;
 	static const char *ddl;
 
-	ddl = "CREATE TABLE groupinfo ( id INTEGER PRIMARY KEY AUTOINCREMENT, cluster TEXT NOT NULL, category TEXT NOT NULL, appid TEXT NOT NULL, FOREIGN KEY(appid) REFERENCES pkgmap(appid) )";
+	ddl = "CREATE TABLE groupinfo ( id INTEGER PRIMARY KEY AUTOINCREMENT, cluster TEXT NOT NULL, category TEXT NOT NULL, pkgid TEXT NOT NULL, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -738,13 +738,13 @@ static inline int db_create_group(void)
 	return 0;
 }
 
-static inline int db_insert_group(const char *appid, const char *cluster, const char *category)
+static inline int db_insert_group(const char *pkgid, const char *cluster, const char *category)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	dml = "INSERT INTO groupinfo ( cluster, category, appid ) VALUES (?, ?, ?)";
+	dml = "INSERT INTO groupinfo ( cluster, category, pkgid ) VALUES (?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
@@ -765,7 +765,7 @@ static inline int db_insert_group(const char *appid, const char *cluster, const 
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 3, appid, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 3, pkgid, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -827,20 +827,20 @@ out:
 	return ret;
 }
 
-static inline int db_remove_group(const char *appid)
+static inline int db_remove_group(const char *pkgid)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	dml = "DELETE FROM groupinfo WHERE appid = ?";
+	dml = "DELETE FROM groupinfo WHERE pkgid = ?";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		return -EIO;
 	}
 
-	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 1, pkgid, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -868,7 +868,7 @@ static inline int db_create_groupmap(void)
 	char *err;
 	static const char *ddl;
 
- 	ddl = "CREATE TABLE groupmap (option_id INTEGER PRIMARY KEY AUTOINCREMENT, id INTEGER, appid TEXT NOT NULL, ctx_item TEXT NOT NULL, FOREIGN KEY(id) REFERENCES groupinfo(id), FOREIGN KEY(appid) REFERENCES pkgmap(appid))";
+ 	ddl = "CREATE TABLE groupmap (option_id INTEGER PRIMARY KEY AUTOINCREMENT, id INTEGER, pkgid TEXT NOT NULL, ctx_item TEXT NOT NULL, FOREIGN KEY(id) REFERENCES groupinfo(id), FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid))";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -880,13 +880,13 @@ static inline int db_create_groupmap(void)
 	return 0;
 }
 
-static inline int db_get_option_id(int id, const char *appid, const char *ctx_item)
+static inline int db_get_option_id(int id, const char *pkgid, const char *ctx_item)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	dml = "SELECT option_id FROM groupmap WHERE id = ? AND appid = ? AND ctx_item = ?";
+	dml = "SELECT option_id FROM groupmap WHERE id = ? AND pkgid = ? AND ctx_item = ?";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
@@ -900,7 +900,7 @@ static inline int db_get_option_id(int id, const char *appid, const char *ctx_it
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 2, appid, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 2, pkgid, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -930,15 +930,15 @@ out:
 	return ret;
 }
 
-static inline int db_insert_groupmap(int id, const char *appid, const char *ctx_item)
+static inline int db_insert_groupmap(int id, const char *pkgid, const char *ctx_item)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	DbgPrint("%d (%s) add to groupmap\n", id, appid);
+	DbgPrint("%d (%s) add to groupmap\n", id, pkgid);
 
-	dml = "INSERT INTO groupmap ( id, appid, ctx_item ) VALUES (?, ?, ?)";
+	dml = "INSERT INTO groupmap ( id, pkgid, ctx_item ) VALUES (?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
@@ -952,7 +952,7 @@ static inline int db_insert_groupmap(int id, const char *appid, const char *ctx_
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 2, appid, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 2, pkgid, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -979,20 +979,20 @@ out:
 	return ret;
 }
 
-static inline int db_remove_groupmap(const char *appid)
+static inline int db_remove_groupmap(const char *pkgid)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	dml = "DELETE FROM groupmap WHERE appid = ?";
+	dml = "DELETE FROM groupmap WHERE pkgid = ?";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		return -EIO;
 	}
 
-	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 1, pkgid, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -1020,9 +1020,9 @@ static inline int db_create_option(void)
 	char *err;
 	static const char *ddl;
 
-	ddl = "CREATE TABLE option ( appid TEXT NOT NULL, option_id INTEGER, key TEXT NOT NULL, value TEXT NOT NULL, " \
+	ddl = "CREATE TABLE option ( pkgid TEXT NOT NULL, option_id INTEGER, key TEXT NOT NULL, value TEXT NOT NULL, " \
 		"FOREIGN KEY(option_id) REFERENCES groupmap(option_id), " \
-		"FOREIGN KEY(appid) REFERENCES pkgmap(appid) )";
+		"FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -1034,20 +1034,20 @@ static inline int db_create_option(void)
 	return 0;
 }
 
-static inline int db_insert_option(const char *appid, int option_id, const char *key, const char *value)
+static inline int db_insert_option(const char *pkgid, int option_id, const char *key, const char *value)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	dml = "INSERT INTO option (appid, option_id, key, value) VALUES (?, ?, ?, ?)";
+	dml = "INSERT INTO option (pkgid, option_id, key, value) VALUES (?, ?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		return -EIO;
 	}
 
-	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 1, pkgid, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -1087,20 +1087,20 @@ out:
 	return ret;
 }
 
-static inline int db_remove_option(const char *appid)
+static inline int db_remove_option(const char *pkgid)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	dml = "DELETE FROM option WHERE appid = ?";
+	dml = "DELETE FROM option WHERE pkgid = ?";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		return -EIO;
 	}
 
-	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 1, pkgid, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -1129,8 +1129,8 @@ static inline int db_create_box_size(void)
 	char *err;
 	static const char *ddl;
 
-	ddl = "CREATE TABLE box_size ( appid TEXT NOT NULL, size_type INTEGER, " \
-		"FOREIGN KEY(appid) REFERENCES pkgmap(appid) )";
+	ddl = "CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, " \
+		"FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -1142,21 +1142,21 @@ static inline int db_create_box_size(void)
 	return 0;
 }
 
-static inline int db_insert_box_size(const char *appid, int size_type)
+static inline int db_insert_box_size(const char *pkgid, int size_type)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	DbgPrint("box size: %s - %d is added\n", appid, size_type);
-	dml = "INSERT INTO box_size ( appid, size_type ) VALUES (?, ?)";
+	DbgPrint("box size: %s - %d is added\n", pkgid, size_type);
+	dml = "INSERT INTO box_size ( pkgid, size_type ) VALUES (?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		return -EIO;
 	}
 
-	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 1, pkgid, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -1183,20 +1183,20 @@ out:
 	return ret;
 }
 
-static inline int db_remove_box_size(const char *appid)
+static inline int db_remove_box_size(const char *pkgid)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	dml = "DELETE FROM box_size WHERE appid = ?";
+	dml = "DELETE FROM box_size WHERE pkgid = ?";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		return -EIO;
 	}
 
-	ret = sqlite3_bind_text(stmt, 1, appid, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 1, pkgid, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -1348,7 +1348,7 @@ enum lb_size {
 };
 
 struct livebox {
-	xmlChar *appid;
+	xmlChar *pkgid;
 	int secured;
 	int auto_launch;
 	int network;
@@ -1389,9 +1389,9 @@ struct option {
 	xmlChar *value;
 };
 
-static inline int validate_appid(const char *pkgname, const char *appid)
+static inline int validate_pkgid(const char *appid, const char *pkgid)
 {
-	return !strncmp(pkgname, appid, strlen(pkgname));
+	return !strncmp(appid, pkgid, strlen(appid));
 }
 
 static inline int livebox_destroy(struct livebox *livebox)
@@ -1404,7 +1404,7 @@ static inline int livebox_destroy(struct livebox *livebox)
 	struct dlist *il;
 	struct dlist *in;
 
-	xmlFree(livebox->appid);
+	xmlFree(livebox->pkgid);
 	xmlFree(livebox->abi);
 	xmlFree(livebox->name);
 	xmlFree(livebox->icon);
@@ -1696,60 +1696,72 @@ static inline void update_group(struct livebox *livebox, xmlNodePtr node)
 			}
 
 			group->cluster = xmlStrdup(cluster_name);
+			if (!group->cluster) {
+				ErrPrint("Heap: %s\n", strerror(errno));
+				xmlFree(category_name);
+				free(group);
+				continue;
+			}
+
 			group->category = category_name;
+			livebox->group_list = dlist_append(livebox->group_list, group);
+
+			if (!xmlHasProp(category, (const xmlChar *)"context")) {
+				DbgPrint("%s, %s has no ctx info\n", group->cluster, group->category);
+				continue;
+			}
 
 			ctx_item = xmlGetProp(category, (const xmlChar *)"context");
 			if (!ctx_item) {
-				DbgPrint("Category has no CONTEXT_ID\n");
-			} else {
-				group->ctx_item = ctx_item;
-				DbgPrint("Build group item: %s - %s - %s\n", group->cluster, group->category, group->ctx_item);
-
-				for (option_item = category->children; option_item; option_item = option_item->next) {
-					if (xmlStrcasecmp(option_item->name, (const xmlChar *)"option")) {
-						DbgPrint("Skip: %s\n", option_item->name);
-						continue;
-					}
-
-					if (!xmlHasProp(option_item, (const xmlChar *)"key")) {
-						ErrPrint("Invalid option, has no key\n");
-						continue;
-					}
-
-					if (!xmlHasProp(option_item, (const xmlChar *)"value")) {
-						ErrPrint("Invalid option, has no value\n");
-						continue;
-					}
-
-					key = xmlGetProp(option_item, (const xmlChar *)"key");
-					if (!key) {
-						ErrPrint("Invalid key. NIL\n");
-						continue;
-					}
-
-					value = xmlGetProp(option_item, (const xmlChar *)"value");
-					if (!value) {
-						ErrPrint("Invalid valid. NIL\n");
-						xmlFree(key);
-						continue;
-					}
-
-					option = calloc(1, sizeof(*option));
-					if (!option) {
-						ErrPrint("Heap: %s\n", strerror(errno));
-						xmlFree(key);
-						xmlFree(value);
-						continue;
-					}
-
-					option->key = key;
-					option->value = value;
-
-					group->option_list = dlist_append(group->option_list, option);
-				}
+				ErrPrint("Failed to get context ID (%s, %s)\n", group->cluster, group->category);
+				continue;
 			}
 
-			livebox->group_list = dlist_append(livebox->group_list, group);
+			group->ctx_item = ctx_item;
+			DbgPrint("Build group item: %s - %s - %s\n", group->cluster, group->category, group->ctx_item);
+
+			for (option_item = category->children; option_item; option_item = option_item->next) {
+				if (xmlStrcasecmp(option_item->name, (const xmlChar *)"option")) {
+					DbgPrint("Skip: %s\n", option_item->name);
+					continue;
+				}
+
+				if (!xmlHasProp(option_item, (const xmlChar *)"key")) {
+					ErrPrint("Invalid option, has no key\n");
+					continue;
+				}
+
+				if (!xmlHasProp(option_item, (const xmlChar *)"value")) {
+					ErrPrint("Invalid option, has no value\n");
+					continue;
+				}
+
+				key = xmlGetProp(option_item, (const xmlChar *)"key");
+				if (!key) {
+					ErrPrint("Invalid key. NIL\n");
+					continue;
+				}
+
+				value = xmlGetProp(option_item, (const xmlChar *)"value");
+				if (!value) {
+					ErrPrint("Invalid valid. NIL\n");
+					xmlFree(key);
+					continue;
+				}
+
+				option = calloc(1, sizeof(*option));
+				if (!option) {
+					ErrPrint("Heap: %s\n", strerror(errno));
+					xmlFree(key);
+					xmlFree(value);
+					continue;
+				}
+
+				option->key = key;
+				option->value = value;
+
+				group->option_list = dlist_append(group->option_list, option);
+			}
 		}
 
 		xmlFree(cluster_name);
@@ -1833,7 +1845,7 @@ static inline void update_pd(struct livebox *livebox, xmlNodePtr node)
 	}
 }
 
-static inline int db_insert_livebox(struct livebox *livebox, const char *pkgname)
+static inline int db_insert_livebox(struct livebox *livebox, const char *appid)
 {
 	struct dlist *l;
 	struct dlist *il;
@@ -1844,70 +1856,67 @@ static inline int db_insert_livebox(struct livebox *livebox, const char *pkgname
 	struct option *option;
 
 	begin_transaction();
-	ret = db_insert_pkgmap((char *)livebox->appid, pkgname, livebox->primary);
+	ret = db_insert_pkgmap(appid, (char *)livebox->pkgid, livebox->primary);
 	if (ret < 0)
 		goto errout;
 
-	ret = db_insert_provider((char *)livebox->appid, livebox->network, (char *)livebox->abi, livebox->secured, livebox->lb_type, (char *)livebox->lb_src, (char *)livebox->lb_group, livebox->pd_type, (char *)livebox->pd_src, (char *)livebox->pd_group, (char *)livebox->libexec, (char *)livebox->timeout, (char *)livebox->period, (char *)livebox->script, livebox->pinup);
+	ret = db_insert_provider((char *)livebox->pkgid, livebox->network, (char *)livebox->abi, livebox->secured, livebox->lb_type, (char *)livebox->lb_src, (char *)livebox->lb_group, livebox->pd_type, (char *)livebox->pd_src, (char *)livebox->pd_group, (char *)livebox->libexec, (char *)livebox->timeout, (char *)livebox->period, (char *)livebox->script, livebox->pinup);
 	if (ret < 0)
 		goto errout;
 
-	ret = db_insert_client((char *)livebox->appid, (char *)livebox->icon, (char *)livebox->name, livebox->auto_launch, (char *)livebox->pd_size);
+	ret = db_insert_client((char *)livebox->pkgid, (char *)livebox->icon, (char *)livebox->name, livebox->auto_launch, (char *)livebox->pd_size);
 	if (ret < 0)
 		goto errout;
 
 	dlist_foreach(livebox->i18n_list, l, i18n) {
-		ret = db_insert_i18n((char *)livebox->appid, (char *)i18n->lang, (char *)i18n->name, (char *)i18n->icon);
+		ret = db_insert_i18n((char *)livebox->pkgid, (char *)i18n->lang, (char *)i18n->name, (char *)i18n->icon);
 		if (ret < 0)
 			goto errout;
 	}
 
 	if (livebox->size_list & LB_SIZE_1x1) {
-		ret = db_insert_box_size((char *)livebox->appid, LB_SIZE_1x1);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_1x1);
 		if (ret < 0)
 			goto errout;
 	}
 
 	if (livebox->size_list & LB_SIZE_2x1) {
-		ret = db_insert_box_size((char *)livebox->appid, LB_SIZE_2x1);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_2x1);
 		if (ret < 0)
 			goto errout;
 	}
 
 	if (livebox->size_list & LB_SIZE_2x2) {
-		ret = db_insert_box_size((char *)livebox->appid, LB_SIZE_2x2);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_2x2);
 		if (ret < 0)
 			goto errout;
 	}
 
 	if (livebox->size_list & LB_SIZE_4x2) {
-		ret = db_insert_box_size((char *)livebox->appid, LB_SIZE_4x2);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_4x2);
 		if (ret < 0)
 			goto errout;
 	}
 
 	if (livebox->size_list & LB_SIZE_4x1) {
-		ret = db_insert_box_size((char *)livebox->appid, LB_SIZE_4x1);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_4x1);
 		if (ret < 0)
 			goto errout;
 	}
 
 	if (livebox->size_list & LB_SIZE_4x4) {
-		ret = db_insert_box_size((char *)livebox->appid, LB_SIZE_4x4);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_4x4);
 		if (ret < 0)
 			goto errout;
 	}
 
 	dlist_foreach(livebox->group_list, l, group) {
-		if (!group->ctx_item)
-			continue;
-
 		/* group ID "id" */
 		id = db_get_group_id((char *)group->cluster, (char *)group->category);
 		if (id < 0) {
 			int ret;
 			
-			ret = db_insert_group((char *)livebox->appid, (char *)group->cluster, (char *)group->category);
+			ret = db_insert_group((char *)livebox->pkgid, (char *)group->cluster, (char *)group->category);
 			if (ret < 0) {
 				ErrPrint("[%s]-[%s] is not exists\n", group->cluster, group->category);
 				continue;
@@ -1921,17 +1930,22 @@ static inline int db_insert_livebox(struct livebox *livebox, const char *pkgname
 			}
 		}
 
-		ret = db_insert_groupmap(id, (char *)livebox->appid, (char *)group->ctx_item);
+		if (!group->ctx_item) {
+			DbgPrint("%s, %s - has no ctx info\n", group->cluster, group->category);
+			continue;
+		}
+
+		ret = db_insert_groupmap(id, (char *)livebox->pkgid, (char *)group->ctx_item);
 		if (ret < 0)
 			goto errout;
 
 		/* REUSE "id" from here , option ID */
-		id = db_get_option_id(id, (char *)livebox->appid, (char *)group->ctx_item);
+		id = db_get_option_id(id, (char *)livebox->pkgid, (char *)group->ctx_item);
 		if (id < 0)
 			goto errout;
 
 		dlist_foreach(group->option_list, il, option) {
-			ret = db_insert_option((char *)livebox->appid, id, (char *)option->key, (char *)option->value);
+			ret = db_insert_option((char *)livebox->pkgid, id, (char *)option->key, (char *)option->value);
 			if (ret < 0)
 				goto errout;
 		}
@@ -1948,11 +1962,11 @@ errout:
 	return ret;
 }
 
-int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *pkgname)
+int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *appid)
 {
 	xmlNodePtr node;
 	struct livebox *livebox;
-	xmlChar *appid;
+	xmlChar *pkgid;
 	xmlChar *tmp;
 
 	if (!s_info.handle) {
@@ -1983,21 +1997,21 @@ int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *pkgname)
 		return -EINVAL;
 	}
 
-	appid = xmlGetProp(node, (const xmlChar *)"appid");
-	if (!appid || !validate_appid(pkgname, (char *)appid)) {
+	pkgid = xmlGetProp(node, (const xmlChar *)"appid");
+	if (!pkgid || !validate_pkgid(appid, (char *)pkgid)) {
 		ErrPrint("Invalid appid\n");
-		xmlFree(appid);
+		xmlFree(pkgid);
 		return -EINVAL;
 	}
 
 	livebox = calloc(1, sizeof(*livebox));
 	if (!livebox) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		xmlFree(appid);
+		xmlFree(pkgid);
 		return -ENOMEM;
 	}
 
-	livebox->appid = appid;
+	livebox->pkgid = pkgid;
 
 	if (xmlHasProp(node, (const xmlChar *)"primary")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"primary");
@@ -2064,7 +2078,7 @@ int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *pkgname)
 		char *filename;
 		int len;
 
-		len = strlen(pkgname) + strlen("/libexec/liblive-.so") + 1;
+		len = strlen((char *)livebox->pkgid) + strlen("/libexec/liblive-.so") + 1;
 
 		filename = malloc(len);
 		if (!filename) {
@@ -2072,7 +2086,7 @@ int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *pkgname)
 			return -ENOMEM;
 		}
 
-		snprintf(filename, len, "/libexec/liblive-%s.so", pkgname);
+		snprintf(filename, len, "/libexec/liblive-%s.so", livebox->pkgid);
 		livebox->libexec = xmlStrdup((xmlChar *)filename);
 		free(filename);
 
@@ -2115,7 +2129,7 @@ int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *pkgname)
 		}
 	}
 
-	return db_insert_livebox(livebox, pkgname);
+	return db_insert_livebox(livebox, appid);
 }
 
 int PKGMGR_PARSER_PLUGIN_UPGRADE(xmlDocPtr docPtr, const char *appid)
@@ -2148,10 +2162,10 @@ int PKGMGR_PARSER_PLUGIN_UPGRADE(xmlDocPtr docPtr, const char *appid)
 	return 0;
 }
 
-int PKGMGR_PARSER_PLUGIN_UNINSTALL(xmlDocPtr docPtr, const char *pkgname)
+int PKGMGR_PARSER_PLUGIN_UNINSTALL(xmlDocPtr docPtr, const char *appid)
 {
 	xmlNodePtr node;
-	xmlChar *appid;
+	xmlChar *pkgid;
 	int ret;
 
 	if (!s_info.handle) {
@@ -2182,51 +2196,51 @@ int PKGMGR_PARSER_PLUGIN_UNINSTALL(xmlDocPtr docPtr, const char *pkgname)
 		return -EINVAL;
 	}
 
-	appid = xmlGetProp(node, (const xmlChar *)"appid");
-	if (!validate_appid(pkgname, (char *)appid)) {
+	pkgid = xmlGetProp(node, (const xmlChar *)"appid");
+	if (!validate_pkgid(appid, (char *)pkgid)) {
 		ErrPrint("Invalid package\n");
-		xmlFree(appid);
+		xmlFree(pkgid);
 		return -EINVAL;
 	}
 
 	begin_transaction();
-	ret = db_remove_box_size((char *)appid);
+	ret = db_remove_box_size((char *)pkgid);
 	if (ret < 0)
 		goto errout;
 
-	ret = db_remove_i18n((char *)appid);
+	ret = db_remove_i18n((char *)pkgid);
 	if (ret < 0)
 		goto errout;
 
-	ret = db_remove_client((char *)appid);
+	ret = db_remove_client((char *)pkgid);
 	if (ret < 0)
 		goto errout;
 
-	ret = db_remove_provider((char *)appid);
+	ret = db_remove_provider((char *)pkgid);
 	if (ret < 0)
 		goto errout;
 
-	ret = db_remove_option((char *)appid);
+	ret = db_remove_option((char *)pkgid);
 	DbgPrint("Remove option: %d\n", ret);
 
-	ret = db_remove_groupmap((char *)appid);
+	ret = db_remove_groupmap((char *)pkgid);
 	DbgPrint("Remove groupmap: %d\n", ret);
 
-	ret = db_remove_group((char *)appid);
+	ret = db_remove_group((char *)pkgid);
 	if (ret < 0)
 		goto errout;
 
-	ret = db_remove_pkgmap((char *)appid);
+	ret = db_remove_pkgmap((char *)pkgid);
 	if (ret < 0)
 		goto errout;
 
 	commit_transaction();
-	xmlFree(appid);
+	xmlFree(pkgid);
 	return 0;
 
 errout:
 	rollback_transaction();
-	xmlFree(appid);
+	xmlFree(pkgid);
 	return ret;
 }
 
