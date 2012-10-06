@@ -13,6 +13,11 @@ enum pd_type {
 	PD_TYPE_BUFFER,
 };
 
+enum alter_type {
+	ALTER_CREATE,
+	ALTER_DESTROY,
+};
+
 struct pkg_info;
 struct inst_info;
 
@@ -89,7 +94,7 @@ extern int package_del_instance(struct pkg_info *info, struct inst_info *inst);
 extern Eina_List *package_instance_list(struct pkg_info *info);
 
 extern int package_clear_fault(struct pkg_info *info);
-extern int package_alter_instances_to_client(struct client_node *client);
+extern int package_alter_instances_to_client(struct client_node *client, enum alter_type alter);
 
 extern const Eina_List *package_list(void);
 extern int const package_fault_count(struct pkg_info *info);

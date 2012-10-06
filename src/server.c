@@ -43,6 +43,11 @@ enum target_type {
 	TYPE_ERROR,
 };
 
+struct deleted_item {
+	struct client_node *client;
+	struct inst_info *inst;
+};
+
 static struct packet *client_acquire(pid_t pid, int handle, const struct packet *packet) /*!< timestamp, ret */
 {
 	struct client_node *client;
@@ -210,6 +215,27 @@ out:
 	return result;
 }
 
+static Eina_Bool lazy_delete_cb(void *data)
+{
+	struct deleted_item *item = data;
+
+	DbgPrint("Send delete event to the client\n");
+
+	/*!
+	 * Before invoke this callback, the instance is able to already remove this client
+	 * So check it again
+	 */
+	if (instance_has_client(item->inst, item->client)) {
+		instance_unicast_deleted_event(item->inst, item->client);
+		instance_del_client(item->inst, item->client);
+	}
+
+	client_unref(item->client);
+	instance_unref(item->inst);
+	free(item);
+	return ECORE_CALLBACK_CANCEL;
+}
+
 static struct packet *client_delete(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, ret */
 {
 	struct client_node *client;
@@ -242,6 +268,39 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 		ret = -ENOENT;
 	} else if (package_is_fault(instance_package(inst))) {
 		ret = -EFAULT;
+	} else if (instance_client(inst) != client) {
+		if (instance_has_client(inst, client)) {
+			struct deleted_item *item;
+
+			item = malloc(sizeof(*item));
+			if (!item) {
+				ErrPrint("Heap: %s\n", strerror(errno));
+				ret = -ENOMEM;
+			} else {
+				ret = 0;
+				/*!
+				 * \NOTE:
+				 * Send DELETED EVENT to the client.
+				 * after return from this function.
+				 *
+				 * Client will prepare the deleted event after get this function's return value.
+				 * So We have to make a delay to send a deleted event.
+				 */
+
+				item->client = client_ref(client);
+				item->inst = instance_ref(inst);
+
+				if (!ecore_timer_add(0.0000001f, lazy_delete_cb, item)) {
+					ErrPrint("Failed to add a delayzed delete callback\n");
+					client_unref(client);
+					instance_unref(inst);
+					free(item);
+					ret = -EFAULT;
+				}
+			}
+		} else {
+			ret = -EPERM;
+		}
 	} else {
 		ret = instance_destroy(inst);
 	}
@@ -284,12 +343,15 @@ static struct packet *client_resize(pid_t pid, int handle, const struct packet *
 	DbgPrint("pkgname[%s] id[%s] w[%d] h[%d]\n", pkgname, id, w, h);
 
 	inst = package_find_instance_by_id(pkgname, id);
-	if (!inst)
+	if (!inst) {
 		ret = -ENOENT;
-	else if (package_is_fault(instance_package(inst)))
+	} else if (package_is_fault(instance_package(inst))) {
 		ret = -EFAULT;
-	else
+	} else if (instance_client(inst) != client) {
+		ret = -EPERM;
+	} else {
 		ret = instance_resize(inst, w, h);
+	}
 
 out:
 	result = packet_create_reply(packet, "i", ret);
@@ -328,7 +390,8 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		goto out;
 	}
 
-	DbgPrint("period[%lf] pkgname[%s] content[%s] cluster[%s] category[%s] period[%lf]\n", timestamp, pkgname, content, cluster, category, period);
+	DbgPrint("period[%lf] pkgname[%s] content[%s] cluster[%s] category[%s] period[%lf]\n",
+						timestamp, pkgname, content, cluster, category, period);
 
 	info = package_find(pkgname);
 	if (!info)
@@ -398,6 +461,8 @@ static struct packet *client_change_visibility(pid_t pid, int handle, const stru
 		ret = -ENOENT;
 	} else if (package_is_fault(instance_package(inst))) {
 		ret = -EFAULT;
+	} else if (instance_client(inst) != client) {
+		ret = -EPERM;
 	} else {
 		ret = instance_set_visible_state(inst, state);
 	}
@@ -436,12 +501,15 @@ static struct packet *client_set_period(pid_t pid, int handle, const struct pack
 	DbgPrint("pkgname[%s] id[%s] period[%lf]\n", pkgname, id, period);
 
 	inst = package_find_instance_by_id(pkgname, id);
-	if (!inst)
+	if (!inst) {
 		ret = -ENOENT;
-	else if (package_is_fault(instance_package(inst)))
+	} else if (package_is_fault(instance_package(inst))) {
 		ret = -EFAULT;
-	else
+	} else if (instance_client(inst) != client) {
+		ret = -EPERM;
+	} else {
 		ret = instance_set_period(inst, period);
+	}
 
 out:
 	result = packet_create_reply(packet, "i", ret);
@@ -481,12 +549,15 @@ static struct packet *client_change_group(pid_t pid, int handle, const struct pa
 	DbgPrint("pkgname[%s] id[%s] cluster[%s] category[%s]\n", pkgname, id, cluster, category);
 
 	inst = package_find_instance_by_id(pkgname, id);
-	if (!inst)
+	if (!inst) {
 		ret = -ENOENT;
-	else if (package_is_fault(instance_package(inst)))
+	} else if (package_is_fault(instance_package(inst))) {
 		ret = -EFAULT;
-	else
+	} else if (instance_client(inst) != client) {
+		ret = -EPERM;
+	} else {
 		ret = instance_change_group(inst, cluster, category);
+	}
 
 out:
 	result = packet_create_reply(packet, "i", ret);
@@ -2148,7 +2219,7 @@ static struct packet *client_subscribed(pid_t pid, int handle, const struct pack
 
 	ret = packet_get(packet, "ss", &cluster, &category);
 	if (ret != 2) {
-		ErrPrint("Client %d is not exists\n", pid);
+		ErrPrint("Invalid argument\n");
 		ret = -EINVAL;
 		goto out;
 	}
@@ -2160,9 +2231,8 @@ static struct packet *client_subscribed(pid_t pid, int handle, const struct pack
 	 * SUBSCRIBE cluster & sub-cluster for a client.
 	 */
 	ret = client_subscribe(client, cluster, category);
-
 	if (ret == 0)
-		package_alter_instances_to_client(client);
+		package_alter_instances_to_client(client, ALTER_CREATE);
 
 out:
 	/*! \note No reply packet */
@@ -2347,7 +2417,7 @@ static struct packet *client_unsubscribed(pid_t pid, int handle, const struct pa
 
 	ret = packet_get(packet, "ss", &cluster, &category);
 	if (ret != 2) {
-		ErrPrint("Invalid paramenters\n");
+		ErrPrint("Invalid argument\n");
 		ret = -EINVAL;
 		goto out;
 	}
@@ -2359,6 +2429,8 @@ static struct packet *client_unsubscribed(pid_t pid, int handle, const struct pa
 	 * UNSUBSCRIBE cluster & sub-cluster for a client.
 	 */
 	ret = client_unsubscribe(client, cluster, category);
+	if (ret == 0)
+		package_alter_instances_to_client(client, ALTER_DESTROY);
 
 out:
 	/*! \note No reply packet */

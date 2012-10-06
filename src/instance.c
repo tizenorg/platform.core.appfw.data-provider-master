@@ -96,10 +96,11 @@ struct inst_info {
 	int timeout;
 	double period;
 
-	struct client_node *client;
+	struct client_node *client; /*!< Owner - creator */
+	Eina_List *client_list; /*!< Viewer list */
 	int refcnt;
 
-	Ecore_Timer *update_timer; /* Only used for secured livebox */
+	Ecore_Timer *update_timer; /*!< Only used for secured livebox */
 };
 
 #define CLIENT_SEND_EVENT(instance, packet)	((instance)->client ? client_rpc_async_request((instance)->client, (packet)) : client_rpc_broadcast((instance), (packet)))
@@ -258,12 +259,15 @@ int instance_broadcast_created_event(struct inst_info *inst)
 	return CLIENT_SEND_EVENT(inst, packet);
 }
 
-int instance_unicast_deleted_event(struct inst_info *inst)
+int instance_unicast_deleted_event(struct inst_info *inst, struct client_node *client)
 {
 	struct packet *packet;
 
-	if (!inst->client)
-		return -EINVAL;
+	if (!client) {
+		client = inst->client;
+		if (!client)
+			return -EINVAL;
+	}
 
 	packet = packet_create_noack("deleted", "ssd", package_name(inst->info), inst->id, inst->timestamp);
 	if (!packet) {
@@ -271,7 +275,7 @@ int instance_unicast_deleted_event(struct inst_info *inst)
 		return -EFAULT;
 	}
 		
-	return client_rpc_async_request(inst->client, packet);
+	return client_rpc_async_request(client, packet);
 }
 
 int instance_broadcast_deleted_event(struct inst_info *inst)
@@ -837,7 +841,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 
 		switch (inst->requested_state) {
 		case INST_DESTROYED:
-			instance_unicast_deleted_event(inst);
+			instance_unicast_deleted_event(inst, NULL);
 			instance_state_reset(inst);
 			instance_destroy(inst);
 			break;
@@ -892,7 +896,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 		break;
 	default:
 		DbgPrint("[%s] instance destroying ret(%d)\n", package_name(inst->info), ret);
-		instance_unicast_deleted_event(inst);
+		instance_unicast_deleted_event(inst, NULL);
 		instance_state_reset(inst);
 		instance_destroy(inst);
 		break;
@@ -976,7 +980,7 @@ int instance_destroyed(struct inst_info *inst)
 		 * only who added this knows it.
 		 * So send deleted event to only it.
 		 */
-		instance_unicast_deleted_event(inst);
+		instance_unicast_deleted_event(inst, NULL);
 		instance_state_reset(inst);
 		inst->state = INST_DESTROYED;
 		inst->requested_state = INST_DESTROYED;
@@ -1905,7 +1909,7 @@ void instance_faulted(struct inst_info *inst)
 	switch (inst->state) {
 	case INST_INIT:
 	case INST_REQUEST_TO_ACTIVATE:
-		instance_unicast_deleted_event(inst);
+		instance_unicast_deleted_event(inst, NULL);
 		instance_state_reset(inst);
 		instance_destroy(inst);
 		break;
@@ -2187,6 +2191,42 @@ int instance_client_pd_destroyed(struct inst_info *inst, int status)
 	inst->pd.need_to_send_close_event = 0;
 
 	return send_pd_destroyed_to_client(inst, status);
+}
+
+static int viewer_deactivated_cb(struct client_node *client, void *data)
+{
+	struct inst_info *inst = data;
+	inst->client_list = eina_list_remove(inst->client_list, client);
+	return -1; /*!< Remove this callback from the cb list */
+}
+
+int instance_add_client(struct inst_info *inst, struct client_node *client)
+{
+	inst->client_list = eina_list_append(inst->client_list, client);
+	client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, viewer_deactivated_cb, inst);
+	return 0;
+}
+
+int instance_del_client(struct inst_info *inst, struct client_node *client)
+{
+	if (!eina_list_data_find(inst->client_list, client)) {
+		DbgPrint("Client(%p) is not registered as a viewer of this instance(%p)\n", client, inst);
+		return -ENOENT;
+	}
+
+	client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, viewer_deactivated_cb, inst);
+	inst->client_list = eina_list_remove(inst->client_list, client);
+	return 0;
+}
+
+int instance_has_client(struct inst_info *inst, struct client_node *client)
+{
+	return !!eina_list_data_find(inst->client_list, client);
+}
+
+void *instance_client_list(struct inst_info *inst)
+{
+	return inst->client_list;
 }
 
 /* End of a file */

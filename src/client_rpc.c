@@ -177,9 +177,10 @@ int client_rpc_async_request(struct client_node *client, struct packet *packet)
 int client_rpc_broadcast(struct inst_info *inst, struct packet *packet)
 {
 	Eina_List *l;
-	struct client_rpc *rpc;
 
 	if (!inst) {
+		struct client_rpc *rpc;
+
 		EINA_LIST_FOREACH(s_info.rpc_list, l, rpc) {
 			if (!rpc->client)
 				continue;
@@ -192,25 +193,17 @@ int client_rpc_broadcast(struct inst_info *inst, struct packet *packet)
 			(void)client_rpc_async_request(rpc->client, packet_ref(packet));
 		}
 	} else {
-		EINA_LIST_FOREACH(s_info.rpc_list, l, rpc) {
-			if (!rpc->client)
-				continue;
+		struct client_node *client;
+		Eina_List *list;
 
-			if (client_pid(rpc->client) < 0) {
-				ErrPrint("Client[%p] has PID[%d]\n", rpc->client, client_pid(rpc->client));
-				continue;
-			}
-
-			if (instance_client(inst) == rpc->client) {
-				DbgPrint("Send packet to %d\n", client_pid(rpc->client));
-				(void)client_rpc_async_request(rpc->client, packet_ref(packet));
+		list = instance_client_list(inst);
+		EINA_LIST_FOREACH(list, l, client) {
+			if (client_pid(client) < 0) {
+				ErrPrint("Client[%p] has PID[%d]\n", client, client_pid(client));
 				continue;
 			}
 
-			if (!client_is_subscribed(rpc->client, instance_cluster(inst), instance_category(inst)))
-				continue;
-
-			(void)client_rpc_async_request(rpc->client, packet_ref(packet));
+			(void)client_rpc_async_request(client, packet_ref(packet));
 		}
 	}
 

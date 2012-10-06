@@ -168,7 +168,7 @@ extern const enum instance_state const instance_state(const struct inst_info *in
 extern int instance_unicast_created_event(struct inst_info *inst, struct client_node *client);
 extern int instance_broadcast_created_event(struct inst_info *inst);
 extern int instance_broadcast_deleted_event(struct inst_info *inst);
-extern int instance_unicast_deleted_event(struct inst_info *inst);
+extern int instance_unicast_deleted_event(struct inst_info *inst, struct client_node *client);
 
 extern int instance_create_lb_buffer(struct inst_info *inst);
 extern int instance_create_pd_buffer(struct inst_info *inst);
@@ -178,5 +178,13 @@ extern int instance_slave_close_pd(struct inst_info *inst);
 
 extern int instance_freeze_updator(struct inst_info *inst);
 extern int instance_thaw_updator(struct inst_info *inst);
+
+/*!
+ * Multiple viewer
+ */
+extern int instance_add_client(struct inst_info *inst, struct client_node *client);
+extern int instance_del_client(struct inst_info *inst, struct client_node *client);
+extern int instance_has_client(struct inst_info *inst, struct client_node *client);
+extern void *instance_client_list(struct inst_info *inst);
 
 /* End of a file */
