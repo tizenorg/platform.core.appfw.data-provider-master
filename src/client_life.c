@@ -613,4 +613,23 @@ int client_is_subscribed(struct client_node *client, const char *cluster, const 
 	return 0;
 }
 
+int client_browse_list(const char *cluster, const char *category, int (*cb)(struct client_node *client, void *data), void *data)
+{
+	Eina_List *l;
+	struct client_node *client;
+
+	EINA_LIST_FOREACH(s_info.client_list, l, client) {
+		if (!client_is_subscribed(client, cluster, category))
+			continue;
+
+		if (cb) {
+			if (cb(client, data) < 0)
+				return -ECANCELED;
+		}
+	}
+
+	return 0;
+	
+}
+
 /* End of a file */

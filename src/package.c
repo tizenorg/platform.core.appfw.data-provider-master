@@ -1065,13 +1065,15 @@ int package_alter_instances_to_client(struct client_node *client, enum alter_typ
 
 	EINA_LIST_FOREACH(s_info.pkg_list, l, info) {
 		EINA_LIST_FOREACH(info->inst_list, i_l, inst) {
-			if (instance_client(inst) == client) {
-				DbgPrint("Instance owner, skip altering\n");
+			if (instance_client(inst))
 				continue;
-			}
+
+			if (!client_is_subscribed(client, instance_cluster(inst), instance_category(inst)))
+				continue;
 
 			switch (instance_state(inst)) {
 			case INST_INIT:
+			case INST_REQUEST_TO_ACTIVATE:
 				/* Will be send a created event after the instance gets created event */
 				switch (alter) {
 				case ALTER_CREATE:
@@ -1087,28 +1089,24 @@ int package_alter_instances_to_client(struct client_node *client, enum alter_typ
 			case INST_ACTIVATED: /*!< This instance is actiavted, and used */
 			case INST_REQUEST_TO_REACTIVATE: /*!< This instance will be reactivated soon */
 			case INST_REQUEST_TO_DESTROY: /*!< This instance will be destroy soon */
-				if (instance_client(inst) == NULL) {
-					/*!
-					 * \note
-					 * Instances are lives in the system cluster/sub-cluster
-					 */
-					if (client_is_subscribed(client, instance_cluster(inst), instance_category(inst))) {
-						switch (alter) {
-						case ALTER_CREATE:
-							instance_unicast_created_event(inst, client);
-							instance_add_client(inst, client);
-							DbgPrint("(Subscribed) Created package: %s\n", info->pkgname);
-							break;
-						case ALTER_DESTROY:
-							if (instance_has_client(inst, client)) {
-								instance_unicast_deleted_event(inst, client);
-								instance_del_client(inst, client);
-							}
-							break;
-						default:
-							break;
-						}
+				/*!
+				 * \note
+				 * Instances are lives in the system cluster/sub-cluster
+				 */
+				switch (alter) {
+				case ALTER_CREATE:
+					instance_unicast_created_event(inst, client);
+					instance_add_client(inst, client);
+					DbgPrint("(Subscribed) Created package: %s\n", info->pkgname);
+					break;
+				case ALTER_DESTROY:
+					if (instance_has_client(inst, client)) {
+						instance_unicast_deleted_event(inst, client);
+						instance_del_client(inst, client);
 					}
+					break;
+				default:
+					break;
 				}
 
 				break;

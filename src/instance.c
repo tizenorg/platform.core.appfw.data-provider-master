@@ -105,6 +105,26 @@ struct inst_info {
 
 #define CLIENT_SEND_EVENT(instance, packet)	((instance)->client ? client_rpc_async_request((instance)->client, (packet)) : client_rpc_broadcast((instance), (packet)))
 
+static int viewer_deactivated_cb(struct client_node *client, void *data)
+{
+	struct inst_info *inst = data;
+
+	DbgPrint("%d is deleted from the list of viewer of %s(%s)\n", client_pid(client), package_name(instance_package(inst)), instance_id(inst));
+	if (!eina_list_data_find(inst->client_list, client)) {
+		DbgPrint("Not found\n");
+		return -ENOENT;
+	}
+
+	inst->client_list = eina_list_remove(inst->client_list, client);
+	if (!inst->client_list && !inst->client) {
+		DbgPrint("Has no clients\n");
+		instance_destroy(inst);
+	}
+
+	instance_unref(inst);
+	return -1; /*!< Remove this callback from the cb list */
+}
+
 static inline int pause_livebox(struct inst_info *inst)
 {
 	struct packet *packet;
@@ -211,7 +231,14 @@ int instance_unicast_created_event(struct inst_info *inst, struct client_node *c
 	return client_rpc_async_request(client, packet);
 }
 
-int instance_broadcast_created_event(struct inst_info *inst)
+static int update_client_list(struct client_node *client, void *data)
+{
+	struct inst_info *inst = data;
+	instance_add_client(inst, client);
+	return 0;
+}
+
+static int instance_broadcast_created_event(struct inst_info *inst)
 {
 	struct packet *packet;
 	enum lb_type lb_type;
@@ -235,6 +262,9 @@ int instance_broadcast_created_event(struct inst_info *inst)
 		pd_file = buffer_handler_id(inst->pd.canvas.buffer);
 	else
 		pd_file = "";
+
+	if (!inst->client)
+		client_browse_list(inst->cluster, inst->category, update_client_list, inst);
 
 	packet = packet_create_noack("created", "dsssiiiissssidiiiiidsi", 
 			inst->timestamp,
@@ -278,9 +308,11 @@ int instance_unicast_deleted_event(struct inst_info *inst, struct client_node *c
 	return client_rpc_async_request(client, packet);
 }
 
-int instance_broadcast_deleted_event(struct inst_info *inst)
+static int instance_broadcast_deleted_event(struct inst_info *inst)
 {
 	struct packet *packet;
+	struct client_node *client;
+	int ret;
 
 	packet = packet_create_noack("deleted", "ssd", package_name(inst->info), inst->id, inst->timestamp);
 	if (!packet) {
@@ -288,7 +320,14 @@ int instance_broadcast_deleted_event(struct inst_info *inst)
 		return -EFAULT;
 	}
 		
-	return CLIENT_SEND_EVENT(inst, packet);
+	ret = CLIENT_SEND_EVENT(inst, packet);
+
+	EINA_LIST_FREE(inst->client_list, client) {
+		client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, viewer_deactivated_cb, inst);
+		instance_unref(inst);
+	}
+
+	return ret;
 }
 
 static int client_deactivated_cb(struct client_node *client, void *data)
@@ -500,7 +539,7 @@ struct inst_info *instance_create(struct client_node *client, double timestamp, 
 	return inst;
 }
 
-struct inst_info * instance_ref(struct inst_info *inst)
+struct inst_info *instance_ref(struct inst_info *inst)
 {
 	if (!inst)
 		return NULL;
@@ -2193,29 +2232,23 @@ int instance_client_pd_destroyed(struct inst_info *inst, int status)
 	return send_pd_destroyed_to_client(inst, status);
 }
 
-static int viewer_deactivated_cb(struct client_node *client, void *data)
-{
-	struct inst_info *inst = data;
-	inst->client_list = eina_list_remove(inst->client_list, client);
-	return -1; /*!< Remove this callback from the cb list */
-}
-
 int instance_add_client(struct inst_info *inst, struct client_node *client)
 {
+	DbgPrint("%d is added to the list of viewer of %s(%s)\n", client_pid(client), package_name(instance_package(inst)), instance_id(inst));
+	if (client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, viewer_deactivated_cb, inst) < 0) {
+		ErrPrint("Failed to add a deactivate callback\n");
+		return -EFAULT;
+	}
+
+	instance_ref(inst);
 	inst->client_list = eina_list_append(inst->client_list, client);
-	client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, viewer_deactivated_cb, inst);
 	return 0;
 }
 
 int instance_del_client(struct inst_info *inst, struct client_node *client)
 {
-	if (!eina_list_data_find(inst->client_list, client)) {
-		DbgPrint("Client(%p) is not registered as a viewer of this instance(%p)\n", client, inst);
-		return -ENOENT;
-	}
-
 	client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, viewer_deactivated_cb, inst);
-	inst->client_list = eina_list_remove(inst->client_list, client);
+	viewer_deactivated_cb(client, inst);
 	return 0;
 }
 

@@ -2208,8 +2208,6 @@ static struct packet *client_subscribed(pid_t pid, int handle, const struct pack
 	struct client_node *client;
 	int ret;
 
-	DbgPrint("Client[%d] request arrived\n", pid);
-
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -2224,7 +2222,7 @@ static struct packet *client_subscribed(pid_t pid, int handle, const struct pack
 		goto out;
 	}
 
-	DbgPrint("cluster[%s] category[%s]\n", cluster, category);
+	DbgPrint("[%d] cluster[%s] category[%s]\n", pid, cluster, category);
 
 	/*!
 	 * \todo
@@ -2319,8 +2317,6 @@ static struct packet *client_refresh_group(pid_t pid, int handle, const struct p
 	Eina_List *info_list;
 	Eina_List *l;
 
-	DbgPrint("Client[%d] request arrived\n", pid);
-
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Cilent %d is not exists\n", pid);
@@ -2335,7 +2331,7 @@ static struct packet *client_refresh_group(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
-	DbgPrint("cluster[%s] category[%s]\n", cluster_id, category_id);
+	DbgPrint("[%d] cluster[%s] category[%s]\n", pid, cluster_id, category_id);
 
 	cluster = group_find_cluster(cluster_id);
 	if (!cluster) {
@@ -2406,8 +2402,6 @@ static struct packet *client_unsubscribed(pid_t pid, int handle, const struct pa
 	struct client_node *client;
 	int ret;
 
-	DbgPrint("Client[%d] request arrived\n", pid);
-
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
@@ -2422,7 +2416,7 @@ static struct packet *client_unsubscribed(pid_t pid, int handle, const struct pa
 		goto out;
 	}
 
-	DbgPrint("cluster[%s] category[%s]\n", cluster, category);
+	DbgPrint("[%d] cluster[%s] category[%s]\n", pid, cluster, category);
 
 	/*!
 	 * \todo
