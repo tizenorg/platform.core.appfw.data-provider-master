@@ -233,7 +233,7 @@ static inline void *acquire_gem(struct buffer *buffer)
 
 	gem->refcnt++;
 
-	DbgPrint("gem->data %p is gotten\n", gem->data);
+	DbgPrint("gem->data %p is gotten (%d)\n", gem->data, gem->refcnt);
 	return gem->data;
 }
 
@@ -421,8 +421,6 @@ static inline int load_pixmap_buffer(struct buffer_info *info)
 		return -EFAULT;
 	}
 
-	DbgPrint("Make a reference of a Pixmap is ok\n");
-
 	len = strlen(SCHEMA_PIXMAP) + 30; /* strlen("pixmap://") + 30 */
 	new_id = malloc(len);
 	if (!new_id) {
@@ -432,7 +430,7 @@ static inline int load_pixmap_buffer(struct buffer_info *info)
 		return -ENOMEM;
 	}
 
-	DbgPrint("Releaseo old id\n");
+	DbgPrint("Releaseo old id (%s)\n", info->id);
 	free(info->id);
 	info->id = new_id;
 
@@ -791,7 +789,7 @@ void *buffer_handler_pixmap_find(int pixmap)
 	EINA_LIST_FOREACH_SAFE(s_info.pixmap_list, l, n, buffer) {
 		if (!buffer || buffer->state != CREATED || buffer->type != BUFFER_TYPE_PIXMAP) {
 			s_info.pixmap_list = eina_list_remove(s_info.pixmap_list, buffer);
-			DbgPrint("Invalid buffer\n");
+			DbgPrint("Invalid buffer (List Removed: %p)\n", buffer);
 			continue;
 		}
 
@@ -817,18 +815,14 @@ int buffer_handler_pixmap_release_buffer(void *canvas)
 	EINA_LIST_FOREACH_SAFE(s_info.pixmap_list, l, n, buffer) {
 		if (!buffer || buffer->state != CREATED || buffer->type != BUFFER_TYPE_PIXMAP) {
 			s_info.pixmap_list = eina_list_remove(s_info.pixmap_list, buffer);
-			DbgPrint("Invalid buffer\n");
 			continue;
 		}
 
 		gem = (struct gem_data *)buffer->data;
 		_ptr = gem->data;
 
-		if (!_ptr) {
-			s_info.pixmap_list = eina_list_remove(s_info.pixmap_list, buffer);
-			DbgPrint("Invalid buffer (NIL)\n");
+		if (!_ptr)
 			continue;
-		}
 		
 		if (_ptr == canvas) {
 			release_gem(buffer);
@@ -954,8 +948,6 @@ void buffer_handler_flush(struct buffer_info *info)
 		XDamageAdd(ecore_x_display_get(), buffer_handler_pixmap(info), region);
 		XFixesDestroyRegion(ecore_x_display_get(), region);
 		XFlush(ecore_x_display_get());
-		DbgPrint("PIXMAP: Generate the damage event (%dx%d)-(%dx%d)\n",
-						rect.x, rect.y, rect.width, rect.height);
 	} else if (buffer->type == BUFFER_TYPE_FILE) {
 		fd = open(util_uri_to_path(info->id), O_WRONLY | O_CREAT, 0644);
 		if (fd < 0) {
