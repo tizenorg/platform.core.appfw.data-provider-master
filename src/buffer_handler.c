@@ -187,8 +187,6 @@ static inline struct buffer *create_gem(Display *disp, Window parent, int w, int
 	DbgPrint("DRI2CreateDrawable is done\n");
 	gem->dri2_buffer = DRI2GetBuffers(disp, gem->pixmap,
 					&gem->w, &gem->h, gem->attachments, gem->count, &gem->buf_count);
-	DbgPrint("dri2_buffer: %p, name: %p, %dx%d (%dx%d)\n", gem->dri2_buffer, gem->dri2_buffer->name, gem->w, gem->h, w, h);
-	DbgPrint("dri2_buffer->pitch : %d, buf_count: %d\n", gem->dri2_buffer->pitch, gem->buf_count);
 	if (!gem->dri2_buffer || !gem->dri2_buffer->name) {
 		ErrPrint("Failed to get GemBuffer\n");
 		XFreePixmap(disp, gem->pixmap);
@@ -196,6 +194,10 @@ static inline struct buffer *create_gem(Display *disp, Window parent, int w, int
 		free(buffer);
 		return NULL;
 	}
+	DbgPrint("dri2_buffer: %p, name: %p, %dx%d (%dx%d)\n",
+				gem->dri2_buffer, gem->dri2_buffer->name, gem->w, gem->h, w, h);
+	DbgPrint("dri2_buffer->pitch : %d, buf_count: %d\n",
+				gem->dri2_buffer->pitch, gem->buf_count);
 
 	/*!
 	 * \How can I destroy this?
@@ -992,10 +994,12 @@ int buffer_handler_init(void)
 		return 0;
 	}
 
-	DbgPrint("Open: %s", deviceName);
+	DbgPrint("Open: %s (driver: %s)", deviceName, driverName);
 	s_info.fd = open(deviceName, O_RDWR);
+	free(deviceName);
+	free(driverName);
 	if (s_info.fd < 0) {
-		DbgPrint("Failed to open a drm device: %s (%s)\n", deviceName, strerror(errno));
+		DbgPrint("Failed to open a drm device: (%s)\n", strerror(errno));
 		s_info.evt_base = 0;
 		s_info.err_base = 0;
 		return 0;

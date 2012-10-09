@@ -435,8 +435,16 @@ struct pkg_info *package_find(const char *pkgname)
 		return NULL;
 
 	lb_pkgname = io_livebox_pkgname(pkgname);
-	if (!lb_pkgname)
-		return NULL;
+	if (!lb_pkgname) {
+		if (util_validate_livebox_package(pkgname) < 0)
+			return NULL;
+
+		lb_pkgname = strdup(pkgname);
+		if (!lb_pkgname) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			return NULL;
+		}
+	}
 
 	EINA_LIST_FOREACH(s_info.pkg_list, l, info) {
 		if (!strcmp(info->pkgname, lb_pkgname)) {

@@ -295,7 +295,6 @@ static inline int build_provider_info(struct pkg_info *info)
 		package_set_abi(info, tmp);
 
 	package_set_lb_type(info, sqlite3_column_int(stmt, 3));
-
 	tmp = (const char *)sqlite3_column_text(stmt, 4);
 	if (tmp && strlen(tmp)) {
 		pathlen = strlen("/opt/apps//") + strlen(appid) + strlen(tmp) + 1;
@@ -318,6 +317,7 @@ static inline int build_provider_info(struct pkg_info *info)
 			package_set_lb_group(info, tmp);
 	}
 
+	package_set_pd_type(info, sqlite3_column_int(stmt, 6));
 	tmp = (const char *)sqlite3_column_text(stmt, 7);
 	if (tmp && strlen(tmp)) {
 		pathlen = strlen("/opt/apps//") + strlen(appid) + strlen(tmp) + 1;
@@ -343,7 +343,6 @@ static inline int build_provider_info(struct pkg_info *info)
 	if (tmp && strlen(tmp))
 		package_set_libexec(info, tmp);
 
-	package_set_pd_type(info, sqlite3_column_int(stmt, 6));
 	package_set_timeout(info, sqlite3_column_int(stmt, 10));
 
 	tmp = (const char *)sqlite3_column_text(stmt, 11);

@@ -415,6 +415,7 @@ static Eina_Bool update_timer_cb(void *data)
 static inline int fork_package(struct inst_info *inst, const char *pkgname)
 {
 	struct pkg_info *info;
+	int len;
 
 	info = package_find(pkgname);
 	if (!info) {
@@ -422,6 +423,14 @@ static inline int fork_package(struct inst_info *inst, const char *pkgname)
 		return -ENOENT;
 	}
 
+	len = strlen(SCHEMA_FILE "%s%s_%d_%lf.png") + strlen(IMAGE_PATH) + strlen(package_name(info)) + 50;
+	inst->id = malloc(len);
+	if (!inst->id) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
+	snprintf(inst->id, len, SCHEMA_FILE "%s%s_%d_%lf.png", IMAGE_PATH, package_name(info), client_pid(inst->client), inst->timestamp);
 	inst->lb.auto_launch = package_auto_launch(info);
 
 	inst->pd.width = package_pd_width(info);
@@ -433,7 +442,7 @@ static inline int fork_package(struct inst_info *inst, const char *pkgname)
 	inst->info = info;
 
 	if (package_secured(info)) {
-		DbgPrint("Register the update timer for secured livebox [%s]\n", pkgname);
+		DbgPrint("Register the update timer for secured livebox [%s]\n", package_name(info));
 		inst->update_timer = ecore_timer_add(inst->period, update_timer_cb, inst);
 		if (!inst->update_timer)
 			ErrPrint("Failed to add an update timer for instance %s\n", inst->id);
@@ -447,7 +456,6 @@ static inline int fork_package(struct inst_info *inst, const char *pkgname)
 struct inst_info *instance_create(struct client_node *client, double timestamp, const char *pkgname, const char *content, const char *cluster, const char *category, double period)
 {
 	struct inst_info *inst;
-	char id[BUFSIZ];
 
 	inst = calloc(1, sizeof(*inst));
 	if (!inst) {
@@ -457,18 +465,9 @@ struct inst_info *instance_create(struct client_node *client, double timestamp, 
 
 	inst->timestamp = timestamp;
 
-	snprintf(id, sizeof(id), SCHEMA_FILE "%s%s_%d_%lf.png", IMAGE_PATH, pkgname, client_pid(client), inst->timestamp);
-	inst->id = strdup(id);
-	if (!inst->id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		free(inst);
-		return NULL;
-	}
-
 	inst->content = strdup(content);
 	if (!inst->content) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(inst->id);
 		free(inst);
 		return NULL;
 	}
@@ -477,7 +476,6 @@ struct inst_info *instance_create(struct client_node *client, double timestamp, 
 	if (!inst->cluster) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		free(inst->content);
-		free(inst->id);
 		free(inst);
 		return NULL;
 	}
@@ -487,7 +485,6 @@ struct inst_info *instance_create(struct client_node *client, double timestamp, 
 		ErrPrint("Heap: %s\n", strerror(errno));
 		free(inst->cluster);
 		free(inst->content);
-		free(inst->id);
 		free(inst);
 		return NULL;
 	}
@@ -498,17 +495,6 @@ struct inst_info *instance_create(struct client_node *client, double timestamp, 
 		free(inst->category);
 		free(inst->cluster);
 		free(inst->content);
-		free(inst->id);
-		free(inst);
-		return NULL;
-	}
-
-	if (fork_package(inst, pkgname) < 0) {
-		free(inst->title);
-		free(inst->category);
-		free(inst->cluster);
-		free(inst->content);
-		free(inst->id);
 		free(inst);
 		return NULL;
 	}
@@ -516,6 +502,17 @@ struct inst_info *instance_create(struct client_node *client, double timestamp, 
 	if (client) {
 		inst->client = client_ref(client);
 		client_event_callback_add(inst->client, CLIENT_EVENT_DEACTIVATE, client_deactivated_cb, inst);
+	}
+
+	if (fork_package(inst, pkgname) < 0) {
+		client_event_callback_del(inst->client, CLIENT_EVENT_DEACTIVATE, client_deactivated_cb, inst);
+		client_unref(inst->client);
+		free(inst->title);
+		free(inst->category);
+		free(inst->cluster);
+		free(inst->content);
+		free(inst);
+		return NULL;
 	}
 
 	inst->state = INST_INIT;

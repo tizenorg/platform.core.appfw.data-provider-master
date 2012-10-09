@@ -315,6 +315,8 @@ struct script_info *script_handler_create(struct inst_info *inst, const char *fi
 	enum buffer_type type;
 	const char *env_type;
 
+	DbgPrint("Create script: %s (%s)\n", file, group);
+
 	if (!file)
 		return NULL;
 
