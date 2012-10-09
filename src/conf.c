@@ -101,7 +101,7 @@ struct conf g_conf = {
 	.quality = "quality=100 compress=1",
 	.error = "/opt/apps/com.samsung."PACKAGE"/res/images/error.png",
 	.ping_time = 240.0f,
-	.slave_max_load = 10,
+	.slave_max_load = 30,
 	.vconf_sys_cluster = "file/private/com.samsung.cluster-home/system_cluster",
 	.max_pended_ctx_events = 256,
 };

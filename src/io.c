@@ -227,7 +227,7 @@ static inline int build_client_info(struct pkg_info *info)
 
 	package_set_auto_launch(info, sqlite3_column_int(stmt, 0));
 	tmp = (const char *)sqlite3_column_text(stmt, 1);
-	if (tmp) {
+	if (tmp && strlen(tmp)) {
 		if (sscanf(tmp, "%dx%d", &width, &height) != 2) {
 			ErrPrint("Failed to get PD width and Height (%s)\n", tmp);
 		} else {
@@ -244,10 +244,13 @@ static inline int build_client_info(struct pkg_info *info)
 
 static inline int build_provider_info(struct pkg_info *info)
 {
-	static const char *dml = "SELECT network, abi, secured, box_type, box_src, box_group, pd_type, pd_src, pd_group, libexec, timeout, period, script, pinup FROM provider WHERE pkgid = ?";
+	static const char *dml = "SELECT provider.network, provider.abi, provider.secured, provider.box_type, provider.box_src, provider.box_group, provider.pd_type, provider.pd_src, provider.pd_group, provider.libexec, provider.timeout, provider.period, provider.script, provider.pinup, pkgmap.appid FROM provider, pkgmap WHERE pkgmap.pkgid = ? AND provider.pkgid = ?";
 	sqlite3_stmt *stmt;
 	int ret;
 	const char *tmp;
+	const char *appid;
+	char *path;
+	int pathlen;
 
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
@@ -261,6 +264,12 @@ static inline int build_provider_info(struct pkg_info *info)
 		return -EIO;
 	}
 
+	if (sqlite3_bind_text(stmt, 2, package_name(info), -1, NULL) != SQLITE_OK) {
+		ErrPrint("Failed to bind a pkgname(%s) - %s\n", package_name(info), sqlite3_errmsg(s_info.handle));
+		sqlite3_finalize(stmt);
+		return -EIO;
+	}
+
 	if (sqlite3_step(stmt) != SQLITE_ROW) {
 		ErrPrint("Failed to execute the DML for %s\n", package_name(info));
 		sqlite3_reset(stmt);
@@ -269,25 +278,81 @@ static inline int build_provider_info(struct pkg_info *info)
 		return -EIO;
 	}
 
+	appid = (const char *)sqlite3_column_text(stmt, 14);
+	if (!appid || !strlen(appid)) {
+		ErrPrint("Failed to execute the DML for %s\n", package_name(info));
+		sqlite3_reset(stmt);
+		sqlite3_clear_bindings(stmt);
+		sqlite3_finalize(stmt);
+		return -EIO;
+	}
+
 	package_set_network(info, sqlite3_column_int(stmt, 0));
-	package_set_abi(info, (const char *)sqlite3_column_text(stmt, 1));
 	package_set_secured(info, sqlite3_column_int(stmt, 2));
 
+	tmp = (const char *)sqlite3_column_text(stmt, 1);
+	if (tmp && strlen(tmp))
+		package_set_abi(info, tmp);
+
 	package_set_lb_type(info, sqlite3_column_int(stmt, 3));
-	package_set_lb_path(info, (const char *)sqlite3_column_text(stmt, 4));
-	package_set_lb_group(info, (const char *)sqlite3_column_text(stmt, 5));
+
+	tmp = (const char *)sqlite3_column_text(stmt, 4);
+	if (tmp && strlen(tmp)) {
+		pathlen = strlen("/opt/apps//") + strlen(appid) + strlen(tmp) + 1;
+		path = malloc(pathlen);
+		if (!path) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			sqlite3_reset(stmt);
+			sqlite3_clear_bindings(stmt);
+			sqlite3_finalize(stmt);
+			return -ENOMEM;
+		}
+		snprintf(path, pathlen, "/opt/apps/%s/%s", appid, tmp);
+
+		package_set_lb_path(info, path);
+		DbgPrint("LB Path: %s\n", path);
+		free(path);
+
+		tmp = (const char *)sqlite3_column_text(stmt, 5);
+		if (tmp && strlen(tmp))
+			package_set_lb_group(info, tmp);
+	}
+
+	tmp = (const char *)sqlite3_column_text(stmt, 7);
+	if (tmp && strlen(tmp)) {
+		pathlen = strlen("/opt/apps//") + strlen(appid) + strlen(tmp) + 1;
+		path = malloc(pathlen);
+		if (!path) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			sqlite3_reset(stmt);
+			sqlite3_clear_bindings(stmt);
+			sqlite3_finalize(stmt);
+			return -ENOMEM;
+		}
+		snprintf(path, pathlen, "/opt/apps/%s/%s", appid, tmp);
+		DbgPrint("PD Path: %s\n", path);
+		package_set_pd_path(info, path);
+		free(path);
+
+		tmp = (const char *)sqlite3_column_text(stmt, 8);
+		if (tmp && strlen(tmp))
+			package_set_pd_group(info, tmp);
+	}
+
+	tmp = (const char *)sqlite3_column_text(stmt, 9);
+	if (tmp && strlen(tmp))
+		package_set_libexec(info, tmp);
 
 	package_set_pd_type(info, sqlite3_column_int(stmt, 6));
-	package_set_pd_path(info, (const char *)sqlite3_column_text(stmt, 7));
-	package_set_pd_group(info, (const char *)sqlite3_column_text(stmt, 8));
-	package_set_libexec(info, (const char *)sqlite3_column_text(stmt, 9));
 	package_set_timeout(info, sqlite3_column_int(stmt, 10));
 
 	tmp = (const char *)sqlite3_column_text(stmt, 11);
-	if (tmp)
+	if (tmp && strlen(tmp))
 		package_set_period(info, atof(tmp));
 
-	package_set_script(info, (const char *)sqlite3_column_text(stmt, 12));
+	tmp = (const char *)sqlite3_column_text(stmt, 12);
+	if (tmp && strlen(tmp))
+		package_set_script(info, tmp);
 	package_set_pinup(info, sqlite3_column_int(stmt, 13));
 
 	sqlite3_reset(stmt);
@@ -354,13 +419,13 @@ static inline int load_context_option(struct context_item *item, int id)
 	ret = -ENOENT;
 	while (sqlite3_step(stmt) == SQLITE_ROW) {
 		key = (const char *)sqlite3_column_text(stmt, 0);
-		if (!key) {
+		if (!key || !strlen(key)) {
 			ErrPrint("KEY is nil\n");
 			continue;
 		}
 
 		value = (const char *)sqlite3_column_text(stmt, 1);
-		if (!value) {
+		if (!value || !strlen(value)) {
 			ErrPrint("VALUE is nil\n");
 			continue;
 		}
@@ -451,7 +516,16 @@ static inline int build_group_info(struct pkg_info *info)
 	while (sqlite3_step(stmt) == SQLITE_ROW) {
 		id = sqlite3_column_int(stmt, 0);
 		cluster_name = (const char *)sqlite3_column_text(stmt, 1);
+		if (!cluster_name || !strlen(cluster_name)) {
+			DbgPrint("Cluster name is not valid\n");
+			continue;
+		}
+
 		category_name = (const char *)sqlite3_column_text(stmt, 2);
+		if (!category_name || !strlen(category_name)) {
+			DbgPrint("Category name is not valid\n");
+			continue;
+		}
 
 		cluster = group_find_cluster(cluster_name);
 		if (!cluster) {
@@ -512,7 +586,7 @@ char *io_livebox_pkgname(const char *pkgname)
 		return NULL;
 	}
 
-	ret = sqlite3_prepare_v2(s_info.handle, "SELECT pkgid FROM pkgmap WHERE (appid = ? AND is_prime = 1) OR pkgid = ?", -1, &stmt, NULL);
+	ret = sqlite3_prepare_v2(s_info.handle, "SELECT pkgid FROM pkgmap WHERE (appid = ? AND prime = 1) OR pkgid = ?", -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		ErrPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		goto out;
@@ -535,14 +609,14 @@ char *io_livebox_pkgname(const char *pkgname)
 	}
 
 	if (sqlite3_step(stmt) != SQLITE_ROW) {
-		ErrPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ErrPrint("Failed to execute the DML for %s\n", pkgname);
 		sqlite3_reset(stmt);
 		sqlite3_finalize(stmt);
 		goto out;
 	}
 
 	tmp = (char *)sqlite3_column_text(stmt, 0);
-	if (tmp) {
+	if (tmp && strlen(tmp)) {
 		pkgid = strdup(tmp);
 		if (!pkgid)
 			ErrPrint("Heap: %s\n", strerror(errno));

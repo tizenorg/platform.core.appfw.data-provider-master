@@ -429,15 +429,23 @@ struct pkg_info *package_find(const char *pkgname)
 {
 	Eina_List *l;
 	struct pkg_info *info;
+	char *lb_pkgname;
 
 	if (!pkgname)
 		return NULL;
 
+	lb_pkgname = io_livebox_pkgname(pkgname);
+	if (!lb_pkgname)
+		return NULL;
+
 	EINA_LIST_FOREACH(s_info.pkg_list, l, info) {
-		if (!strcmp(info->pkgname, pkgname))
+		if (!strcmp(info->pkgname, lb_pkgname)) {
+			free(lb_pkgname);
 			return info;
+		}
 	}
 
+	free(lb_pkgname);
 	return NULL;
 }
 

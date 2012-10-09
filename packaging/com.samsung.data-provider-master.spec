@@ -69,7 +69,15 @@ chown 5000:5000 /opt/share/live_magazine/reader
 # End of a list of affected folder by the transmute attribute
 
 touch /opt/dbspace/.livebox.db
+chown 0:5000 /opt/dbspace/.livebox.db
+chmod 640 /opt/dbspace/.livebox.db
+
+touch /opt/dbspace/.livebox.db-journal
+chown 0:5000 /opt/dbspace/.livebox.db-journal
+chmod 640 /opt/dbspace/.livebox.db-journal
+
 chsmack -a "data-provider-master::db" /opt/dbspace/.livebox.db
+chsmack -a "data-provider-master::db" /opt/dbspace/.livebox.db-journal
 
 mkdir -p /etc/rc.d/rc3.d
 ln -sf /etc/rc.d/init.d/data-provider-master /etc/rc.d/rc3.d/S99data-provider-master
