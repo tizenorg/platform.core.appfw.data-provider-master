@@ -1123,7 +1123,6 @@ out:
 	return ret;
 }
 
-
 static inline int db_create_box_size(void)
 {
 	char *err;
@@ -1415,6 +1414,7 @@ static inline int livebox_destroy(struct livebox *livebox)
 	xmlFree(livebox->pd_size);
 	xmlFree(livebox->libexec);
 	xmlFree(livebox->script);
+	xmlFree(livebox->period);
 
 	dlist_foreach_safe(livebox->i18n_list, l, n, i18n) {
 		livebox->i18n_list = dlist_remove(livebox->i18n_list, l);
@@ -2029,6 +2029,18 @@ int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *appid)
 		tmp = xmlGetProp(node, (const xmlChar *)"pinup");
 		livebox->pinup = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
 		xmlFree(tmp);
+	}
+
+	if (xmlHasProp(node, (const xmlChar *)"period")) {
+		livebox->period = xmlGetProp(node, (const xmlChar *)"period");
+		if (!livebox->period)
+			ErrPrint("Period is NIL\n");
+	}
+
+	if (xmlHasProp(node, (const xmlChar *)"timeout")) {
+		livebox->timeout = xmlGetProp(node, (const xmlChar *)"timeout");
+		if (!livebox->timeout)
+			ErrPrint("Timeout is NIL\n");
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"secured")) {

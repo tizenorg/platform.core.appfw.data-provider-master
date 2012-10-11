@@ -453,7 +453,7 @@ static inline int fork_package(struct inst_info *inst, const char *pkgname)
 	return 0;
 }
 
-struct inst_info *instance_create(struct client_node *client, double timestamp, const char *pkgname, const char *content, const char *cluster, const char *category, double period)
+struct inst_info *instance_create(struct client_node *client, double timestamp, const char *pkgname, const char *content, const char *cluster, const char *category, double period, int width, int height)
 {
 	struct inst_info *inst;
 
@@ -464,6 +464,8 @@ struct inst_info *instance_create(struct client_node *client, double timestamp, 
 	}
 
 	inst->timestamp = timestamp;
+	inst->lb.width = width;
+	inst->lb.height = height;
 
 	inst->content = strdup(content);
 	if (!inst->content) {
@@ -858,7 +860,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 			struct inst_info *new_inst;
 			new_inst = instance_create(inst->client, util_timestamp(), package_name(inst->info),
 							inst->content, inst->cluster, inst->category,
-							inst->period);
+							inst->period, 0, 0);
 			if (!new_inst)
 				ErrPrint("Failed to create a new instance\n");
 		} else {
@@ -1206,7 +1208,7 @@ int instance_activate(struct inst_info *inst)
 		break;
 	}
 
-	packet = packet_create("new", "sssiidssis",
+	packet = packet_create("new", "sssiidssisii",
 			package_name(inst->info),
 			inst->id,
 			inst->content,
@@ -1216,7 +1218,9 @@ int instance_activate(struct inst_info *inst)
 			inst->cluster,
 			inst->category,
 			!!inst->client,
-			package_abi(inst->info));
+			package_abi(inst->info),
+			inst->lb.width,
+			inst->lb.height);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return -EFAULT;

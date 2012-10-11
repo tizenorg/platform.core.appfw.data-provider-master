@@ -44,7 +44,7 @@ static inline void processing_ctx_event(const char *cluster, const char *categor
 		struct inst_info *inst;
 
 		timestamp = util_timestamp();
-		inst = instance_create(NULL, timestamp, pkgname, DEFAULT_CONTENT, cluster, category, DEFAULT_PERIOD);
+		inst = instance_create(NULL, timestamp, pkgname, DEFAULT_CONTENT, cluster, category, DEFAULT_PERIOD, 0, 0);
 	} else {
 		ErrPrint("Not enough space\n");
 	}

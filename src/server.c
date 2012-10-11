@@ -366,6 +366,8 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 	double timestamp;
 	int ret;
 	struct pkg_info *info;
+	int width;
+	int height;
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -374,8 +376,8 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		goto out;
 	}
 
-	ret = packet_get(packet, "dssssd", &timestamp, &pkgname, &content, &cluster, &category, &period);
-	if (ret != 6) {
+	ret = packet_get(packet, "dssssdii", &timestamp, &pkgname, &content, &cluster, &category, &period, &width, &height);
+	if (ret != 8) {
 		ErrPrint("Parameter is not matched\n");
 		ret = -EINVAL;
 		goto out;
@@ -404,7 +406,7 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		if (!strlen(content))
 			content = DEFAULT_CONTENT;
 
-		inst = instance_create(client, timestamp, pkgname, content, cluster, category, period);
+		inst = instance_create(client, timestamp, pkgname, content, cluster, category, period, width, height);
 		/*!
 		 * \note
 		 * Using the "inst" without validate its value is at my disposal. ;)
@@ -2263,7 +2265,7 @@ static inline int update_pkg_cb(struct category *category, const char *pkgname)
 		struct inst_info *inst;
 
 		timestamp = util_timestamp();
-		inst = instance_create(NULL, timestamp, pkgname, DEFAULT_CONTENT, c_name, s_name, DEFAULT_PERIOD);
+		inst = instance_create(NULL, timestamp, pkgname, DEFAULT_CONTENT, c_name, s_name, DEFAULT_PERIOD, 0, 0);
 		if (!inst)
 			ErrPrint("Failed to create a new instance\n");
 	} else {
