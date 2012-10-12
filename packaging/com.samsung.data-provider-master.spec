@@ -45,6 +45,7 @@ CFLAGS="${CFLAGS} -Wall -Winline -Werror" LDFLAGS="${LDFLAGS}" make %{?jobs:-j%j
 %install
 rm -rf %{buildroot}
 %make_install
+mkdir -p %{buildroot}/usr/share/license
 
 %pre
 
@@ -97,3 +98,4 @@ chsmack -a "_" /usr/lib/systemd/user/tizen-middleware.target.wants/data-provider
 /usr/etc/package-manager/parserlib/*
 /usr/share/data-provider-master/*
 /usr/lib/systemd/user/data-provider-master.service
+/usr/share/license/*
