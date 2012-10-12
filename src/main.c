@@ -43,7 +43,7 @@ static inline int app_create(void *data)
 {
 	int ret;
 
-	conf_update_size();
+	conf_loader();
 
 	if (access(SLAVE_LOG_PATH, R_OK|W_OK) != 0) {
 		mkdir(SLAVE_LOG_PATH, 755);

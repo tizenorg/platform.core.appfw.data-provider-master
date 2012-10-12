@@ -30,30 +30,30 @@ struct conf {
 	double minimum_period;
 
 	struct {
-		const char *script;
-		const char *abi;
-		const char *pd_group;
+		char *script;
+		char *abi;
+		char *pd_group;
 		double period;
 	} default_conf;
 
 	struct {
-		const char *name;
-		const char *secured;
-		const char *abi;
+		char *name;
+		char *secured;
+		char *abi;
 	} launch_key;
 
 
 	double default_packet_time;
 
-	const char *empty_content;
-	const char *empty_title;
+	char *empty_content;
+	char *empty_title;
 
-	const char *default_content;
-	const char *default_title;
+	char *default_content;
+	char *default_title;
 
 	unsigned long minimum_space;
 
-	const char *replace_tag;
+	char *replace_tag;
 
 	double slave_ttl;
 
@@ -63,13 +63,13 @@ struct conf {
 	unsigned long sqlite_flush_max;
 
 	struct {
-		const char *conf;
-		const char *image;
-		const char *script;
-		const char *root;
-		const char *script_port;
-		const char *slave_log;
-		const char *db;
+		char *conf;
+		char *image;
+		char *script;
+		char *root;
+		char *script_port;
+		char *slave_log;
+		char *db;
 	} path;
 
 	struct {
@@ -77,22 +77,22 @@ struct conf {
 		int height;
 	} size[MAX_SIZE_LIST];
 
-	const int max_size_type;
+	int max_size_type;
 
-	const char *quality;
-	const char *error;
+	char *quality;
+	char *error;
 
-	const int slave_max_load;
+	int slave_max_load;
 
 	double ping_time;
 
-	const char *vconf_sys_cluster;
-	const int max_pended_ctx_events;
+	char *vconf_sys_cluster;
+	int max_pended_ctx_events;
 };
 
 extern struct conf g_conf;
 
-extern void conf_update_size(void);
+extern int conf_loader(void);
 
 #define BASE_W			g_conf.base_width
 #define BASE_H			g_conf.base_height

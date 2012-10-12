@@ -20,8 +20,13 @@
  */
 
 #include <Ecore_X.h>
+#include <ctype.h>
+
+#include <dlog.h>
 
 #include "conf.h"
+#include "util.h"
+#include "debug.h"
 
 struct conf g_conf = {
 	.width = 0,
@@ -106,9 +111,465 @@ struct conf g_conf = {
 	.max_pended_ctx_events = 256,
 };
 
-void conf_update_size(void)
+static void conf_update_size(void)
 {
 	ecore_x_window_size_get(0, &g_conf.width, &g_conf.height);
+}
+
+static void base_width_handler(char *buffer)
+{
+	if (sscanf(buffer, "%d", &g_conf.base_width) != 1)
+		ErrPrint("Failed to parse the base_width\n");
+}
+
+static void base_height_handler(char *buffer)
+{
+	if (sscanf(buffer, "%d", &g_conf.base_height) != 1)
+		ErrPrint("Failed to parse the base_height\n");
+}
+
+static void minimum_period_handler(char *buffer)
+{
+	if (sscanf(buffer, "%lf", &g_conf.minimum_period) != 1)
+		ErrPrint("Failed to parse the minimum_period\n");
+}
+
+static void script_handler(char *buffer)
+{
+	g_conf.default_conf.script = strdup(buffer);
+	if (!g_conf.default_conf.script)
+		ErrPrint("Heap: %s\n", strerror(errno));
+}
+
+static void default_abi_handler(char *buffer)
+{
+	g_conf.default_conf.abi = strdup(buffer);
+	if (!g_conf.default_conf.abi)
+		ErrPrint("Heap: %s\n", strerror(errno));
+}
+
+static void default_group_handler(char *buffer)
+{
+	g_conf.default_conf.pd_group = strdup(buffer);
+	if (!g_conf.default_conf.pd_group)
+		ErrPrint("Heap: %s\n", strerror(errno));
+}
+
+static void default_period_handler(char *buffer)
+{
+	if (sscanf(buffer, "%lf", &g_conf.default_conf.period) != 1)
+		ErrPrint("Failed to parse the default_period\n");
+}
+
+static void default_packet_time_handler(char *buffer)
+{
+	if (sscanf(buffer, "%lf", &g_conf.default_packet_time) != 1)
+		ErrPrint("Failed to parse the default_packet_time\n");
+}
+
+static void default_content_handler(char *buffer)
+{
+	g_conf.default_content = strdup(buffer);
+	if (!g_conf.default_content)
+		ErrPrint("Heap: %s\n", strerror(errno));
+}
+
+static void default_title_handler(char *buffer)
+{
+	g_conf.default_title = strdup(buffer);
+	if (!g_conf.default_title)
+		ErrPrint("Heap: %s\n", strerror(errno));
+}
+
+static void minimum_space_handler(char *buffer)
+{
+	if (sscanf(buffer, "%lu", &g_conf.minimum_space) != 1)
+		ErrPrint("Failed to parse the minimum_spave\n");
+}
+
+static void replace_tag_handler(char *buffer)
+{
+	g_conf.replace_tag = strdup(buffer);
+	if (!g_conf.replace_tag)
+		ErrPrint("Heap: %s\n", strerror(errno));
+}
+
+static void slave_ttl_handler(char *buffer)
+{
+	if (sscanf(buffer, "%lf", &g_conf.slave_ttl) != 1)
+		ErrPrint("Failed to parse the slave_ttl\n");
+}
+
+static void max_log_line_handler(char *buffer)
+{
+	if (sscanf(buffer, "%d", &g_conf.max_log_line) != 1)
+		ErrPrint("Failed to parse the max_log_line\n");
+}
+
+static void max_log_file_handler(char *buffer)
+{
+	if (sscanf(buffer, "%d", &g_conf.max_log_file) != 1)
+		ErrPrint("Failed to parse the max_log_file\n");
+}
+
+static void sqlite_flush_max_handler(char *buffer)
+{
+	if (sscanf(buffer, "%lu", &g_conf.sqlite_flush_max) != 1)
+		ErrPrint("Failed to parse the sqlite_flush_max\n");
+}
+
+static void db_path_handler(char *buffer)
+{
+	g_conf.path.db = strdup(buffer);
+	if (!g_conf.path.db)
+		ErrPrint("Heap: %s\n", strerror(errno));
+}
+
+static void error_image_handler(char *buffer)
+{
+	g_conf.error = strdup(buffer);
+	if (!g_conf.error)
+		ErrPrint("Heap: %s\n", strerror(errno));
+}
+
+static void log_path_handler(char *buffer)
+{
+	g_conf.path.slave_log = strdup(buffer);
+	if (!g_conf.path.slave_log)
+		ErrPrint("Heap: %s\n", strerror(errno));
+}
+
+static void script_port_path_handler(char *buffer)
+{
+	g_conf.path.script_port = strdup(buffer);
+	if (!g_conf.path.script_port)
+		ErrPrint("Heap: %s\n", strerror(errno));
+}
+
+static void share_path_handler(char *buffer)
+{
+	g_conf.path.image = strdup(buffer);
+	if (!g_conf.path.image)
+		ErrPrint("Heap: %s\n", strerror(errno));
+}
+
+static void ping_time_handler(char *buffer)
+{
+	if (sscanf(buffer, "%lf", &g_conf.ping_time) != 1)
+		ErrPrint("Failed to parse the ping_time\n");
+}
+
+static void slave_max_loader(char *buffer)
+{
+	if (sscanf(buffer, "%d", &g_conf.slave_max_load) != 1)
+		ErrPrint("Failed to parse the slave_max_load\n");
+}
+
+static void vconf_sys_cluster_handler(char *buffer)
+{
+	g_conf.vconf_sys_cluster = strdup(buffer);
+	if (!g_conf.vconf_sys_cluster)
+		ErrPrint("Heap %s\n", strerror(errno));
+}
+
+static void max_pended_ctx_event_handler(char *buffer)
+{
+	if (sscanf(buffer, "%d", &g_conf.max_pended_ctx_events) != 1)
+		ErrPrint("Failed to parse the max_pended_ctx_events\n");
+}
+
+int conf_loader(void)
+{
+	FILE *fp;
+	int c;
+	enum state {
+		START,
+		SPACE,
+		TOKEN,
+		VALUE,
+		ERROR,
+		COMMENT,
+		END,
+	} state;
+	int ch_idx;
+	int token_idx;
+	int buffer_idx;
+	int quote;
+	int linelen;
+	char buffer[256];
+	static const struct token_parser {
+		const char *name;
+		void (*handler)(char *buffer);
+	} token_handler[] = {
+		{
+			.name = "base_width",
+			.handler = base_width_handler,
+		},
+		{
+			.name = "base_height",
+			.handler = base_height_handler,
+		},
+		{
+			.name = "minimum_period",
+			.handler = minimum_period_handler,
+		},
+		{
+			.name = "script",
+			.handler = script_handler,
+		},
+		{
+			.name = "default_abi",
+			.handler = default_abi_handler,
+		},
+		{
+			.name = "default_group",
+			.handler = default_group_handler,
+		},
+		{
+			.name = "default_period",
+			.handler = default_period_handler,
+		},
+		{
+			.name = "default_packet_time",
+			.handler = default_packet_time_handler,
+		},
+		{
+			.name = "default_content",
+			.handler = default_content_handler,
+		},
+		{
+			.name = "default_title",
+			.handler = default_title_handler,
+		},
+		{
+			.name = "minimum_space",
+			.handler = minimum_space_handler,
+		},
+		{
+			.name = "replace_tag",
+			.handler = replace_tag_handler,
+		},
+		{
+			.name = "slave_ttl",
+			.handler = slave_ttl_handler,
+		},
+		{
+			.name = "max_log_line",
+			.handler = max_log_line_handler,
+		},
+		{
+			.name = "max_log_file",
+			.handler = max_log_file_handler,
+		},
+		{
+			.name = "sqilte_flush_max",
+			.handler = sqlite_flush_max_handler,
+		},
+		{
+			.name = "db_path",
+			.handler = db_path_handler,
+		},
+		{
+			.name = "log_path",
+			.handler = log_path_handler,
+		},
+		{
+			.name = "error_image",
+			.handler = error_image_handler,
+		},
+		{
+			.name = "share_path",
+			.handler = share_path_handler,
+		},
+		{
+			.name = "script_port_path",
+			.handler = script_port_path_handler,
+		},
+		{
+			.name = "ping_interval",
+			.handler = ping_time_handler,
+		},
+		{
+			.name = "slave_max_load",
+			.handler = slave_max_loader,
+		},
+		{
+			.name = "vconf_sys_cluster",
+			.handler = vconf_sys_cluster_handler,
+		},
+		{
+			.name = "max_pended_ctx_event",
+			.handler = max_pended_ctx_event_handler,
+		},
+		{
+			.name = NULL,
+			.handler = NULL,
+		},
+	};
+
+	conf_update_size();
+
+	fp = fopen("/usr/share/data-provider-master/conf.ini", "rt");
+	if (!fp) {
+		ErrPrint("Error: %s\n", strerror(errno));
+		return -EIO;
+	}
+
+	state = START;
+	ch_idx = 0;
+	token_idx = -1;
+	buffer_idx = 0;
+	quote = 0;
+	linelen = 0;
+	do {
+		c = getc(fp);
+		if ((c == EOF) && (state == VALUE)) {
+			LOGD("[%s:%d] VALUE state EOF\n", __func__, __LINE__);
+			state = END;
+		}
+
+		switch (state) {
+		case COMMENT:
+			if (c == CR || c == LF) {
+				buffer[buffer_idx] = '\0';
+
+				state = START;
+				token_idx = -1;
+				ch_idx = 0;
+				buffer_idx = 0;
+				linelen = -1; /* Will be ZERO by follwing increment code */
+				quote = 0;
+			} else {
+				buffer[buffer_idx++] = c;
+				if (buffer_idx == (sizeof(buffer) - 1)) {
+					buffer[buffer_idx] = '\0';
+					buffer_idx = 0;
+				}
+			}
+			break;
+		case START:
+			if (linelen == 0 && c == '#') {
+				state = COMMENT;
+			} else if (isspace(c)) {
+				/* Ignore empty space */
+			} else {
+				state = TOKEN;
+				ungetc(c, fp);
+			}
+			break;
+		case SPACE:
+			if (c == '=')
+				state = VALUE;
+			else if (!isspace(c))
+				state = ERROR;
+			break;
+		case VALUE:
+			if (c == '"') {
+				if (quote == 1) {
+					buffer[buffer_idx] = '\0';
+					state = END;
+				} else if (buffer_idx != 0) {
+					buffer[buffer_idx++] = c;
+					if (buffer_idx >= sizeof(buffer))
+						state = ERROR;
+				} else {
+					quote = 1;
+				}
+			} else if (isspace(c)) {
+				if (buffer_idx == 0) {
+					/* Ignore */
+				} else if (quote == 1) {
+					buffer[buffer_idx++] = c;
+					if (buffer_idx >= sizeof(buffer))
+						state = ERROR;
+				} else {
+					buffer[buffer_idx] = '\0';
+					ungetc(c, fp);
+					state = END;
+				}
+			} else {
+				buffer[buffer_idx++] = c;
+				if (buffer_idx >= sizeof(buffer))
+					state = ERROR;
+			}
+			break;
+		case TOKEN:
+			if (c == '=') {
+				if (token_idx < 0)
+					state = ERROR;
+				else
+					state = VALUE;
+			} else if (isspace(c)) {
+				if (token_idx < 0)
+					break;
+
+				if (token_handler[token_idx].name[ch_idx] != '\0')
+					state = ERROR;
+				else
+					state = SPACE;
+			} else  {
+				if (token_idx < 0) {
+					/* Now start to find a token! */
+					token_idx = 0;
+				}
+
+				if (token_handler[token_idx].name[ch_idx] == c) {
+					ch_idx++;
+				} else {
+					ungetc(c, fp);
+					while (ch_idx-- > 0)
+						ungetc(token_handler[token_idx].name[ch_idx], fp);
+
+					token_idx++;
+
+					if (token_handler[token_idx].name == NULL)
+						state = ERROR;
+					else
+						ch_idx = 0;
+				}
+			}
+			break;
+		case ERROR:
+			if (c == CR || c == LF) {
+				state = START;
+				token_idx = -1;
+				buffer_idx = 0;
+				ch_idx = 0;
+				linelen = -1;
+				quote = 0;
+			}
+			break;
+		case END:
+			if (c == LF || c == CR || c == EOF) {
+				state = START;
+
+				if (token_idx >= 0 && token_handler[token_idx].handler) {
+					DbgPrint("BUFFER: [%s]\n", buffer);
+					token_handler[token_idx].handler(buffer);
+				}
+
+				token_idx = -1;
+				ch_idx = 0;
+				buffer_idx = 0;
+				linelen = -1;
+				quote = 0;
+				/* Finish */
+			} else if (isspace(c)) {
+				/* ignore */
+			} else {
+				state = ERROR;
+			}
+			break;
+		default:
+			/* ?? */
+			break;
+		}
+
+		linelen++;
+	 } while (c != EOF);
+
+	fclose(fp);
+	return 0;
 }
 
 /* End of a file */
