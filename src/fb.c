@@ -76,7 +76,6 @@ struct fb_info *fb_create(struct inst_info *inst, int w, int h, enum buffer_type
 	}
 
 	info->ee = NULL;
-
 	return info;
 }
 
@@ -87,6 +86,10 @@ int fb_create_buffer(struct fb_info *info)
 
 	buffer_handler_get_size(info->buffer, &ow, &oh);
 	DbgPrint("Buffer handler size: %dx%d\n", ow, oh);
+	if (ow == 0 && oh == 0) {
+		DbgPrint("ZERO Size FB accessed\n");
+		return 0;
+	}
 
 	if (info->ee) {
 		int w = 0;
@@ -116,7 +119,7 @@ int fb_create_buffer(struct fb_info *info)
 int fb_destroy_buffer(struct fb_info *info)
 {
 	if (!info->ee) {
-		ErrPrint("EE is not exists\n");
+		ErrPrint("EE is not exists (Maybe ZERO byte ee?)\n");
 		return -EINVAL;
 	}
 
@@ -146,15 +149,21 @@ int fb_resize(struct fb_info *info, int w, int h)
 {
 	buffer_handler_update_size(info->buffer, w, h);
 
-	if (info->ee)
+	if (info->ee) {
 		ecore_evas_resize(info->ee, w, h);
+	} else if (!info->ee && !info->buffer) {
+		/*!
+		 * This object has no size at the initial time.
+		 * Create a new buffer and use it
+		 */
+	}
 
 	return 0;
 }
 
-void fb_get_size(struct fb_info *info, int *w, int *h)
+int fb_get_size(struct fb_info *info, int *w, int *h)
 {
-	buffer_handler_get_size(info->buffer, w, h);
+	return buffer_handler_get_size(info->buffer, w, h);
 }
 
 void fb_sync(struct fb_info *info)
@@ -165,7 +174,7 @@ void fb_sync(struct fb_info *info)
 void *fb_pixmap_render_pre(struct fb_info *info)
 {
 	void *canvas;
-	canvas = buffer_handler_pixmap_acquire_buffer(info->buffer);;
+	canvas = buffer_handler_pixmap_acquire_buffer(info->buffer);
 	DbgPrint("Canvas: %p\n", canvas);
 	return canvas;
 }

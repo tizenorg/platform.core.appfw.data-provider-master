@@ -136,6 +136,7 @@ struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buffer_ty
 	info->inst = inst;
 	info->buffer = NULL;
 
+	DbgPrint("%dx%d size buffer is created\n", w, h);
 	return info;
 }
 
@@ -695,7 +696,7 @@ void *buffer_handler_pixmap_acquire_buffer(struct buffer_info *info)
 {
 	struct buffer *buffer;
 
-	if (!info->is_loaded) {
+	if (!info || !info->is_loaded) {
 		ErrPrint("Buffer is not loaded\n");
 		return NULL;
 	}
