@@ -192,6 +192,8 @@ char *util_replace_string(const char *src, const char *pattern, const char *repl
 	int rlen;
 	int matched;
 
+	return NULL;
+
 	if (!src || !pattern || !replace || !src[0] || !pattern[0]) {
 		ErrPrint("Invalid argument: %s %s %s\n", src, pattern, replace);
 		return NULL;

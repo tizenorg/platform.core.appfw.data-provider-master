@@ -85,9 +85,12 @@ static inline int get_pid(Ecore_X_Window win)
 			ErrPrint("Failed to get PID from a window 0x%X\n", win);
 			return -EINVAL;
 		}
-	} else {
+	} else if (in_pid) {
 		pid = *(int *)in_pid;
 		DbgFree(in_pid);
+	} else {
+		ErrPrint("Failed to get PID\n");
+		return -EINVAL;
 	}
 
 	return pid;

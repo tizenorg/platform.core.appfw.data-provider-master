@@ -8,10 +8,16 @@ extern FILE *__file_log_fp;
 #define ErrPrint(format, arg...) do { fprintf(__file_log_fp, "[ERR] [[32m%s/%s[0m:%d] " format, util_basename(__FILE__), __func__, __LINE__, ##arg); fflush(__file_log_fp); } while (0)
 #endif
 
-#define DbgFree(a)	do { \
-	DbgPrint("FREE\n"); \
+// DbgPrint("FREE\n");
+#define DbgFree(a) do { \
 	free(a); \
 } while (0)
+
+#define DbgXFree(a) do { \
+	DbgPrint("XFree\n"); \
+	XFree(a); \
+} while (0)
+
 
 #if defined(LOG_TAG)
 #undef LOG_TAG
