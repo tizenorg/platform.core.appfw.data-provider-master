@@ -784,7 +784,7 @@ struct slave_node *slave_find_available(const char *abi, int secured)
 			continue;
 		}
 
-		if (strcmp(slave->abi, abi))
+		if (strcasecmp(slave->abi, abi))
 			continue;
 
 		if (slave->secured) {
