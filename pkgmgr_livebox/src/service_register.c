@@ -1390,7 +1390,8 @@ struct option {
 
 static inline int validate_pkgid(const char *appid, const char *pkgid)
 {
-	return !strncmp(appid, pkgid, strlen(appid));
+	/* Just return 1 Always */
+	return 1 || !strncmp(appid, pkgid, strlen(appid));
 }
 
 static inline int livebox_destroy(struct livebox *livebox)
