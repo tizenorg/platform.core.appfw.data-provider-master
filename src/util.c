@@ -179,136 +179,121 @@ unsigned long util_free_space(const char *path)
 	return space;
 }
 
+static inline char *extend_heap(char *buffer, int *sz, int incsz)
+{
+	char *tmp;
+
+	*sz += incsz;
+	tmp = realloc(buffer, *sz);
+	if (!tmp) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return NULL;
+	}
+
+	return tmp;
+}
+
 char *util_replace_string(const char *src, const char *pattern, const char *replace)
 {
-	int s_idx;
-	int p_idx;
-	int n_idx;
-	int t_idx;
-	int r_idx;
-	int idx;
-	char *result;
-	int len;
-	int rlen;
+	char *ret;
+	int src_idx;
+	int pattern_idx;
+	int src_rollback_idx;
+	int ret_rollback_idx;
+	int ret_idx;
+	int target_idx;
+	int bufsz;
+	int incsz;
 	int matched;
 
-	return NULL;
-
-	if (!src || !pattern || !replace || !src[0] || !pattern[0]) {
-		ErrPrint("Invalid argument: %s %s %s\n", src, pattern, replace);
+	bufsz = strlen(src);
+	incsz = bufsz;
+	ret = malloc(bufsz + 1);
+	if (!ret) {
+		ErrPrint("Heap: %s\n", strerror(errno));
 		return NULL;
 	}
 
-	rlen = strlen(replace);
-	len = strlen(src);
-	result = malloc(len);
-	if (!result) {
-		ErrPrint("Heap:%s\n", strerror(errno));
-		return NULL;
-	}
-
-	r_idx = 0;
-	idx = 0;
+	pattern_idx = 0;
+	ret_idx = 0;
 	matched = 0;
-	for (s_idx = 0; src[s_idx]; s_idx++) {
-		if (idx == len) {
-			char *tmp;
+	for (src_idx = 0; src[src_idx]; src_idx++) {
+		if (!pattern[pattern_idx]) {
+			while (replace[target_idx]) {
+				ret[ret_idx] = replace[target_idx];
+				ret_idx++;
+				target_idx++;
 
-			len += (rlen > len ? rlen : len);
-			tmp = realloc(result, len);
-			if (!tmp) {
-				ErrPrint("Heap: %s\n", strerror(errno));
-				DbgFree(result);
-				return NULL;
-			}
-			result = tmp;
-		}
-
-		if (src[s_idx] == pattern[0]) {
-			n_idx = -1;
-			t_idx = s_idx;
-			r_idx = idx;
-
-			if (r_idx == len) {
-				char *tmp;
-				len += (rlen > len ? rlen : len);
-				tmp = realloc(result, len);
-				if (!tmp) {
-					ErrPrint("Heap: %s\n", strerror(errno));
-					DbgFree(result);
-					return NULL;
-				}
-				result = tmp;
-			}
-			result[r_idx++] = src[t_idx++];
-			p_idx = 1;
-			while (pattern[p_idx]) {
-				if (src[t_idx] == pattern[p_idx]) {
-					if (n_idx < 0) {
-						if (src[t_idx] == pattern[0]) {
-							n_idx = t_idx;
-						} else {
-							if (r_idx == len) {
-								char *tmp;
-								len += (rlen > len ? rlen : len);
-								tmp = realloc(result, len);
-								if (!tmp) {
-									ErrPrint("Heap: %s\n", strerror(errno));
-									DbgFree(result);
-									return NULL;
-								}
-								result = tmp;
-							}
-							result[r_idx++] = src[t_idx];
-						}
-					}
-
-					p_idx++;
-					t_idx++;
-					continue;
-				}
-
-				if (n_idx < 0)
-					s_idx = t_idx;
-				else
-					s_idx = n_idx;
-
-				break;
-			}
-
-			if (pattern[p_idx] == '\0') {
-				if (idx + rlen >= len) {
+				if (ret_idx >= bufsz) {
 					char *tmp;
-					len += (rlen > len ? rlen : len);
-					tmp = realloc(result, len);
+
+					tmp = extend_heap(ret, &bufsz, incsz);
 					if (!tmp) {
 						ErrPrint("Heap: %s\n", strerror(errno));
-						DbgFree(result);
+						free(ret);
 						return NULL;
 					}
-					result = tmp;
-					matched++;
+					ret = tmp;
 				}
-				strcpy(result + idx, replace);
-				idx += strlen(replace);
-				s_idx = t_idx - 1;
-			} else {
-				idx = r_idx;
-				s_idx = (n_idx < 0 ? t_idx : n_idx) - 1;
 			}
-		} else {
-			result[idx++] = src[s_idx];
+
+			pattern_idx = 0;
+			src--;
+			matched++;
+			continue;
+		} else if (src[src_idx] == pattern[pattern_idx]) {
+			if (pattern_idx == 0) {
+				src_rollback_idx = src_idx;
+				ret_rollback_idx = ret_idx;
+				target_idx = 0;
+			}
+
+			if (replace[target_idx]) {
+				ret[ret_idx] = replace[target_idx];
+				ret_idx++;
+				target_idx++;
+				if (ret_idx >= bufsz) {
+					char *tmp;
+
+					tmp = extend_heap(ret, &bufsz, incsz);
+					if (!tmp) {
+						ErrPrint("Heap: %s\n", strerror(errno));
+						free(ret);
+						return NULL;
+					}
+					ret = tmp;
+				}
+			}
+
+			pattern_idx++;
+			continue;
+		} else if (pattern_idx > 0) {
+			src_idx = src_rollback_idx;
+			ret_idx = ret_rollback_idx;
+			pattern_idx = 0;
+		}
+
+		ret[ret_idx] = src[src_idx];
+		ret_idx++;
+		if (ret_idx >= bufsz) {
+			char *tmp;
+
+			tmp = extend_heap(ret, &bufsz, incsz);
+			if (!tmp) {
+				ErrPrint("Heap: %s\n", strerror(errno));
+				free(ret);
+				return NULL;
+			}
+			ret = tmp;
 		}
 	}
-
-	result[idx] = '\0';
-
-	if (!matched) {
-		DbgFree(result);
-		result = NULL;
+	if (matched) {
+		ret[ret_idx] = '\0';
+	} else {
+		free(ret);
+		ret = NULL;
 	}
-
-	return result;
+	return ret;
 }
 
 const char *util_uri_to_path(const char *uri)
