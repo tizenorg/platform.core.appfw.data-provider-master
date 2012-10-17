@@ -63,7 +63,7 @@ static inline void destroy_command(struct command *command)
 {
 	client_unref(command->client);
 	packet_unref(command->packet);
-	free(command);
+	DbgFree(command);
 }
 
 static inline int count_command(void)
@@ -250,7 +250,7 @@ static int del_cb(struct client_node *client, void *data)
 	}
 
 	s_info.rpc_list = eina_list_remove(s_info.rpc_list, rpc);
-	free(rpc);
+	DbgFree(rpc);
 
 	client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, deactivated_cb, NULL);
 	client_event_callback_del(client, CLIENT_EVENT_DESTROY, del_cb, NULL);
@@ -271,7 +271,7 @@ int client_rpc_initialize(struct client_node *client, int handle)
 	ret = client_set_data(client, "rpc", rpc);
 	if (ret < 0) {
 		ErrPrint("Failed to set \"rpc\" for client\n");
-		free(rpc);
+		DbgFree(rpc);
 		return ret;
 	}
 

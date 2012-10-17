@@ -229,7 +229,7 @@ static Eina_Bool lazy_delete_cb(void *data)
 
 	client_unref(item->client);
 	instance_unref(item->inst);
-	free(item);
+	DbgFree(item);
 	return ECORE_CALLBACK_CANCEL;
 }
 
@@ -289,7 +289,7 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 					ErrPrint("Failed to add a delayzed delete callback\n");
 					client_unref(client);
 					instance_unref(inst);
-					free(item);
+					DbgFree(item);
 					ret = -EFAULT;
 				}
 			}
@@ -2663,7 +2663,7 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 			if (filename) {
 				ret = script_handler_parse_desc(pkgname, id,
 								filename, 0);
-				free(filename);
+				DbgFree(filename);
 			} else {
 				ret = script_handler_parse_desc(pkgname, id,
 							util_uri_to_path(id), 0);
@@ -3122,7 +3122,7 @@ static struct packet *service_update(pid_t pid, int handle, const struct packet 
 	 * Validate the update requstor.
 	 */
 	slave_rpc_request_update(lb_pkgname, "", cluster, category);
-	free(lb_pkgname);
+	DbgFree(lb_pkgname);
 	ret = 0;
 
 out:

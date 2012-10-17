@@ -73,7 +73,7 @@ static inline void invoke_global_destroy_cb(struct client_node *client)
 		if (item->cb(client, item->cbdata) < 0) {
 			if (eina_list_data_find(s_info.destroy_event_list, item)) {
 				s_info.destroy_event_list = eina_list_remove(s_info.destroy_event_list, item);
-				free(item);
+				DbgFree(item);
 			}
 		}
 	}
@@ -89,7 +89,7 @@ static inline void invoke_global_create_cb(struct client_node *client)
 		if (item->cb(client, item->cbdata) < 0) {
 			if (eina_list_data_find(s_info.create_event_list, item)) {
 				s_info.create_event_list = eina_list_remove(s_info.create_event_list, item);
-				free(item);
+				DbgFree(item);
 			}
 		}
 	}
@@ -111,31 +111,31 @@ static inline void destroy_client_data(struct client_node *client)
 		event->cb(client, event->data);
 		if (eina_list_data_find(client->event_destroy_list, event)) {
 			client->event_destroy_list = eina_list_remove(client->event_destroy_list, event);
-			free(event);
+			DbgFree(event);
 		}
 	}
 
 	EINA_LIST_FREE(client->data_list, data) {
 		DbgPrint("Tag is not cleared (%s)\n", data->tag);
-		free(data->tag);
-		free(data);
+		DbgFree(data->tag);
+		DbgFree(data);
 	}
 
 	EINA_LIST_FREE(client->event_deactivate_list, event) {
-		free(event);
+		DbgFree(event);
 	}
 
 	EINA_LIST_FREE(client->subscribe_list, item) {
-		free(item->cluster);
-		free(item->category);
-		free(item);
+		DbgFree(item->cluster);
+		DbgFree(item->category);
+		DbgFree(item);
 	}
 
 	if (client->paused)
 		s_info.nr_of_paused_clients--;
 
 	s_info.client_list = eina_list_remove(s_info.client_list, client);
-	free(client);
+	DbgFree(client);
 
 	/*!
 	 * \note
@@ -268,7 +268,7 @@ static inline void invoke_deactivated_cb(struct client_node *client)
 		if (ret < 0) {
 			if (eina_list_data_find(client->event_deactivate_list, item)) {
 				client->event_deactivate_list = eina_list_remove(client->event_deactivate_list, item);
-				free(item);
+				DbgFree(item);
 			}
 		}
 	}
@@ -352,7 +352,7 @@ int client_event_callback_add(struct client_node *client, enum client_event even
 		client->event_destroy_list = eina_list_prepend(client->event_destroy_list, item);
 		break;
 	default:
-		free(item);
+		DbgFree(item);
 		return -EINVAL;
 	}
 
@@ -370,7 +370,7 @@ int client_event_callback_del(struct client_node *client, enum client_event even
 		EINA_LIST_FOREACH_SAFE(client->event_deactivate_list, l, n, item) {
 			if (item->cb == cb && item->data == data) {
 				client->event_deactivate_list = eina_list_remove(client->event_deactivate_list, item);
-				free(item);
+				DbgFree(item);
 				return 0;
 			}
 		}
@@ -380,7 +380,7 @@ int client_event_callback_del(struct client_node *client, enum client_event even
 		EINA_LIST_FOREACH_SAFE(client->event_destroy_list, l, n, item) {
 			if (item->cb == cb && item->data == data) {
 				client->event_destroy_list = eina_list_remove(client->event_destroy_list, item);
-				free(item);
+				DbgFree(item);
 				return 0;
 			}
 		}
@@ -407,7 +407,7 @@ int client_set_data(struct client_node *client, const char *tag, void *data)
 	item->tag = strdup(tag);
 	if (!item->tag) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(item);
+		DbgFree(item);
 		return -ENOMEM;
 	}
 
@@ -441,8 +441,8 @@ void *client_del_data(struct client_node *client, const char *tag)
 			void *data;
 			client->data_list = eina_list_remove(client->data_list, item);
 			data = item->data;
-			free(item->tag);
-			free(item);
+			DbgFree(item->tag);
+			DbgFree(item);
 			return data;
 		}
 	}
@@ -509,7 +509,7 @@ int client_global_event_handler_add(enum client_global_event event_type, int (*c
 	} else if (event_type == CLIENT_GLOBAL_EVENT_DESTROY) {
 		s_info.destroy_event_list = eina_list_append(s_info.destroy_event_list, handler);
 	} else {
-		free(handler);
+		DbgFree(handler);
 		return -EINVAL;
 	}
 
@@ -526,7 +526,7 @@ int client_global_event_handler_del(enum client_global_event event_type, int (*c
 		EINA_LIST_FOREACH_SAFE(s_info.create_event_list, l, n, handler) {
 			if (handler->cb == cb && handler->cbdata == data) {
 				s_info.create_event_list = eina_list_remove(s_info.create_event_list, handler);
-				free(handler);
+				DbgFree(handler);
 				return 0;
 			}
 		}
@@ -534,7 +534,7 @@ int client_global_event_handler_del(enum client_global_event event_type, int (*c
 		EINA_LIST_FOREACH_SAFE(s_info.destroy_event_list, l, n, handler) {
 			if (handler->cb == cb && handler->cbdata == data) {
 				s_info.destroy_event_list = eina_list_remove(s_info.destroy_event_list, handler);
-				free(handler);
+				DbgFree(handler);
 				return 0;
 			}
 		}
@@ -556,15 +556,15 @@ int client_subscribe(struct client_node *client, const char *cluster, const char
 	item->cluster = strdup(cluster);
 	if (!item->cluster) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(item);
+		DbgFree(item);
 		return -ENOMEM;
 	}
 
 	item->category = strdup(category);
 	if (!item->category) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(item->cluster);
-		free(item);
+		DbgFree(item->cluster);
+		DbgFree(item);
 		return -ENOMEM;
 	}
 
@@ -581,9 +581,9 @@ int client_unsubscribe(struct client_node *client, const char *cluster, const ch
 	EINA_LIST_FOREACH_SAFE(client->subscribe_list, l, n, item) {
 		if (!strcasecmp(cluster, item->cluster) && !strcasecmp(category, item->category)) {
 			client->subscribe_list = eina_list_remove(client->subscribe_list, item);
-			free(item->cluster);
-			free(item->category);
-			free(item);
+			DbgFree(item->cluster);
+			DbgFree(item->category);
+			DbgFree(item);
 			return 0;
 		}
 	}

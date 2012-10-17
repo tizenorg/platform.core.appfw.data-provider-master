@@ -71,7 +71,7 @@ struct fb_info *fb_create(struct inst_info *inst, int w, int h, enum buffer_type
 	info->buffer = buffer_handler_create(inst, type, w, h, sizeof(int));
 	if (!info->buffer) {
 		ErrPrint("Failed to create a buffer\n");
-		free(info);
+		DbgFree(info);
 		return NULL;
 	}
 
@@ -131,7 +131,7 @@ int fb_destroy_buffer(struct fb_info *info)
 int fb_destroy(struct fb_info *info)
 {
 	fb_destroy_buffer(info);
-	free(info);
+	DbgFree(info);
 	return 0;
 }
 

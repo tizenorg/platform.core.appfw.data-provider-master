@@ -310,7 +310,7 @@ static inline int build_provider_info(struct pkg_info *info)
 
 		package_set_lb_path(info, path);
 		DbgPrint("LB Path: %s\n", path);
-		free(path);
+		DbgFree(path);
 
 		tmp = (const char *)sqlite3_column_text(stmt, 5);
 		if (tmp && strlen(tmp))
@@ -332,7 +332,7 @@ static inline int build_provider_info(struct pkg_info *info)
 		snprintf(path, pathlen, "/opt/apps/%s/%s", appid, tmp);
 		DbgPrint("PD Path: %s\n", path);
 		package_set_pd_path(info, path);
-		free(path);
+		DbgFree(path);
 
 		tmp = (const char *)sqlite3_column_text(stmt, 8);
 		if (tmp && strlen(tmp))

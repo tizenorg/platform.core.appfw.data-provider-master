@@ -207,10 +207,10 @@ int fault_check_pkgs(struct slave_node *slave)
 
 			s_info.call_list = eina_list_remove_list(s_info.call_list, l);
 
-			free(info->pkgname);
-			free(info->filename);
-			free(info->func);
-			free(info);
+			DbgFree(info->pkgname);
+			DbgFree(info->filename);
+			DbgFree(info->func);
+			DbgFree(info);
 			checked = 1;
 		}
 	}
@@ -232,22 +232,22 @@ int fault_func_call(struct slave_node *slave, const char *pkgname, const char *f
 
 	info->pkgname = strdup(pkgname);
 	if (!info->pkgname) {
-		free(info);
+		DbgFree(info);
 		return -ENOMEM;
 	}
 
 	info->filename = strdup(filename);
 	if (!info->filename) {
-		free(info->pkgname);
-		free(info);
+		DbgFree(info->pkgname);
+		DbgFree(info);
 		return -ENOMEM;
 	}
 
 	info->func = strdup(func);
 	if (!info->func) {
-		free(info->filename);
-		free(info->pkgname);
-		free(info);
+		DbgFree(info->filename);
+		DbgFree(info->pkgname);
+		DbgFree(info);
 		return -ENOMEM;
 	}
 
@@ -278,10 +278,10 @@ int fault_func_ret(struct slave_node *slave, const char *pkgname, const char *fi
 			continue;
 
 		s_info.call_list = eina_list_remove_list(s_info.call_list, l);
-		free(info->filename);
-		free(info->pkgname);
-		free(info->func);
-		free(info);
+		DbgFree(info->filename);
+		DbgFree(info->pkgname);
+		DbgFree(info->func);
+		DbgFree(info);
 
 		s_info.fault_mark_count--;
 		return 0;

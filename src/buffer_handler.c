@@ -105,26 +105,26 @@ struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buffer_ty
 		info->id = strdup(SCHEMA_SHM "-1");
 		if (!info->id) {
 			ErrPrint("Heap: %s\n", strerror(errno));
-			free(info);
+			DbgFree(info);
 			return NULL;
 		}
 	} else if (type == BUFFER_TYPE_FILE) {
 		info->id = strdup(SCHEMA_FILE "/tmp/.live.undefined");
 		if (!info->id) {
 			ErrPrint("Heap: %s\n", strerror(errno));
-			free(info);
+			DbgFree(info);
 			return NULL;
 		}
 	} else if (type == BUFFER_TYPE_PIXMAP) {
 		info->id = strdup(SCHEMA_PIXMAP "0");
 		if (!info->id) {
 			ErrPrint("Heap: %s\n", strerror(errno));
-			free(info);
+			DbgFree(info);
 			return NULL;
 		}
 	} else {
 		ErrPrint("Invalid type\n");
-		free(info);
+		DbgFree(info);
 		return NULL;
 	}
 
@@ -175,7 +175,7 @@ static inline struct buffer *create_gem(Display *disp, Window parent, int w, int
 	gem->pixmap = XCreatePixmap(disp, parent, w, h, 24 /* (depth << 3) */);
 	if (gem->pixmap == (Pixmap)0) {
 		ErrPrint("Failed to create a pixmap\n");
-		free(buffer);
+		DbgFree(buffer);
 		return NULL;
 	}
 
@@ -192,7 +192,7 @@ static inline struct buffer *create_gem(Display *disp, Window parent, int w, int
 		ErrPrint("Failed to get GemBuffer\n");
 		XFreePixmap(disp, gem->pixmap);
 		buffer->state = DESTROYED;
-		free(buffer);
+		DbgFree(buffer);
 		return NULL;
 	}
 	DbgPrint("dri2_buffer: %p, name: %p, %dx%d (%dx%d)\n",
@@ -209,7 +209,7 @@ static inline struct buffer *create_gem(Display *disp, Window parent, int w, int
 		XFreePixmap(disp, gem->pixmap);
 		ErrPrint("Failed to import BO\n");
 		buffer->state = DESTROYED;
-		free(buffer);
+		DbgFree(buffer);
 		return NULL;
 	}
 
@@ -291,7 +291,7 @@ static inline int destroy_gem(struct buffer *buffer)
 	DbgPrint("Free pixmap 0x%X\n", gem->pixmap);
 
 	buffer->state = DESTROYED;
-	free(buffer);
+	DbgFree(buffer);
 	return 0;
 }
 
@@ -316,14 +316,14 @@ static inline int load_file_buffer(struct buffer_info *info)
 	size = sizeof(*buffer) + info->w * info->h * info->pixel_size;
 	if (!size) {
 		ErrPrint("Canvas buffer size is ZERO\n");
-		free(new_id);
+		DbgFree(new_id);
 		return -EINVAL;
 	}
 
 	buffer = calloc(1, size);
 	if (!buffer) {
 		ErrPrint("Failed to allocate buffer\n");
-		free(new_id);
+		DbgFree(new_id);
 		return -ENOMEM;
 	}
 
@@ -332,7 +332,7 @@ static inline int load_file_buffer(struct buffer_info *info)
 	buffer->state = CREATED;
 	buffer->info = info;
 
-	free(info->id);
+	DbgFree(info->id);
 	info->id = new_id;
 	info->buffer = buffer;
 	info->is_loaded = 1;
@@ -392,7 +392,7 @@ static inline int load_shm_buffer(struct buffer_info *info)
 
 	snprintf(new_id, len, SCHEMA_SHM "%d", id);
 
-	free(info->id);
+	DbgFree(info->id);
 	info->id = new_id;
 	info->buffer = buffer;
 	info->is_loaded = 1;
@@ -434,7 +434,7 @@ static inline int load_pixmap_buffer(struct buffer_info *info)
 	}
 
 	DbgPrint("Releaseo old id (%s)\n", info->id);
-	free(info->id);
+	DbgFree(info->id);
 	info->id = new_id;
 
 	gem = (struct gem_data *)buffer->data;
@@ -490,14 +490,14 @@ static inline int unload_file_buffer(struct buffer_info *info)
 		return -ENOMEM;
 	}
 
-	free(info->buffer);
+	DbgFree(info->buffer);
 	info->buffer = NULL;
 
 	path = util_uri_to_path(info->id);
 	if (path && unlink(path) < 0)
 		ErrPrint("unlink: %s\n", strerror(errno));
 
-	free(info->id);
+	DbgFree(info->id);
 	info->id = new_id;
 	return 0;
 }
@@ -515,13 +515,13 @@ static inline int unload_shm_buffer(struct buffer_info *info)
 
 	if (sscanf(info->id, SCHEMA_SHM "%d", &id) != 1) {
 		ErrPrint("%s Invalid ID\n", info->id);
-		free(new_id);
+		DbgFree(new_id);
 		return -EINVAL;
 	}
 
 	if (id < 0) {
 		ErrPrint("(%s) Invalid id: %d\n", info->id, id);
-		free(new_id);
+		DbgFree(new_id);
 		return -EINVAL;
 	}
 
@@ -533,7 +533,7 @@ static inline int unload_shm_buffer(struct buffer_info *info)
 
 	info->buffer = NULL;
 
-	free(info->id);
+	DbgFree(info->id);
 	info->id = new_id;
 	return 0;
 }
@@ -551,13 +551,13 @@ static inline int unload_pixmap_buffer(struct buffer_info *info)
 
 	if (sscanf(info->id, SCHEMA_PIXMAP "%d", &id) != 1) {
 		ErrPrint("Invalid ID (%s)\n", info->id);
-		free(new_id);
+		DbgFree(new_id);
 		return -EINVAL;
 	}
 
 	if (id == 0) {
 		ErrPrint("(%s) Invalid id: %d\n", info->id, id);
-		free(new_id);
+		DbgFree(new_id);
 		return -EINVAL;
 	}
 
@@ -573,7 +573,7 @@ static inline int unload_pixmap_buffer(struct buffer_info *info)
 	 */
 	info->buffer = NULL;
 
-	free(info->id);
+	DbgFree(info->id);
 	info->id = new_id;
 	return 0;
 }
@@ -630,8 +630,8 @@ int buffer_handler_destroy(struct buffer_info *info)
 	}
 
 	buffer_handler_unload(info);
-	free(info->id);
-	free(info);
+	DbgFree(info->id);
+	DbgFree(info);
 	return 0;
 }
 
@@ -997,8 +997,8 @@ int buffer_handler_init(void)
 
 	DbgPrint("Open: %s (driver: %s)", deviceName, driverName);
 	s_info.fd = open(deviceName, O_RDWR);
-	free(deviceName);
-	free(driverName);
+	DbgFree(deviceName);
+	DbgFree(driverName);
 	if (s_info.fd < 0) {
 		DbgPrint("Failed to open a drm device: (%s)\n", strerror(errno));
 		s_info.evt_base = 0;

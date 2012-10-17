@@ -175,7 +175,7 @@ int parser_find(const char *pkgname)
 
 	ret = snprintf(filename, len, CONF_PATH, pkgname, pkgname);
 	if (ret < 0) {
-		free(filename);
+		DbgFree(filename);
 		return -EFAULT;
 	}
 
@@ -183,12 +183,12 @@ int parser_find(const char *pkgname)
 
 	EINA_LIST_FOREACH(s_list, l, item) {
 		if (!strcmp(item->filename, filename)) {
-			free(filename);
+			DbgFree(filename);
 			return (int)item;
 		}
 	}
 
-	free(filename);
+	DbgFree(filename);
 	return 0;
 }
 
@@ -444,7 +444,7 @@ static void pinup_handler(struct parser *item, char *buffer)
 static void lb_path_handler(struct parser *item, char *buffer)
 {
 	if (item->lb_path)
-		free(item->lb_path);
+		DbgFree(item->lb_path);
 
 	item->lb_path = dup_rtrim(buffer);
 	if (!item->lb_path)
@@ -454,7 +454,7 @@ static void lb_path_handler(struct parser *item, char *buffer)
 static void group_handler(struct parser *item, char *buffer)
 {
 	if (item->group)
-		free(item->group);
+		DbgFree(item->group);
 
 	item->group = dup_rtrim(buffer);
 	if (!item->group)
@@ -472,7 +472,7 @@ static void secured_handler(struct parser *item, char *buffer)
 static void lb_group_handler(struct parser *item, char *buffer)
 {
 	if (item->lb_group)
-		free(item->lb_group);
+		DbgFree(item->lb_group);
 
 	item->lb_group = dup_rtrim(buffer);
 	if (!item->lb_group)
@@ -482,7 +482,7 @@ static void lb_group_handler(struct parser *item, char *buffer)
 static void pd_path_handler(struct parser *item, char *buffer)
 {
 	if (item->pd_path)
-		free(item->pd_path);
+		DbgFree(item->pd_path);
 
 	item->pd_path = dup_rtrim(buffer);
 	if (!item->pd_path)
@@ -492,7 +492,7 @@ static void pd_path_handler(struct parser *item, char *buffer)
 static void pd_group_handler(struct parser *item, char *buffer)
 {
 	if (item->pd_group)
-		free(item->pd_group);
+		DbgFree(item->pd_group);
 
 	item->pd_group = dup_rtrim(buffer);
 	if (!item->pd_group)
@@ -616,15 +616,15 @@ struct parser *parser_load(const char *pkgname)
 	item->filename = malloc(len);
 	if (!item->filename) {
 		LOGD("Error: %s\n", strerror(errno));
-		free(item);
+		DbgFree(item);
 		return 0;
 	}
 
 	ret = snprintf(item->filename, len, CONF_PATH, pkgname, pkgname);
 	if (ret < 0) {
 		LOGD("Error: %s\n", strerror(errno));
-		free(item->filename);
-		free(item);
+		DbgFree(item->filename);
+		DbgFree(item);
 		return 0;
 	}
 
@@ -640,8 +640,8 @@ struct parser *parser_load(const char *pkgname)
 
 	fp = fopen(item->filename, "rt");
 	if (!fp) {
-		free(item->filename);
-		free(item);
+		DbgFree(item->filename);
+		DbgFree(item);
 		return 0;
 	}
 
@@ -806,15 +806,15 @@ int parser_unload(struct parser *item)
 {
 	s_list = eina_list_remove(s_list, item);
 
-	free(item->abi);
-	free(item->script);
-	free(item->group);
-	free(item->pd_group);
-	free(item->pd_path);
-	free(item->lb_group);
-	free(item->lb_path);
-	free(item->filename);
-	free(item);
+	DbgFree(item->abi);
+	DbgFree(item->script);
+	DbgFree(item->group);
+	DbgFree(item->pd_group);
+	DbgFree(item->pd_path);
+	DbgFree(item->lb_group);
+	DbgFree(item->lb_path);
+	DbgFree(item->filename);
+	DbgFree(item);
 	return 0;
 }
 

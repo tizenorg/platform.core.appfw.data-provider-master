@@ -91,24 +91,24 @@ static inline void push_pended_item(const char *c_name, const char *s_name, cons
 	pending_item->cluster = strdup(c_name);
 	if (!pending_item->cluster) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(pending_item);
+		DbgFree(pending_item);
 		return;
 	}
 
 	pending_item->category = strdup(s_name);
 	if (!pending_item->category) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(pending_item->cluster);
-		free(pending_item);
+		DbgFree(pending_item->cluster);
+		DbgFree(pending_item);
 		return;
 	}
 
 	pending_item->pkgname = strdup(pkgname);
 	if (!pending_item->pkgname) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(pending_item->cluster);
-		free(pending_item->category);
-		free(pending_item);
+		DbgFree(pending_item->cluster);
+		DbgFree(pending_item->category);
+		DbgFree(pending_item);
 		return;
 	}
 
@@ -269,10 +269,10 @@ static int xmonitor_resume_cb(void *data)
 		DbgPrint("Pended ctx event for %s - %s / %s\n", item->cluster, item->category, item->pkgname);
 		processing_ctx_event(item->cluster, item->category, item->pkgname);
 
-		free(item->cluster);
-		free(item->category);
-		free(item->pkgname);
-		free(item);
+		DbgFree(item->cluster);
+		DbgFree(item->category);
+		DbgFree(item->pkgname);
+		DbgFree(item);
 	}
 
 	return 0;

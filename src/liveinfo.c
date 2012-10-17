@@ -42,7 +42,7 @@ int liveinfo_fini(void)
 	EINA_LIST_FREE(s_info.info_list, info) {
 		fclose(info->fp);
 		unlink(info->fifo_name);
-		free(info);
+		DbgFree(info);
 	}
 
 	return 0;
@@ -90,7 +90,7 @@ struct liveinfo *liveinfo_create(pid_t pid, int handle)
 	if (mkfifo(info->fifo_name, 0644) < 0) {
 		ErrPrint("mkfifo: %s\n", strerror(errno));
 		unlink(info->fifo_name);
-		free(info);
+		DbgFree(info);
 		return NULL;
 	}
 
@@ -130,7 +130,7 @@ int liveinfo_destroy(struct liveinfo *info)
 	s_info.info_list = eina_list_remove(s_info.info_list, info);
 	liveinfo_close_fifo(info);
 	unlink(info->fifo_name);
-	free(info);
+	DbgFree(info);
 	return 0;
 }
 

@@ -67,11 +67,11 @@ static inline int check_native_livebox(const char *pkgname)
 	snprintf(path, len, "%s%s/libexec/liblive-%s.so", ROOT_PATH, pkgname, pkgname);
 	if (access(path, F_OK | R_OK) != 0) {
 		ErrPrint("%s is not a valid package\n", pkgname);
-		free(path);
+		DbgFree(path);
 		return -EINVAL;
 	}
 
-	free(path);
+	DbgFree(path);
 	return 0;
 }
 
@@ -92,11 +92,11 @@ static inline int check_web_livebox(const char *pkgname)
 	snprintf(path, len, "/opt/apps/%s/res/wgt/livebox/index.html", pkgname);
 	if (access(path, F_OK | R_OK) != 0) {
 		ErrPrint("%s is not a valid package\n", pkgname);
-		free(path);
+		DbgFree(path);
 		return -EINVAL;
 	}
 
-	free(path);
+	DbgFree(path);
 	return 0;
 }
 
@@ -129,12 +129,12 @@ int util_unlink(const char *filename)
 	ret = snprintf(descfile, desclen, "%s.desc", filename);
 	if (ret < 0) {
 		ErrPrint("Error: %s\n", strerror(errno));
-		free(descfile);
+		DbgFree(descfile);
 		return -EFAULT;
 	}
 
 	(void)unlink(descfile);
-	free(descfile);
+	DbgFree(descfile);
 	(void)unlink(filename);
 
 	return 0;
@@ -216,7 +216,7 @@ char *util_replace_string(const char *src, const char *pattern, const char *repl
 			tmp = realloc(result, len);
 			if (!tmp) {
 				ErrPrint("Heap: %s\n", strerror(errno));
-				free(result);
+				DbgFree(result);
 				return NULL;
 			}
 			result = tmp;
@@ -233,7 +233,7 @@ char *util_replace_string(const char *src, const char *pattern, const char *repl
 				tmp = realloc(result, len);
 				if (!tmp) {
 					ErrPrint("Heap: %s\n", strerror(errno));
-					free(result);
+					DbgFree(result);
 					return NULL;
 				}
 				result = tmp;
@@ -252,7 +252,7 @@ char *util_replace_string(const char *src, const char *pattern, const char *repl
 								tmp = realloc(result, len);
 								if (!tmp) {
 									ErrPrint("Heap: %s\n", strerror(errno));
-									free(result);
+									DbgFree(result);
 									return NULL;
 								}
 								result = tmp;
@@ -281,7 +281,7 @@ char *util_replace_string(const char *src, const char *pattern, const char *repl
 					tmp = realloc(result, len);
 					if (!tmp) {
 						ErrPrint("Heap: %s\n", strerror(errno));
-						free(result);
+						DbgFree(result);
 						return NULL;
 					}
 					result = tmp;
@@ -302,7 +302,7 @@ char *util_replace_string(const char *src, const char *pattern, const char *repl
 	result[idx] = '\0';
 
 	if (!matched) {
-		free(result);
+		DbgFree(result);
 		result = NULL;
 	}
 

@@ -63,7 +63,7 @@ int critical_log(const char *func, int line, const char *fmt, ...)
 			if (!s_info.fp)
 				ErrPrint("Failed to open a file: %s\n", filename);
 
-			free(filename);
+			DbgFree(filename);
 		}
 
 		s_info.nr_of_lines = 0;
@@ -92,7 +92,7 @@ int critical_log_init(const char *name)
 	filename = malloc(namelen);
 	if (!filename) {
 		ErrPrint("Failed to create a log file\n");
-		free(s_info.filename);
+		DbgFree(s_info.filename);
 		s_info.filename = NULL;
 		return -ENOMEM;
 	}
@@ -102,13 +102,13 @@ int critical_log_init(const char *name)
 	s_info.fp = fopen(filename, "w+");
 	if (!s_info.fp) {
 		ErrPrint("Failed to open log: %s\n", strerror(errno));
-		free(s_info.filename);
+		DbgFree(s_info.filename);
 		s_info.filename = NULL;
-		free(filename);
+		DbgFree(filename);
 		return -EIO;
 	}
 
-	free(filename);
+	DbgFree(filename);
 	return 0;
 }
 
@@ -117,7 +117,7 @@ int critical_log_init(const char *name)
 int critical_log_fini(void)
 {
 	if (s_info.filename) {
-		free(s_info.filename);
+		DbgFree(s_info.filename);
 		s_info.filename = NULL;
 	}
 

@@ -67,7 +67,7 @@ struct context_info *group_create_context_info(struct category *category, const 
 	info->pkgname = strdup(pkgname);
 	if (!info->pkgname) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(info);
+		DbgFree(info);
 		return NULL;
 	}
 
@@ -81,9 +81,9 @@ static inline void del_options(struct context_item *item)
 	struct context_option *option;
 
 	EINA_LIST_FREE(item->option_list, option) {
-		free(option->key);
-		free(option->value);
-		free(option);
+		DbgFree(option->key);
+		DbgFree(option->value);
+		DbgFree(option);
 	}
 }
 
@@ -93,8 +93,8 @@ static inline void del_context_item(struct context_info *info)
 
 	EINA_LIST_FREE(info->context_list, item) {
 		del_options(item);
-		free(item->ctx_item);
-		free(item);
+		DbgFree(item->ctx_item);
+		DbgFree(item);
 	}
 }
 
@@ -111,7 +111,7 @@ struct context_item *group_add_context_item(struct context_info *info, const cha
 	item->ctx_item = strdup(ctx_item);
 	if (!item->ctx_item) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(item);
+		DbgFree(item);
 		return NULL;
 	}
 
@@ -133,15 +133,15 @@ int group_add_option(struct context_item *item, const char *key, const char *val
 	option->key = strdup(key);
 	if (!option->key) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(option);
+		DbgFree(option);
 		return -ENOMEM;
 	}
 
 	option->value = strdup(value);
 	if (!option->value) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(option->key);
-		free(option);
+		DbgFree(option->key);
+		DbgFree(option);
 		return -ENOMEM;
 	}
 
@@ -163,8 +163,8 @@ int group_destroy_context_info(struct context_info *info)
 	category->info_list = eina_list_remove(category->info_list, info);
 
 	del_context_item(info);
-	free(info->pkgname);
-	free(info);
+	DbgFree(info->pkgname);
+	DbgFree(info);
 	return 0;
 }
 
@@ -181,7 +181,7 @@ struct cluster *group_create_cluster(const char *name)
 	cluster->name = strdup(name);
 	if (!cluster->name) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(cluster);
+		DbgFree(cluster);
 		return NULL;
 	}
 
@@ -218,7 +218,7 @@ struct category *group_create_category(struct cluster *cluster, const char *name
 	category->name = strdup(name);
 	if (!category->name) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(category);
+		DbgFree(category);
 		return NULL;
 	}
 
@@ -241,8 +241,8 @@ static inline void destroy_cluster(struct cluster *cluster)
 	}
 
 	DbgPrint("Destroy cluster: %s\n", cluster->name);
-	free(cluster->name);
-	free(cluster);
+	DbgFree(cluster->name);
+	DbgFree(cluster);
 }
 
 int group_destroy_cluster(struct cluster *cluster)
@@ -273,8 +273,8 @@ static inline void destroy_category(struct category *category)
 	}
 
 	DbgPrint("Destroy category: %s\n", category->name);
-	free(category->name);
-	free(category);
+	DbgFree(category->name);
+	DbgFree(category);
 }
 
 int group_destroy_category(struct category *category)
@@ -367,7 +367,7 @@ int group_context_item_add_data(struct context_item *item, const char *tag, void
 
 	tmp->tag = strdup(tag);
 	if (!tmp->tag) {
-		free(tmp);
+		DbgFree(tmp);
 		return -ENOMEM;
 	}
 
@@ -399,9 +399,9 @@ void *group_context_item_del_data(struct context_item *item, const char *tag)
 	EINA_LIST_FOREACH_SAFE(item->data_list, l, n, tmp) {
 		if (!strcmp(tmp->tag, tag)) {
 			item->data_list = eina_list_remove(item->data_list, tmp);
-			free(tmp->tag);
+			DbgFree(tmp->tag);
 			data = tmp->data;
-			free(tmp);
+			DbgFree(tmp);
 			return data;
 		}
 	}
@@ -500,7 +500,7 @@ int group_add_livebox(const char *group, const char *pkgname)
 
 				if (!cluster) {
 					ErrPrint("Failed to get cluster\n");
-					free(name);
+					DbgFree(name);
 					return -EFAULT;
 				}
 
@@ -514,14 +514,14 @@ int group_add_livebox(const char *group, const char *pkgname)
 
 				if (!category) {
 					ErrPrint("Failed to get category\n");
-					free(name);
+					DbgFree(name);
 					return -EFAULT;
 				}
 
 				info = group_create_context_info(category, pkgname);
 				if (!info) {
 					ErrPrint("Failed to create ctx info\n");
-					free(name);
+					DbgFree(name);
 					return -EFAULT;
 				}
 
@@ -532,7 +532,7 @@ int group_add_livebox(const char *group, const char *pkgname)
 				item = group_add_context_item(info, name);
 				if (!item) {
 					ErrPrint("Failed to create a context item\n");
-					free(name);
+					DbgFree(name);
 					return -EFAULT;
 				}
 
@@ -543,11 +543,11 @@ int group_add_livebox(const char *group, const char *pkgname)
 			case CONTEXT_OPTION_VALUE:
 			default:
 				ErrPrint("Invalid state\n");
-				free(name);
+				DbgFree(name);
 				return -EFAULT;
 			}
 
-			free(name);
+			DbgFree(name);
 			is_open++;
 			len = 0;
 			ptr++;
@@ -567,7 +567,7 @@ int group_add_livebox(const char *group, const char *pkgname)
 			case CLUSTER:
 				if (is_open != 0) {
 					ErrPrint("Invalid state\n");
-					free(name);
+					DbgFree(name);
 					return -EFAULT;
 				}
 				cluster = group_find_cluster(name);
@@ -576,7 +576,7 @@ int group_add_livebox(const char *group, const char *pkgname)
 
 				if (!cluster) {
 					ErrPrint("Failed to get cluster\n");
-					free(name);
+					DbgFree(name);
 					return -EFAULT;
 				}
 
@@ -586,7 +586,7 @@ int group_add_livebox(const char *group, const char *pkgname)
 			case CATEGORY:
 				if (is_open != 1) {
 					ErrPrint("Invalid state\n");
-					free(name);
+					DbgFree(name);
 					return -EFAULT;
 				}
 				category = group_find_category(cluster, name);
@@ -595,14 +595,14 @@ int group_add_livebox(const char *group, const char *pkgname)
 
 				if (!category) {
 					ErrPrint("Failed to get category\n");
-					free(name);
+					DbgFree(name);
 					return -EFAULT;
 				}
 
 				info = group_create_context_info(category, pkgname);
 				if (!info) {
 					ErrPrint("Failed to create ctx info\n");
-					free(name);
+					DbgFree(name);
 					return -EFAULT;
 				}
 
@@ -616,14 +616,14 @@ int group_add_livebox(const char *group, const char *pkgname)
 
 					if (!category) {
 						ErrPrint("Failed to get category\n");
-						free(name);
+						DbgFree(name);
 						return -EFAULT;
 					}
 
 					info = group_create_context_info(category, pkgname);
 					if (!info) {
 						ErrPrint("Failed to create ctx info\n");
-						free(name);
+						DbgFree(name);
 						return -EFAULT;
 					}
 					DbgPrint("Keep this syntax only for the compatibility\n");
@@ -631,13 +631,13 @@ int group_add_livebox(const char *group, const char *pkgname)
 					item = group_add_context_item(info, name);
 					if (!item) {
 						ErrPrint("Failed to create a context item\n");
-						free(name);
+						DbgFree(name);
 						return -EFAULT;
 					}
 					state = CONTEXT_OPTION_KEY;
 				} else {
 					ErrPrint("Invalid state\n");
-					free(name);
+					DbgFree(name);
 					return -EFAULT;
 				}
 
@@ -645,14 +645,14 @@ int group_add_livebox(const char *group, const char *pkgname)
 			case CONTEXT_OPTION_VALUE:
 				if (is_open != 3) {
 					ErrPrint("Invalid state\n");
-					free(name);
+					DbgFree(name);
 					return -EFAULT;
 				}
 
 				if (group_add_option(item, key, name) < 0)
 					ErrPrint("Failed to add a new option: %s - %s\n", key, name);
 
-				free(key);
+				DbgFree(key);
 				key = NULL;
 
 				state = CONTEXT_OPTION_KEY;
@@ -660,11 +660,11 @@ int group_add_livebox(const char *group, const char *pkgname)
 			case CONTEXT_OPTION_KEY:
 			default:
 				ErrPrint("Invalid state (%s)\n", name);
-				free(name);
+				DbgFree(name);
 				return -EFAULT;
 			}
 
-			free(name);
+			DbgFree(name);
 			len = 0;
 			ptr++;
 			while (*ptr && isspace(*ptr)) ptr++;
@@ -710,14 +710,14 @@ int group_add_livebox(const char *group, const char *pkgname)
 
 				if (!category) {
 					ErrPrint("Failed to get category\n");
-					free(name);
+					DbgFree(name);
 					return -EFAULT;
 				}
 
 				info = group_create_context_info(category, pkgname);
 				if (!info) {
 					ErrPrint("Failed to create ctx info\n");
-					free(name);
+					DbgFree(name);
 					return -EFAULT;
 				}
 
@@ -732,14 +732,14 @@ int group_add_livebox(const char *group, const char *pkgname)
 
 					if (!category) {
 						ErrPrint("Failed to get category\n");
-						free(name);
+						DbgFree(name);
 						return -EFAULT;
 					}
 
 					info = group_create_context_info(category, pkgname);
 					if (!info) {
 						ErrPrint("Failed to create ctx info\n");
-						free(name);
+						DbgFree(name);
 						return -EFAULT;
 					}
 
@@ -749,21 +749,21 @@ int group_add_livebox(const char *group, const char *pkgname)
 					state = CATEGORY;
 				} else {
 					ErrPrint("Invalid state\n");
-					free(name);
+					DbgFree(name);
 					return -EFAULT;
 				}
 				break;
 			case CONTEXT_OPTION_VALUE:
 				if (is_open != 2) {
 					ErrPrint("Invalid state (%s)\n", name);
-					free(name);
+					DbgFree(name);
 					return -EFAULT;
 				}
 
 				if (group_add_option(item, key, name) < 0)
 					ErrPrint("Failed to add a new option: %s - %s\n", key, name);
 
-				free(key);
+				DbgFree(key);
 				key = NULL;
 
 				state = CONTEXT_ITEM;
@@ -775,7 +775,7 @@ int group_add_livebox(const char *group, const char *pkgname)
 				break;
 			}
 
-			free(name);
+			DbgFree(name);
 			is_open--;
 			len = 0;
 			ptr++;

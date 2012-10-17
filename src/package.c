@@ -201,21 +201,21 @@ static inline void destroy_package(struct pkg_info *info)
 	group_del_livebox(info->pkgname);
 
 	if (info->lb.type == LB_TYPE_SCRIPT) {
-		free(info->lb.info.script.path);
-		free(info->lb.info.script.group);
+		DbgFree(info->lb.info.script.path);
+		DbgFree(info->lb.info.script.group);
 	}
 
 	if (info->pd.type == PD_TYPE_SCRIPT) {
-		free(info->pd.info.script.path);
-		free(info->pd.info.script.group);
+		DbgFree(info->pd.info.script.path);
+		DbgFree(info->pd.info.script.group);
 	}
 
-	free(info->script);
-	free(info->abi);
-	free(info->pkgname);
-	free(info->libexec);
+	DbgFree(info->script);
+	DbgFree(info->abi);
+	DbgFree(info->pkgname);
+	DbgFree(info->libexec);
 
-	free(info);
+	DbgFree(info);
 }
 
 static inline int load_conf(struct pkg_info *info)
@@ -237,7 +237,7 @@ static inline int load_conf(struct pkg_info *info)
 		info->abi = strdup(DEFAULT_ABI);
 		if (!info->abi) {
 			ErrPrint("Heap: %s\n", strerror(errno));
-			free(info->script);
+			DbgFree(info->script);
 			info->script = NULL;
 			return -ENOMEM;
 		}
@@ -270,7 +270,7 @@ static inline int load_conf(struct pkg_info *info)
 				info->lb.info.script.group = strdup(str);
 				if (!info->lb.info.script.group) {
 					ErrPrint("Heap: %s\n", strerror(errno));
-					free(info->lb.info.script.path);
+					DbgFree(info->lb.info.script.path);
 					parser_unload(parser);
 					return -ENOMEM;
 				}
@@ -290,8 +290,8 @@ static inline int load_conf(struct pkg_info *info)
 			if (!info->pd.info.script.path) {
 				ErrPrint("Heap: %s\n", strerror(errno));
 				if (info->lb.type == LB_TYPE_SCRIPT) {
-					free(info->lb.info.script.path);
-					free(info->lb.info.script.group);
+					DbgFree(info->lb.info.script.path);
+					DbgFree(info->lb.info.script.group);
 				}
 				parser_unload(parser);
 				return -ENOMEM;
@@ -302,10 +302,10 @@ static inline int load_conf(struct pkg_info *info)
 				info->pd.info.script.group = strdup(str);
 				if (!info->pd.info.script.group) {
 					ErrPrint("Heap: %s\n", strerror(errno));
-					free(info->pd.info.script.path);
+					DbgFree(info->pd.info.script.path);
 					if (info->lb.type == LB_TYPE_SCRIPT) {
-						free(info->lb.info.script.path);
-						free(info->lb.info.script.group);
+						DbgFree(info->lb.info.script.path);
+						DbgFree(info->lb.info.script.group);
 					}
 					parser_unload(parser);
 					return -ENOMEM;
@@ -320,13 +320,13 @@ static inline int load_conf(struct pkg_info *info)
 	if (!info->script) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		if (info->pd.type == PD_TYPE_SCRIPT) {
-			free(info->pd.info.script.path);
-			free(info->pd.info.script.group);
+			DbgFree(info->pd.info.script.path);
+			DbgFree(info->pd.info.script.group);
 		}
 
 		if (info->lb.type == LB_TYPE_SCRIPT) {
-			free(info->lb.info.script.path);
-			free(info->lb.info.script.group);
+			DbgFree(info->lb.info.script.path);
+			DbgFree(info->lb.info.script.group);
 		}
 
 		parser_unload(parser);
@@ -338,15 +338,15 @@ static inline int load_conf(struct pkg_info *info)
 	info->abi = strdup(str);
 	if (!info->abi) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(info->script);
+		DbgFree(info->script);
 		if (info->pd.type == PD_TYPE_SCRIPT) {
-			free(info->pd.info.script.path);
-			free(info->pd.info.script.group);
+			DbgFree(info->pd.info.script.path);
+			DbgFree(info->pd.info.script.group);
 		}
 
 		if (info->lb.type == LB_TYPE_SCRIPT) {
-			free(info->lb.info.script.path);
-			free(info->lb.info.script.group);
+			DbgFree(info->lb.info.script.path);
+			DbgFree(info->lb.info.script.group);
 		}
 		parser_unload(parser);
 		return -ENOMEM;
@@ -391,14 +391,14 @@ struct pkg_info *package_create(const char *pkgname)
 		ErrPrint("Failed to get pkgname, fallback to fs checker\n");
 		if (util_validate_livebox_package(pkgname) < 0) {
 			ErrPrint("Invalid package name: %s\n", pkgname);
-			free(info);
+			DbgFree(info);
 			return NULL;
 		}
 
 		info->pkgname = strdup(pkgname);
 		if (!info->pkgname) {
 			ErrPrint("Heap: %s\n", strerror(errno));
-			free(info);
+			DbgFree(info);
 			return NULL;
 		}
 	}
@@ -407,8 +407,8 @@ struct pkg_info *package_create(const char *pkgname)
 		ErrPrint("Failed to load DB, fall back to conf file loader\n");
 		if (load_conf(info) < 0) {
 			ErrPrint("Failed to initiate the conf file loader\n");
-			free(info->pkgname);
-			free(info);
+			DbgFree(info->pkgname);
+			DbgFree(info);
 			return NULL;
 		}
 	}
@@ -448,12 +448,12 @@ struct pkg_info *package_find(const char *pkgname)
 
 	EINA_LIST_FOREACH(s_info.pkg_list, l, info) {
 		if (!strcmp(info->pkgname, lb_pkgname)) {
-			free(lb_pkgname);
+			DbgFree(lb_pkgname);
 			return info;
 		}
 	}
 
-	free(lb_pkgname);
+	DbgFree(lb_pkgname);
 	return NULL;
 }
 
@@ -542,15 +542,15 @@ int package_set_fault_info(struct pkg_info *info, double timestamp, const char *
 	fault->filename = strdup(filename);
 	if (!fault->filename) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(fault);
+		DbgFree(fault);
 		return -ENOMEM;
 	}
 
 	fault->function = strdup(function);
 	if (!fault->function) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(fault->filename);
-		free(fault);
+		DbgFree(fault->filename);
+		DbgFree(fault);
 		return -ENOMEM;
 	}
 
@@ -565,9 +565,9 @@ int package_clear_fault(struct pkg_info *info)
 	
 	package_dump_fault_info(info);
 
-	free(info->fault_info->function);
-	free(info->fault_info->filename);
-	free(info->fault_info);
+	DbgFree(info->fault_info->function);
+	DbgFree(info->fault_info->filename);
+	DbgFree(info->fault_info);
 	info->fault_info = NULL;
 	return 0;
 }
@@ -627,7 +627,7 @@ int package_set_script(struct pkg_info *info, const char *script)
 		return -ENOMEM;
 	}
 
-	free(info->script);
+	DbgFree(info->script);
 	info->script = tmp;
 	return 0;
 }
@@ -646,7 +646,7 @@ int package_set_abi(struct pkg_info *info, const char *abi)
 		return -ENOMEM;
 	}
 
-	free(info->abi);
+	DbgFree(info->abi);
 	info->abi = tmp;
 	return 0;
 }
@@ -672,7 +672,7 @@ int package_set_lb_path(struct pkg_info *info, const char *path)
 		return -ENOMEM;
 	}
 
-	free(info->lb.info.script.path);
+	DbgFree(info->lb.info.script.path);
 	info->lb.info.script.path = tmp;
 	return 0;
 }
@@ -698,7 +698,7 @@ int package_set_lb_group(struct pkg_info *info, const char *group)
 		return -ENOMEM;
 	}
 
-	free(info->lb.info.script.group);
+	DbgFree(info->lb.info.script.group);
 	info->lb.info.script.group = tmp;
 	return 0;
 }
@@ -724,7 +724,7 @@ int package_set_pd_path(struct pkg_info *info, const char *path)
 		return -ENOMEM;
 	}
 
-	free(info->pd.info.script.path);
+	DbgFree(info->pd.info.script.path);
 	info->pd.info.script.path = tmp;
 	return 0;
 }
@@ -750,7 +750,7 @@ int package_set_pd_group(struct pkg_info *info, const char *group)
 		return -ENOMEM;
 	}
 
-	free(info->pd.info.script.group);
+	DbgFree(info->pd.info.script.group);
 	info->pd.info.script.group = tmp;
 	return 0;
 }
@@ -857,7 +857,7 @@ int package_set_libexec(struct pkg_info *info, const char *libexec)
 		return -ENOMEM;
 	}
 
-	free(info->libexec);
+	DbgFree(info->libexec);
 	info->libexec = tmp;
 	return 0;
 }
@@ -900,7 +900,7 @@ int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 
 			tmp = abi_find_slave(info->abi);
 			if (!tmp) {
-				free(s_name);
+				DbgFree(s_name);
 				ErrPrint("Failed to find a proper pkgname of a slave\n");
 				return -EINVAL;
 			}
@@ -911,7 +911,7 @@ int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 				s_pkgname = strdup(tmp);
 				if (!s_pkgname) {
 					ErrPrint("Heap: %s\n", strerror(errno));
-					free(s_name);
+					DbgFree(s_name);
 					return -ENOMEM;
 				}
 			} else if (!info->secured) {
@@ -923,8 +923,8 @@ int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 			DbgPrint("New slave name is %s, it is assigned for livebox %s (using %s)\n", s_name, info->pkgname, s_pkgname);
 			info->slave = slave_create(s_name, info->secured, info->abi, s_pkgname);
 
-			free(s_name);
-			free(s_pkgname);
+			DbgFree(s_name);
+			DbgFree(s_pkgname);
 
 			if (info->slave) {
 				slave_rpc_initialize(info->slave);

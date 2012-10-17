@@ -34,15 +34,15 @@ int abi_add_entry(const char *abi, const char *pkgname)
 	item->abi = strdup(abi);
 	if (!item->abi) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(item);
+		DbgFree(item);
 		return -ENOMEM;
 	}
 
 	item->pkgname = strdup(pkgname);
 	if (!item->pkgname) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(item->abi);
-		free(item);
+		DbgFree(item->abi);
+		DbgFree(item);
 		return -ENOMEM;
 	}
 
@@ -65,13 +65,13 @@ int abi_update_entry(const char *abi, const char *pkgname)
 
 	EINA_LIST_FOREACH_SAFE(s_abi.list, l, n, item) {
 		if (!strcasecmp(item->abi, abi)) {
-			free(item->pkgname);
+			DbgFree(item->pkgname);
 			item->pkgname = _pkgname;
 			return 0;
 		}
 	}
 
-	free(_pkgname);
+	DbgFree(_pkgname);
 	return -ENOENT;
 }
 
@@ -84,9 +84,9 @@ int abi_del_entry(const char *abi)
 	EINA_LIST_FOREACH_SAFE(s_abi.list, l, n, item) {
 		if (!strcasecmp(item->abi, abi)) {
 			s_abi.list = eina_list_remove(s_abi.list, item);
-			free(item->abi);
-			free(item->pkgname);
-			free(item);
+			DbgFree(item->abi);
+			DbgFree(item->pkgname);
+			DbgFree(item);
 			return 0;
 		}
 	}
@@ -99,9 +99,9 @@ int abi_del_all(void)
 	struct item *item;
 
 	EINA_LIST_FREE(s_abi.list, item) {
-		free(item->abi);
-		free(item->pkgname);
-		free(item);
+		DbgFree(item->abi);
+		DbgFree(item->pkgname);
+		DbgFree(item);
 	}
 
 	return 0;

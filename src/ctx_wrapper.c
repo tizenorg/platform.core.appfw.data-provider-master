@@ -160,14 +160,14 @@ static inline void register_ctx_callback(struct context_item *item, const char *
 	cbdata->option.array_size = eina_list_count(option_list);
 	if (!cbdata->option.array_size) {
 		ErrPrint("Option is not exists. ignore this context event\n");
-		free(cbdata);
+		DbgFree(cbdata);
 		return;
 	}
 
 	cbdata->option.array = calloc(cbdata->option.array_size, sizeof(*cbdata->option.array));
 	if (!cbdata->option.array) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(cbdata);
+		DbgFree(cbdata);
 		return;
 	}
 
@@ -193,8 +193,8 @@ static inline void register_ctx_callback(struct context_item *item, const char *
 	 */
 	ret = context_manager_add_context_updates_cb(ctx_item, &cbdata->option, update_context_cb, cbdata, &cbdata->req_id);
 	if (ret != CONTEXT_ERROR_NONE) {
-		free(cbdata->option.array);
-		free(cbdata);
+		DbgFree(cbdata->option.array);
+		DbgFree(cbdata);
 		return;
 	}
 
@@ -261,14 +261,14 @@ void *ctx_wrapper_unregister_callback(void *_cbfunc)
 			 */
 
 			s_info.cbdata_list = eina_list_remove(s_info.cbdata_list, cbdata);
-			free(cbdata->option.array);
-			free(cbdata);
+			DbgFree(cbdata->option.array);
+			DbgFree(cbdata);
 			DbgPrint("Callback removed\n");
 		}
 	}
 
 	data = cbfunc->user_data;
-	free(cbfunc);
+	DbgFree(cbfunc);
 	return data;
 }
 

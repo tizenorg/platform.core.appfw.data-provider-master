@@ -74,7 +74,7 @@ static inline struct command *create_command(struct slave_node *slave, const cha
 		command->pkgname = strdup(pkgname);
 		if (!command->pkgname) {
 			ErrPrint("Heap: %s\n", strerror(errno));
-			free(command);
+			DbgFree(command);
 			return NULL;
 		}
 	}
@@ -89,8 +89,8 @@ static inline void destroy_command(struct command *command)
 {
 	slave_unref(command->slave);
 	packet_unref(command->packet);
-	free(command->pkgname);
-	free(command);
+	DbgFree(command->pkgname);
+	DbgFree(command);
 }
 
 static inline struct command *pop_command(void)
@@ -307,7 +307,7 @@ static int slave_del_cb(struct slave_node *slave, void *data)
 		ErrPrint("Pong timer is not exists\n");
 
 	s_info.rpc_list = eina_list_remove(s_info.rpc_list, rpc);
-	free(rpc);
+	DbgFree(rpc);
 	return 0;
 }
 
@@ -502,7 +502,7 @@ int slave_rpc_initialize(struct slave_node *slave)
 	}
 
 	if (slave_set_data(slave, "rpc", rpc) < 0) {
-		free(rpc);
+		DbgFree(rpc);
 		return -ENOMEM;
 	}
 

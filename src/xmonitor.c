@@ -87,7 +87,7 @@ static inline int get_pid(Ecore_X_Window win)
 		}
 	} else {
 		pid = *(int *)in_pid;
-		free(in_pid);
+		DbgFree(in_pid);
 	}
 
 	return pid;
@@ -210,7 +210,7 @@ static Eina_Bool client_cb(void *data, int type, void *event)
 		/* ignore event */
 	}
 
-	free(name);
+	DbgFree(name);
 	return ECORE_CALLBACK_RENEW;
 }
 
@@ -247,13 +247,13 @@ static inline void sniff_all_windows(void)
 	if (new_item->wins)
 		win_stack = eina_list_append(win_stack, new_item);
 	else
-		free(new_item);
+		DbgFree(new_item);
 
 	while ((item = eina_list_nth(win_stack, 0))) {
 		win_stack = eina_list_remove(win_stack, item);
 
 		if (!item->wins) {
-			free(item);
+			DbgFree(item);
 			continue;
 		}
 
@@ -283,14 +283,14 @@ static inline void sniff_all_windows(void)
 				win_stack =
 					eina_list_append(win_stack, new_item);
 			} else {
-				free(new_item);
+				DbgFree(new_item);
 			}
 
 			item->i++;
 		}
 
-		free(item->wins);
-		free(item);
+		DbgFree(item->wins);
+		DbgFree(item);
 	}
 
 	return;
@@ -387,7 +387,7 @@ int xmonitor_del_event_callback(enum xmonitor_event event, int (*cb)(void *user_
 		EINA_LIST_FOREACH_SAFE(s_info.pause_list, l, n, item) {
 			if (item->cb == cb && item->user_data == user_data) {
 				s_info.pause_list = eina_list_remove(s_info.pause_list, item);
-				free(item);
+				DbgFree(item);
 				return 0;
 			}
 		}
@@ -397,7 +397,7 @@ int xmonitor_del_event_callback(enum xmonitor_event event, int (*cb)(void *user_
 		EINA_LIST_FOREACH_SAFE(s_info.resume_list, l, n, item) {
 			if (item->cb == cb && item->user_data == user_data) {
 				s_info.resume_list = eina_list_remove(s_info.resume_list, item);
-				free(item);
+				DbgFree(item);
 				return 0;
 			}
 		}

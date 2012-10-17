@@ -390,14 +390,14 @@ static inline void destroy_instance(struct inst_info *inst)
 	if (inst->update_timer)
 		ecore_timer_del(inst->update_timer);
 
-	free(inst->category);
-	free(inst->cluster);
-	free(inst->content);
-	free(inst->title);
+	DbgFree(inst->category);
+	DbgFree(inst->cluster);
+	DbgFree(inst->content);
+	DbgFree(inst->title);
 	util_unlink(inst->id);
-	free(inst->id);
+	DbgFree(inst->id);
 	package_del_instance(inst->info, inst);
-	free(inst);
+	DbgFree(inst);
 
 	slave = slave_unload_instance(slave);
 	DbgPrint("Instance is destroyed (%p), slave(%p)\n", inst, slave);
@@ -470,34 +470,34 @@ struct inst_info *instance_create(struct client_node *client, double timestamp, 
 	inst->content = strdup(content);
 	if (!inst->content) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(inst);
+		DbgFree(inst);
 		return NULL;
 	}
 
 	inst->cluster = strdup(cluster);
 	if (!inst->cluster) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(inst->content);
-		free(inst);
+		DbgFree(inst->content);
+		DbgFree(inst);
 		return NULL;
 	}
 
 	inst->category = strdup(category);
 	if (!inst->category) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(inst->cluster);
-		free(inst->content);
-		free(inst);
+		DbgFree(inst->cluster);
+		DbgFree(inst->content);
+		DbgFree(inst);
 		return NULL;
 	}
 
 	inst->title = strdup(DEFAULT_TITLE); /*!< Use the DEFAULT Title "" */
 	if (!inst->title) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(inst->category);
-		free(inst->cluster);
-		free(inst->content);
-		free(inst);
+		DbgFree(inst->category);
+		DbgFree(inst->cluster);
+		DbgFree(inst->content);
+		DbgFree(inst);
 		return NULL;
 	}
 
@@ -509,11 +509,11 @@ struct inst_info *instance_create(struct client_node *client, double timestamp, 
 	if (fork_package(inst, pkgname) < 0) {
 		client_event_callback_del(inst->client, CLIENT_EVENT_DEACTIVATE, client_deactivated_cb, inst);
 		client_unref(inst->client);
-		free(inst->title);
-		free(inst->category);
-		free(inst->cluster);
-		free(inst->content);
-		free(inst);
+		DbgFree(inst->title);
+		DbgFree(inst->category);
+		DbgFree(inst->cluster);
+		DbgFree(inst->content);
+		DbgFree(inst);
 		return NULL;
 	}
 
@@ -704,7 +704,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 			goto out;
 		}
 
-		free(inst->content);
+		DbgFree(inst->content);
 		inst->content = tmp;
 
 		DbgPrint("Update content info %s\n", tmp);
@@ -719,7 +719,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 			goto out;
 		}
 
-		free(inst->title);
+		DbgFree(inst->title);
 		inst->title = tmp;
 
 		DbgPrint("Update title info %s\n", tmp);
@@ -1365,12 +1365,12 @@ void instance_set_lb_info(struct inst_info *inst, int w, int h, double priority,
 	inst->lb.height = h;
 
 	if (_content) {
-		free(inst->content);
+		DbgFree(inst->content);
 		inst->content= _content;
 	}
 
 	if (title) {
-		free(inst->title);
+		DbgFree(inst->title);
 		inst->title = _title;
 	}
 		
@@ -1425,7 +1425,7 @@ static void pinup_cb(struct slave_node *slave, const struct packet *packet, void
 		}
 	
 		cbdata->inst->is_pinned_up = cbdata->pinup;
-		free(cbdata->inst->content);
+		DbgFree(cbdata->inst->content);
 
 		cbdata->inst->content = new_content;
 	}
@@ -1444,7 +1444,7 @@ out:
 		ErrPrint("Failed to build a packet for %s\n", package_name(cbdata->inst->info));
 
 	instance_unref(cbdata->inst);
-	free(cbdata);
+	DbgFree(cbdata);
 }
 
 int instance_set_pinup(struct inst_info *inst, int pinup)
@@ -1479,7 +1479,7 @@ int instance_set_pinup(struct inst_info *inst, int pinup)
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		instance_unref(cbdata->inst);
-		free(cbdata);
+		DbgFree(cbdata);
 		return -EFAULT;
 	}
 
@@ -1566,14 +1566,14 @@ static void resize_cb(struct slave_node *slave, const struct packet *packet, voi
 
 	if (!packet) {
 		instance_unref(cbdata->inst);
-		free(cbdata);
+		DbgFree(cbdata);
 		return;
 	}
 
 	if (packet_get(packet, "i", &ret) != 1) {
 		ErrPrint("Invalid parameter\n");
 		instance_unref(cbdata->inst);
-		free(cbdata);
+		DbgFree(cbdata);
 		return;
 	}
 
@@ -1585,7 +1585,7 @@ static void resize_cb(struct slave_node *slave, const struct packet *packet, voi
 	}
 
 	instance_unref(cbdata->inst);
-	free(cbdata);
+	DbgFree(cbdata);
 }
 
 int instance_resize(struct inst_info *inst, int w, int h)
@@ -1619,7 +1619,7 @@ int instance_resize(struct inst_info *inst, int w, int h)
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		instance_unref(cbdata->inst);
-		free(cbdata);
+		DbgFree(cbdata);
 		return -EFAULT;
 	}
 
@@ -1656,7 +1656,7 @@ out:
 		ErrPrint("Failed to build a packet for %s\n", package_name(cbdata->inst->info));
 
 	instance_unref(cbdata->inst);
-	free(cbdata);
+	DbgFree(cbdata);
 	return;
 }
 
@@ -1694,7 +1694,7 @@ int instance_set_period(struct inst_info *inst, double period)
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		instance_unref(cbdata->inst);
-		free(cbdata);
+		DbgFree(cbdata);
 		return -EFAULT;
 	}
 
@@ -1755,29 +1755,29 @@ static void change_group_cb(struct slave_node *slave, const struct packet *packe
 	int ret;
 
 	if (!packet) {
-		free(cbdata->cluster);
-		free(cbdata->category);
+		DbgFree(cbdata->cluster);
+		DbgFree(cbdata->category);
 		ret = -EFAULT;
 		goto out;
 	}
 
 	if (packet_get(packet, "i", &ret) != 1) {
 		ErrPrint("Invalid packet\n");
-		free(cbdata->cluster);
-		free(cbdata->category);
+		DbgFree(cbdata->cluster);
+		DbgFree(cbdata->category);
 		ret = -EINVAL;
 		goto out;
 	}
 
 	if (ret == 0) {
-		free(cbdata->inst->cluster);
+		DbgFree(cbdata->inst->cluster);
 		cbdata->inst->cluster = cbdata->cluster;
 
-		free(cbdata->inst->category);
+		DbgFree(cbdata->inst->category);
 		cbdata->inst->category = cbdata->category;
 	} else {
-		free(cbdata->cluster);
-		free(cbdata->category);
+		DbgFree(cbdata->cluster);
+		DbgFree(cbdata->category);
 	}
 
 out:
@@ -1790,7 +1790,7 @@ out:
 		(void)CLIENT_SEND_EVENT(cbdata->inst, result);
 
 	instance_unref(cbdata->inst);
-	free(cbdata);
+	DbgFree(cbdata);
 }
 
 int instance_change_group(struct inst_info *inst, const char *cluster, const char *category)
@@ -1817,15 +1817,15 @@ int instance_change_group(struct inst_info *inst, const char *cluster, const cha
 	cbdata->cluster = strdup(cluster);
 	if (!cbdata->cluster) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(cbdata);
+		DbgFree(cbdata);
 		return -ENOMEM;
 	}
 
 	cbdata->category = strdup(category);
 	if (!cbdata->category) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(cbdata->cluster);
-		free(cbdata);
+		DbgFree(cbdata->cluster);
+		DbgFree(cbdata);
 		return -ENOMEM;
 	}
 
@@ -1835,9 +1835,9 @@ int instance_change_group(struct inst_info *inst, const char *cluster, const cha
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		instance_unref(cbdata->inst);
-		free(cbdata->category);
-		free(cbdata->cluster);
-		free(cbdata);
+		DbgFree(cbdata->category);
+		DbgFree(cbdata->cluster);
+		DbgFree(cbdata);
 		return -EFAULT;
 	}
 

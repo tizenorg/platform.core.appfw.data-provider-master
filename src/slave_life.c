@@ -121,24 +121,24 @@ static inline struct slave_node *create_slave_node(const char *name, int is_secu
 	slave->name = strdup(name);
 	if (!slave->name) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(slave);
+		DbgFree(slave);
 		return NULL;
 	}
 
 	slave->abi = strdup(abi);
 	if (!slave->abi) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(slave->name);
-		free(slave);
+		DbgFree(slave->name);
+		DbgFree(slave);
 		return NULL;
 	}
 
 	slave->pkgname = strdup(pkgname);
 	if (!slave->pkgname) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(slave->abi);
-		free(slave->name);
-		free(slave);
+		DbgFree(slave->abi);
+		DbgFree(slave->name);
+		DbgFree(slave);
 		return NULL;
 	}
 
@@ -166,7 +166,7 @@ static inline void invoke_delete_cb(struct slave_node *slave)
 		if (ret < 0) {
 			if (eina_list_data_find(slave->event_delete_list, event)) {
 				slave->event_delete_list = eina_list_remove(slave->event_delete_list, event);
-				free(event);
+				DbgFree(event);
 			}
 		}
 	}
@@ -190,20 +190,20 @@ static inline void destroy_slave_node(struct slave_node *slave)
 	invoke_delete_cb(slave);
 
 	EINA_LIST_FREE(slave->event_delete_list, event) {
-		free(event);
+		DbgFree(event);
 	}
 
 	EINA_LIST_FREE(slave->event_activate_list, event) {
-		free(event);
+		DbgFree(event);
 	}
 
 	EINA_LIST_FREE(slave->event_deactivate_list, event) {
-		free(event);
+		DbgFree(event);
 	}
 
 	EINA_LIST_FREE(slave->data_list, priv) {
-		free(priv->tag);
-		free(priv);
+		DbgFree(priv->tag);
+		DbgFree(priv);
 	}
 
 	s_info.slave_list = eina_list_remove(s_info.slave_list, slave);
@@ -211,10 +211,10 @@ static inline void destroy_slave_node(struct slave_node *slave)
 	if (slave->ttl_timer)
 		ecore_timer_del(slave->ttl_timer);
 
-	free(slave->abi);
-	free(slave->name);
-	free(slave->pkgname);
-	free(slave);
+	DbgFree(slave->abi);
+	DbgFree(slave->name);
+	DbgFree(slave->pkgname);
+	DbgFree(slave);
 	return;
 }
 
@@ -317,7 +317,7 @@ static inline void invoke_activate_cb(struct slave_node *slave)
 		if (ret < 0) {
 			if (eina_list_data_find(slave->event_activate_list, event)) {
 				slave->event_activate_list = eina_list_remove(slave->event_activate_list, event);
-				free(event);
+				DbgFree(event);
 			}
 		}
 	}
@@ -430,7 +430,7 @@ static inline int invoke_deactivate_cb(struct slave_node *slave)
 		if (ret < 0) {
 			if (eina_list_data_find(slave->event_deactivate_list, event)) {
 				slave->event_deactivate_list = eina_list_remove(slave->event_deactivate_list, event);
-				free(event);
+				DbgFree(event);
 			}
 		} else if (ret == SLAVE_NEED_TO_REACTIVATE) {
 			reactivate++;
@@ -614,7 +614,7 @@ int slave_event_callback_add(struct slave_node *slave, enum slave_event event, i
 		slave->event_resume_list = eina_list_prepend(slave->event_resume_list, ev);
 		break;
 	default:
-		free(ev);
+		DbgFree(ev);
 		return -EINVAL;
 	}
 
@@ -632,7 +632,7 @@ int slave_event_callback_del(struct slave_node *slave, enum slave_event event, i
 		EINA_LIST_FOREACH_SAFE(slave->event_deactivate_list, l, n, ev) {
 			if (ev->evt_cb == cb && ev->cbdata == data) {
 				slave->event_deactivate_list = eina_list_remove(slave->event_deactivate_list, ev);
-				free(ev);
+				DbgFree(ev);
 				return 0;
 			}
 		}
@@ -641,7 +641,7 @@ int slave_event_callback_del(struct slave_node *slave, enum slave_event event, i
 		EINA_LIST_FOREACH_SAFE(slave->event_delete_list, l, n, ev) {
 			if (ev->evt_cb == cb && ev->cbdata == data) {
 				slave->event_delete_list = eina_list_remove(slave->event_delete_list, ev);
-				free(ev);
+				DbgFree(ev);
 				return 0;
 			}
 		}
@@ -650,7 +650,7 @@ int slave_event_callback_del(struct slave_node *slave, enum slave_event event, i
 		EINA_LIST_FOREACH_SAFE(slave->event_activate_list, l, n, ev) {
 			if (ev->evt_cb == cb && ev->cbdata == data) {
 				slave->event_activate_list = eina_list_remove(slave->event_activate_list, ev);
-				free(ev);
+				DbgFree(ev);
 				return 0;
 			}
 		}
@@ -659,7 +659,7 @@ int slave_event_callback_del(struct slave_node *slave, enum slave_event event, i
 		EINA_LIST_FOREACH_SAFE(slave->event_pause_list, l, n, ev) {
 			if (ev->evt_cb == cb && ev->cbdata == data) {
 				slave->event_pause_list = eina_list_remove(slave->event_pause_list, ev);
-				free(ev);
+				DbgFree(ev);
 				return 0;
 			}
 		}
@@ -668,7 +668,7 @@ int slave_event_callback_del(struct slave_node *slave, enum slave_event event, i
 		EINA_LIST_FOREACH_SAFE(slave->event_resume_list, l, n, ev) {
 			if (ev->evt_cb == cb && ev->cbdata == data) {
 				slave->event_resume_list = eina_list_remove(slave->event_resume_list, ev);
-				free(ev);
+				DbgFree(ev);
 				return 0;
 			}
 		}
@@ -693,7 +693,7 @@ int slave_set_data(struct slave_node *slave, const char *tag, void *data)
 	priv->tag = strdup(tag);
 	if (!priv->tag) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		free(priv);
+		DbgFree(priv);
 		return -ENOMEM;
 	}
 
@@ -714,8 +714,8 @@ void *slave_del_data(struct slave_node *slave, const char *tag)
 			slave->data_list = eina_list_remove(slave->data_list, priv);
 
 			data = priv->data;
-			free(priv->tag);
-			free(priv);
+			DbgFree(priv->tag);
+			DbgFree(priv);
 			return data;
 		}
 	}
@@ -910,7 +910,7 @@ static inline void invoke_resumed_cb(struct slave_node *slave)
 		if (ret < 0) {
 			if (eina_list_data_find(slave->event_resume_list, event)) {
 				slave->event_resume_list = eina_list_remove(slave->event_resume_list, event);
-				free(event);
+				DbgFree(event);
 			}
 		}
 	}
@@ -950,7 +950,7 @@ static inline void invoke_paused_cb(struct slave_node *slave)
 		if (ret < 0) {
 			if (eina_list_data_find(slave->event_pause_list, event)) {
 				slave->event_pause_list = eina_list_remove(slave->event_pause_list, event);
-				free(event);
+				DbgFree(event);
 			}
 		}
 	}

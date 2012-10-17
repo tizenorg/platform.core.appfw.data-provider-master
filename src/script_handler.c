@@ -338,7 +338,7 @@ struct script_info *script_handler_create(struct inst_info *inst, const char *fi
 	info->fb = fb_create(inst, w, h, type);
 	if (!info->fb) {
 		ErrPrint("Failed to create a FB (%dx%d)\n", w, h);
-		free(info);
+		DbgFree(info);
 		return NULL;
 	}
 
@@ -348,7 +348,7 @@ struct script_info *script_handler_create(struct inst_info *inst, const char *fi
 		ErrPrint("Failed to find a proper port for [%s]%s\n",
 					instance_package(inst), package_script(instance_package(inst)));
 		fb_destroy(info->fb);
-		free(info);
+		DbgFree(info);
 		return NULL;
 	}
 
@@ -360,7 +360,7 @@ struct script_info *script_handler_create(struct inst_info *inst, const char *fi
 	if (!info->port_data) {
 		ErrPrint("Failed to create a port (%s - %s)\n", file, group);
 		fb_destroy(info->fb);
-		free(info);
+		DbgFree(info);
 		return NULL;
 	}
 
@@ -383,7 +383,7 @@ int script_handler_destroy(struct script_info *info)
 		ErrPrint("Failed to destroy port, but go ahead\n");
 
 	fb_destroy(info->fb);
-	free(info);
+	DbgFree(info);
 	return 0;
 }
 
@@ -787,7 +787,7 @@ int script_handler_parse_desc(const char *pkgname, const char *id, const char *d
 				case 0:
 					state = VALUE_TYPE;
 					if (block->type) {
-						free(block->type);
+						DbgFree(block->type);
 						block->type = NULL;
 						block->type_len = 0;
 					}
@@ -796,7 +796,7 @@ int script_handler_parse_desc(const char *pkgname, const char *id, const char *d
 				case 1:
 					state = VALUE_PART;
 					if (block->part) {
-						free(block->part);
+						DbgFree(block->part);
 						block->part = NULL;
 						block->part_len = 0;
 					}
@@ -805,7 +805,7 @@ int script_handler_parse_desc(const char *pkgname, const char *id, const char *d
 				case 2:
 					state = VALUE_DATA;
 					if (block->data) {
-						free(block->data);
+						DbgFree(block->data);
 						block->data = NULL;
 						block->data_len = 0;
 					}
@@ -814,7 +814,7 @@ int script_handler_parse_desc(const char *pkgname, const char *id, const char *d
 				case 3:
 					state = VALUE_FILE;
 					if (block->file) {
-						free(block->file);
+						DbgFree(block->file);
 						block->file = NULL;
 						block->file_len = 0;
 					}
@@ -823,7 +823,7 @@ int script_handler_parse_desc(const char *pkgname, const char *id, const char *d
 				case 4:
 					state = VALUE_GROUP;
 					if (block->group) {
-						free(block->group);
+						DbgFree(block->group);
 						block->group = NULL;
 						block->group_len = 0;
 					}
@@ -832,7 +832,7 @@ int script_handler_parse_desc(const char *pkgname, const char *id, const char *d
 				case 5:
 					state = VALUE_ID;
 					if (block->id) {
-						free(block->id);
+						DbgFree(block->id);
 						block->id = NULL;
 						block->id_len = 0;
 					}
@@ -1033,13 +1033,13 @@ int script_handler_parse_desc(const char *pkgname, const char *id, const char *d
 			if (!handlers[i].type)
 				ErrPrint("%d: Unknown block type: %s\n", lineno, block->type);
 
-			free(block->file);
-			free(block->type);
-			free(block->part);
-			free(block->data);
-			free(block->group);
-			free(block->id);
-			free(block);
+			DbgFree(block->file);
+			DbgFree(block->type);
+			DbgFree(block->part);
+			DbgFree(block->data);
+			DbgFree(block->group);
+			DbgFree(block->id);
+			DbgFree(block);
 			block = NULL;
 
 			state = UNKNOWN;
@@ -1061,13 +1061,13 @@ int script_handler_parse_desc(const char *pkgname, const char *id, const char *d
 errout:
 	ErrPrint("Parse error at %d file %s\n", lineno, util_basename(descfile));
 	if (block) {
-		free(block->file);
-		free(block->type);
-		free(block->part);
-		free(block->data);
-		free(block->group);
-		free(block->id);
-		free(block);
+		DbgFree(block->file);
+		DbgFree(block->type);
+		DbgFree(block->part);
+		DbgFree(block->data);
+		DbgFree(block->group);
+		DbgFree(block->id);
+		DbgFree(block);
 	}
 	fclose(fp);
 	return -EINVAL;
@@ -1104,17 +1104,17 @@ int script_init(void)
 		item = malloc(sizeof(*item));
 		if (!item) {
 			ErrPrint("Heap: %s\n", strerror(errno));
-			free(path);
+			DbgFree(path);
 			closedir(dir);
 			return -ENOMEM;
 		}
 
 		DbgPrint("Open SCRIPT PORT: %s\n", path);
 		item->handle = dlopen(path, RTLD_LOCAL | RTLD_LAZY);
-		free(path);
+		DbgFree(path);
 		if (!item->handle) {
 			ErrPrint("Error: %s\n", dlerror());
-			free(item);
+			DbgFree(item);
 			closedir(dir);
 			return -EFAULT;
 		}
@@ -1191,7 +1191,7 @@ int script_init(void)
 errout:
 	ErrPrint("Error: %s\n", dlerror());
 	dlclose(item->handle);
-	free(item);
+	DbgFree(item);
 	closedir(dir);
 	return -EFAULT;
 }
@@ -1205,7 +1205,7 @@ int script_fini(void)
 	EINA_LIST_FREE(s_info.script_port_list, item) {
 		item->fini();
 		dlclose(item->handle);
-		free(item);
+		DbgFree(item);
 	}
 
 	return 0;
