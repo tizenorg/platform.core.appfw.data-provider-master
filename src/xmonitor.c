@@ -366,10 +366,10 @@ int xmonitor_add_event_callback(enum xmonitor_event event, int (*cb)(void *user_
 
 	switch (event) {
 	case XMONITOR_PAUSED:
-		s_info.pause_list = eina_list_append(s_info.pause_list, item);
+		s_info.pause_list = eina_list_prepend(s_info.pause_list, item);
 		break;
 	case XMONITOR_RESUMED:
-		s_info.resume_list = eina_list_append(s_info.resume_list, item);
+		s_info.resume_list = eina_list_prepend(s_info.resume_list, item);
 		break;
 	default:
 		ErrPrint("Invalid event type\n");

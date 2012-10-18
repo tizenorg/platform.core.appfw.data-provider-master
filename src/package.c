@@ -23,6 +23,7 @@
 #include "group.h"
 #include "abi.h"
 #include "io.h"
+#include "pkgmgr.h"
 
 int errno;
 
@@ -1035,14 +1036,70 @@ static int client_created_cb(struct client_node *client, void *data)
 	return 0;
 }
 
+static int uninstall_cb(const char *pkgname, enum pkgmgr_status status, double value, void *data)
+{
+	struct pkg_info *info;
+	Eina_List *l;
+	Eina_List *n;
+	struct inst_info *inst;
+
+	if (status != PKGMGR_STATUS_END)
+		return 0;
+
+	info = package_find(pkgname);
+	if (!info)
+		return -ENOENT;
+
+	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
+		instance_destroy(inst);
+	}
+
+	group_del_livebox(pkgname);
+	package_clear_fault(info);
+
+	return 0;
+}
+
+static int update_cb(const char *pkgname, enum pkgmgr_status status, double value, void *data)
+{
+	struct pkg_info *info;
+	struct inst_info *inst;
+	Eina_List *l;
+	Eina_List *n;
+
+	if (status != PKGMGR_STATUS_END)
+		return 0;
+
+	info = package_find(pkgname);
+	if (!info)
+		return -ENOENT;
+
+	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
+		instance_destroy(inst);
+	}
+
+	group_del_livebox(pkgname);
+	package_clear_fault(info);
+
+	io_load_package_db(info);
+	return 0;
+}
+
 int package_init(void)
 {
 	client_global_event_handler_add(CLIENT_GLOBAL_EVENT_CREATE, client_created_cb, NULL);
+	pkgmgr_init();
+
+	pkgmgr_add_event_callback(PKGMGR_EVENT_UNINSTALL, uninstall_cb, NULL);
+	pkgmgr_add_event_callback(PKGMGR_EVENT_UPDATE, update_cb, NULL);
 	return 0;
 }
 
 int package_fini(void)
 {
+	pkgmgr_del_event_callback(PKGMGR_EVENT_UPDATE, update_cb, NULL);
+	pkgmgr_del_event_callback(PKGMGR_EVENT_UNINSTALL, uninstall_cb, NULL);
+	pkgmgr_fini();
 	client_global_event_handler_del(CLIENT_GLOBAL_EVENT_CREATE, client_created_cb, NULL);
 	return 0;
 }

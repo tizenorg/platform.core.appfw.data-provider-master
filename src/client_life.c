@@ -505,9 +505,9 @@ int client_global_event_handler_add(enum client_global_event event_type, int (*c
 	handler->cb = cb;
 
 	if (event_type == CLIENT_GLOBAL_EVENT_CREATE) {
-		s_info.create_event_list = eina_list_append(s_info.create_event_list, handler);
+		s_info.create_event_list = eina_list_prepend(s_info.create_event_list, handler);
 	} else if (event_type == CLIENT_GLOBAL_EVENT_DESTROY) {
-		s_info.destroy_event_list = eina_list_append(s_info.destroy_event_list, handler);
+		s_info.destroy_event_list = eina_list_prepend(s_info.destroy_event_list, handler);
 	} else {
 		DbgFree(handler);
 		return -EINVAL;

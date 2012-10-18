@@ -1,6 +1,6 @@
 Name: com.samsung.data-provider-master
 Summary: Master data provider
-Version: 0.11.3
+Version: 0.11.4
 Release: 1
 Group: main/app
 License: Samsung Proprietary License
@@ -31,6 +31,7 @@ BuildRequires: pkgconfig(xfixes)
 BuildRequires: pkgconfig(dri2proto)
 BuildRequires: pkgconfig(xext)
 BuildRequires: pkgconfig(xdamage)
+BuildRequires: pkgconfig(pkgmgr)
 
 %description
 Manage the slave data provider and communicate with client applications.
@@ -61,24 +62,27 @@ chsmack -a "_" /opt/share/live_magazine
 chsmack -t /opt/share/live_magazine
 # According to this transmute attribute, below log, reader folder will be set as same label
 
-mkdir /opt/share/live_magazine/log
+mkdir -p /opt/share/live_magazine/log
 chown 5000:5000 /opt/share/live_magazine/log
 
-mkdir /opt/share/live_magazine/reader
+mkdir -p /opt/share/live_magazine/reader
 chown 5000:5000 /opt/share/live_magazine/reader
 
 # End of a list of affected folder by the transmute attribute
 
-touch /opt/dbspace/.livebox.db
-chown 0:5000 /opt/dbspace/.livebox.db
-chmod 640 /opt/dbspace/.livebox.db
+if [ ! -f /opt/dbspace/livebox.db ]; then
+	touch /opt/dbspace/.livebox.db
+	chown 0:5000 /opt/dbspace/.livebox.db
+	chmod 640 /opt/dbspace/.livebox.db
+	chsmack -a "data-provider-master::db" /opt/dbspace/.livebox.db
+fi
 
-touch /opt/dbspace/.livebox.db-journal
-chown 0:5000 /opt/dbspace/.livebox.db-journal
-chmod 640 /opt/dbspace/.livebox.db-journal
-
-chsmack -a "data-provider-master::db" /opt/dbspace/.livebox.db
-chsmack -a "data-provider-master::db" /opt/dbspace/.livebox.db-journal
+if [ ! -f /opt/dbspace/livebox.db-journal ]; then
+	touch /opt/dbspace/.livebox.db-journal
+	chown 0:5000 /opt/dbspace/.livebox.db-journal
+	chmod 640 /opt/dbspace/.livebox.db-journal
+	chsmack -a "data-provider-master::db" /opt/dbspace/.livebox.db-journal
+fi
 
 mkdir -p /etc/rc.d/rc3.d
 ln -sf /etc/rc.d/init.d/data-provider-master /etc/rc.d/rc3.d/S99data-provider-master

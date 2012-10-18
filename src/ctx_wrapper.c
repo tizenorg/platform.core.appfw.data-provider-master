@@ -200,7 +200,7 @@ static inline void register_ctx_callback(struct context_item *item, const char *
 
 	s_info.cbdata_list = eina_list_append(s_info.cbdata_list, cbdata);
 
-	cbdata->cbfunc_list = eina_list_append(cbdata->cbfunc_list, cbfunc);
+	cbdata->cbfunc_list = eina_list_prepend(cbdata->cbfunc_list, cbfunc);
 	cbfunc->cbdata = cbdata;
 }
 

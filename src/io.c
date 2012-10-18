@@ -218,7 +218,7 @@ static inline int build_client_info(struct pkg_info *info)
 	}
 
 	if (sqlite3_step(stmt) != SQLITE_ROW) {
-		ErrPrint("Failed to execute the DML for %s\n", package_name(info));
+		ErrPrint("%s has no records (%s)\n", package_name(info), sqlite3_errmsg(s_info.handle));
 		sqlite3_reset(stmt);
 		sqlite3_clear_bindings(stmt);
 		sqlite3_finalize(stmt);
@@ -271,7 +271,7 @@ static inline int build_provider_info(struct pkg_info *info)
 	}
 
 	if (sqlite3_step(stmt) != SQLITE_ROW) {
-		ErrPrint("Failed to execute the DML for %s\n", package_name(info));
+		ErrPrint("%s has no record(%s)\n", package_name(info), sqlite3_errmsg(s_info.handle));
 		sqlite3_reset(stmt);
 		sqlite3_clear_bindings(stmt);
 		sqlite3_finalize(stmt);
@@ -608,7 +608,7 @@ char *io_livebox_pkgname(const char *pkgname)
 	}
 
 	if (sqlite3_step(stmt) != SQLITE_ROW) {
-		ErrPrint("Failed to execute the DML for %s\n", pkgname);
+		ErrPrint("%s has no record (%s)\n", pkgname, sqlite3_errmsg(s_info.handle));
 		sqlite3_reset(stmt);
 		sqlite3_finalize(stmt);
 		goto out;

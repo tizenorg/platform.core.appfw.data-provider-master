@@ -27,6 +27,7 @@ pkg_check_modules(pkg REQUIRED
 	xext
 	xdamage
 	capi-context
+	pkgmgr
 )
 
 SET(PACKAGE "${PROJECT_NAME}")
@@ -78,6 +79,7 @@ ADD_EXECUTABLE(${PROJECT_NAME}
 	src/critical_log.c
 	src/liveinfo.c
 	src/ctx_wrapper.c
+	src/pkgmgr.c
 )
 
 TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${pkg_LDFLAGS} "-ldl")
