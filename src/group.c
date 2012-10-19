@@ -146,7 +146,7 @@ int group_add_option(struct context_item *item, const char *key, const char *val
 	}
 
 	option->item = item;
-	item->option_list = eina_list_append(item->option_list, item);
+	item->option_list = eina_list_append(item->option_list, option);
 	return 0;
 }
 

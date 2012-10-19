@@ -1952,6 +1952,9 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 			slave_freeze_ttl(slave);
 
 		ret = instance_slave_open_pd(inst);
+		ret = instance_signal_emit(inst,
+				"pd,show", util_uri_to_path(instance_id(inst)),
+				0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0);
 
 		/*!
 		 * \note
@@ -2069,6 +2072,9 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 		if (slave)
 			slave_thaw_ttl(slave);
 
+		ret = instance_signal_emit(inst,
+				"pd,hide", util_uri_to_path(instance_id(inst)),
+				0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0);
 		ret = instance_slave_close_pd(inst);
 
 		/*!

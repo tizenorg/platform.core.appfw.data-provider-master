@@ -79,9 +79,6 @@ struct conf {
 
 	int max_size_type;
 
-	char *quality;
-	char *error;
-
 	int slave_max_load;
 
 	double ping_time;
@@ -133,8 +130,6 @@ extern int conf_loader(void);
 
 #define SQLITE_FLUSH_MAX	g_conf.sqlite_flush_max
 #define DBFILE			g_conf.path.db
-
-#define DEFAULT_QUALITY		g_conf.quality
 
 #define SLAVE_MAX_LOAD		g_conf.slave_max_load
 #define DEFAULT_PING_TIME	g_conf.ping_time

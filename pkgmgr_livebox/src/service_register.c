@@ -2101,14 +2101,13 @@ int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *appid)
 
 		snprintf(filename, len, "/libexec/liblive-%s.so", livebox->pkgid);
 		livebox->libexec = xmlStrdup((xmlChar *)filename);
+		DbgPrint("Use the default libexec: %s\n", filename);
 		free(filename);
 
 		if (!livebox->libexec) {
 			livebox_destroy(livebox);
 			return -ENOMEM;
 		}
-
-		DbgPrint("Use the default libexec: %s\n", filename);
 	}
 
 	for (node = node->children; node; node = node->next) {

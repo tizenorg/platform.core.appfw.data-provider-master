@@ -249,8 +249,6 @@ static inline int build_provider_info(struct pkg_info *info)
 	int ret;
 	const char *tmp;
 	const char *appid;
-	char *path;
-	int pathlen;
 
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
@@ -297,20 +295,8 @@ static inline int build_provider_info(struct pkg_info *info)
 	package_set_lb_type(info, sqlite3_column_int(stmt, 3));
 	tmp = (const char *)sqlite3_column_text(stmt, 4);
 	if (tmp && strlen(tmp)) {
-		pathlen = strlen("/opt/apps//") + strlen(appid) + strlen(tmp) + 1;
-		path = malloc(pathlen);
-		if (!path) {
-			ErrPrint("Heap: %s\n", strerror(errno));
-			sqlite3_reset(stmt);
-			sqlite3_clear_bindings(stmt);
-			sqlite3_finalize(stmt);
-			return -ENOMEM;
-		}
-		snprintf(path, pathlen, "/opt/apps/%s/%s", appid, tmp);
-
-		package_set_lb_path(info, path);
-		DbgPrint("LB Path: %s\n", path);
-		DbgFree(path);
+		package_set_lb_path(info, tmp);
+		DbgPrint("LB Path: %s\n", tmp);
 
 		tmp = (const char *)sqlite3_column_text(stmt, 5);
 		if (tmp && strlen(tmp))
@@ -320,19 +306,8 @@ static inline int build_provider_info(struct pkg_info *info)
 	package_set_pd_type(info, sqlite3_column_int(stmt, 6));
 	tmp = (const char *)sqlite3_column_text(stmt, 7);
 	if (tmp && strlen(tmp)) {
-		pathlen = strlen("/opt/apps//") + strlen(appid) + strlen(tmp) + 1;
-		path = malloc(pathlen);
-		if (!path) {
-			ErrPrint("Heap: %s\n", strerror(errno));
-			sqlite3_reset(stmt);
-			sqlite3_clear_bindings(stmt);
-			sqlite3_finalize(stmt);
-			return -ENOMEM;
-		}
-		snprintf(path, pathlen, "/opt/apps/%s/%s", appid, tmp);
-		DbgPrint("PD Path: %s\n", path);
-		package_set_pd_path(info, path);
-		DbgFree(path);
+		package_set_pd_path(info, tmp);
+		DbgPrint("PD Path: %s\n", tmp);
 
 		tmp = (const char *)sqlite3_column_text(stmt, 8);
 		if (tmp && strlen(tmp))

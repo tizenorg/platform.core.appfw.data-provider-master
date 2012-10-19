@@ -8,7 +8,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "dlog.h"
+#include <dlog.h>
+
 #include "conf.h"
 #include "debug.h"
 #include "util.h"
@@ -51,10 +52,10 @@ int critical_log(const char *func, int line, const char *fmt, ...)
 
 		s_info.file_id = (s_info.file_id + 1) % MAX_LOG_FILE;
 
-		namelen = strlen(s_info.filename) + strlen("/opt/var/log/") + 20;
+		namelen = strlen(s_info.filename) + strlen(SLAVE_LOG_PATH) + 20;
 		filename = malloc(namelen);
 		if (filename) {
-			snprintf(filename, namelen, "/opt/var/log/%d_%s", s_info.file_id, s_info.filename);
+			snprintf(filename, namelen, "%s/%d_%s", SLAVE_LOG_PATH, s_info.file_id, s_info.filename);
 
 			if (s_info.fp)
 				fclose(s_info.fp);
@@ -87,7 +88,7 @@ int critical_log_init(const char *name)
 		return -ENOMEM;
 	}
 
-	namelen = strlen(name) + strlen("/opt/var/log/") + 20;
+	namelen = strlen(name) + strlen(SLAVE_LOG_PATH) + 20;
 
 	filename = malloc(namelen);
 	if (!filename) {
@@ -97,7 +98,7 @@ int critical_log_init(const char *name)
 		return -ENOMEM;
 	}
 
-	snprintf(filename, namelen, "/opt/var/log/%d_%s", s_info.file_id, name);
+	snprintf(filename, namelen, "%s/%d_%s", SLAVE_LOG_PATH, s_info.file_id, name);
 
 	s_info.fp = fopen(filename, "w+");
 	if (!s_info.fp) {

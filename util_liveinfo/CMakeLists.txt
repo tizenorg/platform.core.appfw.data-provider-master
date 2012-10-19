@@ -19,7 +19,7 @@ ENDFOREACH(flag)
 SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EXTRA_CFLAGS} -g -Wall -Werror")
 
 ADD_DEFINITIONS("-DPREFIX=\"${PREFIX}\"")
-ADD_DEFINITIONS("-DSOCKET_FILE=\"/opt/share/live_magazine/.live.socket\"")
+ADD_DEFINITIONS("-DSOCKET_FILE=\"/opt/usr/share/live_magazine/.live.socket\"")
 
 ADD_EXECUTABLE(${PROJECT_NAME}
 	src/liveinfo.c

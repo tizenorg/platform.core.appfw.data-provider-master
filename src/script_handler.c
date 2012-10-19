@@ -178,10 +178,6 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double sx,
 {
 	Ecore_Evas *ee;
 	struct script_info *info;
-	const char *pkgname;
-	const char *id;
-	struct slave_node *slave;
-	struct packet *packet;
 	int ret;
 
 	ee = ecore_evas_ecore_evas_get(e);
@@ -202,20 +198,7 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double sx,
 	if (!part || strlen(part) == 0)
 		part = "";
 
-	pkgname = package_name(instance_package(info->inst));
-	id = instance_id(info->inst);
-	slave = package_slave(instance_package(info->inst));
-	packet = packet_create_noack("script", "ssssddddddi",
-			pkgname, id,
-			signal, part,
-			sx, sy, ex, ey,
-			info->x, info->y, info->down);
-	if (!packet) {
-		ErrPrint("Failed to create param\n");
-		return -EFAULT;
-	}
-
-	ret = slave_rpc_request_only(slave, pkgname, packet, 0); 
+	ret = instance_signal_emit(info->inst, signal, part, sx, sy, ex, ey, info->x, info->y, info->down);
 	return ret;
 }
 

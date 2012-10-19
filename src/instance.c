@@ -1725,6 +1725,43 @@ int instance_clicked(struct inst_info *inst, const char *event, double timestamp
 	return slave_rpc_request_only(package_slave(inst->info), package_name(inst->info), packet, 0);
 }
 
+int instance_signal_emit(struct inst_info *inst, const char *signal, const char *part, double sx, double sy, double ex, double ey, double x, double y, int down)
+{
+	const char *pkgname;
+	const char *id;
+	struct slave_node *slave;
+	struct packet *packet;
+	int ret;
+
+	pkgname = package_name(instance_package(inst));
+	id = instance_id(inst);
+	if (!pkgname || !id) {
+		ErrPrint("Invalid instance\n");
+		return -EINVAL;
+	}
+
+	DbgPrint("Package[%s], ID[%s]\n", pkgname, id);
+
+	slave = package_slave(instance_package(inst));
+	if (!slave) {
+		ErrPrint("Slave is not valid\n");
+		return -EINVAL;
+	}
+
+	packet = packet_create_noack("script", "ssssddddddi",
+			pkgname, id,
+			signal, part,
+			sx, sy, ex, ey,
+			x, y, down);
+	if (!packet) {
+		ErrPrint("Failed to create param\n");
+		return -EFAULT;
+	}
+
+	ret = slave_rpc_request_only(slave, pkgname, packet, 0); 
+	return ret;
+}
+
 int instance_text_signal_emit(struct inst_info *inst, const char *emission, const char *source, double sx, double sy, double ex, double ey)
 {
 	struct packet *packet;

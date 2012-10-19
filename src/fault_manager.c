@@ -16,6 +16,7 @@
 #include "instance.h"
 #include "client_rpc.h"
 #include "package.h"
+#include "conf.h"
 
 static struct info {
 	Eina_List *call_list;
@@ -41,7 +42,7 @@ int const fault_is_occured(void)
 static void clear_log_file(struct slave_node *slave)
 {
 	char filename[BUFSIZ];
-	snprintf(filename, sizeof(filename), "/opt/share/live_magazine/log/slave.%d", slave_pid(slave));
+	snprintf(filename, sizeof(filename), "%s/slave.%d", SLAVE_LOG_PATH, slave_pid(slave));
 
 	unlink(filename);
 }
@@ -55,7 +56,7 @@ static char *check_log_file(struct slave_node *slave)
 	int i;
 	char filename[BUFSIZ];
 
-	snprintf(filename, sizeof(filename), "/opt/share/live_magazine/log/slave.%d", slave_pid(slave));
+	snprintf(filename, sizeof(filename), "%s/slave.%d", SLAVE_LOG_PATH, slave_pid(slave));
 	fp = fopen(filename, "rt");
 	if (!fp) {
 		ErrPrint("No log file found [%s]\n", strerror(errno));

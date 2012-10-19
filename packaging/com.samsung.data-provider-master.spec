@@ -1,6 +1,6 @@
 Name: com.samsung.data-provider-master
 Summary: Master data provider
-Version: 0.11.4
+Version: 0.11.5
 Release: 1
 Group: main/app
 License: Samsung Proprietary License
@@ -56,17 +56,17 @@ if [ -x /etc/rc.d/init.d/data-provider-master ]; then
 fi
 
 %post
-mkdir -p /opt/share/live_magazine
-chown 5000:5000 /opt/share/live_magazine
-chsmack -a "_" /opt/share/live_magazine
-chsmack -t /opt/share/live_magazine
+mkdir -p /opt/usr/share/live_magazine
+chown 5000:5000 /opt/usr/share/live_magazine
+chsmack -a "_" /opt/usr/share/live_magazine
+chsmack -t /opt/usr/share/live_magazine
 # According to this transmute attribute, below log, reader folder will be set as same label
 
-mkdir -p /opt/share/live_magazine/log
-chown 5000:5000 /opt/share/live_magazine/log
+mkdir -p /opt/usr/share/live_magazine/log
+chown 5000:5000 /opt/usr/share/live_magazine/log
 
-mkdir -p /opt/share/live_magazine/reader
-chown 5000:5000 /opt/share/live_magazine/reader
+mkdir -p /opt/usr/share/live_magazine/reader
+chown 5000:5000 /opt/usr/share/live_magazine/reader
 
 # End of a list of affected folder by the transmute attribute
 

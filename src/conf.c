@@ -66,12 +66,12 @@ struct conf g_conf = {
 	.sqlite_flush_max = 1048576,
 
 	.path = {
-		.conf = "/opt/live/%s/etc/%s.conf",
-		.image = "/opt/share/live_magazine/",
-		.slave_log = "/opt/share/live_magazine/log",
-		.script = "/opt/live/%s/res/script/%s.edj",
-		.root = "/opt/live/",
-		.script_port = "/opt/live/script_port/",
+		.conf = "/opt/usr/live/%s/etc/%s.conf",
+		.image = "/opt/usr/share/live_magazine/",
+		.slave_log = "/opt/usr/share/live_magazine/log",
+		.script = "/opt/usr/live/%s/res/script/%s.edj",
+		.root = "/opt/usr/live/",
+		.script_port = "/opt/usr/live/script_port/",
 		.db = "/opt/dbspace/.livebox.db",
 	},
 
@@ -103,8 +103,6 @@ struct conf g_conf = {
 	},
 
 	.max_size_type = MAX_SIZE_LIST,
-	.quality = "quality=100 compress=1",
-	.error = "/opt/apps/com.samsung."PACKAGE"/res/images/error.png",
 	.ping_time = 240.0f,
 	.slave_max_load = 30,
 	.vconf_sys_cluster = "file/private/com.samsung.cluster-home/system_cluster",
@@ -222,13 +220,6 @@ static void db_path_handler(char *buffer)
 {
 	g_conf.path.db = strdup(buffer);
 	if (!g_conf.path.db)
-		ErrPrint("Heap: %s\n", strerror(errno));
-}
-
-static void error_image_handler(char *buffer)
-{
-	g_conf.error = strdup(buffer);
-	if (!g_conf.error)
 		ErrPrint("Heap: %s\n", strerror(errno));
 }
 
@@ -372,10 +363,6 @@ int conf_loader(void)
 		{
 			.name = "log_path",
 			.handler = log_path_handler,
-		},
-		{
-			.name = "error_image",
-			.handler = error_image_handler,
 		},
 		{
 			.name = "share_path",

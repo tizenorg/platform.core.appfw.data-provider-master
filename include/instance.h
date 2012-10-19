@@ -133,6 +133,7 @@ extern int instance_resize(struct inst_info *inst, int w, int h);
 extern int instance_set_period(struct inst_info *inst, double period);
 extern int instance_clicked(struct inst_info *inst, const char *event, double timestamp, double x, double y);
 extern int instance_text_signal_emit(struct inst_info *inst, const char *emission, const char *source, double sx, double sy, double ex, double ey);
+extern int instance_signal_emit(struct inst_info *inst, const char *emission, const char *source, double sx, double sy, double ex, double ey, double x, double y, int down);
 extern int instance_change_group(struct inst_info *inst, const char *cluster, const char *category);
 extern int instance_set_visible_state(struct inst_info *inst, enum livebox_visible_state state);
 extern enum livebox_visible_state instance_visible_state(struct inst_info *inst);

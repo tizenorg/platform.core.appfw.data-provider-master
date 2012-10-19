@@ -31,7 +31,7 @@ pkg_check_modules(pkg REQUIRED
 )
 
 SET(PACKAGE "${PROJECT_NAME}")
-SET(LOCALEDIR "/opt/apps/com.samsung.${PROJECT_NAME}/res/locale")
+#SET(LOCALEDIR "/opt/apps/com.samsung.${PROJECT_NAME}/res/locale")
 SET(CMAKE_C_FLAGS "-Wall -fpie -Winline -Werror -fno-builtin-malloc -fno-omit-frame-pointer -g")
 SET(CMAKE_EXE_LINKER_FLAGS "-pie")
 
@@ -44,7 +44,7 @@ ADD_DEFINITIONS("-DLOCALEDIR=\"${LOCALEDIR}\"")
 
 ADD_DEFINITIONS("-DSLAVE_PKGNAME=\"com.samsung.data-provider-slave\"")
 ADD_DEFINITIONS("-DSLAVE_WEB_PKGNAME=\"com.samsung.data-provider-webslave\"")
-ADD_DEFINITIONS("-DSOCKET_FILE=\"/opt/share/live_magazine/.live.socket\"")
+ADD_DEFINITIONS("-DSOCKET_FILE=\"/opt/usr/share/live_magazine/.live.socket\"")
 
 ADD_DEFINITIONS("-DNDEBUG")
 #ADD_DEFINITIONS("-DFLOG")
@@ -65,7 +65,6 @@ ADD_EXECUTABLE(${PROJECT_NAME}
 	src/script_handler.c
 	src/buffer_handler.c
 	src/io.c
-	src/virtual_canvas.c
 	src/xmonitor.c
 	src/slave_life.c
 	src/slave_rpc.c
