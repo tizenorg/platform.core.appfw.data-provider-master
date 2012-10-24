@@ -563,29 +563,23 @@ char *io_livebox_pkgname(const char *pkgname)
 	ret = sqlite3_prepare_v2(s_info.handle, "SELECT pkgid FROM pkgmap WHERE (appid = ? AND prime = 1) OR pkgid = ?", -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		ErrPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
-		goto out;
+		return NULL;
 	}
 
 	ret = sqlite3_bind_text(stmt, 1, pkgname, -1, NULL);
 	if (ret != SQLITE_OK) {
 		ErrPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
-		sqlite3_reset(stmt);
-		sqlite3_finalize(stmt);
 		goto out;
 	}
 
 	ret = sqlite3_bind_text(stmt, 2, pkgname, -1, NULL);
 	if (ret != SQLITE_OK) {
 		ErrPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
-		sqlite3_reset(stmt);
-		sqlite3_finalize(stmt);
 		goto out;
 	}
 
 	if (sqlite3_step(stmt) != SQLITE_ROW) {
 		ErrPrint("%s has no record (%s)\n", pkgname, sqlite3_errmsg(s_info.handle));
-		sqlite3_reset(stmt);
-		sqlite3_finalize(stmt);
 		goto out;
 	}
 
@@ -596,9 +590,9 @@ char *io_livebox_pkgname(const char *pkgname)
 			ErrPrint("Heap: %s\n", strerror(errno));
 	}
 
+out:
 	sqlite3_reset(stmt);
 	sqlite3_finalize(stmt);
-out:
 	return pkgid;
 }
 

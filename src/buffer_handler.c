@@ -17,6 +17,7 @@
 #include <X11/Xproto.h>
 #include <X11/extensions/Xdamage.h>
 #include <X11/extensions/Xfixes.h>
+#include <X11/extensions/XShm.h>
 
 #include <dri2.h>
 #include <xf86drm.h>
@@ -145,9 +146,6 @@ static inline struct buffer *create_gem(Display *disp, Window parent, int w, int
 	struct gem_data *gem;
 	struct buffer *buffer;
 
-	if (!s_info.slp_bufmgr)
-		return NULL;
-
 	buffer = calloc(1, sizeof(*buffer) + sizeof(*gem));
 	if (!buffer) {
 		ErrPrint("Heap: %s\n", strerror(errno));
@@ -182,6 +180,20 @@ static inline struct buffer *create_gem(Display *disp, Window parent, int w, int
 	XSync(disp, False);
 
 	DbgPrint("Pixmap:0x%X is created\n", gem->pixmap);
+
+	if (s_info.fd < 0) {
+		gem->data = calloc(1, gem->w * gem->h * gem->depth);
+		if (!gem->data) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			XFreePixmap(disp, gem->pixmap);
+			buffer->state = DESTROYED;
+			DbgFree(buffer);
+			return NULL;
+		}
+
+		DbgPrint("DRI2(gem) is not supported - Fallback to the S/W Backend\n");
+		return buffer;
+	}
 
 	DRI2CreateDrawable(disp, gem->pixmap);
 
@@ -225,7 +237,10 @@ static inline void *acquire_gem(struct buffer *buffer)
 		return NULL;
 
 	gem = (struct gem_data *)buffer->data;
-	if (!gem->data) {
+
+	if (s_info.fd < 0) {
+		DbgPrint("GEM is not supported - Use the fake gem buffer\n");
+	} else if (!gem->data) {
 		if (gem->refcnt) {
 			ErrPrint("Already acquired. but the buffer is not valid\n");
 			return NULL;
@@ -255,10 +270,15 @@ static inline void release_gem(struct buffer *buffer)
 
 	gem->refcnt--;
 	if (gem->refcnt == 0) {
-		gem = (struct gem_data *)buffer->data;
-		DbgPrint("Release gem : %d (%p)\n", buffer->refcnt, gem->data);
-		drm_slp_bo_unmap(gem->pixmap_bo, DRM_SLP_DEVICE_CPU);
-		gem->data = NULL;
+		if (s_info.fd < 0) {
+			DbgPrint("S/W Gem buffer has no reference\n");
+		} else {
+			gem = (struct gem_data *)buffer->data;
+			DbgPrint("Release gem : %d (%p)\n", buffer->refcnt, gem->data);
+
+			drm_slp_bo_unmap(gem->pixmap_bo, DRM_SLP_DEVICE_CPU);
+			gem->data = NULL;
+		}
 	} else if (gem->refcnt < 0) {
 		DbgPrint("Invalid refcnt: %d (reset)\n", gem->refcnt);
 		gem->refcnt = 0;
@@ -279,16 +299,21 @@ static inline int destroy_gem(struct buffer *buffer)
 	if (!gem)
 		return -EFAULT;
 
-	DbgPrint("unref pixmap bo\n");
-	drm_slp_bo_unref(gem->pixmap_bo);
-	gem->pixmap_bo = NULL;
+	if (s_info.fd > 0) {
+		DbgPrint("unref pixmap bo\n");
+		drm_slp_bo_unref(gem->pixmap_bo);
+		gem->pixmap_bo = NULL;
 
-	DbgPrint("DRI2DestroyDrawable\n");
-	DRI2DestroyDrawable(ecore_x_display_get(), gem->pixmap);
-	DbgPrint("After destroy drawable\n");
+		DbgPrint("DRI2DestroyDrawable\n");
+		DRI2DestroyDrawable(ecore_x_display_get(), gem->pixmap);
+	} else {
+		DbgPrint("Release fake gem buffer\n");
+		DbgFree(gem->data);
+		gem->data = NULL;
+	}
 
-	XFreePixmap(ecore_x_display_get(), gem->pixmap);
 	DbgPrint("Free pixmap 0x%X\n", gem->pixmap);
+	XFreePixmap(ecore_x_display_get(), gem->pixmap);
 
 	buffer->state = DESTROYED;
 	DbgFree(buffer);
@@ -658,6 +683,8 @@ void *buffer_handler_fb(struct buffer_info *info)
 		void *canvas;
 		int ret;
 
+		/*!
+		 */
 		canvas = buffer_handler_pixmap_acquire_buffer(info);
 		ret = buffer_handler_pixmap_release_buffer(canvas);
 		DbgPrint("Canvas %p(%d) (released but still in use)\n", canvas, ret);
@@ -927,6 +954,108 @@ struct inst_info *buffer_handler_instance(struct buffer_info *info)
 	return info->inst;
 }
 
+static inline int sync_for_pixmap(struct buffer *buffer)
+{
+	XShmSegmentInfo si;
+	XImage *xim;
+	GC gc;
+	Display *disp;
+	struct gem_data *gem;
+	Screen *screen;
+	Visual *visual;
+
+	if (buffer->state != CREATED) {
+		ErrPrint("Invalid state of a FB\n");
+		return -EINVAL;
+	}
+
+	if (buffer->type != BUFFER_TYPE_PIXMAP) {
+		DbgPrint("Invalid buffer\n");
+		return 0;
+	}
+
+	disp = ecore_x_display_get();
+	if (!disp) {
+		ErrPrint("Failed to get a display\n");
+		return -EFAULT;
+	}
+
+	gem = (struct gem_data *)buffer->data;
+	if (gem->w == 0 || gem->h == 0) {
+		DbgPrint("Nothing can be sync\n");
+		return 0;
+	}
+
+	si.shmid = shmget(IPC_PRIVATE, gem->w * gem->h * gem->depth, IPC_CREAT | 0666);
+	if (si.shmid < 0) {
+		ErrPrint("shmget: %s\n", strerror(errno));
+		return -EFAULT;
+	}
+
+	si.readOnly = False;
+	si.shmaddr = shmat(si.shmid, NULL, 0);
+	if (si.shmaddr == (void *)-1) {
+		if (shmctl(si.shmid, IPC_RMID, 0) < 0)
+			ErrPrint("shmctl: %s\n", strerror(errno));
+		return -EFAULT;
+	}
+
+	screen = DefaultScreenOfDisplay(disp);
+	visual = DefaultVisualOfScreen(screen);
+	/*!
+	 * \NOTE
+	 * XCreatePixmap can only uses 24 bits depth only.
+	 */
+	xim = XShmCreateImage(disp, visual, 24/* (s_info.depth << 3) */, ZPixmap, NULL, &si, gem->w, gem->h);
+	if (xim == NULL) {
+		if (shmdt(si.shmaddr) < 0)
+			ErrPrint("shmdt: %s\n", strerror(errno));
+
+		if (shmctl(si.shmid, IPC_RMID, 0) < 0)
+			ErrPrint("shmctl: %s\n", strerror(errno));
+		return -EFAULT;
+	}
+
+	xim->data = si.shmaddr;
+	XShmAttach(disp, &si);
+	XSync(disp, False);
+
+	gc = XCreateGC(disp, gem->pixmap, 0, NULL);
+	if (!gc) {
+		XShmDetach(disp, &si);
+		XDestroyImage(xim);
+
+		if (shmdt(si.shmaddr) < 0)
+			ErrPrint("shmdt: %s\n", strerror(errno));
+
+		if (shmctl(si.shmid, IPC_RMID, 0) < 0)
+			ErrPrint("shmctl: %s\n", strerror(errno));
+
+		return -EFAULT;
+	}
+
+	memcpy(xim->data, gem->data, gem->w * gem->h * gem->depth);
+
+	/*!
+	 * \note Do not send the event.
+	 *       Instead of X event, master will send the updated event to the viewer
+	 */
+	XShmPutImage(disp, gem->pixmap, gc, xim, 0, 0, 0, 0, gem->w, gem->h, False);
+	XSync(disp, False);
+
+	XFreeGC(disp, gc);
+	XShmDetach(disp, &si);
+	XDestroyImage(xim);
+
+	if (shmdt(si.shmaddr) < 0)
+		ErrPrint("shmdt: %s\n", strerror(errno));
+
+	if (shmctl(si.shmid, IPC_RMID, 0) < 0)
+		ErrPrint("shmctl: %s\n", strerror(errno));
+
+	return 0;
+}
+
 void buffer_handler_flush(struct buffer_info *info)
 {
 	int fd;
@@ -939,18 +1068,24 @@ void buffer_handler_flush(struct buffer_info *info)
 	buffer = info->buffer;
 
 	if (buffer->type == BUFFER_TYPE_PIXMAP) {
-		XRectangle rect;
-		XserverRegion region;
+		if (s_info.fd > 0) {
+			XRectangle rect;
+			XserverRegion region;
 
-		rect.x = 0;
-		rect.y = 0;
-		rect.width = info->w;
-		rect.height = info->h;
+			rect.x = 0;
+			rect.y = 0;
+			rect.width = info->w;
+			rect.height = info->h;
 
-		region = XFixesCreateRegion(ecore_x_display_get(), &rect, 1);
-		XDamageAdd(ecore_x_display_get(), buffer_handler_pixmap(info), region);
-		XFixesDestroyRegion(ecore_x_display_get(), region);
-		XFlush(ecore_x_display_get());
+			region = XFixesCreateRegion(ecore_x_display_get(), &rect, 1);
+			XDamageAdd(ecore_x_display_get(), buffer_handler_pixmap(info), region);
+			XFixesDestroyRegion(ecore_x_display_get(), region);
+			XFlush(ecore_x_display_get());
+		} else {
+			DbgPrint("Use the S/W backend\n");
+			if (sync_for_pixmap(buffer) < 0)
+				ErrPrint("Failed to sync via S/W Backend\n");
+		}
 	} else if (buffer->type == BUFFER_TYPE_FILE) {
 		fd = open(util_uri_to_path(info->id), O_WRONLY | O_CREAT, 0644);
 		if (fd < 0) {
@@ -996,6 +1131,14 @@ int buffer_handler_init(void)
 	}
 
 	DbgPrint("Open: %s (driver: %s)", deviceName, driverName);
+
+	if (getenv("USE_SW_BACKEND_FOR_LIVE_CONTENT")) {
+		DbgPrint("Fallback to the S/W Backend\n");
+		s_info.evt_base = 0;
+		s_info.err_base = 0;
+		return 0;
+	}
+
 	s_info.fd = open(deviceName, O_RDWR);
 	DbgFree(deviceName);
 	DbgFree(driverName);
