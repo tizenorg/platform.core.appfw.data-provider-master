@@ -151,6 +151,11 @@ static struct packet *client_clicked(pid_t pid, int handle, const struct packet 
 
 	DbgPrint("pid[%d] pkgname[%s] id[%s] event[%s] timestamp[%lf] x[%lf] y[%lf]\n", pid, pkgname, id, event, timestamp, x, y);
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst)
 		ret = -ENOENT;
@@ -196,6 +201,11 @@ static struct packet *client_text_signal(pid_t pid, int handle, const struct pac
 
 	DbgPrint("pid[%d] pkgname[%s] id[%s] emission[%s] source[%s] sx[%lf] sy[%lf] ex[%lf] ey[%lf]\n", pid, pkgname, id, emission, source, sx, sy, ex, ey);
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst)
 		ret = -ENOENT;
@@ -258,6 +268,11 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 
 	DbgPrint("pid[%d] pkgname[%s] id[%s]\n", pid, pkgname, id);
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ret = -ENOENT;
@@ -335,6 +350,11 @@ static struct packet *client_resize(pid_t pid, int handle, const struct packet *
 
 	DbgPrint("pid[%d] pkgname[%s] id[%s] w[%d] h[%d]\n", pid, pkgname, id, w, h);
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ret = -ENOENT;
@@ -368,6 +388,7 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 	struct pkg_info *info;
 	int width;
 	int height;
+	char *lb_pkgname;
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -386,9 +407,16 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 	DbgPrint("pid[%d] period[%lf] pkgname[%s] content[%s] cluster[%s] category[%s] period[%lf]\n",
 						pid, timestamp, pkgname, content, cluster, category, period);
 
-	info = package_find(pkgname);
+	lb_pkgname = package_lb_pkgname(pkgname);
+	if (!lb_pkgname) {
+		ErrPrint("This %s has no livebox package\n", pkgname);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	info = package_find(lb_pkgname);
 	if (!info)
-		info = package_create(pkgname);
+		info = package_create(lb_pkgname);
 
 	if (!info) {
 		ret = -EFAULT;
@@ -406,13 +434,15 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		if (!strlen(content))
 			content = DEFAULT_CONTENT;
 
-		inst = instance_create(client, timestamp, pkgname, content, cluster, category, period, width, height);
+		inst = instance_create(client, timestamp, lb_pkgname, content, cluster, category, period, width, height);
 		/*!
 		 * \note
 		 * Using the "inst" without validate its value is at my disposal. ;)
 		 */
 		ret = inst ? 0 : -EFAULT;
 	}
+
+	DbgFree(lb_pkgname);
 
 out:
 	result = packet_create_reply(packet, "i", ret);
@@ -447,6 +477,11 @@ static struct packet *client_change_visibility(pid_t pid, int handle, const stru
 
 	DbgPrint("pid[%d] pkgname[%s] id[%s] state[%d]\n", pid, pkgname, id, state);
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ret = -ENOENT;
@@ -489,6 +524,11 @@ static struct packet *client_set_period(pid_t pid, int handle, const struct pack
 
 	DbgPrint("pid[%d] pkgname[%s] id[%s] period[%lf]\n", pid, pkgname, id, period);
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ret = -ENOENT;
@@ -535,6 +575,11 @@ static struct packet *client_change_group(pid_t pid, int handle, const struct pa
 
 	DbgPrint("pid[%d] pkgname[%s] id[%s] cluster[%s] category[%s]\n", pid, pkgname, id, cluster, category);
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ret = -ENOENT;
@@ -582,6 +627,11 @@ static struct packet *client_pd_mouse_enter(pid_t pid, int handle, const struct 
 		goto out;
 	}
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ErrPrint("Instance[%s] is not exists\n", id);
@@ -688,6 +738,11 @@ static struct packet *client_pd_mouse_leave(pid_t pid, int handle, const struct 
 		goto out;
 	}
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ErrPrint("Instance[%s] is not exists\n", id);
@@ -794,6 +849,11 @@ static struct packet *client_pd_mouse_down(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ErrPrint("Instance[%s] is not exists\n", id);
@@ -901,6 +961,11 @@ static struct packet *client_pd_mouse_up(pid_t pid, int handle, const struct pac
 		goto out;
 	}
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ErrPrint("Instance[%s] is not exists\n", id);
@@ -1008,9 +1073,14 @@ static struct packet *client_pd_mouse_move(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
-		ErrPrint("Instance[%s] is not exists\n", pkgname);
+		ErrPrint("Instance[%s] is not exists\n", id);
 		ret = -ENOENT;
 		goto out;
 	}
@@ -1114,9 +1184,14 @@ static struct packet *client_lb_mouse_move(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
-		ErrPrint("Instance[%s] is not exists\n", pkgname);
+		ErrPrint("Instance[%s] is not exists\n", id);
 		ret = -ENOENT;
 		goto out;
 	}
@@ -1220,6 +1295,11 @@ static struct packet *client_lb_mouse_enter(pid_t pid, int handle, const struct 
 		goto out;
 	}
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ErrPrint("Instance[%s] is not exists\n", id);
@@ -1326,6 +1406,11 @@ static struct packet *client_lb_mouse_leave(pid_t pid, int handle, const struct 
 		goto out;
 	}
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ErrPrint("Instance[%s] is not exists\n", id);
@@ -1432,6 +1517,11 @@ static struct packet *client_lb_mouse_down(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ErrPrint("Instance[%s] is not exists\n", id);
@@ -1539,6 +1629,11 @@ static struct packet *client_lb_mouse_up(pid_t pid, int handle, const struct pac
 		goto out;
 	}
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ErrPrint("Instance[%s] is not exists\n", id);
@@ -1648,6 +1743,11 @@ static struct packet *client_lb_acquire_pixmap(pid_t pid, int handle, const stru
 		goto out;
 	}
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ErrPrint("Failed to find an instance (%s - %s)\n", pkgname, id);
@@ -1702,6 +1802,11 @@ static struct packet *client_lb_release_pixmap(pid_t pid, int handle, const stru
 	}
 	DbgPrint("pid[%d] pkgname[%s] id[%s] Pixmap[0x%X]\n", pid, pkgname, id, pixmap);
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ErrPrint("Failed to find an instance (%s - %s)\n", pkgname, id);
@@ -1745,6 +1850,11 @@ static struct packet *client_pd_acquire_pixmap(pid_t pid, int handle, const stru
 		goto out;
 	}
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ErrPrint("Failed to find an instance (%s - %s)\n", pkgname, id);
@@ -1795,6 +1905,11 @@ static struct packet *client_pd_release_pixmap(pid_t pid, int handle, const stru
 	}
 	DbgPrint("pid[%d] pkgname[%s] id[%s]\n", pid, pkgname, id);
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
 		ErrPrint("Failed to find an instance (%s - %s)\n", pkgname, id);
@@ -1843,6 +1958,11 @@ static struct packet *client_pinup_changed(pid_t pid, int handle, const struct p
 
 	DbgPrint("pid[%d] pkgname[%s] id[%s] pinup[%d]\n", pid, pkgname, id, pinup);
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst)
 		ret = -ENOENT;
@@ -1937,6 +2057,11 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 
 	DbgPrint("pid[%d] pkgname[%s] id[%s]\n", pid, pkgname, id);
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst)
 		ret = -ENOENT;
@@ -2060,6 +2185,11 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 
 	DbgPrint("pid[%d] pkgname[%s] id[%s]\n", pid, pkgname, id);
 
+	/*!
+	 * \NOTE:
+	 * Trust the package name which are sent by the client.
+	 * The package has to be a livebox package name.
+	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst)
 		ret = -ENOENT;
@@ -2163,6 +2293,17 @@ static struct packet *client_activate_package(pid_t pid, int handle, const struc
 	}
 
 	DbgPrint("pid[%d] pkgname[%s]\n", pid, pkgname);
+
+	/*!
+	 * \NOTE:
+	 * Validate the livebox package name.
+	 */
+	if (!package_is_lb_pkgname(pkgname)) {
+		ErrPrint("%s is not a valid livebox package\n", pkgname);
+		pkgname = "";
+		ret = -EINVAL;
+		goto out;
+	}
 
 	info = package_find(pkgname);
 	if (!info)
@@ -3109,18 +3250,11 @@ static struct packet *service_update(pid_t pid, int handle, const struct packet 
 		goto out;
 	}
 
-	lb_pkgname = io_livebox_pkgname(pkgname);
+	lb_pkgname = package_lb_pkgname(pkgname);
 	if (!lb_pkgname) {
-		if (util_validate_livebox_package(pkgname) < 0) {
-			ret = -EINVAL;
-			goto out;
-		}
-
-		lb_pkgname = strdup(pkgname);
-		if (!lb_pkgname) {
-			ret = -ENOMEM;
-			goto out;
-		}
+		ErrPrint("Invalid package %s\n", pkgname);
+		ret = -EINVAL;
+		goto out;
 	}
 
 	/*!
@@ -3301,6 +3435,11 @@ static struct packet *liveinfo_inst_list(pid_t pid, int handle, const struct pac
 
 	if (packet_get(packet, "s", &pkgname) != 1) {
 		ErrPrint("Invalid argument\n");
+		goto out;
+	}
+
+	if (!package_is_lb_pkgname(pkgname)) {
+		ErrPrint("Invalid package name\n");
 		goto out;
 	}
 

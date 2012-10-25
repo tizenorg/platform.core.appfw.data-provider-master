@@ -27,6 +27,8 @@ struct inst_info;
  */
 extern struct pkg_info *package_create(const char *pkgname);
 extern int package_destroy(struct pkg_info *info);
+extern char *package_lb_pkgname(const char *pkgname);
+extern int package_is_lb_pkgname(const char *pkgname);
 extern struct pkg_info *package_find(const char *pkgname);
 extern const char *package_find_by_secured_slave(struct slave_node *slave);
 extern struct inst_info *package_find_instance_by_id(const char *pkgname, const char *id);

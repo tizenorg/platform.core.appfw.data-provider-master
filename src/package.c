@@ -426,14 +426,9 @@ int package_destroy(struct pkg_info *info)
 	return 0;
 }
 
-struct pkg_info *package_find(const char *pkgname)
+char *package_lb_pkgname(const char *pkgname)
 {
-	Eina_List *l;
-	struct pkg_info *info;
 	char *lb_pkgname;
-
-	if (!pkgname)
-		return NULL;
 
 	lb_pkgname = io_livebox_pkgname(pkgname);
 	if (!lb_pkgname) {
@@ -447,14 +442,34 @@ struct pkg_info *package_find(const char *pkgname)
 		}
 	}
 
+	return lb_pkgname;
+}
+
+int package_is_lb_pkgname(const char *pkgname)
+{
+	char *lb_pkgname;
+	int ret;
+
+	lb_pkgname = package_lb_pkgname(pkgname);
+	ret = !!lb_pkgname;
+	DbgFree(lb_pkgname);
+
+	return ret;
+}
+
+struct pkg_info *package_find(const char *pkgname)
+{
+	Eina_List *l;
+	struct pkg_info *info;
+
+	if (!pkgname)
+		return NULL;
+
 	EINA_LIST_FOREACH(s_info.pkg_list, l, info) {
-		if (!strcmp(info->pkgname, lb_pkgname)) {
-			DbgFree(lb_pkgname);
+		if (!strcmp(info->pkgname, pkgname))
 			return info;
-		}
 	}
 
-	DbgFree(lb_pkgname);
 	return NULL;
 }
 
@@ -1046,6 +1061,13 @@ static int uninstall_cb(const char *pkgname, enum pkgmgr_status status, double v
 	if (status != PKGMGR_STATUS_END)
 		return 0;
 
+	/*!
+	 * \TODO:
+	 * Multiple livebox package handling codes has to be implemented
+	 * Given pkgname is a "package name" of each package.
+	 * But One Package can includes multiple livebox packages.
+	 * So we should care them at here.
+	 */
 	info = package_find(pkgname);
 	if (!info)
 		return -ENOENT;
@@ -1070,6 +1092,13 @@ static int update_cb(const char *pkgname, enum pkgmgr_status status, double valu
 	if (status != PKGMGR_STATUS_END)
 		return 0;
 
+	/*!
+	 * \TODO:
+	 * Multiple livebox package handling codes has to be implemented
+	 * Given pkgname is a "package name" of each package.
+	 * But One Package can includes multiple livebox packages.
+	 * So we should care them at here.
+	 */
 	info = package_find(pkgname);
 	if (!info)
 		return -ENOENT;

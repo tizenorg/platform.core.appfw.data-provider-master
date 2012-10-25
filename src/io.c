@@ -649,12 +649,8 @@ static inline int db_init(void)
 		return -EINVAL;
 	}
 
-	if (stat.st_size <= 0) {
-		ErrPrint("Size is %d\n", stat.st_size);
-		db_util_close(s_info.handle);
-		s_info.handle = NULL;
-		return -EINVAL;
-	}
+	if (stat.st_size <= 0)
+		DbgPrint("Size is %d (But use this ;)\n", stat.st_size);
 
 	return 0;
 }
