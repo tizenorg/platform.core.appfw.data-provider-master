@@ -1051,26 +1051,50 @@ static int client_created_cb(struct client_node *client, void *data)
 	return 0;
 }
 
-static int uninstall_cb(const char *pkgname, enum pkgmgr_status status, double value, void *data)
+static int io_uninstall_cb(const char *pkgname, int prime, void *data)
 {
 	struct pkg_info *info;
 	Eina_List *l;
 	Eina_List *n;
 	struct inst_info *inst;
 
+	DbgPrint("Livebox package %s is uninstalled\n", pkgname);
+	info = package_find(pkgname);
+	if (!info) {
+		DbgPrint("%s is not yet loaded\n", pkgname);
+		return 0;
+	}
+
+	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
+		instance_destroy(inst);
+	}
+
+	group_del_livebox(pkgname);
+	package_clear_fault(info);
+	return 0;
+}
+
+static int uninstall_cb(const char *pkgname, enum pkgmgr_status status, double value, void *data)
+{
+	int ret;
 	if (status != PKGMGR_STATUS_END)
 		return 0;
 
-	/*!
-	 * \TODO:
-	 * Multiple livebox package handling codes has to be implemented
-	 * Given pkgname is a "package name" of each package.
-	 * But One Package can includes multiple livebox packages.
-	 * So we should care them at here.
-	 */
+	ret = io_update_livebox_package(pkgname, io_uninstall_cb, NULL);
+	return 0;
+}
+
+static int io_update_cb(const char *pkgname, int prime, void *data)
+{
+	struct pkg_info *info;
+	struct inst_info *inst;
+	Eina_List *l;
+	Eina_List *n;
+
+	DbgPrint("Livebox package %s is updated\n", pkgname);
 	info = package_find(pkgname);
 	if (!info)
-		return -ENOENT;
+		return 0;
 
 	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
 		instance_destroy(inst);
@@ -1079,38 +1103,21 @@ static int uninstall_cb(const char *pkgname, enum pkgmgr_status status, double v
 	group_del_livebox(pkgname);
 	package_clear_fault(info);
 
+	/*!
+	 * \NOTE:
+	 * Nested DB I/O
+	 */
+	io_load_package_db(info);
 	return 0;
 }
 
 static int update_cb(const char *pkgname, enum pkgmgr_status status, double value, void *data)
 {
-	struct pkg_info *info;
-	struct inst_info *inst;
-	Eina_List *l;
-	Eina_List *n;
-
+	int ret;
 	if (status != PKGMGR_STATUS_END)
 		return 0;
 
-	/*!
-	 * \TODO:
-	 * Multiple livebox package handling codes has to be implemented
-	 * Given pkgname is a "package name" of each package.
-	 * But One Package can includes multiple livebox packages.
-	 * So we should care them at here.
-	 */
-	info = package_find(pkgname);
-	if (!info)
-		return -ENOENT;
-
-	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
-		instance_destroy(inst);
-	}
-
-	group_del_livebox(pkgname);
-	package_clear_fault(info);
-
-	io_load_package_db(info);
+	ret = io_update_livebox_package(pkgname, io_update_cb, NULL);
 	return 0;
 }
 

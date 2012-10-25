@@ -596,6 +596,55 @@ out:
 	return pkgid;
 }
 
+int io_update_livebox_package(const char *pkgname, int (*cb)(const char *lb_pkgname, int prime, void *data), void *data)
+{
+	sqlite3_stmt *stmt;
+	char *pkgid;
+	int prime;
+	int ret;
+
+	if (!cb || !pkgname)
+		return -EINVAL;
+
+	if (!s_info.handle) {
+		ErrPrint("DB is not ready\n");
+		return -EINVAL;
+	}
+
+	ret = sqlite3_prepare_v2(s_info.handle, "SELECT pkgid, prime FROM pkgmap WHERE appid = ?", -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		ErrPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		return -EFAULT;
+	}
+
+	ret = sqlite3_bind_text(stmt, 1, pkgname, -1, NULL);
+	if (ret != SQLITE_OK) {
+		ErrPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EFAULT;
+		goto out;
+	}
+
+	ret = 0;
+	while (sqlite3_step(stmt) == SQLITE_ROW) {
+		pkgid = (char *)sqlite3_column_text(stmt, 0);
+		if (!pkgid || !strlen(pkgid))
+			continue;
+
+		prime = sqlite3_column_int(stmt, 1);
+
+		if (cb(pkgid, prime, data) < 0) {
+			DbgPrint("Callback canceled\n");
+			break;
+		}
+
+		ret++;
+	}
+out:
+	sqlite3_reset(stmt);
+	sqlite3_finalize(stmt);
+	return ret;
+}
+
 int io_load_package_db(struct pkg_info *info)
 {
 	int ret;
