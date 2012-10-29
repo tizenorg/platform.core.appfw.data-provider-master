@@ -41,11 +41,6 @@ struct command {
 	/* Don't need to care these data */
 	void (*ret_cb)(struct slave_node *slave, const struct packet *packet, void *cbdata);
 	void *cbdata;
-
-	enum {
-		TYPE_ACK,
-		TYPE_NOACK,
-	} type;
 };
 
 static struct info {
@@ -176,14 +171,14 @@ static Eina_Bool command_consumer_cb(void *data)
 		goto errout;
 	}
 
-	if (command->type == TYPE_NOACK) {
+	if (packet_type(command->packet) == PACKET_REQ_NOACK) {
 		if (com_core_packet_send_only(rpc->handle, command->packet) == 0) {
 			/* Keep a slave alive, while processing events */
 			slave_give_more_ttl(command->slave);
 			destroy_command(command);
 			return ECORE_CALLBACK_RENEW;
 		}
-	} else {
+	} else if (packet_type(command->packet) == PACKET_REQ) {
 		if (com_core_packet_async_send(rpc->handle, command->packet, 0.0f, slave_async_cb, command) == 0) {
 			/* Keep a slave alive, while processing events */
 			slave_give_more_ttl(command->slave);
@@ -210,6 +205,7 @@ static Eina_Bool command_consumer_cb(void *data)
 errout:
 	if (command->ret_cb)
 		command->ret_cb(command->slave, NULL, command->cbdata);
+
 	destroy_command(command);
 	return ECORE_CALLBACK_RENEW;
 }
@@ -354,7 +350,6 @@ int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, struc
 
 	command->ret_cb = ret_cb;
 	command->cbdata = data;
-	command->type = TYPE_ACK;
 
 	rpc = slave_data(slave, "rpc");
 	if (!rpc) {
@@ -415,7 +410,6 @@ int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, struct
 
 	command->ret_cb = NULL;
 	command->cbdata = NULL;
-	command->type = TYPE_NOACK;
 
 	rpc = slave_data(slave, "rpc");
 	if (!rpc) {
