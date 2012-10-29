@@ -68,9 +68,17 @@ static inline void invoke_global_destroy_cb(struct client_node *client)
 	Eina_List *l;
 	Eina_List *n;
 	struct global_event_handler *item;
+	int ret;
 
 	EINA_LIST_FOREACH_SAFE(s_info.destroy_event_list, l, n, item) {
-		if (item->cb(client, item->cbdata) < 0) {
+		if (!item->cb) {
+			DbgPrint("Callback function is not valid\n");
+			continue;
+		}
+
+		ret = item->cb(client, item->cbdata);
+
+		if (ret < 0) {
 			if (eina_list_data_find(s_info.destroy_event_list, item)) {
 				s_info.destroy_event_list = eina_list_remove(s_info.destroy_event_list, item);
 				DbgFree(item);
@@ -108,7 +116,13 @@ static inline void destroy_client_data(struct client_node *client)
 	invoke_global_destroy_cb(client);
 
 	EINA_LIST_FOREACH_SAFE(client->event_destroy_list, l, n, event) {
+		if (!event->cb) {
+			DbgPrint("Callback function is not valid\n");
+			continue;
+		}
+
 		event->cb(client, event->data);
+
 		if (eina_list_data_find(client->event_destroy_list, event)) {
 			client->event_destroy_list = eina_list_remove(client->event_destroy_list, event);
 			DbgFree(event);
@@ -514,11 +528,14 @@ int client_global_event_handler_add(enum client_global_event event_type, int (*c
 	handler->cbdata = data;
 	handler->cb = cb;
 
-	if (event_type == CLIENT_GLOBAL_EVENT_CREATE) {
+	switch (event_type) {
+	case CLIENT_GLOBAL_EVENT_CREATE:
 		s_info.create_event_list = eina_list_prepend(s_info.create_event_list, handler);
-	} else if (event_type == CLIENT_GLOBAL_EVENT_DESTROY) {
+		break;
+	case CLIENT_GLOBAL_EVENT_DESTROY:
 		s_info.destroy_event_list = eina_list_prepend(s_info.destroy_event_list, handler);
-	} else {
+		break;
+	default:
 		DbgFree(handler);
 		return -EINVAL;
 	}
@@ -532,7 +549,8 @@ int client_global_event_handler_del(enum client_global_event event_type, int (*c
 	Eina_List *n;
 	struct global_event_handler *handler;
 
-	if (event_type == CLIENT_GLOBAL_EVENT_CREATE) {
+	switch (event_type) {
+	case CLIENT_GLOBAL_EVENT_CREATE:
 		EINA_LIST_FOREACH_SAFE(s_info.create_event_list, l, n, handler) {
 			if (handler->cb == cb && handler->cbdata == data) {
 				s_info.create_event_list = eina_list_remove(s_info.create_event_list, handler);
@@ -540,7 +558,8 @@ int client_global_event_handler_del(enum client_global_event event_type, int (*c
 				return 0;
 			}
 		}
-	} else if (event_type == CLIENT_GLOBAL_EVENT_DESTROY) {
+		break;
+	case CLIENT_GLOBAL_EVENT_DESTROY:
 		EINA_LIST_FOREACH_SAFE(s_info.destroy_event_list, l, n, handler) {
 			if (handler->cb == cb && handler->cbdata == data) {
 				s_info.destroy_event_list = eina_list_remove(s_info.destroy_event_list, handler);
@@ -548,6 +567,9 @@ int client_global_event_handler_del(enum client_global_event event_type, int (*c
 				return 0;
 			}
 		}
+		break;
+	default:
+		break;
 	}
 
 	return -ENOENT;
