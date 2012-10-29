@@ -317,6 +317,11 @@ int client_event_callback_add(struct client_node *client, enum client_event even
 {
 	struct event_item *item;
 
+	if (!cb) {
+		ErrPrint("Invalid callback (cb == NULL)\n");
+		return -EINVAL;
+	}
+
 	item = calloc(1, sizeof(*item));
 	if (!item) {
 		ErrPrint("Heap: %s\n", strerror(errno));
@@ -364,6 +369,11 @@ int client_event_callback_del(struct client_node *client, enum client_event even
 	struct event_item *item;
 	Eina_List *l;
 	Eina_List *n;
+
+	if (!cb) {
+		ErrPrint("Invalid callback (cb == NULL)\n");
+		return -EINVAL;
+	}
 
 	switch (event) {
 	case CLIENT_EVENT_DEACTIVATE:

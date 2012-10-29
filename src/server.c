@@ -1992,6 +1992,7 @@ static int pd_buffer_close_cb(struct client_node *client, void *inst)
 	if (slave)
 		slave_thaw_ttl(slave);
 
+	instance_unref(inst);
 	return -1; /* Delete this callback */
 }
 
@@ -2145,8 +2146,9 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		 * and it will send the close request to the slave
 		 */
 		instance_ref(inst);
-		if (client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, pd_script_close_cb, inst) < 0)
+		if (client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, pd_script_close_cb, inst) < 0) {
 			instance_unref(inst);
+		}
 	} else {
 		ErrPrint("Invalid PD TYPE\n");
 		ret = -EINVAL;
