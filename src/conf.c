@@ -75,34 +75,6 @@ struct conf g_conf = {
 		.db = "/opt/dbspace/.livebox.db",
 	},
 
-	.size = {
-		{
-			.width = 172,
-			.height = 172,	/* Slot type 1 */
-		},
-		{
-			.width = 348,
-			.height = 172,	/* Slot type 2 */
-		},
-		{
-			.width = 348,
-			.height = 348,	/* Slot type 3 */
-		},
-		{
-			.width = 700,
-			.height = 348,  /* Slot type 4 */
-		},
-		{
-			.width = 700,
-			.height = 172, /* Slot type 5 4x1 */
-		},
-		{
-			.width = 700,
-			.height = 700, /* Slot type 6 4x4 */
-		},
-	},
-
-	.max_size_type = MAX_SIZE_LIST,
 	.ping_time = 240.0f,
 	.slave_max_load = 30,
 	.vconf_sys_cluster = "file/private/com.samsung.cluster-home/system_cluster",

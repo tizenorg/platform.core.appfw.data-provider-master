@@ -10,6 +10,7 @@
 
 #include <packet.h>
 #include <com-core_packet.h>
+#include <livebox-service.h>
 
 #include "conf.h"
 #include "util.h"
@@ -891,10 +892,8 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 			 */
 			inst->is_pinned_up = is_pinned_up;
 			if (package_lb_type(inst->info) == LB_TYPE_SCRIPT) {
-				if (inst->lb.width == 0 && inst->lb.height == 0) {
-					inst->lb.width = g_conf.size[0].width;
-					inst->lb.height = g_conf.size[0].height;
-				}
+				if (inst->lb.width == 0 && inst->lb.height == 0)
+					livebox_service_get_size(LB_SIZE_TYPE_1x1, &inst->lb.width, &inst->lb.height);
 
 				inst->lb.canvas.script = script_handler_create(inst,
 								package_lb_path(inst->info),
@@ -975,10 +974,8 @@ int instance_create_pd_buffer(struct inst_info *inst)
 
 int instance_create_lb_buffer(struct inst_info *inst)
 {
-	if (inst->lb.width == 0 && inst->lb.height == 0) {
-		inst->lb.width = g_conf.size[0].width;
-		inst->lb.height = g_conf.size[0].height;
-	}
+	if (inst->lb.width == 0 && inst->lb.height == 0)
+		livebox_service_get_size(LB_SIZE_TYPE_1x1, &inst->lb.width, &inst->lb.height);
 
 	if (!inst->lb.canvas.buffer) {
 		enum buffer_type type;

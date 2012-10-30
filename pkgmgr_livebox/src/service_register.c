@@ -1341,8 +1341,8 @@ enum lb_size {
 	LB_SIZE_1x1 = 0x01,
 	LB_SIZE_2x1 = 0x02,
 	LB_SIZE_2x2 = 0x04,
-	LB_SIZE_4x2 = 0x08,
-	LB_SIZE_4x1 = 0x10,
+	LB_SIZE_4x1 = 0x08,
+	LB_SIZE_4x2 = 0x10,
 	LB_SIZE_4x4 = 0x20,
 };
 
@@ -1584,17 +1584,17 @@ static inline void update_box(struct livebox *livebox, xmlNodePtr node)
 				continue;
 			}
 
-			if (!xmlStrcasecmp(size, (const xmlChar *)"172x172"))
+			if (!xmlStrcasecmp(size, (const xmlChar *)"1x1"))
 				livebox->size_list |= LB_SIZE_1x1;
-			else if (!xmlStrcasecmp(size, (const xmlChar *)"348x172"))
+			else if (!xmlStrcasecmp(size, (const xmlChar *)"2x1"))
 				livebox->size_list |= LB_SIZE_2x1;
-			else if (!xmlStrcasecmp(size, (const xmlChar *)"348x348"))
+			else if (!xmlStrcasecmp(size, (const xmlChar *)"2x2"))
 				livebox->size_list |= LB_SIZE_2x2;
-			else if (!xmlStrcasecmp(size, (const xmlChar *)"700x348"))
-				livebox->size_list |= LB_SIZE_4x2;
-			else if (!xmlStrcasecmp(size, (const xmlChar *)"700x172"))
+			else if (!xmlStrcasecmp(size, (const xmlChar *)"4x1"))
 				livebox->size_list |= LB_SIZE_4x1;
-			else if (!xmlStrcasecmp(size, (const xmlChar *)"700x700"))
+			else if (!xmlStrcasecmp(size, (const xmlChar *)"4x2"))
+				livebox->size_list |= LB_SIZE_4x2;
+			else if (!xmlStrcasecmp(size, (const xmlChar *)"4x4"))
 				livebox->size_list |= LB_SIZE_4x4;
 			else
 				ErrPrint("Invalid size tag (%s)\n", size);

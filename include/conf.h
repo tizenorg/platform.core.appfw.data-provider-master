@@ -19,8 +19,6 @@
  *
  */
 
-#define MAX_SIZE_LIST	6
-
 struct conf {
 	int width;
 	int height;
@@ -41,7 +39,6 @@ struct conf {
 		char *secured;
 		char *abi;
 	} launch_key;
-
 
 	double default_packet_time;
 
@@ -71,11 +68,6 @@ struct conf {
 		char *slave_log;
 		char *db;
 	} path;
-
-	struct {
-		int width;
-		int height;
-	} size[MAX_SIZE_LIST];
 
 	int max_size_type;
 

@@ -32,6 +32,7 @@ BuildRequires: pkgconfig(dri2proto)
 BuildRequires: pkgconfig(xext)
 BuildRequires: pkgconfig(xdamage)
 BuildRequires: pkgconfig(pkgmgr)
+BuildRequires: pkgconfig(livebox-service)
 
 %description
 Manage the slave data provider and communicate with client applications.

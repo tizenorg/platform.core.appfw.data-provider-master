@@ -28,6 +28,7 @@ pkg_check_modules(pkg REQUIRED
 	xdamage
 	capi-context
 	pkgmgr
+	livebox-service
 )
 
 SET(PACKAGE "${PROJECT_NAME}")

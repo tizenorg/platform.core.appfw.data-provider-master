@@ -32,6 +32,15 @@
 #include "conf.h"
 #include "parser.h"
 
+enum lb_size {
+	LB_SIZE_1x1 = 0x01,
+	LB_SIZE_2x1 = 0x02,
+	LB_SIZE_2x2 = 0x04,
+	LB_SIZE_4x1 = 0x08,
+	LB_SIZE_4x2 = 0x10,
+	LB_SIZE_4x4 = 0x20,
+};
+
 static Eina_List *s_list;
 int errno;
 
@@ -179,7 +188,7 @@ int parser_find(const char *pkgname)
 		return -EFAULT;
 	}
 
-	LOGD("Conf file is %s for package %s\n", filename, pkgname);
+	DbgPrint("Conf file is %s for package %s\n", filename, pkgname);
 
 	EINA_LIST_FOREACH(s_list, l, item) {
 		if (!strcmp(item->filename, filename)) {
@@ -195,7 +204,6 @@ int parser_find(const char *pkgname)
 static inline int parse_size(const char *buffer, unsigned int *size)
 {
 	register int i;
-	register int j;
 	int w;
 	int h;
 
@@ -281,11 +289,20 @@ static inline int parse_size(const char *buffer, unsigned int *size)
 			}
 			break;
 		case STOP:
-			for (j = 0; j < g_conf.max_size_type; j++) {
-				if (g_conf.size[j].width == w && g_conf.size[j].height == h) {
-					*size |= (0x01 << j);
-					break;
-				}
+			if (w == 1 && h == 1) {
+				*size |= LB_SIZE_1x1;
+			} else if (w == 2 && h == 1) {
+				*size |= LB_SIZE_2x1;
+			} else if (w == 2 && h == 2) {
+				*size |= LB_SIZE_2x2;
+			} else if (w == 4 && h == 1) {
+				*size |= LB_SIZE_4x1;
+			} else if (w == 4 && h == 2) {
+				*size |= LB_SIZE_4x2;
+			} else if (w == 4 && h == 4) {
+				*size |= LB_SIZE_4x4;
+			} else {
+				ErrPrint("Invalid size type: %dx%d\n", w, h);
 			}
 
 			if (buffer[i] == ';')
@@ -381,7 +398,7 @@ static void auto_launch_handler(struct parser *item, char *buffer)
 static void size_handler(struct parser *item, char *buffer)
 {
 	if (parse_size(buffer, &item->size) == -1) {
-		LOGE("Failed to get size\n");
+		ErrPrint("Failed to get size\n");
 		item->size = 0x00000001;
 	}
 }
@@ -389,7 +406,7 @@ static void size_handler(struct parser *item, char *buffer)
 static void pd_size_handler(struct parser *item, char *buffer)
 {
 	if (sscanf(buffer, "%ux%u", &item->pd_width, &item->pd_height) != 2)
-		LOGE("parse pd size\n");
+		ErrPrint("parse pd size\n");
 }
 
 static void text_lb_handler(struct parser *item, char *buffer)
@@ -448,7 +465,7 @@ static void lb_path_handler(struct parser *item, char *buffer)
 
 	item->lb_path = dup_rtrim(buffer);
 	if (!item->lb_path)
-		LOGD("Error: %s\n", strerror(errno));
+		ErrPrint("Error: %s\n", strerror(errno));
 }
 
 static void group_handler(struct parser *item, char *buffer)
@@ -458,7 +475,7 @@ static void group_handler(struct parser *item, char *buffer)
 
 	item->group = dup_rtrim(buffer);
 	if (!item->group)
-		LOGD("Error: %s\n", strerror(errno));
+		ErrPrint("Error: %s\n", strerror(errno));
 }
 
 static void secured_handler(struct parser *item, char *buffer)
@@ -476,7 +493,7 @@ static void lb_group_handler(struct parser *item, char *buffer)
 
 	item->lb_group = dup_rtrim(buffer);
 	if (!item->lb_group)
-		LOGD("Error: %s\n", strerror(errno));
+		ErrPrint("Error: %s\n", strerror(errno));
 }
 
 static void pd_path_handler(struct parser *item, char *buffer)
@@ -486,7 +503,7 @@ static void pd_path_handler(struct parser *item, char *buffer)
 
 	item->pd_path = dup_rtrim(buffer);
 	if (!item->pd_path)
-		LOGD("Error: %s\n", strerror(errno));
+		ErrPrint("Error: %s\n", strerror(errno));
 }
 
 static void pd_group_handler(struct parser *item, char *buffer)
@@ -496,7 +513,7 @@ static void pd_group_handler(struct parser *item, char *buffer)
 
 	item->pd_group = dup_rtrim(buffer);
 	if (!item->pd_group)
-		LOGD("Error: %s\n", strerror(errno));
+		ErrPrint("Error: %s\n", strerror(errno));
 }
 
 struct parser *parser_load(const char *pkgname)
@@ -615,14 +632,14 @@ struct parser *parser_load(const char *pkgname)
 	len = strlen(CONF_PATH) + strlen(pkgname) * 2;
 	item->filename = malloc(len);
 	if (!item->filename) {
-		LOGD("Error: %s\n", strerror(errno));
+		ErrPrint("Error: %s\n", strerror(errno));
 		DbgFree(item);
 		return 0;
 	}
 
 	ret = snprintf(item->filename, len, CONF_PATH, pkgname, pkgname);
 	if (ret < 0) {
-		LOGD("Error: %s\n", strerror(errno));
+		ErrPrint("Error: %s\n", strerror(errno));
 		DbgFree(item->filename);
 		DbgFree(item);
 		return 0;
@@ -654,7 +671,7 @@ struct parser *parser_load(const char *pkgname)
 	do {
 		c = getc(fp);
 		if ((c == EOF) && (state == VALUE)) {
-			LOGD("[%s:%d] VALUE state EOF\n", __func__, __LINE__);
+			DbgPrint("[%s:%d] VALUE state EOF\n", __func__, __LINE__);
 			state = END;
 		}
 
