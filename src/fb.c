@@ -79,6 +79,16 @@ struct fb_info *fb_create(struct inst_info *inst, int w, int h, enum buffer_type
 	return info;
 }
 
+static void render_pre_cb(void *data, Evas *e, void *event_info)
+{
+	fb_pixmap_render_pre(data);
+}
+
+static void render_post_cb(void *data, Evas *e, void *event_info)
+{
+	fb_pixmap_render_post(data);
+}
+
 int fb_create_buffer(struct fb_info *info)
 {
 	int ow;
@@ -110,9 +120,26 @@ int fb_create_buffer(struct fb_info *info)
 		return -EFAULT;
 	}
 
-	ecore_evas_alpha_set(info->ee, EINA_TRUE);
-	ecore_evas_manual_render_set(info->ee, EINA_FALSE);
-	ecore_evas_resize(info->ee, ow, oh);
+	if (buffer_handler_type(info->buffer) == BUFFER_TYPE_PIXMAP) {
+		Evas *e;
+		e = ecore_evas_get(info->ee);
+		if (e) {
+			evas_event_callback_add(e, EVAS_CALLBACK_RENDER_PRE, render_pre_cb, info);
+			evas_event_callback_add(e, EVAS_CALLBACK_RENDER_POST, render_post_cb, info);
+
+			/*!
+			 * \note
+			 * ecore_evas_alpha_set tries to access the canvas buffer.
+			 * Without any render_pre/render_post callback.
+			 */
+			fb_pixmap_render_pre(info);
+			ecore_evas_alpha_set(info->ee, EINA_TRUE);
+			fb_pixmap_render_post(info);
+		}
+	} else {
+		ecore_evas_alpha_set(info->ee, EINA_TRUE);
+	}
+
 	return 0;
 }
 
@@ -121,6 +148,15 @@ int fb_destroy_buffer(struct fb_info *info)
 	if (!info->ee) {
 		ErrPrint("EE is not exists (Maybe ZERO byte ee?)\n");
 		return -EINVAL;
+	}
+
+	if (buffer_handler_type(info->buffer) == BUFFER_TYPE_PIXMAP) {
+		Evas *e;
+		e = ecore_evas_get(info->ee);
+		if (e) {
+			evas_event_callback_del(e, EVAS_CALLBACK_RENDER_POST, render_post_cb);
+			evas_event_callback_del(e, EVAS_CALLBACK_RENDER_PRE, render_pre_cb);
+		}
 	}
 
 	ecore_evas_free(info->ee);

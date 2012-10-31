@@ -461,7 +461,7 @@ int group_add_livebox(const char *group, const char *pkgname)
 	char *name;
 	char *ptr;
 	int len;
-	int is_open;
+	int is_open = 0;
 	enum {
 		CLUSTER,
 		CATEGORY,

@@ -128,13 +128,11 @@ static void render_pre_cb(void *data, Evas *e, void *event_info)
 
 	info = instance_lb_script(inst);
 	if (info && script_handler_evas(info) == e) {
-		fb_pixmap_render_pre(script_handler_fb(info));
 		return;
 	}
 
 	info = instance_pd_script(inst);
 	if (info && script_handler_evas(info) == e) {
-		fb_pixmap_render_pre(script_handler_fb(info));
 		return;
 	}
 
@@ -156,7 +154,6 @@ static void render_post_cb(void *data, Evas *e, void *event_info)
 
 	info = instance_lb_script(inst);
 	if (info && script_handler_evas(info) == e) {
-		fb_pixmap_render_post(script_handler_fb(info));
 		fb_sync(script_handler_fb(info));
 		instance_lb_updated_by_instance(inst);
 		return;
@@ -164,7 +161,6 @@ static void render_post_cb(void *data, Evas *e, void *event_info)
 
 	info = instance_pd_script(inst);
 	if (info && script_handler_evas(info) == e) {
-		fb_pixmap_render_post(script_handler_fb(info));
 		fb_sync(script_handler_fb(info));
 		instance_pd_updated_by_instance(inst, NULL);
 		return;
@@ -246,6 +242,8 @@ int script_handler_load(struct script_info *info, int is_pd)
 		ErrPrint("Evas: (nil) %dx%d\n", info->w, info->h);
 	}
 
+	ecore_evas_manual_render_set(info->ee, EINA_FALSE);
+	ecore_evas_resize(info->ee, info->w, info->h);
 	ecore_evas_show(info->ee);
 	ecore_evas_activate(info->ee);
 	fb_sync(info->fb);
