@@ -677,7 +677,7 @@ struct parser *parser_load(const char *pkgname)
 
 		switch (state) {
 		case COMMENT:
-			if (c == CR || c == LF) {
+			if (c == CR || c == LF || c == EOF) {
 				buffer[buffer_idx] = '\0';
 
 				state = START;
@@ -777,7 +777,7 @@ struct parser *parser_load(const char *pkgname)
 			}
 			break;
 		case ERROR:
-			if (c == CR || c == LF) {
+			if (c == CR || c == LF || c == EOF) {
 				state = START;
 				token_idx = -1;
 				buffer_idx = 0;
@@ -789,6 +789,12 @@ struct parser *parser_load(const char *pkgname)
 		case END:
 			if (c == LF || c == CR || c == EOF) {
 				state = START;
+
+				/*!
+				 * \NOTE
+				 * Make the string terminator
+				 */
+				buffer[buffer_idx] = '\0';
 
 				if (token_idx >= 0 && token_handler[token_idx].handler)
 					token_handler[token_idx].handler(item, buffer);

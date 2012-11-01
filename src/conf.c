@@ -389,7 +389,7 @@ int conf_loader(void)
 
 		switch (state) {
 		case COMMENT:
-			if (c == CR || c == LF) {
+			if (c == CR || c == LF || c == EOF) {
 				buffer[buffer_idx] = '\0';
 
 				state = START;
@@ -489,7 +489,7 @@ int conf_loader(void)
 			}
 			break;
 		case ERROR:
-			if (c == CR || c == LF) {
+			if (c == CR || c == LF || c == EOF) {
 				state = START;
 				token_idx = -1;
 				buffer_idx = 0;
@@ -503,6 +503,7 @@ int conf_loader(void)
 				state = START;
 
 				if (token_idx >= 0 && token_handler[token_idx].handler) {
+					buffer[buffer_idx] = '\0';
 					DbgPrint("BUFFER: [%s]\n", buffer);
 					token_handler[token_idx].handler(buffer);
 				}

@@ -833,7 +833,6 @@ struct slave_node *slave_find_by_rpc_handle(int handle)
 	}
 
 	/* Not found */
-	DbgPrint("Slave is not found (handle: %d)\n", handle);
 	return NULL;
 }
 
