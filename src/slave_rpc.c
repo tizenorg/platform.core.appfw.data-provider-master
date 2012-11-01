@@ -28,8 +28,6 @@ struct slave_rpc {
 	unsigned long ping_count;
 	unsigned long next_ping_count;
 	Eina_List *pending_list;
-
-	struct slave_node *slave;
 };
 
 struct command {
@@ -45,12 +43,10 @@ struct command {
 
 static struct info {
 	Eina_List *command_list;
-	Eina_List *rpc_list;
 	Ecore_Timer *command_consuming_timer;
 } s_info = {
 	.command_list = NULL,
 	.command_consuming_timer = NULL,
-	.rpc_list = NULL,
 };
 
 static inline void prepend_command(struct command *command);
@@ -302,7 +298,6 @@ static int slave_del_cb(struct slave_node *slave, void *data)
 	else
 		ErrPrint("Pong timer is not exists\n");
 
-	s_info.rpc_list = eina_list_remove(s_info.rpc_list, rpc);
 	DbgFree(rpc);
 	return 0;
 }
@@ -506,9 +501,7 @@ int slave_rpc_initialize(struct slave_node *slave)
 	rpc->ping_count = 0;
 	rpc->next_ping_count = 1;
 	rpc->handle = -1;
-	rpc->slave = slave;
 
-	s_info.rpc_list = eina_list_append(s_info.rpc_list, rpc);
 	return 0;
 }
 
@@ -603,17 +596,17 @@ void slave_rpc_request_update(const char *pkgname, const char *id, const char *c
 	(void)slave_rpc_request_only(slave, pkgname, packet, 0);
 }
 
-struct slave_node *slave_rpc_find_by_handle(int handle)
+int slave_rpc_handle(struct slave_node *slave)
 {
-	Eina_List *l;
 	struct slave_rpc *rpc;
 
-	EINA_LIST_FOREACH(s_info.rpc_list, l, rpc) {
-		if (rpc->handle == handle)
-			return rpc->slave;
+	rpc = slave_data(slave, "rpc");
+	if (!rpc) {
+		DbgPrint("Slave RPC is not initiated\n");
+		return -EINVAL;
 	}
 
-	return NULL;
+	return rpc->handle;
 }
 
 /* End of a file */

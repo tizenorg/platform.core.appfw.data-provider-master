@@ -817,6 +817,26 @@ struct slave_node *slave_find_by_pkgname(const char *pkgname)
 	return NULL;
 }
 
+struct slave_node *slave_find_by_rpc_handle(int handle)
+{
+	Eina_List *l;
+	struct slave_node *slave;
+
+	if (handle <= 0) {
+		ErrPrint("Invalid RPC handle: %d\n", handle);
+		return NULL;
+	}
+
+	EINA_LIST_FOREACH(s_info.slave_list, l, slave) {
+		if (slave_rpc_handle(slave) == handle)
+			return slave;
+	}
+
+	/* Not found */
+	DbgPrint("Slave is not found (handle: %d)\n", handle);
+	return NULL;
+}
+
 void slave_load_package(struct slave_node *slave)
 {
 	slave->loaded_package++;

@@ -22,16 +22,13 @@
 static struct info {
 	Eina_List *command_list; /*!< Packet Q: Before sending the request, all request commands will stay here */
 	Ecore_Timer *command_consumer; /*!< This timer will consuming the command Q. sending them to the specified client */
-	Eina_List *rpc_list; /*!< Create RPC object list, to find a client using given RPC info (such as GDBusConnection*, GDBusProxy*) */
 } s_info = {
 	.command_list = NULL,
 	.command_consumer = NULL,
-	.rpc_list = NULL,
 };
 
 struct client_rpc {
 	int handle; /*!< Handler for communication with client */
-	struct client_node *client; /*!< client_life object */
 };
 
 struct command {
@@ -174,43 +171,6 @@ int client_rpc_async_request(struct client_node *client, struct packet *packet)
 	return 0;
 }
 
-int client_rpc_broadcast(struct inst_info *inst, struct packet *packet)
-{
-	Eina_List *l;
-
-	if (!inst) {
-		struct client_rpc *rpc;
-
-		EINA_LIST_FOREACH(s_info.rpc_list, l, rpc) {
-			if (!rpc->client)
-				continue;
-
-			if (client_pid(rpc->client) < 0) {
-				ErrPrint("Client[%p] has PID[%d]\n", rpc->client, client_pid(rpc->client));
-				continue;
-			}
-
-			(void)client_rpc_async_request(rpc->client, packet_ref(packet));
-		}
-	} else {
-		struct client_node *client;
-		Eina_List *list;
-
-		list = instance_client_list(inst);
-		EINA_LIST_FOREACH(list, l, client) {
-			if (client_pid(client) < 0) {
-				ErrPrint("Client[%p] has PID[%d]\n", client, client_pid(client));
-				continue;
-			}
-
-			(void)client_rpc_async_request(client, packet_ref(packet));
-		}
-	}
-
-	packet_unref(packet);
-	return 0;
-}
-
 static int deactivated_cb(struct client_node *client, void *data)
 {
 	struct client_rpc *rpc;
@@ -249,7 +209,6 @@ static int del_cb(struct client_node *client, void *data)
 		return -EINVAL;
 	}
 
-	s_info.rpc_list = eina_list_remove(s_info.rpc_list, rpc);
 	DbgFree(rpc);
 
 	client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, deactivated_cb, NULL);
@@ -280,25 +239,21 @@ int client_rpc_initialize(struct client_node *client, int handle)
 
 	client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, deactivated_cb, NULL);
 	client_event_callback_add(client, CLIENT_EVENT_DESTROY, del_cb, NULL);
-	rpc->client = client;
 
-	s_info.rpc_list = eina_list_append(s_info.rpc_list, rpc);
 	return 0;
 }
 
-struct client_node *client_rpc_find_by_handle(int handle)
+int client_rpc_handle(struct client_node *client)
 {
-	Eina_List *l;
 	struct client_rpc *rpc;
 
-	EINA_LIST_FOREACH(s_info.rpc_list, l, rpc) {
-		if (rpc->handle != handle)
-			continue;
-
-		return rpc->client;
+	rpc = client_data(client, "rpc");
+	if (!rpc) {
+		DbgPrint("Client has no RPC\n");
+		return -EINVAL;
 	}
 
-	return NULL;
+	return rpc->handle;
 }
 
 /* End of a file */

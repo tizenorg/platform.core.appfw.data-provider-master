@@ -253,6 +253,24 @@ struct client_node *client_find_by_pid(pid_t pid)
 	return NULL;
 }
 
+struct client_node *client_find_by_rpc_handle(int handle)
+{
+	Eina_List *l;
+	struct client_node *client;
+
+	if (handle <= 0) {
+		ErrPrint("Invalid handle %d\n", handle);
+		return NULL;
+	}
+
+	EINA_LIST_FOREACH(s_info.client_list, l, client) {
+		if (client_rpc_handle(client) == handle)
+			return client;
+	}
+
+	return NULL;
+}
+
 const int const client_count_paused(void)
 {
 	return s_info.nr_of_paused_clients;
@@ -662,6 +680,26 @@ int client_browse_list(const char *cluster, const char *category, int (*cb)(stru
 
 	return 0;
 	
+}
+
+int client_broadcast(struct inst_info *inst, struct packet *packet)
+{
+	Eina_List *l;
+	Eina_List *list;
+	struct client_node *client;
+
+	list = inst ? instance_client_list(inst) : s_info.client_list;
+	EINA_LIST_FOREACH(list, l, client) {
+		if (client_pid(client) < 0) {
+			ErrPrint("Client[%p] has PID[%d]\n", client, client_pid(client));
+			continue;
+		}
+
+		(void)client_rpc_async_request(client, packet_ref(packet));
+	}
+
+	packet_unref(packet);
+	return 0;
 }
 
 /* End of a file */

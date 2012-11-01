@@ -8,6 +8,8 @@ enum client_global_event {
 	CLIENT_GLOBAL_EVENT_DESTROY,
 };
 
+struct inst_info;
+struct packet;
 
 /*!
  * \note
@@ -30,6 +32,7 @@ extern const int const client_refcnt(const struct client_node *client);
  */
 extern const pid_t const client_pid(const struct client_node *client);
 extern struct client_node *client_find_by_pid(pid_t pid);
+extern struct client_node *client_find_by_rpc_handle(int handle);
 
 /*!
  * \note
@@ -82,4 +85,6 @@ extern int client_init(void);
 extern int client_fini(void);
 
 extern int client_browse_list(const char *cluster, const char *category, int (*cb)(struct client_node *client, void *data), void *data);
+
+extern int client_broadcast(struct inst_info *inst, struct packet *packet);
 /* End of a file */

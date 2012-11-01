@@ -104,7 +104,7 @@ struct inst_info {
 	Ecore_Timer *update_timer; /*!< Only used for secured livebox */
 };
 
-#define CLIENT_SEND_EVENT(instance, packet)	((instance)->client ? client_rpc_async_request((instance)->client, (packet)) : client_rpc_broadcast((instance), (packet)))
+#define CLIENT_SEND_EVENT(instance, packet)	((instance)->client ? client_rpc_async_request((instance)->client, (packet)) : client_broadcast((instance), (packet)))
 
 static int viewer_deactivated_cb(struct client_node *client, void *data)
 {
