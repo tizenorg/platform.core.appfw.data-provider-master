@@ -1309,6 +1309,11 @@ void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfil
 		return;
 	}
 
+	if (!inst->pd.need_to_send_close_event) {
+		DbgPrint("PD is not created yet. Ignore update event\n");
+		return;
+	}
+
 	if (!descfile)
 		descfile = inst->id;
 
