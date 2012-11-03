@@ -235,7 +235,9 @@ int instance_unicast_created_event(struct inst_info *inst, struct client_node *c
 static int update_client_list(struct client_node *client, void *data)
 {
 	struct inst_info *inst = data;
-	instance_add_client(inst, client);
+	if (!instance_has_client(inst, client)) {
+		instance_add_client(inst, client);
+	}
 	return 0;
 }
 
@@ -2274,6 +2276,11 @@ int instance_client_pd_destroyed(struct inst_info *inst, int status)
 
 int instance_add_client(struct inst_info *inst, struct client_node *client)
 {
+	if (inst->client == client) {
+		ErrPrint("Owner cannot be the viewer\n");
+		return -EINVAL;
+	}
+
 	DbgPrint("%d is added to the list of viewer of %s(%s)\n", client_pid(client), package_name(instance_package(inst)), instance_id(inst));
 	if (client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, viewer_deactivated_cb, inst) < 0) {
 		ErrPrint("Failed to add a deactivate callback\n");
@@ -2287,6 +2294,11 @@ int instance_add_client(struct inst_info *inst, struct client_node *client)
 
 int instance_del_client(struct inst_info *inst, struct client_node *client)
 {
+	if (inst->client == client) {
+		ErrPrint("Owner is not in the viewer list\n");
+		return -EINVAL;
+	}
+
 	client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, viewer_deactivated_cb, inst);
 	viewer_deactivated_cb(client, inst);
 	return 0;

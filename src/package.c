@@ -1296,10 +1296,14 @@ int package_alter_instances_to_client(struct client_node *client, enum alter_typ
 				/* Will be send a created event after the instance gets created event */
 				switch (alter) {
 				case ALTER_CREATE:
-					instance_add_client(inst, client);
+					if (!instance_has_client(inst, client)) {
+						instance_add_client(inst, client);
+					}
 					break;
 				case ALTER_DESTROY:
-					instance_del_client(inst, client);
+					if (instance_has_client(inst, client)) {
+						instance_del_client(inst, client);
+					}
 					break;
 				default:
 					break;
@@ -1314,9 +1318,11 @@ int package_alter_instances_to_client(struct client_node *client, enum alter_typ
 				 */
 				switch (alter) {
 				case ALTER_CREATE:
-					instance_unicast_created_event(inst, client);
-					instance_add_client(inst, client);
-					DbgPrint("(Subscribed) Created package: %s\n", info->pkgname);
+					if (!instance_has_client(inst, client)) {
+						instance_unicast_created_event(inst, client);
+						instance_add_client(inst, client);
+						DbgPrint("(Subscribed) Created package: %s\n", info->pkgname);
+					}
 					break;
 				case ALTER_DESTROY:
 					if (instance_has_client(inst, client)) {

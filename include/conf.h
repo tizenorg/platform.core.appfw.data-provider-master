@@ -129,6 +129,7 @@ extern int conf_loader(void);
 #define MAX_ABI		256
 #define MAX_PKGNAME	512
 #define DELAY_TIME	0.0000001f
+#define DEFAULT_CLUSTER	"user,created"
 
 #define SYS_CLUSTER_KEY		g_conf.vconf_sys_cluster
 

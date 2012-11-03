@@ -2335,6 +2335,10 @@ static struct packet *client_subscribed(pid_t pid, int handle, const struct pack
 	}
 
 	DbgPrint("[%d] cluster[%s] category[%s]\n", pid, cluster, category);
+	if (!strlen(cluster) || !strcasecmp(cluster, DEFAULT_CLUSTER)) {
+		ErrPrint("Invalid cluster name\n");
+		goto out;
+	}
 
 	/*!
 	 * \todo
@@ -2371,6 +2375,12 @@ static struct packet *client_delete_cluster(pid_t pid, int handle, const struct 
 	}
 
 	DbgPrint("pid[%d] cluster[%s]\n", pid, cluster);
+
+	if (!strlen(cluster) || !strcasecmp(cluster, DEFAULT_CLUSTER)) {
+		ErrPrint("Invalid cluster: %s\n", cluster);
+		ret = -EINVAL;
+		goto out;
+	}
 
 	/*!
 	 * \todo
@@ -2443,6 +2453,12 @@ static struct packet *client_refresh_group(pid_t pid, int handle, const struct p
 
 	DbgPrint("[%d] cluster[%s] category[%s]\n", pid, cluster_id, category_id);
 
+	if (!strlen(cluster_id) || !strcasecmp(cluster_id, DEFAULT_CLUSTER)) {
+		ErrPrint("Invalid cluster name: %s\n", cluster_id);
+		ret = -EINVAL;
+		goto out;
+	}
+
 	cluster = group_find_cluster(cluster_id);
 	if (!cluster) {
 		ErrPrint("Cluster [%s] is not registered\n", cluster_id);
@@ -2490,6 +2506,11 @@ static struct packet *client_delete_category(pid_t pid, int handle, const struct
 	}
 
 	DbgPrint("pid[%d] cluster[%s] category[%s]\n", pid, cluster, category);
+	if (!strlen(cluster) || !strcasecmp(cluster, DEFAULT_CLUSTER)) {
+		ErrPrint("Invalid cluster: %s\n", cluster);
+		ret = -EINVAL;
+		goto out;
+	}
 
 	/*!
 	 * \todo
@@ -2525,6 +2546,11 @@ static struct packet *client_unsubscribed(pid_t pid, int handle, const struct pa
 	}
 
 	DbgPrint("[%d] cluster[%s] category[%s]\n", pid, cluster, category);
+
+	if (!strlen(cluster) || !strcasecmp(cluster, DEFAULT_CLUSTER)) {
+		ErrPrint("Invalid cluster name: %s\n", cluster);
+		goto out;
+	}
 
 	/*!
 	 * \todo
@@ -3565,20 +3591,28 @@ static struct method s_table[] = {
 		.handler = client_lb_mouse_move, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 	},
 	{
-		.cmd = "pd_mouse_enter",
-		.handler = client_pd_mouse_enter, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
-	},
-	{
-		.cmd = "pd_mouse_leave",
-		.handler = client_pd_mouse_leave, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
-	},
-	{
 		.cmd = "pd_mouse_down",
 		.handler = client_pd_mouse_down, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
 	},
 	{
 		.cmd = "pd_mouse_up",
 		.handler = client_pd_mouse_up, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = "lb_mouse_down",
+		.handler = client_lb_mouse_down, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = "lb_mouse_up",
+		.handler = client_lb_mouse_up, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = "pd_mouse_enter",
+		.handler = client_pd_mouse_enter, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = "pd_mouse_leave",
+		.handler = client_pd_mouse_leave, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
 	},
 	{
 		.cmd = "lb_mouse_enter",
@@ -3589,12 +3623,8 @@ static struct method s_table[] = {
 		.handler = client_lb_mouse_leave, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 	},
 	{
-		.cmd = "lb_mouse_down",
-		.handler = client_lb_mouse_down, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
-	},
-	{
-		.cmd = "lb_mouse_up",
-		.handler = client_lb_mouse_up, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+		.cmd = "change,visibility",
+		.handler = client_change_visibility,
 	},
 	{
 		.cmd = "lb_acquire_pixmap",
@@ -3683,10 +3713,6 @@ static struct method s_table[] = {
 	{
 		.cmd = "refresh_group",
 		.handler = client_refresh_group,
-	},
-	{
-		.cmd = "change,visibility",
-		.handler = client_change_visibility,
 	},
 	/*!
 	 * \note services for slave
