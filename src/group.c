@@ -33,7 +33,7 @@ struct category {
 struct context_info {
 	char *pkgname;
 	struct category *category;
-	Eina_List *context_list;
+	Eina_List *context_list; /* context item list */
 };
 
 struct context_item_data {
@@ -376,7 +376,7 @@ int group_context_item_add_data(struct context_item *item, const char *tag, void
 	return 0;
 }
 
-void *group_context_item_data(struct context_item *item, const char *tag, void *data)
+void *group_context_item_data(struct context_item *item, const char *tag)
 {
 	struct context_item_data *tmp;
 	Eina_List *l;

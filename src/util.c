@@ -230,7 +230,7 @@ char *util_replace_string(const char *src, const char *pattern, const char *repl
 					tmp = extend_heap(ret, &bufsz, incsz);
 					if (!tmp) {
 						ErrPrint("Heap: %s\n", strerror(errno));
-						free(ret);
+						DbgFree(ret);
 						return NULL;
 					}
 					ret = tmp;
@@ -258,7 +258,7 @@ char *util_replace_string(const char *src, const char *pattern, const char *repl
 					tmp = extend_heap(ret, &bufsz, incsz);
 					if (!tmp) {
 						ErrPrint("Heap: %s\n", strerror(errno));
-						free(ret);
+						DbgFree(ret);
 						return NULL;
 					}
 					ret = tmp;
@@ -281,7 +281,7 @@ char *util_replace_string(const char *src, const char *pattern, const char *repl
 			tmp = extend_heap(ret, &bufsz, incsz);
 			if (!tmp) {
 				ErrPrint("Heap: %s\n", strerror(errno));
-				free(ret);
+				DbgFree(ret);
 				return NULL;
 			}
 			ret = tmp;
@@ -290,7 +290,7 @@ char *util_replace_string(const char *src, const char *pattern, const char *repl
 	if (matched) {
 		ret[ret_idx] = '\0';
 	} else {
-		free(ret);
+		DbgFree(ret);
 		ret = NULL;
 	}
 	return ret;

@@ -20,6 +20,7 @@ enum alter_type {
 
 struct pkg_info;
 struct inst_info;
+struct context_info;
 
 /*!
  * \brief
@@ -60,6 +61,7 @@ extern const int const package_pd_height(const struct pkg_info *info);
 extern const char * const package_name(const struct pkg_info *info);
 extern const char * const package_libexec(struct pkg_info *info);
 extern int package_network(struct pkg_info *info);
+extern Eina_List *package_ctx_info(struct pkg_info *pkginfo);
 
 extern int package_set_libexec(struct pkg_info *info, const char *libexec);
 extern void package_set_pinup(struct pkg_info *info, int pinup);
@@ -79,6 +81,7 @@ extern void package_set_network(struct pkg_info *info, int network);
 extern void package_set_pd_height(struct pkg_info *info, int height);
 extern void package_set_pd_width(struct pkg_info *info, int width);
 extern int package_set_abi(struct pkg_info *info, const char *abi);
+extern void package_add_ctx_info(struct pkg_info *pkginfo, struct context_info *info);
 
 /*!
  * \brief

@@ -98,50 +98,54 @@ static inline void invoke_recover_event_handler(const char *pkgname, enum pkgmgr
 	}
 }
 
-static int start_cb(const char *pkgname, const char *val, void *data)
+static inline void invoke_callback(const char *pkgname, struct item *item, double value)
 {
-	struct item *item;
+	switch (item->type) {
+	case PKGMGR_EVENT_DOWNLOAD:
+		invoke_download_event_handler(pkgname, item->status, value);
+		break;
+	case PKGMGR_EVENT_UNINSTALL:
+		invoke_uninstall_event_handler(pkgname, item->status, value);
+		break;
+	case PKGMGR_EVENT_INSTALL:
+		invoke_install_event_handler(pkgname, item->status, value);
+		break;
+	case PKGMGR_EVENT_UPDATE:
+		invoke_update_event_handler(pkgname, item->status, value);
+		break;
+	case PKGMGR_EVENT_RECOVER:
+		invoke_recover_event_handler(pkgname, item->status, value);
+		break;
+	default:
+		break;
+	}
+}
 
-	DbgPrint("[%s] %s\n", pkgname, val);
+static inline int is_valid_status(struct item *item, const char *status)
+{
+	const char *expected_status;
 
-	item = calloc(1, sizeof(*item));
-	if (!item) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		return -ENOMEM;
+	switch (item->type) {
+	case PKGMGR_EVENT_DOWNLOAD:
+		expected_status = "download";
+		break;
+	case PKGMGR_EVENT_UNINSTALL:
+		expected_status = "uninstall";
+		break;
+	case PKGMGR_EVENT_INSTALL:
+		expected_status = "install";
+		break;
+	case PKGMGR_EVENT_UPDATE:
+		expected_status = "update";
+		break;
+	case PKGMGR_EVENT_RECOVER:
+		expected_status = "recover";
+		break;
+	default:
+		return 0;
 	}
 
-	item->pkgname = strdup(pkgname);
-	if (!item->pkgname) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		free(item);
-		return -ENOMEM;
-	}
-
-	item->status = PKGMGR_STATUS_START;
-	s_info.item_list = eina_list_append(s_info.item_list, item);
-
-	if (!strcasecmp(val, "download")) {
-		item->type = PKGMGR_EVENT_DOWNLOAD;
-		invoke_download_event_handler(pkgname, item->status, 0);
-	} else if (!strcasecmp(val, "uninstall")) {
-		item->type = PKGMGR_EVENT_UNINSTALL;
-		invoke_uninstall_event_handler(pkgname, item->status, 0);
-	} else if (!strcasecmp(val, "install")) {
-		item->type = PKGMGR_EVENT_INSTALL;
-		invoke_install_event_handler(pkgname, item->status, 0);
-	} else if (!strcasecmp(val, "update")) {
-		item->type = PKGMGR_EVENT_UPDATE;
-		invoke_update_event_handler(pkgname, item->status, 0);
-	} else if (!strcasecmp(val, "recover")) {
-		item->type = PKGMGR_EVENT_RECOVER;
-		invoke_recover_event_handler(pkgname, item->status, 0);
-	} else {
-		free(item->pkgname);
-		free(item);
-		ErrPrint("Invalid val: %s\n", val);
-		return -EINVAL;
-	}
-	return 0;
+	return !strcasecmp(status, expected_status);
 }
 
 static struct item *find_item(const char *pkgname)
@@ -161,7 +165,51 @@ static struct item *find_item(const char *pkgname)
 		return item;
 	}
 
+	DbgPrint("Package %s is not found\n", pkgname);
 	return NULL;
+}
+
+static int start_cb(const char *pkgname, const char *val, void *data)
+{
+	struct item *item;
+
+	DbgPrint("[%s] %s\n", pkgname, val);
+
+	item = calloc(1, sizeof(*item));
+	if (!item) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
+	item->pkgname = strdup(pkgname);
+	if (!item->pkgname) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		DbgFree(item);
+		return -ENOMEM;
+	}
+
+	item->status = PKGMGR_STATUS_START;
+	s_info.item_list = eina_list_append(s_info.item_list, item);
+
+	if (!strcasecmp(val, "download")) {
+		item->type = PKGMGR_EVENT_DOWNLOAD;
+	} else if (!strcasecmp(val, "uninstall")) {
+		item->type = PKGMGR_EVENT_UNINSTALL;
+	} else if (!strcasecmp(val, "install")) {
+		item->type = PKGMGR_EVENT_INSTALL;
+	} else if (!strcasecmp(val, "update")) {
+		item->type = PKGMGR_EVENT_UPDATE;
+	} else if (!strcasecmp(val, "recover")) {
+		item->type = PKGMGR_EVENT_RECOVER;
+	} else {
+		DbgFree(item->pkgname);
+		DbgFree(item);
+		ErrPrint("Invalid val: %s\n", val);
+		return -EINVAL;
+	}
+
+	invoke_callback(pkgname, item, 0.0f);
+	return 0;
 }
 
 static int icon_path_cb(const char *pkgname, const char *val, void *data)
@@ -175,7 +223,7 @@ static int icon_path_cb(const char *pkgname, const char *val, void *data)
 		return -ENOENT;
 
 	if (item->icon)
-		free(item->icon);
+		DbgFree(item->icon);
 
 	item->icon = strdup(val);
 	if (!item->icon) {
@@ -196,6 +244,13 @@ static int command_cb(const char *pkgname, const char *val, void *data)
 	if (!item)
 		return -ENOENT;
 
+	if (!is_valid_status(item, val)) {
+		DbgPrint("Invalid status: %d, %s\n", item->type, val);
+		return -EINVAL;
+	}
+
+	item->status = PKGMGR_STATUS_COMMAND;
+	invoke_callback(pkgname, item, 0.0f);
 	return 0;
 }
 
@@ -211,27 +266,7 @@ static int error_cb(const char *pkgname, const char *val, void *data)
 		return -ENOENT;
 
 	item->status = PKGMGR_STATUS_ERROR;
-
-	switch (item->type) {
-	case PKGMGR_EVENT_DOWNLOAD:
-		invoke_download_event_handler(pkgname, item->status, 0);
-		break;
-	case PKGMGR_EVENT_UNINSTALL:
-		invoke_uninstall_event_handler(pkgname, item->status, 0);
-		break;
-	case PKGMGR_EVENT_INSTALL:
-		invoke_install_event_handler(pkgname, item->status, 0);
-		break;
-	case PKGMGR_EVENT_UPDATE:
-		invoke_update_event_handler(pkgname, item->status, 0);
-		break;
-	case PKGMGR_EVENT_RECOVER:
-		invoke_recover_event_handler(pkgname, item->status, 0);
-		break;
-	default:
-		return -EINVAL;
-	}
-
+	invoke_callback(pkgname, item, 0.0f);
 	return 0;
 }
 
@@ -252,7 +287,7 @@ static int change_pkgname_cb(const char *pkgname, const char *val, void *data)
 		return -ENOMEM;
 	}
 
-	free(item->pkgname);
+	DbgFree(item->pkgname);
 	item->pkgname = new_pkgname;
 	return 0;
 }
@@ -266,11 +301,25 @@ static int download_cb(const char *pkgname, const char *val, void *data)
 	DbgPrint("[%s] %s\n", pkgname, val);
 
 	item = find_item(pkgname);
-	if (!item)
-		return -ENOENT;
+	if (!item) {
+		DbgPrint("ITEM is not started from the start_cb\n");
+		start_cb(pkgname, "download", data);
+
+		item = find_item(pkgname);
+		if (!item) {
+			ErrPrint("Package %s has no valid state\n", pkgname);
+			return -EINVAL;
+		}
+	}
+
+	if (item->type != PKGMGR_EVENT_DOWNLOAD) {
+		DbgPrint("TYPE is not \"install\" : %d\n", item->type);
+		item->type = PKGMGR_EVENT_DOWNLOAD;
+	}
 
 	switch (item->status) {
 	case PKGMGR_STATUS_START:
+	case PKGMGR_STATUS_COMMAND:
 		item->status = PKGMGR_STATUS_PROCESSING;
 	case PKGMGR_STATUS_PROCESSING:
 		break;
@@ -299,11 +348,25 @@ static int install_cb(const char *pkgname, const char *val, void *data)
 	DbgPrint("[%s] %s\n", pkgname, val);
 
 	item = find_item(pkgname);
-	if (!item)
-		return -ENOENT;
+	if (!item) {
+		DbgPrint("ITEM is not started from the start_cb\n");
+		start_cb(pkgname, "install", data);
+
+		item = find_item(pkgname);
+		if (!item) {
+			ErrPrint("Package %s has no valid state\n", pkgname);
+			return -EINVAL;
+		}
+	}
+
+	if (item->type != PKGMGR_EVENT_INSTALL) {
+		DbgPrint("TYPE is not \"install\" : %d\n", item->type);
+		item->type = PKGMGR_EVENT_INSTALL;
+	}
 
 	switch (item->status) {
 	case PKGMGR_STATUS_START:
+	case PKGMGR_STATUS_COMMAND:
 		item->status = PKGMGR_STATUS_PROCESSING;
 	case PKGMGR_STATUS_PROCESSING:
 		break;
@@ -335,30 +398,12 @@ static int end_cb(const char *pkgname, const char *val, void *data)
 
 	item->status = !strcasecmp(val, "ok") ? PKGMGR_STATUS_END : PKGMGR_STATUS_ERROR;
 
-	switch (item->type) {
-	case PKGMGR_EVENT_DOWNLOAD:
-		invoke_download_event_handler(pkgname, item->status, 0);
-		break;
-	case PKGMGR_EVENT_UNINSTALL:
-		invoke_uninstall_event_handler(pkgname, item->status, 0);
-		break;
-	case PKGMGR_EVENT_INSTALL:
-		invoke_install_event_handler(pkgname, item->status, 0);
-		break;
-	case PKGMGR_EVENT_UPDATE:
-		invoke_update_event_handler(pkgname, item->status, 0);
-		break;
-	case PKGMGR_EVENT_RECOVER:
-		invoke_recover_event_handler(pkgname, item->status, 0);
-		break;
-	default:
-		return -EINVAL;
-	}
+	invoke_callback(pkgname, item, 0.0f);
 
 	s_info.item_list = eina_list_remove(s_info.item_list, item);
-	free(item->icon);
-	free(item->pkgname);
-	free(item);
+	DbgFree(item->icon);
+	DbgFree(item->pkgname);
+	DbgFree(item);
 	return 0;
 }
 
@@ -451,7 +496,7 @@ int pkgmgr_add_event_callback(enum pkgmgr_event_type type, int (*cb)(const char 
 		s_info.recover_event = eina_list_prepend(s_info.recover_event, item);
 		break;
 	default:
-		free(item);
+		DbgFree(item);
 		return -EINVAL;
 	}
 
@@ -470,7 +515,7 @@ void *pkgmgr_del_event_callback(enum pkgmgr_event_type type, int (*cb)(const cha
 			if (item->cb == cb && item->data == data) {
 				s_info.download_event = eina_list_remove(s_info.download_event, item);
 				cbdata = item->data;
-				free(item);
+				DbgFree(item);
 				break;
 			}
 		}
@@ -480,7 +525,7 @@ void *pkgmgr_del_event_callback(enum pkgmgr_event_type type, int (*cb)(const cha
 			if (item->cb == cb && item->data == data) {
 				s_info.uninstall_event = eina_list_remove(s_info.uninstall_event, item);
 				cbdata = item->data;
-				free(item);
+				DbgFree(item);
 				break;
 			}
 		}
@@ -490,7 +535,7 @@ void *pkgmgr_del_event_callback(enum pkgmgr_event_type type, int (*cb)(const cha
 			if (item->cb == cb && item->data == data) {
 				s_info.install_event = eina_list_remove(s_info.install_event, item);
 				cbdata = item->data;
-				free(item);
+				DbgFree(item);
 				break;
 			}
 		}
@@ -500,7 +545,7 @@ void *pkgmgr_del_event_callback(enum pkgmgr_event_type type, int (*cb)(const cha
 			if (item->cb == cb && item->data == data) {
 				s_info.update_event = eina_list_remove(s_info.update_event, item);
 				cbdata = item->data;
-				free(item);
+				DbgFree(item);
 				break;
 			}
 		}
@@ -510,7 +555,7 @@ void *pkgmgr_del_event_callback(enum pkgmgr_event_type type, int (*cb)(const cha
 			if (item->cb == cb && item->data == data) {
 				s_info.recover_event = eina_list_remove(s_info.recover_event, item);
 				cbdata = item->data;
-				free(item);
+				DbgFree(item);
 				break;
 			}
 		}

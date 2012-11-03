@@ -24,6 +24,7 @@
 #include "abi.h"
 #include "io.h"
 #include "pkgmgr.h"
+#include "ctx_client.h"
 
 int errno;
 
@@ -36,6 +37,7 @@ struct fault_info {
 /*!
  * pkg_info describes the loaded package.
  */
+
 struct pkg_info {
 	char *pkgname;
 
@@ -103,6 +105,9 @@ struct pkg_info {
 	int refcnt;
 
 	Eina_List *inst_list;
+	Eina_List *ctx_list;
+
+	int need_to_delete;
 };
 
 static struct {
@@ -197,9 +202,16 @@ static int slave_resume_cb(struct slave_node *slave, void *data)
 
 static inline void destroy_package(struct pkg_info *info)
 {
-	s_info.pkg_list = eina_list_remove(s_info.pkg_list, info);
+	struct context_info *ctx_info;
+
+	EINA_LIST_FREE(info->ctx_list, ctx_info) {
+		ctx_disable_event_handler(ctx_info);
+	}
 
 	group_del_livebox(info->pkgname);
+	package_clear_fault(info);
+
+	s_info.pkg_list = eina_list_remove(s_info.pkg_list, info);
 
 	if (info->lb.type == LB_TYPE_SCRIPT) {
 		DbgFree(info->lb.info.script.path);
@@ -379,51 +391,68 @@ static inline int load_conf(struct pkg_info *info)
 
 struct pkg_info *package_create(const char *pkgname)
 {
-	struct pkg_info *info;
+	struct pkg_info *pkginfo;
+	Eina_List *l;
+	struct context_info *ctx_info;
 
-	info = calloc(1, sizeof(*info));
-	if (!info) {
+	pkginfo = calloc(1, sizeof(*pkginfo));
+	if (!pkginfo) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		return NULL;
 	}
 
-	info->pkgname = io_livebox_pkgname(pkgname);
-	if (!info->pkgname) {
+	pkginfo->pkgname = io_livebox_pkgname(pkgname);
+	if (!pkginfo->pkgname) {
 		ErrPrint("Failed to get pkgname, fallback to fs checker\n");
 		if (util_validate_livebox_package(pkgname) < 0) {
 			ErrPrint("Invalid package name: %s\n", pkgname);
-			DbgFree(info);
+			DbgFree(pkginfo);
 			return NULL;
 		}
 
-		info->pkgname = strdup(pkgname);
-		if (!info->pkgname) {
+		pkginfo->pkgname = strdup(pkgname);
+		if (!pkginfo->pkgname) {
 			ErrPrint("Heap: %s\n", strerror(errno));
-			DbgFree(info);
+			DbgFree(pkginfo);
 			return NULL;
 		}
 	}
 
-	if (io_load_package_db(info) < 0) {
+	if (io_load_package_db(pkginfo) < 0) {
 		ErrPrint("Failed to load DB, fall back to conf file loader\n");
-		if (load_conf(info) < 0) {
+		if (load_conf(pkginfo) < 0) {
 			ErrPrint("Failed to initiate the conf file loader\n");
-			DbgFree(info->pkgname);
-			DbgFree(info);
+			DbgFree(pkginfo->pkgname);
+			DbgFree(pkginfo);
 			return NULL;
 		}
 	}
 
-	package_ref(info);
+	package_ref(pkginfo);
 
-	s_info.pkg_list = eina_list_append(s_info.pkg_list, info);
-	return info;
+	s_info.pkg_list = eina_list_append(s_info.pkg_list, pkginfo);
+
+	EINA_LIST_FOREACH(pkginfo->ctx_list, l, ctx_info) {
+		ctx_enable_event_handler(ctx_info);
+	}
+
+	return pkginfo;
 }
 
 int package_destroy(struct pkg_info *info)
 {
 	package_unref(info);
 	return 0;
+}
+
+Eina_List *package_ctx_info(struct pkg_info *pkginfo)
+{
+	return pkginfo->ctx_list;
+}
+
+void package_add_ctx_info(struct pkg_info *pkginfo, struct context_info *info)
+{
+	pkginfo->ctx_list = eina_list_append(pkginfo->ctx_list, info);
 }
 
 char *package_lb_pkgname(const char *pkgname)
@@ -994,6 +1023,9 @@ int package_del_instance(struct pkg_info *info, struct inst_info *inst)
 
 			info->slave = NULL;
 		}
+
+		if (info->need_to_delete)
+			package_destroy(info);
 	}
 
 	return 0;
@@ -1065,42 +1097,46 @@ static int io_uninstall_cb(const char *pkgname, int prime, void *data)
 		return 0;
 	}
 
-	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
-		instance_destroy(inst);
+	info->need_to_delete = 1;
+
+	/*!
+	 * \NOTE
+	 * Don't delete an item from the inst_list.
+	 * destroy callback will use this list again.
+	 * So, Don't touch it from here.
+	 */
+	if (info->inst_list) {
+		EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
+			instance_destroy(inst);
+		}
+	} else {
+		package_destroy(info);
 	}
 
-	group_del_livebox(pkgname);
-	package_clear_fault(info);
 	return 0;
 }
 
-static int uninstall_cb(const char *pkgname, enum pkgmgr_status status, double value, void *data)
+static inline void reload_package_info(struct pkg_info *info)
 {
-	int ret;
-	if (status != PKGMGR_STATUS_END)
-		return 0;
-
-	ret = io_update_livebox_package(pkgname, io_uninstall_cb, NULL);
-	return 0;
-}
-
-static int io_update_cb(const char *pkgname, int prime, void *data)
-{
-	struct pkg_info *info;
-	struct inst_info *inst;
+	struct context_info *ctx_info;
 	Eina_List *l;
 	Eina_List *n;
+	struct inst_info *inst;
 
-	DbgPrint("Livebox package %s is updated\n", pkgname);
-	info = package_find(pkgname);
-	if (!info)
-		return 0;
+	DbgPrint("Already exists, try to update it\n");
+	EINA_LIST_FREE(info->ctx_list, ctx_info) {
+		ctx_disable_event_handler(ctx_info);
+	}
 
+	/*!
+	 * \note
+	 * Without need_to_delete, the package will be kept
+	 */
 	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
 		instance_destroy(inst);
 	}
 
-	group_del_livebox(pkgname);
+	group_del_livebox(info->pkgname);
 	package_clear_fault(info);
 
 	/*!
@@ -1108,6 +1144,61 @@ static int io_update_cb(const char *pkgname, int prime, void *data)
 	 * Nested DB I/O
 	 */
 	io_load_package_db(info);
+
+	EINA_LIST_FOREACH(info->ctx_list, l, ctx_info) {
+		ctx_enable_event_handler(ctx_info);
+	}
+}
+
+static int io_install_cb(const char *pkgname, int prime, void *data)
+{
+	struct pkg_info *info;
+
+	DbgPrint("Livebox package %s is installed\n", pkgname);
+	info = package_find(pkgname);
+	if (info) {
+		reload_package_info(info);
+	} else {
+		info = package_create(pkgname);
+		DbgPrint("Package %s is%sbuilt\n", pkgname, info ? " " : " not ");
+	}
+
+	return 0;
+}
+
+static int install_cb(const char *pkgname, enum pkgmgr_status status, double value, void *data)
+{
+	int ret;
+
+	if (status != PKGMGR_STATUS_END)
+		return 0;
+
+	ret = io_update_livebox_package(pkgname, io_install_cb, NULL);
+	DbgPrint("Processed %d packages\n", ret);
+	return 0;
+}
+
+static int uninstall_cb(const char *pkgname, enum pkgmgr_status status, double value, void *data)
+{
+	if (status == PKGMGR_STATUS_COMMAND) {
+		int ret;
+		ret = io_update_livebox_package(pkgname, io_uninstall_cb, NULL);
+		DbgPrint("Processed %d packages\n", ret);
+	}
+
+	return 0;
+}
+
+static int io_update_cb(const char *pkgname, int prime, void *data)
+{
+	struct pkg_info *info;
+
+	DbgPrint("Livebox package %s is updated\n", pkgname);
+	info = package_find(pkgname);
+	if (!info)
+		return 0;
+
+	reload_package_info(info);
 	return 0;
 }
 
@@ -1118,6 +1209,21 @@ static int update_cb(const char *pkgname, enum pkgmgr_status status, double valu
 		return 0;
 
 	ret = io_update_livebox_package(pkgname, io_update_cb, NULL);
+	DbgPrint("Processed %d packages\n", ret);
+	return 0;
+}
+
+static int crawling_liveboxes(const char *pkgname, int prime, void *data)
+{
+	if (package_find(pkgname)) {
+		ErrPrint("Information of %s is already built\n", pkgname);
+	} else {
+		struct pkg_info *info;
+		info = package_create(pkgname);
+		if (info)
+			DbgPrint("[%s] information is built prime(%d)\n", pkgname, prime);
+	}
+
 	return 0;
 }
 
@@ -1126,15 +1232,19 @@ int package_init(void)
 	client_global_event_handler_add(CLIENT_GLOBAL_EVENT_CREATE, client_created_cb, NULL);
 	pkgmgr_init();
 
+	pkgmgr_add_event_callback(PKGMGR_EVENT_INSTALL, install_cb, NULL);
 	pkgmgr_add_event_callback(PKGMGR_EVENT_UNINSTALL, uninstall_cb, NULL);
 	pkgmgr_add_event_callback(PKGMGR_EVENT_UPDATE, update_cb, NULL);
+
+	io_crawling_liveboxes(crawling_liveboxes, NULL);
 	return 0;
 }
 
 int package_fini(void)
 {
-	pkgmgr_del_event_callback(PKGMGR_EVENT_UPDATE, update_cb, NULL);
+	pkgmgr_del_event_callback(PKGMGR_EVENT_INSTALL, install_cb, NULL);
 	pkgmgr_del_event_callback(PKGMGR_EVENT_UNINSTALL, uninstall_cb, NULL);
+	pkgmgr_del_event_callback(PKGMGR_EVENT_UPDATE, update_cb, NULL);
 	pkgmgr_fini();
 	client_global_event_handler_del(CLIENT_GLOBAL_EVENT_CREATE, client_created_cb, NULL);
 	return 0;

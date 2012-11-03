@@ -71,14 +71,16 @@ chown 5000:5000 /opt/usr/share/live_magazine/reader
 
 # End of a list of affected folder by the transmute attribute
 
-if [ ! -f /opt/dbspace/livebox.db ]; then
+if [ ! -f "/opt/dbspace/livebox.db" ]; then
+	echo "Create a new livebox DB"
 	touch /opt/dbspace/.livebox.db
 	chown 0:5000 /opt/dbspace/.livebox.db
 	chmod 640 /opt/dbspace/.livebox.db
 	chsmack -a "data-provider-master::db" /opt/dbspace/.livebox.db
 fi
 
-if [ ! -f /opt/dbspace/livebox.db-journal ]; then
+if [ ! -f "/opt/dbspace/livebox.db-journal" ]; then
+	echo "Create a new livebox DB - journal file"
 	touch /opt/dbspace/.livebox.db-journal
 	chown 0:5000 /opt/dbspace/.livebox.db-journal
 	chmod 640 /opt/dbspace/.livebox.db-journal
@@ -93,6 +95,9 @@ chsmack -e "_" /etc/rc.d/rc3.d/S99data-provider-master
 mkdir -p /usr/lib/systemd/user/tizen-middleware.target.wants
 ln -sf /usr/lib/systemd/user/data-provider-master.service /usr/lib/systemd/user/tizen-middleware.target.wants/data-provider-master.service
 chsmack -a "_" /usr/lib/systemd/user/tizen-middleware.target.wants/data-provider-master.service
+
+echo "Successfully installed. Please start a daemon again manually"
+echo "/etc/init.d/data-provider-master start"
 
 %files -n com.samsung.data-provider-master
 %manifest com.samsung.data-provider-master.manifest

@@ -538,6 +538,8 @@ static inline int build_group_info(struct pkg_info *info)
 				}
 			}
 		}
+
+		package_add_ctx_info(info, ctx_info);
 	}
 
 	sqlite3_reset(stmt);
@@ -594,6 +596,63 @@ out:
 	sqlite3_reset(stmt);
 	sqlite3_finalize(stmt);
 	return pkgid;
+}
+
+int io_crawling_liveboxes(int (*cb)(const char *pkgname, int prime, void *data), void *data)
+{
+	DIR *dir;
+
+	if (!s_info.handle) {
+		ErrPrint("DB is not ready\n");
+	} else {
+		int ret;
+		sqlite3_stmt *stmt;
+
+		ret = sqlite3_prepare_v2(s_info.handle, "SELECT pkgid, prime FROM pkgmap", -1, &stmt, NULL);
+		if (ret != SQLITE_OK) {
+			ErrPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		} else {
+			const char *pkgid;
+			int prime;
+
+			while (sqlite3_step(stmt) == SQLITE_ROW) {
+				pkgid = (const char *)sqlite3_column_text(stmt, 0);
+				if (!pkgid || !strlen(pkgid))
+					continue;
+
+				prime = (int)sqlite3_column_int(stmt, 1);
+				if (cb(pkgid, prime, data) < 0) {
+					sqlite3_reset(stmt);
+					sqlite3_finalize(stmt);
+					return -ECANCELED;
+				}
+			}
+
+			sqlite3_reset(stmt);
+			sqlite3_finalize(stmt);
+		}
+	}
+
+	dir = opendir(ROOT_PATH);
+	if (!dir) {
+		ErrPrint("Error: %s\n", strerror(errno));
+	} else {
+		struct dirent *ent;
+
+		while ((ent = readdir(dir))) {
+			if (ent->d_name[0] == '.')
+				continue;
+
+			if (cb(ent->d_name, -1, data) < 0) {
+				closedir(dir);
+				return -ECANCELED;
+			}
+		}
+
+		closedir(dir);
+	}
+
+	return 0;
 }
 
 int io_update_livebox_package(const char *pkgname, int (*cb)(const char *lb_pkgname, int prime, void *data), void *data)
@@ -715,30 +774,6 @@ static inline int db_fini(void)
 	return 0;
 }
 
-static inline void crawling_liveboxes(void)
-{
-	struct dirent *ent;
-	DIR *dir;
-	struct pkg_info *info;
-
-	dir = opendir(ROOT_PATH);
-	if (!dir) {
-		ErrPrint("Error: %s\n", strerror(errno));
-		return;
-	}
-
-	while ((ent = readdir(dir))) {
-		if (ent->d_name[0] == '.')
-			continue;
-
-		info = package_create(ent->d_name);
-		if (info)
-			DbgPrint("[%s] information is built\n", ent->d_name);
-	}
-
-	closedir(dir);
-}
-
 int io_init(void)
 {
 	int ret;
@@ -749,7 +784,6 @@ int io_init(void)
 	ret = load_abi_table();
 	DbgPrint("ABI table is loaded: %d\n", ret);
 
-	crawling_liveboxes();
 	return 0;
 }
 

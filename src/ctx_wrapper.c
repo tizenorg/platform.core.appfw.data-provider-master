@@ -113,7 +113,10 @@ void ctx_wrapper_enable(void)
 		return;
 
 	ret = context_manager_connect();
-	s_info.enabled = (ret == CONTEXT_ERROR_NONE);
+	if (ret == CONTEXT_ERROR_NONE)
+		s_info.enabled = 1;
+
+	DbgPrint("Context engine is%senabled\n", s_info.enabled ? " " : " not ");
 }
 
 void ctx_wrapper_disable(void)
@@ -124,7 +127,10 @@ void ctx_wrapper_disable(void)
 		return;
 
 	ret = context_manager_disconnect();
-	s_info.enabled = !(ret == CONTEXT_ERROR_NONE);
+	if (ret == CONTEXT_ERROR_NONE)
+		s_info.enabled = 0;
+
+	DbgPrint("Context engine is%sdisabled\n", s_info.enabled ? " not " : " ");
 }
 
 static inline void register_ctx_callback(struct context_item *item, const char *ctx_item, struct cbfunc *cbfunc)

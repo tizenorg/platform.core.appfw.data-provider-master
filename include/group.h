@@ -44,6 +44,6 @@ extern const char * const group_context_item(struct context_item *item);
 extern const char * const group_pkgname_from_context_info(struct context_info *info);
 
 extern void *group_context_item_del_data(struct context_item *item, const char *tag);
-extern void *group_context_item_data(struct context_item *item, const char *tag, void *data);
+extern void *group_context_item_data(struct context_item *item, const char *tag);
 extern int group_context_item_add_data(struct context_item *item, const char *tag, void *data);
 /* End of a file */

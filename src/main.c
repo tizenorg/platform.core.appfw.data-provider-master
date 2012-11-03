@@ -39,7 +39,7 @@
 FILE *__file_log_fp;
 #endif
 
-static inline int app_create(void *data)
+static inline int app_create(void)
 {
 	int ret;
 
@@ -100,7 +100,7 @@ static inline int app_create(void *data)
 	return 0;
 }
 
-static inline int app_terminate(void *data)
+static inline int app_terminate(void)
 {
 	int ret;
 
@@ -134,30 +134,6 @@ static inline int app_terminate(void *data)
 	return 0;
 }
 
-/*
-static int aul_handler_cb(aul_type type, bundle *kb, void *data)
-{
-	int ret;
-	switch (type) {
-	case AUL_START:
-		ret = app_create(data);
-		break;
-	case AUL_RESUME:
-		ret = -ENOSYS;
-		break;
-	case AUL_TERMINATE:
-		ret = app_terminate(data);
-		ecore_main_loop_quit();
-		break;
-	default:
-		ret = -EINVAL;
-		break;
-	}
-
-	return ret;
-}
-*/
-
 static void signal_handler(int signum, siginfo_t *info, void *unused)
 {
 	CRITICAL_LOG("Terminated(SIGTERM)\n");
@@ -177,12 +153,6 @@ int main(int argc, char *argv[])
 	ret = critical_log_init(util_basename(argv[0]));
 	if (ret < 0)
 		fprintf(stderr, "Failed to init the critical log\n");
-
-	/*
-	ret = daemon(0, 0);
-	if (ret < 0)
-		CRITICAL_LOG("Failed to make daemon: %s\n", strerror(errno));
-	*/
 
 #if defined(FLOG)
 	__file_log_fp = fopen("/tmp/live.log", "w+t");
@@ -241,12 +211,9 @@ int main(int argc, char *argv[])
 
 	script_init();
 
-//	aul_launch_init(aul_handler_cb, NULL);
-//	aul_launch_argv_handler(argc, argv);
-
-	app_create(NULL);
+	app_create();
 	ecore_main_loop_begin();
-	app_terminate(NULL);
+	app_terminate();
 
 	script_fini();
 
@@ -256,6 +223,11 @@ int main(int argc, char *argv[])
 	ecore_x_shutdown();
 	ecore_shutdown();
 	critical_log_fini();
+
+#if defined(FLOG)
+	if (__file_log_fp)
+		fclose(__file_log_fp);
+#endif
 	return 0;
 }
 

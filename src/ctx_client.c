@@ -158,6 +158,28 @@ static int ctx_changed_cb(struct context_item *item, void *user_data)
 	return 0;
 }
 
+static inline void enable_event_handler(struct context_info *info)
+{
+	Eina_List *l;
+	Eina_List *item_list;
+	struct context_item *item;
+
+	item_list = group_context_item_list(info);
+	EINA_LIST_FOREACH(item_list, l, item) {
+		void *handler;
+
+		handler = group_context_item_data(item, "callback");
+		if (handler) {
+			ErrPrint("Already registered ctx callback\n");
+			continue;
+		}
+
+		handler = ctx_wrapper_register_callback(item, ctx_changed_cb, NULL);
+		if (group_context_item_add_data(item, "callback", handler) < 0)
+			ctx_wrapper_unregister_callback(handler);
+	}
+}
+
 static inline void register_callbacks(void)
 {
 	Eina_List *cluster_list;
@@ -172,26 +194,49 @@ static inline void register_callbacks(void)
 	Eina_List *l3;
 	struct context_info *info;
 
-	Eina_List *item_list;
-	Eina_List *l4;
-	struct context_item *item;
-
 	cluster_list = group_cluster_list();
 	EINA_LIST_FOREACH(cluster_list, l1, cluster) {
 		category_list = group_category_list(cluster);
 		EINA_LIST_FOREACH(category_list, l2, category) {
 			info_list = group_context_info_list(category);
 			EINA_LIST_FOREACH(info_list, l3, info) {
-				item_list = group_context_item_list(info);
-				EINA_LIST_FOREACH(item_list, l4, item) {
-					void *handler;
-					handler = ctx_wrapper_register_callback(item, ctx_changed_cb, NULL);
-					if (group_context_item_add_data(item, "callback", handler) < 0)
-						ctx_wrapper_unregister_callback(handler);
-				} // item
+				enable_event_handler(info);
 			} // info
 		} // category
 	} // cluster
+}
+
+int ctx_enable_event_handler(struct context_info *info)
+{
+	int enabled;
+
+	if (vconf_get_int(SYS_CLUSTER_KEY, &enabled) < 0)
+		enabled = 0;
+
+	if (!enabled) {
+		DbgPrint("CTX in not enabled\n");
+		return 0;
+	}
+
+	enable_event_handler(info);
+	return 0;
+}
+
+int ctx_disable_event_handler(struct context_info *info)
+{
+	Eina_List *l;
+	Eina_List *item_list;
+	struct context_item *item;
+
+	item_list = group_context_item_list(info);
+	EINA_LIST_FOREACH(item_list, l, item) {
+		void *handler;
+		handler = group_context_item_del_data(item, "callback");
+		if (handler)
+			ctx_wrapper_unregister_callback(handler);
+	}
+
+	return 0;
 }
 
 static inline void unregister_callbacks(void)
@@ -208,23 +253,13 @@ static inline void unregister_callbacks(void)
 	Eina_List *l3;
 	struct context_info *info;
 
-	Eina_List *item_list;
-	Eina_List *l4;
-	struct context_item *item;
-
 	cluster_list = group_cluster_list();
 	EINA_LIST_FOREACH(cluster_list, l1, cluster) {
 		category_list = group_category_list(cluster);
 		EINA_LIST_FOREACH(category_list, l2, category) {
 			info_list = group_context_info_list(category);
 			EINA_LIST_FOREACH(info_list, l3, info) {
-				item_list = group_context_item_list(info);
-				EINA_LIST_FOREACH(item_list, l4, item) {
-					void *handler;
-					handler = group_context_item_del_data(item, "callback");
-					if (handler)
-						ctx_wrapper_unregister_callback(handler);
-				} // item
+				ctx_disable_event_handler(info);
 			} // info
 		} // category
 	} // cluster
@@ -249,9 +284,6 @@ static void ctx_vconf_cb(keynode_t *node, void *data)
 	}
 
 	ctx_wrapper_enable();
-	/*!
-	 * Register event callbacks for every liveboxes
-	 */
 	register_callbacks();
 }
 
