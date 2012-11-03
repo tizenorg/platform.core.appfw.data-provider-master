@@ -2,6 +2,7 @@
 #include <errno.h>
 
 #include <Eina.h>
+#include <Ecore.h>
 
 #include <dlog.h>
 #include <packet.h>
@@ -13,6 +14,7 @@
 #include "util.h"
 #include "slave_life.h"
 #include "xmonitor.h"
+#include "conf.h"
 
 int errno;
 
@@ -176,9 +178,16 @@ static inline struct client_node *create_client_data(pid_t pid)
 	return client;
 }
 
-struct client_node *client_create(pid_t pid)
+static Eina_Bool created_cb(void *data)
+{
+	invoke_global_create_cb(data);
+	return ECORE_CALLBACK_CANCEL;
+}
+
+struct client_node *client_create(pid_t pid, int handle)
 {
 	struct client_node *client;
+	int ret;
 
 	client = client_find_by_pid(pid);
 	if (client) {
@@ -192,7 +201,20 @@ struct client_node *client_create(pid_t pid)
 		return NULL;
 	}
 
-	invoke_global_create_cb(client);
+	ret = client_rpc_initialize(client, handle);
+	if (ret < 0) {
+		client = client_unref(client);
+		ErrPrint("Failed to initialize the RPC for %d, Destroy client data %p(has to be 0x0)\n", pid, client);
+	} else {
+		if (ecore_timer_add(DELAY_TIME, created_cb, client) == NULL) {
+			ErrPrint("Failed to add a timer for client created event\n");
+			client = client_unref(client);
+			return NULL;
+		}
+
+		xmonitor_update_state(pid);
+	}
+
 	return client;
 }
 

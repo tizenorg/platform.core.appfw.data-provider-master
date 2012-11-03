@@ -15,7 +15,7 @@ struct packet;
  * \note
  * Create & Destroy
  */
-extern struct client_node *client_create(pid_t pid);
+extern struct client_node *client_create(pid_t pid, int handle);
 extern int client_destroy(struct client_node *client);
 
 /*!

@@ -71,24 +71,16 @@ static struct packet *client_acquire(pid_t pid, int handle, const struct packet 
 
 	DbgPrint("Acquired %lf\n", timestamp);
 
+	ret = 0;
 	/*!
 	 * \note
 	 * client_create will invoke the client created callback
 	 */
-	client = client_create(pid);
+	client = client_create(pid, handle);
 	if (!client) {
 		ErrPrint("Failed to create a new client for %d\n", pid);
 		ret = -EFAULT;
-		goto out;
 	}
-
-	ret = client_rpc_initialize(client, handle);
-	if (ret < 0)
-		ErrPrint("Failed to initialize the RPC for %d\n", pid);
-	else
-		xmonitor_update_state(pid);
-
-	ret = 0;
 
 out:
 	result = packet_create_reply(packet, "i", ret);
@@ -300,7 +292,7 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 				item->client = client_ref(client);
 				item->inst = instance_ref(inst);
 
-				if (!ecore_timer_add(0.0000001f, lazy_delete_cb, item)) {
+				if (!ecore_timer_add(DELAY_TIME, lazy_delete_cb, item)) {
 					ErrPrint("Failed to add a delayzed delete callback\n");
 					client_unref(client);
 					instance_unref(inst);
@@ -2134,7 +2126,7 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 			 * the event correctly.
 			 */
 			inst = instance_ref(inst); /* To guarantee the inst */
-			if (!ecore_timer_add(0.0000001f, lazy_pd_created_cb, inst))
+			if (!ecore_timer_add(DELAY_TIME, lazy_pd_created_cb, inst))
 				instance_unref(inst);
 		}
 
@@ -2241,7 +2233,7 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 		 */
 		if (ret == 0) {
 			inst = instance_ref(inst);
-			if (!ecore_timer_add(0.0000001f, lazy_pd_destroyed_cb, inst))
+			if (!ecore_timer_add(DELAY_TIME, lazy_pd_destroyed_cb, inst))
 				instance_unref(inst);
 		}
 
