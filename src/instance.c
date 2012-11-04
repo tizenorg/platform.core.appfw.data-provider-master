@@ -2101,13 +2101,10 @@ int instance_need_slave(struct inst_info *inst)
 
 		DbgPrint("CLIENT FAULT: Req. to DESTROYED (%s)\n", package_name(info));
 		switch (inst->state) {
+		case INST_INIT:
 		case INST_ACTIVATED:
 		case INST_REQUEST_TO_REACTIVATE:
 		case INST_REQUEST_TO_DESTROY:
-			instance_state_reset(inst);
-			instance_destroy(inst);
-			break;
-		case INST_INIT:
 		case INST_REQUEST_TO_ACTIVATE:
 			instance_state_reset(inst);
 			instance_destroy(inst);

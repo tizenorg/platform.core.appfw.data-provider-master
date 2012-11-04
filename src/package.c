@@ -600,6 +600,7 @@ int package_set_fault_info(struct pkg_info *info, double timestamp, const char *
 	}
 
 	info->fault_info = fault;
+	info->fault_count++;
 	return 0;
 }
 
