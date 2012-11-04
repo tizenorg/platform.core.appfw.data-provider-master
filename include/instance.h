@@ -115,7 +115,6 @@ extern int instance_activate(struct inst_info *inst);
 
 extern int instance_recover_state(struct inst_info *inst);
 extern int instance_need_slave(struct inst_info *inst);
-extern void instance_faulted(struct inst_info *inst);
 
 extern void instance_set_lb_info(struct inst_info *inst, int w, int h, double priority, const char *content, const char *title);
 extern void instance_set_pd_info(struct inst_info *inst, int w, int h);

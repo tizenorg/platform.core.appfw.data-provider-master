@@ -144,6 +144,22 @@ static int slave_activated_cb(struct slave_node *slave, void *data)
 	return 0;
 }
 
+static int slave_fault_cb(struct slave_node *slave, void *data)
+{
+	Eina_List *l;
+	Eina_List *n;
+	struct inst_info *inst;
+	struct pkg_info *info = (struct pkg_info *)data;
+
+	DbgPrint("Slave %s has critical fault. destroy all instances\n", slave_name(slave));
+	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
+		DbgPrint("Destroy instance %p\n", inst);
+		instance_destroyed(inst);
+	}
+
+	return 0;
+}
+
 static int slave_deactivated_cb(struct slave_node *slave, void *data)
 {
 	struct pkg_info *info = data;
@@ -154,7 +170,7 @@ static int slave_deactivated_cb(struct slave_node *slave, void *data)
 
 	if (info->fault_info) {
 		EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
-			instance_faulted(inst);
+			instance_destroyed(inst);
 		}
 	} else {
 		EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
@@ -993,6 +1009,7 @@ int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 		slave_load_package(info->slave);
 		slave_event_callback_add(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
 		slave_event_callback_add(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
+		slave_event_callback_add(info->slave, SLAVE_EVENT_FAULT, slave_fault_cb, info);
 
 		if (info->secured) {
 			slave_event_callback_add(info->slave, SLAVE_EVENT_PAUSE, slave_paused_cb, info);
@@ -1012,6 +1029,7 @@ int package_del_instance(struct pkg_info *info, struct inst_info *inst)
 		if (info->slave) {
 			slave_unload_package(info->slave);
 
+			slave_event_callback_del(info->slave, SLAVE_EVENT_FAULT, slave_fault_cb, info);
 			slave_event_callback_del(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
 			slave_event_callback_del(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
 

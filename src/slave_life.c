@@ -51,6 +51,7 @@ struct slave_node {
 	Eina_List *event_activate_list;
 	Eina_List *event_deactivate_list;
 	Eina_List *event_delete_list;
+	Eina_List *event_fault_list;
 	Eina_List *event_pause_list;
 	Eina_List *event_resume_list;
 
@@ -206,6 +207,10 @@ static inline void destroy_slave_node(struct slave_node *slave)
 		DbgFree(event);
 	}
 
+	EINA_LIST_FREE(slave->event_fault_list, event) {
+		DbgFree(event);
+	}
+
 	EINA_LIST_FREE(slave->data_list, priv) {
 		DbgFree(priv->tag);
 		DbgFree(priv);
@@ -309,6 +314,24 @@ struct slave_node *slave_create(const char *name, int is_secured, const char *ab
 void slave_destroy(struct slave_node *slave)
 {
 	slave_unref(slave);
+}
+
+static inline void invoke_fault_cb(struct slave_node *slave)
+{
+	Eina_List *l;
+	Eina_List *n;
+	struct event *event;
+	int ret;
+
+	EINA_LIST_FOREACH_SAFE(slave->event_fault_list, l, n, event) {
+		ret = event->evt_cb(event->slave, event->cbdata);
+		if (ret < 0) {
+			if (eina_list_data_find(slave->event_fault_list, event)) {
+				slave->event_fault_list = eina_list_remove(slave->event_fault_list, event);
+				DbgFree(event);
+			}
+		}
+	}
 }
 
 static inline void invoke_activate_cb(struct slave_node *slave)
@@ -528,6 +551,7 @@ struct slave_node *slave_deactivated_by_fault(struct slave_node *slave)
 	int ret;
 	struct timeval faulted_at;
 	int reactivate = 1;
+	int reactivate_instances = 1;
 
 	if (!slave_is_activated(slave)) {
 		DbgPrint("Deactivating in progress\n");
@@ -558,6 +582,13 @@ struct slave_node *slave_deactivated_by_fault(struct slave_node *slave)
 			if (slave->critical_fault_count > MINIMUM_CRITICAL_FAULT_COUNT) {
 				ErrPrint("Reactivation time is too fast and frequently occurred - Stop to auto reactivation\n");
 				reactivate = 0;
+				reactivate_instances = 0;
+				slave->critical_fault_count = 0;
+				/*!
+				 * \note
+				 * Fault callback can access the slave information.
+				 */
+				invoke_fault_cb(slave);
 			}
 		} else {
 			slave->critical_fault_count = 0;
@@ -567,7 +598,7 @@ struct slave_node *slave_deactivated_by_fault(struct slave_node *slave)
 	}
 
 	slave_set_reactivation(slave, reactivate);
-	slave_set_reactivate_instances(slave, 1);
+	slave_set_reactivate_instances(slave, reactivate_instances);
 
 	slave = slave_deactivated(slave);
 	return slave;
@@ -641,6 +672,9 @@ int slave_event_callback_add(struct slave_node *slave, enum slave_event event, i
 	case SLAVE_EVENT_RESUME:
 		slave->event_resume_list = eina_list_prepend(slave->event_resume_list, ev);
 		break;
+	case SLAVE_EVENT_FAULT:
+		slave->event_fault_list = eina_list_prepend(slave->event_fault_list, ev);
+		break;
 	default:
 		DbgFree(ev);
 		return -EINVAL;
@@ -696,6 +730,15 @@ int slave_event_callback_del(struct slave_node *slave, enum slave_event event, i
 		EINA_LIST_FOREACH_SAFE(slave->event_resume_list, l, n, ev) {
 			if (ev->evt_cb == cb && ev->cbdata == data) {
 				slave->event_resume_list = eina_list_remove(slave->event_resume_list, ev);
+				DbgFree(ev);
+				return 0;
+			}
+		}
+		break;
+	case SLAVE_EVENT_FAULT:
+		EINA_LIST_FOREACH_SAFE(slave->event_fault_list, l, n, ev) {
+			if (ev->evt_cb == cb && ev->cbdata == data) {
+				slave->event_fault_list = eina_list_remove(slave->event_fault_list, ev);
 				DbgFree(ev);
 				return 0;
 			}

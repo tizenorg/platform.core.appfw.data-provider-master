@@ -8,6 +8,7 @@ enum slave_event {
 	SLAVE_EVENT_ACTIVATE,
 	SLAVE_EVENT_DEACTIVATE, /* deactivate callback, can return REACTIVATE, DEFAULT */
 	SLAVE_EVENT_DELETE,
+	SLAVE_EVENT_FAULT, /* Critical fault */
 
 	SLAVE_EVENT_PAUSE,
 	SLAVE_EVENT_RESUME,

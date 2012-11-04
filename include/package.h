@@ -21,6 +21,7 @@ enum alter_type {
 struct pkg_info;
 struct inst_info;
 struct context_info;
+struct slave_node;
 
 /*!
  * \brief

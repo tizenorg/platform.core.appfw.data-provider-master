@@ -1005,43 +1005,6 @@ int instance_create_lb_buffer(struct inst_info *inst)
 	return !!inst->lb.canvas.buffer;
 }
 
-int instance_destroyed(struct inst_info *inst)
-{
-	struct pkg_info *info;
-
-	switch (inst->state) {
-	case INST_INIT:
-	case INST_REQUEST_TO_ACTIVATE:
-		/*!
-		 * \note
-		 * No other clients know the existence of this instance,
-		 * only who added this knows it.
-		 * So send deleted event to only it.
-		 */
-		instance_unicast_deleted_event(inst, NULL);
-		instance_state_reset(inst);
-		inst->state = INST_DESTROYED;
-		inst->requested_state = INST_DESTROYED;
-		instance_unref(inst);
-		break;
-	case INST_REQUEST_TO_REACTIVATE:
-	case INST_REQUEST_TO_DESTROY:
-	case INST_ACTIVATED:
-		info = inst->info;
-		instance_broadcast_deleted_event(inst);
-		instance_state_reset(inst);
-		inst->state = INST_DESTROYED;
-		inst->requested_state = INST_DESTROYED;
-		instance_unref(inst);
-	case INST_DESTROYED:
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
 int instance_destroy(struct inst_info *inst)
 {
 	struct packet *packet;
@@ -1991,11 +1954,18 @@ const enum instance_state const instance_state(const struct inst_info *inst)
 	return inst->state;
 }
 
-void instance_faulted(struct inst_info *inst)
+int instance_destroyed(struct inst_info *inst)
 {
 	switch (inst->state) {
 	case INST_INIT:
 	case INST_REQUEST_TO_ACTIVATE:
+		/*!
+		 * \note
+		 * No other clients know the existence of this instance,
+		 * only who added this knows it.
+		 * So send deleted event to only it.
+		 */
+		DbgPrint("Send deleted event - unicast - %p\n", inst->client);
 		instance_unicast_deleted_event(inst, NULL);
 		instance_state_reset(inst);
 		instance_destroy(inst);
@@ -2003,19 +1973,17 @@ void instance_faulted(struct inst_info *inst)
 	case INST_REQUEST_TO_REACTIVATE:
 	case INST_REQUEST_TO_DESTROY:
 	case INST_ACTIVATED:
-		/*!
-		 * Send deleted event to the client
-		 * If this instance has owned by a client, send deleted event to it
-		 * or send deleted event to all clients which subscribe this instance's cluster & sub-cluster
-		 */
+		DbgPrint("Send deleted event - multicast\n");
 		instance_broadcast_deleted_event(inst);
 		instance_state_reset(inst);
 		instance_destroy(inst);
-		break;
 	case INST_DESTROYED:
-	default:
 		break;
+	default:
+		return -EINVAL;
 	}
+
+	return 0;
 }
 
 /*!
