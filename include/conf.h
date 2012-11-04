@@ -131,7 +131,6 @@ extern int conf_loader(void);
 #define DELAY_TIME	0.0000001f
 #define DEFAULT_CLUSTER	"user,created"
 #define MINIMUM_REACTIVATION_TIME	10
-#define MINIMUM_CRITICAL_FAULT_COUNT	3
 
 #define SYS_CLUSTER_KEY		g_conf.vconf_sys_cluster
 

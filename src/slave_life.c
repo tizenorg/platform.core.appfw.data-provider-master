@@ -579,7 +579,7 @@ struct slave_node *slave_deactivated_by_fault(struct slave_node *slave)
 		timersub(&faulted_at, &slave->activated_at, &rtv);
 		if (rtv.tv_sec < MINIMUM_REACTIVATION_TIME) {
 			slave->critical_fault_count++;
-			if (slave->critical_fault_count > MINIMUM_CRITICAL_FAULT_COUNT) {
+			if (slave->critical_fault_count >= SLAVE_MAX_LOAD) {
 				ErrPrint("Reactivation time is too fast and frequently occurred - Stop to auto reactivation\n");
 				reactivate = 0;
 				reactivate_instances = 0;
@@ -864,8 +864,12 @@ struct slave_node *slave_find_available(const char *abi, int secured)
 				return slave;
 		} else {
 			DbgPrint("slave[%s] %d\n", slave_name(slave), slave->loaded_package);
-			if (slave->loaded_package < SLAVE_MAX_LOAD)
+			if (!strcasecmp(abi, DEFAULT_ABI)) {
+				if (slave->loaded_package < SLAVE_MAX_LOAD)
+					return slave;
+			} else {
 				return slave;
+			}
 		}
 	}
 
