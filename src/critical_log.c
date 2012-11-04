@@ -38,7 +38,11 @@ int critical_log(const char *func, int line, const char *fmt, ...)
 	if (!s_info.fp)
 		return -EIO;
 
-	gettimeofday(&tv, NULL);
+	if (gettimeofday(&tv, NULL) < 0) {
+		tv.tv_sec = 0;
+		tv.tv_usec = 0;
+	}
+
 	fprintf(s_info.fp, "%d %lu.%lu [%s:%d] ", getpid(), tv.tv_sec, tv.tv_usec, util_basename((char *)func), line);
 
 	va_start(ap, fmt);

@@ -5,6 +5,7 @@
 #include <stdlib.h> /* free */
 #include <pthread.h>
 #include <malloc.h>
+#include <sys/time.h>
 
 #include <Eina.h>
 #include <Ecore.h>
@@ -36,6 +37,7 @@ struct slave_node {
 	int secured;	/* Only A package(livebox) is loaded for security requirements */
 	int refcnt;
 	int fault_count;
+	int critical_fault_count;
 	enum slave_state state;
 
 	int loaded_instance;
@@ -55,6 +57,8 @@ struct slave_node {
 	Eina_List *data_list;
 
 	Ecore_Timer *ttl_timer; /* Time to live */
+
+	struct timeval activated_at;
 };
 
 struct event {
@@ -416,6 +420,9 @@ int slave_activated(struct slave_node *slave)
 
 	slave_set_reactivation(slave, 0);
 	slave_set_reactivate_instances(slave, 0);
+
+	if (gettimeofday(&slave->activated_at, NULL) < 0)
+		ErrPrint("Failed to get time of day: %s\n", strerror(errno));
 	return 0;
 }
 
@@ -519,6 +526,8 @@ struct slave_node *slave_deactivated(struct slave_node *slave)
 struct slave_node *slave_deactivated_by_fault(struct slave_node *slave)
 {
 	int ret;
+	struct timeval faulted_at;
+	int reactivate = 1;
 
 	if (!slave_is_activated(slave)) {
 		DbgPrint("Deactivating in progress\n");
@@ -540,7 +549,24 @@ struct slave_node *slave_deactivated_by_fault(struct slave_node *slave)
 		}
 	}
 
-	slave_set_reactivation(slave, 1);
+	if (gettimeofday(&faulted_at, NULL) == 0) {
+		struct timeval rtv;
+
+		timersub(&faulted_at, &slave->activated_at, &rtv);
+		if (rtv.tv_sec < MINIMUM_REACTIVATION_TIME) {
+			slave->critical_fault_count++;
+			if (slave->critical_fault_count > MINIMUM_CRITICAL_FAULT_COUNT) {
+				ErrPrint("Reactivation time is too fast and frequently occurred - Stop to auto reactivation\n");
+				reactivate = 0;
+			}
+		} else {
+			slave->critical_fault_count = 0;
+		}
+	} else {
+		ErrPrint("Failed to get time of day: %s\n", strerror(errno));
+	}
+
+	slave_set_reactivation(slave, reactivate);
 	slave_set_reactivate_instances(slave, 1);
 
 	slave = slave_deactivated(slave);

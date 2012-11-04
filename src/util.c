@@ -29,7 +29,12 @@ double util_timestamp(void)
 {
 	struct timeval tv;
 
-	gettimeofday(&tv, NULL);
+	if (gettimeofday(&tv, NULL) < 0) {
+		static unsigned long internal_count = 0;
+		ErrPrint("failed to get time of day: %s\n", strerror(errno));
+		tv.tv_sec = internal_count++;
+		tv.tv_usec = 0;
+	}
 
 	return (double)tv.tv_sec + (double)tv.tv_usec / 1000000.0f;
 }
