@@ -152,8 +152,10 @@ int fault_check_pkgs(struct slave_node *slave)
 			ErrPrint("Set fault %s(%d)\n", !ret ? "Success" : "Failed", ret);
 			fault_broadcast_info(pkgname, "", "");
 			s_info.fault_mark_count = 0;
+			DbgFree((char *)pkgname);
 			return 0;
 		}
+		DbgFree((char *)pkgname);
 	}
 
 	/*!

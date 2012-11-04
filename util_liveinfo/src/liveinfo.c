@@ -148,7 +148,7 @@ static Eina_Bool input_cb(void *data, Ecore_Fd_Handler *fd_handler)
 
 	/* Silly.. Silly */
 	ret = read(fd, &ch, 1);
-	if (ret != 1) {
+	if (ret != 1 || ret < 0) {
 		fprintf(stderr, "Failed to get a byte: %s\n", strerror(errno));
 		return ECORE_CALLBACK_RENEW;
 	}
@@ -186,6 +186,10 @@ static Eina_Bool read_cb(void *data, Ecore_Fd_Handler *fd_handler)
 	int len;
 
 	fd = ecore_main_fd_handler_fd_get(fd_handler);
+	if (fd < 0) {
+		fprintf(stderr, "FD is not valid: %d\n", fd);
+		return ECORE_CALLBACK_RENEW;
+	}
 
 	while ((len = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
 		buffer[len] = '\0';

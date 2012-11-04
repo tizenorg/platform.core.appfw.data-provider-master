@@ -1359,11 +1359,17 @@ void instance_set_lb_info(struct inst_info *inst, int w, int h, double priority,
 	char *_content = NULL;
 	char *_title = NULL;
 
-	if (strlen(content))
+	if (content && strlen(content)) {
 		_content = strdup(content);
+		if (!_content)
+			ErrPrint("Heap: %s\n", strerror(errno));
+	}
 
-	if (strlen(title))
+	if (title && strlen(title)) {
 		_title = strdup(title);
+		if (!_title)
+			ErrPrint("Heap: %s\n", strerror(errno));
+	}
 
 	inst->lb.width = w;
 	inst->lb.height = h;
@@ -1373,11 +1379,10 @@ void instance_set_lb_info(struct inst_info *inst, int w, int h, double priority,
 		inst->content= _content;
 	}
 
-	if (title) {
+	if (_title) {
 		DbgFree(inst->title);
 		inst->title = _title;
 	}
-		
 
 	if (priority >= 0.0f && priority <= 1.0f)
 		inst->lb.priority = priority;

@@ -46,7 +46,8 @@ static inline int app_create(void)
 	conf_loader();
 
 	if (access(SLAVE_LOG_PATH, R_OK|W_OK) != 0) {
-		mkdir(SLAVE_LOG_PATH, 755);
+		if (mkdir(SLAVE_LOG_PATH, 755) < 0)
+			ErrPrint("Failed to create %s (%s)\n", SLAVE_LOG_PATH, strerror(errno));
 	}
 
 	/*!
@@ -136,8 +137,11 @@ static inline int app_terminate(void)
 
 static void signal_handler(int signum, siginfo_t *info, void *unused)
 {
+	int fd;
 	CRITICAL_LOG("Terminated(SIGTERM)\n");
-	creat("/tmp/.stop.provider", 0644);
+	fd = creat("/tmp/.stop.provider", 0644);
+	if (fd > 0)
+		close(fd);
 	exit(0);
 }
 

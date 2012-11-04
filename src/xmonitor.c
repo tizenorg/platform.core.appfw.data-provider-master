@@ -373,6 +373,7 @@ int xmonitor_add_event_callback(enum xmonitor_event event, int (*cb)(void *user_
 		break;
 	default:
 		ErrPrint("Invalid event type\n");
+		DbgFree(item);
 		return -EINVAL;
 	}
 
