@@ -2609,7 +2609,6 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 					goto out;
 				}
 
-				slave_rpc_initialize(slave);
 				DbgPrint("New slave is created\n");
 			} else {
 				DbgPrint("Registered slave is replaced with this new one\n");

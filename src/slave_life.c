@@ -188,6 +188,7 @@ static inline void destroy_slave_node(struct slave_node *slave)
 	xmonitor_del_event_callback(XMONITOR_RESUMED, xmonitor_resume_cb, slave);
 
 	invoke_delete_cb(slave);
+	slave_rpc_fini(slave); /*!< Finalize the RPC after handling all delete callbacks */
 
 	EINA_LIST_FREE(slave->event_delete_list, event) {
 		DbgFree(event);
@@ -291,6 +292,7 @@ struct slave_node *slave_create(const char *name, int is_secured, const char *ab
 		return NULL;
 
 	slave_ref(slave);
+	slave_rpc_init(slave);
 
 	return slave;
 }

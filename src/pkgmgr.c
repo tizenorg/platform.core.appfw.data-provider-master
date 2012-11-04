@@ -456,6 +456,9 @@ int pkgmgr_init(void)
 
 int pkgmgr_fini(void)
 {
+	struct event_item *item;
+	struct item *ctx;
+
 	if (!s_info.listen_pc)
 		return -EINVAL;
 
@@ -463,6 +466,33 @@ int pkgmgr_fini(void)
 		return -EFAULT;
 
 	s_info.listen_pc = NULL;
+
+	EINA_LIST_FREE(s_info.download_event, item) {
+		DbgFree(item);
+	}
+
+	EINA_LIST_FREE(s_info.uninstall_event, item) {
+		DbgFree(item);
+	}
+
+	EINA_LIST_FREE(s_info.install_event, item) {
+		DbgFree(item);
+	}
+
+	EINA_LIST_FREE(s_info.update_event, item) {
+		DbgFree(item);
+	}
+
+	EINA_LIST_FREE(s_info.recover_event, item) {
+		DbgFree(item);
+	}
+
+	EINA_LIST_FREE(s_info.item_list, ctx) {
+		DbgFree(ctx->pkgname);
+		DbgFree(ctx->icon);
+		DbgFree(ctx);
+	}
+
 	return 0;
 }
 

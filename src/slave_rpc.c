@@ -282,26 +282,6 @@ static int slave_deactivate_cb(struct slave_node *slave, void *data)
 	return 0;
 }
 
-static int slave_del_cb(struct slave_node *slave, void *data)
-{
-	struct slave_rpc *rpc;
-
-	slave_event_callback_del(slave, SLAVE_EVENT_DELETE, slave_del_cb, NULL);
-	slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivate_cb, NULL);
-
-	rpc = slave_del_data(slave, "rpc");
-	if (!rpc)
-		return 0;
-
-	if (rpc->pong_timer)
-		ecore_timer_del(rpc->pong_timer);
-	else
-		ErrPrint("Pong timer is not exists\n");
-
-	DbgFree(rpc);
-	return 0;
-}
-
 static Eina_Bool ping_timeout_cb(void *data)
 {
 	struct slave_rpc *rpc;
@@ -480,7 +460,7 @@ int slave_rpc_update_handle(struct slave_node *slave, int handle)
 	return 0;
 }
 
-int slave_rpc_initialize(struct slave_node *slave)
+int slave_rpc_init(struct slave_node *slave)
 {
 	struct slave_rpc *rpc;
 
@@ -495,13 +475,29 @@ int slave_rpc_initialize(struct slave_node *slave)
 		return -ENOMEM;
 	}
 
-	slave_event_callback_add(slave, SLAVE_EVENT_DELETE, slave_del_cb, NULL);
 	slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivate_cb, NULL);
 
 	rpc->ping_count = 0;
 	rpc->next_ping_count = 1;
 	rpc->handle = -1;
 
+	return 0;
+}
+
+int slave_rpc_fini(struct slave_node *slave)
+{
+	struct slave_rpc *rpc;
+
+	rpc = slave_del_data(slave, "rpc");
+	if (!rpc)
+		return -EINVAL;
+
+	slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivate_cb, NULL);
+
+	if (rpc->pong_timer)
+		ecore_timer_del(rpc->pong_timer);
+
+	DbgFree(rpc);
 	return 0;
 }
 

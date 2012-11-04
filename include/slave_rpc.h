@@ -8,6 +8,7 @@ extern int slave_rpc_handle(struct slave_node *slave);
 extern int slave_rpc_ping_freeze(struct slave_node *slave);
 extern int slave_rpc_ping_thaw(struct slave_node *slave);
 
-extern int slave_rpc_initialize(struct slave_node *slave);
+extern int slave_rpc_init(struct slave_node *slave);
+extern int slave_rpc_fini(struct slave_node *slave);
 
 /* End of a file */

@@ -116,6 +116,7 @@ static inline void destroy_client_data(struct client_node *client)
 	DbgPrint("Client %p is destroyed\n", client);
 
 	invoke_global_destroy_cb(client);
+	client_rpc_fini(client); /*!< Finalize the RPC after invoke destroy callbacks */
 
 	EINA_LIST_FOREACH_SAFE(client->event_destroy_list, l, n, event) {
 		if (!event->cb) {
@@ -201,7 +202,7 @@ struct client_node *client_create(pid_t pid, int handle)
 		return NULL;
 	}
 
-	ret = client_rpc_initialize(client, handle);
+	ret = client_rpc_init(client, handle);
 	if (ret < 0) {
 		client = client_unref(client);
 		ErrPrint("Failed to initialize the RPC for %d, Destroy client data %p(has to be 0x0)\n", pid, client);
@@ -539,12 +540,21 @@ int client_init(void)
 
 int client_fini(void)
 {
+	struct global_event_handler *handler;
 	struct client_node *client;
 	Eina_List *l;
 	Eina_List *n;
 
 	EINA_LIST_FOREACH_SAFE(s_info.client_list, l, n, client) {
 		client_destroy(client);
+	}
+
+	EINA_LIST_FREE(s_info.create_event_list, handler) {
+		DbgFree(handler);
+	}
+
+	EINA_LIST_FREE(s_info.destroy_event_list, handler) {
+		DbgFree(handler);
 	}
 
 	return 0;

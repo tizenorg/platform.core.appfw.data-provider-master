@@ -971,9 +971,7 @@ int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 			DbgFree(s_name);
 			DbgFree(s_pkgname);
 
-			if (info->slave) {
-				slave_rpc_initialize(info->slave);
-			} else {
+			if (!info->slave) {
 				/*!
 				 * \note
 				 * package_destroy will try to remove "info" from the pkg_list.

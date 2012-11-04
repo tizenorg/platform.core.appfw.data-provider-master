@@ -199,24 +199,7 @@ static int deactivated_cb(struct client_node *client, void *data)
 	return 0;
 }
 
-static int del_cb(struct client_node *client, void *data)
-{
-	struct client_rpc *rpc;
-
-	rpc = client_del_data(client, "rpc");
-	if (!rpc) {
-		ErrPrint("RPC is not valid\n");
-		return -EINVAL;
-	}
-
-	DbgFree(rpc);
-
-	client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, deactivated_cb, NULL);
-	client_event_callback_del(client, CLIENT_EVENT_DESTROY, del_cb, NULL);
-	return 0; /* Return <0, Delete this callback */
-}
-
-int client_rpc_initialize(struct client_node *client, int handle)
+int client_rpc_init(struct client_node *client, int handle)
 {
 	struct client_rpc *rpc;
 	int ret;
@@ -238,8 +221,19 @@ int client_rpc_initialize(struct client_node *client, int handle)
 	rpc->handle = handle;
 
 	client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, deactivated_cb, NULL);
-	client_event_callback_add(client, CLIENT_EVENT_DESTROY, del_cb, NULL);
+	return 0;
+}
 
+int client_rpc_fini(struct client_node *client)
+{
+	struct client_rpc *rpc;
+
+	rpc = client_del_data(client, "rpc");
+	if (!rpc)
+		return -EINVAL;
+
+	client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, deactivated_cb, NULL);
+	DbgFree(rpc);
 	return 0;
 }
 
