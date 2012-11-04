@@ -2416,6 +2416,12 @@ static inline int update_pkg_cb(struct category *category, const char *pkgname)
 		struct inst_info *inst;
 
 		timestamp = util_timestamp();
+		/*!
+		 * \NOTE
+		 * Don't need to check the subscribed clients.
+		 * Because this callback is called by the requests of clients.
+		 * It means. some clients wants to handle this instances ;)
+		 */
 		inst = instance_create(NULL, timestamp, pkgname, DEFAULT_CONTENT, c_name, s_name, DEFAULT_PERIOD, 0, 0);
 		if (!inst)
 			ErrPrint("Failed to create a new instance\n");

@@ -40,11 +40,17 @@ static inline void processing_ctx_event(const char *cluster, const char *categor
 {
 	slave_rpc_request_update(pkgname, "", cluster, category);
 	if (util_free_space(IMAGE_PATH) > MINIMUM_SPACE) {
-		double timestamp;
-		struct inst_info *inst;
+		if (client_nr_of_subscriber(cluster, category) > 0) {
+			double timestamp;
+			struct inst_info *inst;
 
-		timestamp = util_timestamp();
-		inst = instance_create(NULL, timestamp, pkgname, DEFAULT_CONTENT, cluster, category, DEFAULT_PERIOD, 0, 0);
+			timestamp = util_timestamp();
+			inst = instance_create(NULL, timestamp, pkgname, DEFAULT_CONTENT, cluster, category, DEFAULT_PERIOD, 0, 0);
+			if (!inst)
+				ErrPrint("Failed to create an instance (%s / %s - %s)\n", cluster, category, pkgname);
+		} else {
+			DbgPrint("No subscribed clients. Ignore ctx event (%s / %s - %s)\n", cluster, category, pkgname);
+		}
 	} else {
 		ErrPrint("Not enough space\n");
 	}

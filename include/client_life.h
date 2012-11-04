@@ -85,6 +85,7 @@ extern int client_init(void);
 extern int client_fini(void);
 
 extern int client_browse_list(const char *cluster, const char *category, int (*cb)(struct client_node *client, void *data), void *data);
+extern int client_nr_of_subscriber(const char *cluster, const char *category);
 
 extern int client_broadcast(struct inst_info *inst, struct packet *packet);
 /* End of a file */

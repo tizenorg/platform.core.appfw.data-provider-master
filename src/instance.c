@@ -315,6 +315,8 @@ static int instance_broadcast_deleted_event(struct inst_info *inst)
 {
 	struct packet *packet;
 	struct client_node *client;
+	Eina_List *l;
+	Eina_List *n;
 	int ret;
 
 	packet = packet_create_noack("deleted", "ssd", package_name(inst->info), inst->id, inst->timestamp);
@@ -325,9 +327,8 @@ static int instance_broadcast_deleted_event(struct inst_info *inst)
 		
 	ret = CLIENT_SEND_EVENT(inst, packet);
 
-	EINA_LIST_FREE(inst->client_list, client) {
-		client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, viewer_deactivated_cb, inst);
-		instance_unref(inst);
+	EINA_LIST_FOREACH_SAFE(inst->client_list, l, n, client) {
+		instance_del_client(inst, client);
 	}
 
 	return ret;

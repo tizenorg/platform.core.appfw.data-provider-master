@@ -699,7 +699,9 @@ int client_browse_list(const char *cluster, const char *category, int (*cb)(stru
 {
 	Eina_List *l;
 	struct client_node *client;
+	int cnt;
 
+	cnt = 0;
 	EINA_LIST_FOREACH(s_info.client_list, l, client) {
 		if (!client_is_subscribed(client, cluster, category))
 			continue;
@@ -708,10 +710,24 @@ int client_browse_list(const char *cluster, const char *category, int (*cb)(stru
 			if (cb(client, data) < 0)
 				return -ECANCELED;
 		}
+		cnt++;
 	}
 
-	return 0;
-	
+	return cnt;
+}
+
+int client_nr_of_subscriber(const char *cluster, const char *category)
+{
+	Eina_List *l;
+	struct client_node *client;
+	int cnt;
+
+	cnt = 0;
+	EINA_LIST_FOREACH(s_info.client_list, l, client) {
+		cnt += !!client_is_subscribed(client, cluster, category);
+	}
+
+	return cnt;
 }
 
 int client_broadcast(struct inst_info *inst, struct packet *packet)
