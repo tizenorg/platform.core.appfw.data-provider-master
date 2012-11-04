@@ -293,6 +293,12 @@ static Eina_Bool ping_timeout_cb(void *data)
 		return ECORE_CALLBACK_CANCEL;
 	}
 
+	/*!
+	 * \note
+	 * Clear the pong_timer
+	 */
+	rpc->pong_timer = NULL;
+
 	if (!slave_is_activated(slave)) {
 		ErrPrint("Slave is not activated (%s)\n", slave_name(slave));
 		return ECORE_CALLBACK_CANCEL;
