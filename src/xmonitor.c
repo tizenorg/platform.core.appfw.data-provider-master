@@ -100,14 +100,14 @@ static Eina_Bool create_cb(void *data, int type, void *event)
 {
 	Ecore_X_Event_Window_Create *info = event;
 	ecore_x_window_client_sniff(info->win);
-	return ECORE_CALLBACK_RENEW;
+	return ECORE_CALLBACK_PASS_ON;
 }
 
 static Eina_Bool destroy_cb(void *data, int type, void *event)
 {
 	Ecore_X_Event_Window_Destroy * info;
 	info = event;
-	return ECORE_CALLBACK_RENEW;
+	return ECORE_CALLBACK_PASS_ON;
 }
 
 void xmonitor_handle_state_changes(void)
@@ -189,15 +189,15 @@ static Eina_Bool client_cb(void *data, int type, void *event)
 
 	pid = get_pid(info->win);
 	if (pid <= 0)
-		return ECORE_CALLBACK_RENEW;
+		return ECORE_CALLBACK_PASS_ON;
 
 	client = client_find_by_pid(pid);
 	if (!client)
-		return ECORE_CALLBACK_RENEW;
+		return ECORE_CALLBACK_PASS_ON;
 
 	name = ecore_x_atom_name_get(info->message_type);
 	if (!name)
-		return ECORE_CALLBACK_RENEW;
+		return ECORE_CALLBACK_PASS_ON;
 
 	if (!strcmp(name, "_X_ILLUME_DEACTIVATE_WINDOW")) {
 		DbgPrint("PAUSE EVENT\n");
@@ -214,7 +214,7 @@ static Eina_Bool client_cb(void *data, int type, void *event)
 	}
 
 	DbgFree(name);
-	return ECORE_CALLBACK_RENEW;
+	return ECORE_CALLBACK_PASS_ON;
 }
 
 static inline void sniff_all_windows(void)

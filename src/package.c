@@ -1006,6 +1006,7 @@ int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 			DbgPrint("Slave %s is assigned for %s\n", slave_name(info->slave), info->pkgname);
 		}
 
+		slave_ref(info->slave);
 		slave_load_package(info->slave);
 		slave_event_callback_add(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
 		slave_event_callback_add(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
@@ -1038,6 +1039,7 @@ int package_del_instance(struct pkg_info *info, struct inst_info *inst)
 				slave_event_callback_del(info->slave, SLAVE_EVENT_RESUME, slave_resume_cb, info);
 			}
 
+			slave_unref(info->slave);
 			info->slave = NULL;
 		}
 
