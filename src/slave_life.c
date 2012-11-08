@@ -356,6 +356,15 @@ int slave_activate(struct slave_node *slave)
 {
 	bundle *param;
 
+	/*!
+	 * \note
+	 * This check code can replace the slave->state check code
+	 * If the slave data has the PID, it means, it is activated
+	 * Even if it is in the termiating sequence, it will have the PID
+	 * before terminated at last.
+	 * So we can use this simple code for checking the slave's last state.
+	 * about it is alive? or not.
+	 */
 	if (slave->pid != (pid_t)-1)
 		return -EALREADY;
 
@@ -579,7 +588,7 @@ struct slave_node *slave_deactivated_by_fault(struct slave_node *slave)
 		timersub(&faulted_at, &slave->activated_at, &rtv);
 		if (rtv.tv_sec < MINIMUM_REACTIVATION_TIME) {
 			slave->critical_fault_count++;
-			if (slave->critical_fault_count >= SLAVE_MAX_LOAD) {
+			if (!slave_loaded_instance(slave) || slave->critical_fault_count >= SLAVE_MAX_LOAD) {
 				ErrPrint("Reactivation time is too fast and frequently occurred - Stop to auto reactivation\n");
 				reactivate = 0;
 				reactivate_instances = 0;
@@ -1014,6 +1023,11 @@ static void resume_cb(struct slave_node *slave, const struct packet *packet, voi
 {
 	int ret;
 
+	if (slave->state == SLAVE_REQUEST_TO_TERMINATE) {
+		DbgPrint("Slave is terminating now. ignore resume result\n");
+		return;
+	}
+
 	if (!packet) {
 		ErrPrint("Failed to change the state of the slave\n");
 		slave->state = SLAVE_PAUSED;
@@ -1053,6 +1067,11 @@ static inline void invoke_paused_cb(struct slave_node *slave)
 static void pause_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	int ret;
+
+	if (slave->state == SLAVE_REQUEST_TO_TERMINATE) {
+		DbgPrint("Slave is terminating now. ignore pause result\n");
+		return;
+	}
 
 	if (!packet) {
 		ErrPrint("Failed to change the state of the slave\n");
