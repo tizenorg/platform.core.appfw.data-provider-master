@@ -178,7 +178,7 @@ static inline int instance_recover_visible_state(struct inst_info *inst)
 	return ret;
 }
 
-int instance_unicast_created_event(struct inst_info *inst, struct client_node *client)
+HAPI int instance_unicast_created_event(struct inst_info *inst, struct client_node *client)
 {
 	struct packet *packet;
 	enum lb_type lb_type;
@@ -292,7 +292,7 @@ static int instance_broadcast_created_event(struct inst_info *inst)
 	return CLIENT_SEND_EVENT(inst, packet);
 }
 
-int instance_unicast_deleted_event(struct inst_info *inst, struct client_node *client)
+HAPI int instance_unicast_deleted_event(struct inst_info *inst, struct client_node *client)
 {
 	struct packet *packet;
 
@@ -457,7 +457,7 @@ static inline int fork_package(struct inst_info *inst, const char *pkgname)
 	return 0;
 }
 
-struct inst_info *instance_create(struct client_node *client, double timestamp, const char *pkgname, const char *content, const char *cluster, const char *category, double period, int width, int height)
+HAPI struct inst_info *instance_create(struct client_node *client, double timestamp, const char *pkgname, const char *content, const char *cluster, const char *category, double period, int width, int height)
 {
 	struct inst_info *inst;
 
@@ -542,7 +542,7 @@ struct inst_info *instance_create(struct client_node *client, double timestamp, 
 	return inst;
 }
 
-struct inst_info *instance_ref(struct inst_info *inst)
+HAPI struct inst_info *instance_ref(struct inst_info *inst)
 {
 	if (!inst)
 		return NULL;
@@ -551,7 +551,7 @@ struct inst_info *instance_ref(struct inst_info *inst)
 	return inst;
 }
 
-struct inst_info *instance_unref(struct inst_info *inst)
+HAPI struct inst_info *instance_unref(struct inst_info *inst)
 {
 	if (!inst)
 		return NULL;
@@ -947,7 +947,7 @@ out:
 	instance_unref(inst);
 }
 
-int instance_create_pd_buffer(struct inst_info *inst)
+HAPI int instance_create_pd_buffer(struct inst_info *inst)
 {
 	if (inst->pd.width == 0 && inst->pd.height == 0) {
 		inst->pd.width = package_pd_width(inst->info);
@@ -975,7 +975,7 @@ int instance_create_pd_buffer(struct inst_info *inst)
 	return !!inst->pd.canvas.buffer;
 }
 
-int instance_create_lb_buffer(struct inst_info *inst)
+HAPI int instance_create_lb_buffer(struct inst_info *inst)
 {
 	if (inst->lb.width == 0 && inst->lb.height == 0)
 		livebox_service_get_size(LB_SIZE_TYPE_1x1, &inst->lb.width, &inst->lb.height);
@@ -1005,7 +1005,7 @@ int instance_create_lb_buffer(struct inst_info *inst)
 	return !!inst->lb.canvas.buffer;
 }
 
-int instance_destroy(struct inst_info *inst)
+HAPI int instance_destroy(struct inst_info *inst)
 {
 	struct packet *packet;
 
@@ -1044,7 +1044,7 @@ int instance_destroy(struct inst_info *inst)
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, deactivate_cb, instance_ref(inst), 0);
 }
 
-int instance_state_reset(struct inst_info *inst)
+HAPI int instance_state_reset(struct inst_info *inst)
 {
 	enum lb_type lb_type;
 	enum pd_type pd_type;
@@ -1078,7 +1078,7 @@ int instance_state_reset(struct inst_info *inst)
 	return 0;
 }
 
-int instance_reactivate(struct inst_info *inst)
+HAPI int instance_reactivate(struct inst_info *inst)
 {
 	struct packet *packet;
 	int ret;
@@ -1142,7 +1142,7 @@ int instance_reactivate(struct inst_info *inst)
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, reactivate_cb, instance_ref(inst), 1);
 }
 
-int instance_activate(struct inst_info *inst)
+HAPI int instance_activate(struct inst_info *inst)
 {
 	struct packet *packet;
 	int ret;
@@ -1212,7 +1212,7 @@ int instance_activate(struct inst_info *inst)
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, activate_cb, instance_ref(inst), 1);
 }
 
-void instance_lb_updated(const char *pkgname, const char *id)
+HAPI void instance_lb_updated(const char *pkgname, const char *id)
 {
 	struct inst_info *inst;
 
@@ -1223,7 +1223,7 @@ void instance_lb_updated(const char *pkgname, const char *id)
 	instance_lb_updated_by_instance(inst);
 }
 
-void instance_lb_updated_by_instance(struct inst_info *inst)
+HAPI void instance_lb_updated_by_instance(struct inst_info *inst)
 {
 	struct packet *packet;
 	const char *id;
@@ -1265,7 +1265,7 @@ void instance_lb_updated_by_instance(struct inst_info *inst)
 	(void)CLIENT_SEND_EVENT(inst, packet);
 }
 
-void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfile)
+HAPI void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfile)
 {
 	struct packet *packet;
 	const char *id;
@@ -1307,7 +1307,7 @@ void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfil
 	(void)CLIENT_SEND_EVENT(inst, packet);
 }
 
-void instance_pd_updated(const char *pkgname, const char *id, const char *descfile)
+HAPI void instance_pd_updated(const char *pkgname, const char *id, const char *descfile)
 {
 	struct inst_info *inst;
 
@@ -1318,7 +1318,7 @@ void instance_pd_updated(const char *pkgname, const char *id, const char *descfi
 	instance_pd_updated_by_instance(inst, descfile);
 }
 
-void instance_set_lb_info(struct inst_info *inst, int w, int h, double priority, const char *content, const char *title)
+HAPI void instance_set_lb_info(struct inst_info *inst, int w, int h, double priority, const char *content, const char *title)
 {
 	char *_content = NULL;
 	char *_title = NULL;
@@ -1352,7 +1352,7 @@ void instance_set_lb_info(struct inst_info *inst, int w, int h, double priority,
 		inst->lb.priority = priority;
 }
 
-void instance_set_pd_info(struct inst_info *inst, int w, int h)
+HAPI void instance_set_pd_info(struct inst_info *inst, int w, int h)
 {
 	inst->pd.width = w;
 	inst->pd.height = h;
@@ -1420,7 +1420,7 @@ out:
 	DbgFree(cbdata);
 }
 
-int instance_set_pinup(struct inst_info *inst, int pinup)
+HAPI int instance_set_pinup(struct inst_info *inst, int pinup)
 {
 	struct set_pinup_cbdata *cbdata;
 	struct packet *packet;
@@ -1459,7 +1459,7 @@ int instance_set_pinup(struct inst_info *inst, int pinup)
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, pinup_cb, cbdata, 0);
 }
 
-int instance_freeze_updator(struct inst_info *inst)
+HAPI int instance_freeze_updator(struct inst_info *inst)
 {
 	if (!inst->update_timer) {
 		DbgPrint("Update timer is not exists\n");
@@ -1471,7 +1471,7 @@ int instance_freeze_updator(struct inst_info *inst)
 	return 0;
 }
 
-int instance_thaw_updator(struct inst_info *inst)
+HAPI int instance_thaw_updator(struct inst_info *inst)
 {
 	if (!inst->update_timer) {
 		DbgPrint("Update timer is not exists\n");
@@ -1493,12 +1493,12 @@ int instance_thaw_updator(struct inst_info *inst)
 	return 0;
 }
 
-enum livebox_visible_state instance_visible_state(struct inst_info *inst)
+HAPI enum livebox_visible_state instance_visible_state(struct inst_info *inst)
 {
 	return inst->visible;
 }
 
-int instance_set_visible_state(struct inst_info *inst, enum livebox_visible_state state)
+HAPI int instance_set_visible_state(struct inst_info *inst, enum livebox_visible_state state)
 {
 	if (inst->visible == state) {
 		DbgPrint("Visibility has no changed\n");
@@ -1561,7 +1561,7 @@ static void resize_cb(struct slave_node *slave, const struct packet *packet, voi
 	DbgFree(cbdata);
 }
 
-int instance_resize(struct inst_info *inst, int w, int h)
+HAPI int instance_resize(struct inst_info *inst, int w, int h)
 {
 	struct resize_cbdata *cbdata;
 	struct packet *packet;
@@ -1633,7 +1633,7 @@ out:
 	return;
 }
 
-int instance_set_period(struct inst_info *inst, double period)
+HAPI int instance_set_period(struct inst_info *inst, double period)
 {
 	struct packet *packet;
 	struct period_cbdata *cbdata;
@@ -1674,7 +1674,7 @@ int instance_set_period(struct inst_info *inst, double period)
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, set_period_cb, cbdata, 0);
 }
 
-int instance_clicked(struct inst_info *inst, const char *event, double timestamp, double x, double y)
+HAPI int instance_clicked(struct inst_info *inst, const char *event, double timestamp, double x, double y)
 {
 	struct packet *packet;
 
@@ -1698,7 +1698,7 @@ int instance_clicked(struct inst_info *inst, const char *event, double timestamp
 	return slave_rpc_request_only(package_slave(inst->info), package_name(inst->info), packet, 0);
 }
 
-int instance_signal_emit(struct inst_info *inst, const char *signal, const char *part, double sx, double sy, double ex, double ey, double x, double y, int down)
+HAPI int instance_signal_emit(struct inst_info *inst, const char *signal, const char *part, double sx, double sy, double ex, double ey, double x, double y, int down)
 {
 	const char *pkgname;
 	const char *id;
@@ -1735,7 +1735,7 @@ int instance_signal_emit(struct inst_info *inst, const char *signal, const char 
 	return ret;
 }
 
-int instance_text_signal_emit(struct inst_info *inst, const char *emission, const char *source, double sx, double sy, double ex, double ey)
+HAPI int instance_text_signal_emit(struct inst_info *inst, const char *emission, const char *source, double sx, double sy, double ex, double ey)
 {
 	struct packet *packet;
 
@@ -1803,7 +1803,7 @@ out:
 	DbgFree(cbdata);
 }
 
-int instance_change_group(struct inst_info *inst, const char *cluster, const char *category)
+HAPI int instance_change_group(struct inst_info *inst, const char *cluster, const char *category)
 {
 	struct packet *packet;
 	struct change_group_cbdata *cbdata;
@@ -1854,107 +1854,107 @@ int instance_change_group(struct inst_info *inst, const char *cluster, const cha
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, change_group_cb, cbdata, 0);
 }
 
-const int const instance_auto_launch(const struct inst_info *inst)
+HAPI const int const instance_auto_launch(const struct inst_info *inst)
 {
 	return inst->lb.auto_launch;
 }
 
-const int const instance_priority(const struct inst_info *inst)
+HAPI const int const instance_priority(const struct inst_info *inst)
 {
 	return inst->lb.priority;
 }
 
-const struct client_node *const instance_client(const struct inst_info *inst)
+HAPI const struct client_node *const instance_client(const struct inst_info *inst)
 {
 	return inst->client;
 }
 
-const double const instance_period(const struct inst_info *inst)
+HAPI const double const instance_period(const struct inst_info *inst)
 {
 	return inst->period;
 }
 
-const int const instance_lb_width(const struct inst_info *inst)
+HAPI const int const instance_lb_width(const struct inst_info *inst)
 {
 	return inst->lb.width;
 }
 
-const int const instance_lb_height(const struct inst_info *inst)
+HAPI const int const instance_lb_height(const struct inst_info *inst)
 {
 	return inst->lb.height;
 }
 
-const int const instance_pd_width(const struct inst_info *inst)
+HAPI const int const instance_pd_width(const struct inst_info *inst)
 {
 	return inst->pd.width;
 }
 
-const int const instance_pd_height(const struct inst_info *inst)
+HAPI const int const instance_pd_height(const struct inst_info *inst)
 {
 	return inst->pd.height;
 }
 
-struct pkg_info *const instance_package(const struct inst_info *inst)
+HAPI struct pkg_info *const instance_package(const struct inst_info *inst)
 {
 	return inst->info;
 }
 
-struct script_info *const instance_lb_script(const struct inst_info *inst)
+HAPI struct script_info *const instance_lb_script(const struct inst_info *inst)
 {
 	return (package_lb_type(inst->info) == LB_TYPE_SCRIPT) ? inst->lb.canvas.script : NULL;
 }
 
-struct script_info *const instance_pd_script(const struct inst_info *inst)
+HAPI struct script_info *const instance_pd_script(const struct inst_info *inst)
 {
 	return (package_pd_type(inst->info) == PD_TYPE_SCRIPT) ? inst->pd.canvas.script : NULL;
 }
 
-struct buffer_info *const instance_lb_buffer(const struct inst_info *inst)
+HAPI struct buffer_info *const instance_lb_buffer(const struct inst_info *inst)
 {
 	return (package_lb_type(inst->info) == LB_TYPE_BUFFER) ? inst->lb.canvas.buffer : NULL;
 }
 
-struct buffer_info *const instance_pd_buffer(const struct inst_info *inst)
+HAPI struct buffer_info *const instance_pd_buffer(const struct inst_info *inst)
 {
 	return (package_pd_type(inst->info) == PD_TYPE_BUFFER) ? inst->pd.canvas.buffer : NULL;
 }
 
-const char *const instance_id(const struct inst_info *inst)
+HAPI const char *const instance_id(const struct inst_info *inst)
 {
 	return inst->id;
 }
 
-const char *const instance_content(const struct inst_info *inst)
+HAPI const char *const instance_content(const struct inst_info *inst)
 {
 	return inst->content;
 }
 
-const char *const instance_category(const struct inst_info *inst)
+HAPI const char *const instance_category(const struct inst_info *inst)
 {
 	return inst->category;
 }
 
-const char *const instance_cluster(const struct inst_info *inst)
+HAPI const char *const instance_cluster(const struct inst_info *inst)
 {
 	return inst->cluster;
 }
 
-const char * const instance_title(const struct inst_info *inst)
+HAPI const char * const instance_title(const struct inst_info *inst)
 {
 	return inst->title;
 }
 
-const double const instance_timestamp(const struct inst_info *inst)
+HAPI const double const instance_timestamp(const struct inst_info *inst)
 {
 	return inst->timestamp;
 }
 
-const enum instance_state const instance_state(const struct inst_info *inst)
+HAPI const enum instance_state const instance_state(const struct inst_info *inst)
 {
 	return inst->state;
 }
 
-int instance_destroyed(struct inst_info *inst)
+HAPI int instance_destroyed(struct inst_info *inst)
 {
 	switch (inst->state) {
 	case INST_INIT:
@@ -1989,7 +1989,7 @@ int instance_destroyed(struct inst_info *inst)
 /*!
  * Invoked when a slave is activated
  */
-int instance_recover_state(struct inst_info *inst)
+HAPI int instance_recover_state(struct inst_info *inst)
 {
 	struct pkg_info *info;
 	int ret = 0;
@@ -2057,7 +2057,7 @@ int instance_recover_state(struct inst_info *inst)
 /*!
  * Invoked when a slave is deactivated
  */
-int instance_need_slave(struct inst_info *inst)
+HAPI int instance_need_slave(struct inst_info *inst)
 {
 	int ret = 0;
 	struct pkg_info *info;
@@ -2135,7 +2135,7 @@ int instance_need_slave(struct inst_info *inst)
 	return ret;
 }
 
-int instance_slave_open_pd(struct inst_info *inst)
+HAPI int instance_slave_open_pd(struct inst_info *inst)
 {
 	const char *pkgname;
 	const char *id;
@@ -2166,7 +2166,7 @@ int instance_slave_open_pd(struct inst_info *inst)
 	return slave_rpc_request_only(slave, pkgname, packet, 0);
 }
 
-int instance_slave_close_pd(struct inst_info *inst)
+HAPI int instance_slave_close_pd(struct inst_info *inst)
 {
 	const char *pkgname;
 	const char *id;
@@ -2197,7 +2197,7 @@ int instance_slave_close_pd(struct inst_info *inst)
 	return slave_rpc_request_only(slave, pkgname, packet, 0);
 }
 
-int instance_client_pd_created(struct inst_info *inst, int status)
+HAPI int instance_client_pd_created(struct inst_info *inst, int status)
 {
 	struct packet *packet;
 	const char *buf_id;
@@ -2233,7 +2233,7 @@ int instance_client_pd_created(struct inst_info *inst, int status)
 	return CLIENT_SEND_EVENT(inst, packet);
 }
 
-int instance_client_pd_destroyed(struct inst_info *inst, int status)
+HAPI int instance_client_pd_destroyed(struct inst_info *inst, int status)
 {
 	if (!inst->pd.need_to_send_close_event) {
 		DbgPrint("PD is not created\n");
@@ -2245,7 +2245,7 @@ int instance_client_pd_destroyed(struct inst_info *inst, int status)
 	return send_pd_destroyed_to_client(inst, status);
 }
 
-int instance_add_client(struct inst_info *inst, struct client_node *client)
+HAPI int instance_add_client(struct inst_info *inst, struct client_node *client)
 {
 	if (inst->client == client) {
 		ErrPrint("Owner cannot be the viewer\n");
@@ -2263,7 +2263,7 @@ int instance_add_client(struct inst_info *inst, struct client_node *client)
 	return 0;
 }
 
-int instance_del_client(struct inst_info *inst, struct client_node *client)
+HAPI int instance_del_client(struct inst_info *inst, struct client_node *client)
 {
 	if (inst->client == client) {
 		ErrPrint("Owner is not in the viewer list\n");
@@ -2275,12 +2275,12 @@ int instance_del_client(struct inst_info *inst, struct client_node *client)
 	return 0;
 }
 
-int instance_has_client(struct inst_info *inst, struct client_node *client)
+HAPI int instance_has_client(struct inst_info *inst, struct client_node *client)
 {
 	return !!eina_list_data_find(inst->client_list, client);
 }
 
-void *instance_client_list(struct inst_info *inst)
+HAPI void *instance_client_list(struct inst_info *inst)
 {
 	return inst->client_list;
 }

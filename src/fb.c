@@ -19,12 +19,12 @@ struct fb_info {
 	struct buffer_info *buffer;
 };
 
-int fb_init(void)
+HAPI int fb_init(void)
 {
 	return 0;
 }
 
-int fb_fini(void)
+HAPI int fb_fini(void)
 {
 	return 0;
 }
@@ -58,7 +58,7 @@ static void free_fb(void *data, void *ptr)
 	(void)buffer_handler_unload(info->buffer);
 }
 
-struct fb_info *fb_create(struct inst_info *inst, int w, int h, enum buffer_type type)
+HAPI struct fb_info *fb_create(struct inst_info *inst, int w, int h, enum buffer_type type)
 {
 	struct fb_info *info;
 
@@ -89,7 +89,7 @@ static void render_post_cb(void *data, Evas *e, void *event_info)
 	fb_pixmap_render_post(data);
 }
 
-int fb_create_buffer(struct fb_info *info)
+HAPI int fb_create_buffer(struct fb_info *info)
 {
 	int ow;
 	int oh;
@@ -143,7 +143,7 @@ int fb_create_buffer(struct fb_info *info)
 	return 0;
 }
 
-int fb_destroy_buffer(struct fb_info *info)
+HAPI int fb_destroy_buffer(struct fb_info *info)
 {
 	if (!info->ee) {
 		ErrPrint("EE is not exists (Maybe ZERO byte ee?)\n");
@@ -164,24 +164,24 @@ int fb_destroy_buffer(struct fb_info *info)
 	return 0;
 }
 
-int fb_destroy(struct fb_info *info)
+HAPI int fb_destroy(struct fb_info *info)
 {
 	fb_destroy_buffer(info);
 	DbgFree(info);
 	return 0;
 }
 
-Ecore_Evas * const fb_canvas(struct fb_info *info)
+HAPI Ecore_Evas * const fb_canvas(struct fb_info *info)
 {
 	return info->ee;
 }
 
-const char *fb_id(struct fb_info *fb)
+HAPI const char *fb_id(struct fb_info *fb)
 {
 	return fb ? buffer_handler_id(fb->buffer) : "";
 }
 
-int fb_resize(struct fb_info *info, int w, int h)
+HAPI int fb_resize(struct fb_info *info, int w, int h)
 {
 	buffer_handler_update_size(info->buffer, w, h);
 
@@ -197,17 +197,17 @@ int fb_resize(struct fb_info *info, int w, int h)
 	return 0;
 }
 
-int fb_get_size(struct fb_info *info, int *w, int *h)
+HAPI int fb_get_size(struct fb_info *info, int *w, int *h)
 {
 	return buffer_handler_get_size(info->buffer, w, h);
 }
 
-void fb_sync(struct fb_info *info)
+HAPI void fb_sync(struct fb_info *info)
 {
 	buffer_handler_flush(info->buffer);
 }
 
-void *fb_pixmap_render_pre(struct fb_info *info)
+HAPI void *fb_pixmap_render_pre(struct fb_info *info)
 {
 	void *canvas;
 	canvas = buffer_handler_pixmap_acquire_buffer(info->buffer);
@@ -215,7 +215,7 @@ void *fb_pixmap_render_pre(struct fb_info *info)
 	return canvas;
 }
 
-int fb_pixmap_render_post(struct fb_info *info)
+HAPI int fb_pixmap_render_post(struct fb_info *info)
 {
 	void *canvas;
 

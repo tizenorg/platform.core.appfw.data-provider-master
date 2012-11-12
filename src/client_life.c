@@ -185,7 +185,7 @@ static Eina_Bool created_cb(void *data)
 	return ECORE_CALLBACK_CANCEL;
 }
 
-struct client_node *client_create(pid_t pid, int handle)
+HAPI struct client_node *client_create(pid_t pid, int handle)
 {
 	struct client_node *client;
 	int ret;
@@ -219,13 +219,13 @@ struct client_node *client_create(pid_t pid, int handle)
 	return client;
 }
 
-int client_destroy(struct client_node *client)
+HAPI int client_destroy(struct client_node *client)
 {
 	client_unref(client);
 	return 0;
 }
 
-struct client_node *client_ref(struct client_node *client)
+HAPI struct client_node *client_ref(struct client_node *client)
 {
 	if (!client)
 		return NULL;
@@ -234,7 +234,7 @@ struct client_node *client_ref(struct client_node *client)
 	return client;
 }
 
-struct client_node *client_unref(struct client_node *client)
+HAPI struct client_node *client_unref(struct client_node *client)
 {
 	if (!client)
 		return NULL;
@@ -253,17 +253,17 @@ struct client_node *client_unref(struct client_node *client)
 	return client;
 }
 
-const int const client_refcnt(const struct client_node *client)
+HAPI const int const client_refcnt(const struct client_node *client)
 {
 	return client->refcnt;
 }
 
-const pid_t const client_pid(const struct client_node *client)
+HAPI const pid_t const client_pid(const struct client_node *client)
 {
 	return client ? client->pid : (pid_t)-1;
 }
 
-struct client_node *client_find_by_pid(pid_t pid)
+HAPI struct client_node *client_find_by_pid(pid_t pid)
 {
 	Eina_List *l;
 	struct client_node *client;
@@ -276,7 +276,7 @@ struct client_node *client_find_by_pid(pid_t pid)
 	return NULL;
 }
 
-struct client_node *client_find_by_rpc_handle(int handle)
+HAPI struct client_node *client_find_by_rpc_handle(int handle)
 {
 	Eina_List *l;
 	struct client_node *client;
@@ -294,18 +294,18 @@ struct client_node *client_find_by_rpc_handle(int handle)
 	return NULL;
 }
 
-const int const client_count_paused(void)
+HAPI const int const client_count_paused(void)
 {
 	return s_info.nr_of_paused_clients;
 }
 
-int client_is_all_paused(void)
+HAPI int client_is_all_paused(void)
 {
 	DbgPrint("%d, %d\n", eina_list_count(s_info.client_list), s_info.nr_of_paused_clients);
 	return eina_list_count(s_info.client_list) == s_info.nr_of_paused_clients;
 }
 
-int client_count(void)
+HAPI int client_count(void)
 {
 	return eina_list_count(s_info.client_list);
 }
@@ -330,7 +330,7 @@ static inline void invoke_deactivated_cb(struct client_node *client)
 	client_unref(client);
 }
 
-int client_deactivated_by_fault(struct client_node *client)
+HAPI int client_deactivated_by_fault(struct client_node *client)
 {
 	if (!client || client->faulted)
 		return 0;
@@ -353,7 +353,7 @@ int client_deactivated_by_fault(struct client_node *client)
 	return 0;
 }
 
-const int const client_is_faulted(const struct client_node *client)
+HAPI const int const client_is_faulted(const struct client_node *client)
 {
 	/*!
 	 * \note
@@ -362,13 +362,13 @@ const int const client_is_faulted(const struct client_node *client)
 	return client ? client->faulted : 1;
 }
 
-void client_reset_fault(struct client_node *client)
+HAPI void client_reset_fault(struct client_node *client)
 {
 	if (client)
 		client->faulted = 0;
 }
 
-int client_event_callback_add(struct client_node *client, enum client_event event, int (*cb)(struct client_node *, void *), void *data)
+HAPI int client_event_callback_add(struct client_node *client, enum client_event event, int (*cb)(struct client_node *, void *), void *data)
 {
 	struct event_item *item;
 
@@ -419,7 +419,7 @@ int client_event_callback_add(struct client_node *client, enum client_event even
 	return 0;
 }
 
-int client_event_callback_del(struct client_node *client, enum client_event event, int (*cb)(struct client_node *, void *), void *data)
+HAPI int client_event_callback_del(struct client_node *client, enum client_event event, int (*cb)(struct client_node *, void *), void *data)
 {
 	struct event_item *item;
 	Eina_List *l;
@@ -459,7 +459,7 @@ int client_event_callback_del(struct client_node *client, enum client_event even
 	return -ENOENT;
 }
 
-int client_set_data(struct client_node *client, const char *tag, void *data)
+HAPI int client_set_data(struct client_node *client, const char *tag, void *data)
 {
 	struct data_item *item;
 
@@ -482,7 +482,7 @@ int client_set_data(struct client_node *client, const char *tag, void *data)
 	return 0;
 }
 
-void *client_data(struct client_node *client, const char *tag)
+HAPI void *client_data(struct client_node *client, const char *tag)
 {
 	Eina_List *l;
 	struct data_item *item;
@@ -495,7 +495,7 @@ void *client_data(struct client_node *client, const char *tag)
 	return NULL;
 }
 
-void *client_del_data(struct client_node *client, const char *tag)
+HAPI void *client_del_data(struct client_node *client, const char *tag)
 {
 	Eina_List *l;
 	Eina_List *n;
@@ -515,7 +515,7 @@ void *client_del_data(struct client_node *client, const char *tag)
 	return NULL;
 }
 
-void client_paused(struct client_node *client)
+HAPI void client_paused(struct client_node *client)
 {
 	if (client->paused)
 		return;
@@ -524,7 +524,7 @@ void client_paused(struct client_node *client)
 	s_info.nr_of_paused_clients++;
 }
 
-void client_resumed(struct client_node *client)
+HAPI void client_resumed(struct client_node *client)
 {
 	if (client->paused == 0)
 		return;
@@ -533,12 +533,12 @@ void client_resumed(struct client_node *client)
 	s_info.nr_of_paused_clients--;
 }
 
-int client_init(void)
+HAPI int client_init(void)
 {
 	return 0;
 }
 
-int client_fini(void)
+HAPI int client_fini(void)
 {
 	struct global_event_handler *handler;
 	struct client_node *client;
@@ -560,12 +560,12 @@ int client_fini(void)
 	return 0;
 }
 
-const int const client_is_activated(const struct client_node *client)
+HAPI const int const client_is_activated(const struct client_node *client)
 {
 	return client ? (client->pid != (pid_t)-1) : 1;
 }
 
-int client_global_event_handler_add(enum client_global_event event_type, int (*cb)(struct client_node *client, void *data), void *data)
+HAPI int client_global_event_handler_add(enum client_global_event event_type, int (*cb)(struct client_node *client, void *data), void *data)
 {
 	struct global_event_handler *handler;
 
@@ -593,7 +593,7 @@ int client_global_event_handler_add(enum client_global_event event_type, int (*c
 	return 0;
 }
 
-int client_global_event_handler_del(enum client_global_event event_type, int (*cb)(struct client_node *, void *), void *data)
+HAPI int client_global_event_handler_del(enum client_global_event event_type, int (*cb)(struct client_node *, void *), void *data)
 {
 	Eina_List *l;
 	Eina_List *n;
@@ -625,7 +625,7 @@ int client_global_event_handler_del(enum client_global_event event_type, int (*c
 	return -ENOENT;
 }
 
-int client_subscribe(struct client_node *client, const char *cluster, const char *category)
+HAPI int client_subscribe(struct client_node *client, const char *cluster, const char *category)
 {
 	struct subscribe_item *item;
 
@@ -654,7 +654,7 @@ int client_subscribe(struct client_node *client, const char *cluster, const char
 	return 0;
 }
 
-int client_unsubscribe(struct client_node *client, const char *cluster, const char *category)
+HAPI int client_unsubscribe(struct client_node *client, const char *cluster, const char *category)
 {
 	struct subscribe_item *item;
 	Eina_List *l;
@@ -673,7 +673,7 @@ int client_unsubscribe(struct client_node *client, const char *cluster, const ch
 	return -ENOENT;
 }
 
-int client_is_subscribed(struct client_node *client, const char *cluster, const char *category)
+HAPI int client_is_subscribed(struct client_node *client, const char *cluster, const char *category)
 {
 	struct subscribe_item *item;
 	Eina_List *l;
@@ -695,7 +695,7 @@ int client_is_subscribed(struct client_node *client, const char *cluster, const 
 	return 0;
 }
 
-int client_browse_list(const char *cluster, const char *category, int (*cb)(struct client_node *client, void *data), void *data)
+HAPI int client_browse_list(const char *cluster, const char *category, int (*cb)(struct client_node *client, void *data), void *data)
 {
 	Eina_List *l;
 	struct client_node *client;
@@ -716,7 +716,7 @@ int client_browse_list(const char *cluster, const char *category, int (*cb)(stru
 	return cnt;
 }
 
-int client_nr_of_subscriber(const char *cluster, const char *category)
+HAPI int client_nr_of_subscriber(const char *cluster, const char *category)
 {
 	Eina_List *l;
 	struct client_node *client;
@@ -730,7 +730,7 @@ int client_nr_of_subscriber(const char *cluster, const char *category)
 	return cnt;
 }
 
-int client_broadcast(struct inst_info *inst, struct packet *packet)
+HAPI int client_broadcast(struct inst_info *inst, struct packet *packet)
 {
 	Eina_List *l;
 	Eina_List *list;

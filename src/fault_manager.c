@@ -34,7 +34,7 @@ struct fault_info {
 	char *func;
 };
 
-int const fault_is_occured(void)
+HAPI int const fault_is_occured(void)
 {
 	return s_info.fault_mark_count;
 }
@@ -90,7 +90,7 @@ static char *check_log_file(struct slave_node *slave)
 	return strdup(ptr);
 }
 
-void fault_unicast_info(struct client_node *client, const char *pkgname, const char *filename, const char *func)
+HAPI void fault_unicast_info(struct client_node *client, const char *pkgname, const char *filename, const char *func)
 {
 	struct packet *packet;
 
@@ -105,7 +105,7 @@ void fault_unicast_info(struct client_node *client, const char *pkgname, const c
 	DbgPrint("Fault package: %s\n", pkgname);
 }
 
-void fault_broadcast_info(const char *pkgname, const char *filename, const char *func)
+HAPI void fault_broadcast_info(const char *pkgname, const char *filename, const char *func)
 {
 	struct packet *packet;
 
@@ -128,7 +128,7 @@ static inline void dump_fault_info(const char *name, pid_t pid, const char *pkgn
 	ErrPrint("Funcname: %s\n", funcname);
 }
 
-int fault_check_pkgs(struct slave_node *slave)
+HAPI int fault_check_pkgs(struct slave_node *slave)
 {
 	struct fault_info *info;
 	struct pkg_info *pkg;
@@ -223,7 +223,7 @@ int fault_check_pkgs(struct slave_node *slave)
 	return 0;
 }
 
-int fault_func_call(struct slave_node *slave, const char *pkgname, const char *filename, const char *func)
+HAPI int fault_func_call(struct slave_node *slave, const char *pkgname, const char *filename, const char *func)
 {
 	struct fault_info *info;
 
@@ -262,7 +262,7 @@ int fault_func_call(struct slave_node *slave, const char *pkgname, const char *f
 	return 0;
 }
 
-int fault_func_ret(struct slave_node *slave, const char *pkgname, const char *filename, const char *func)
+HAPI int fault_func_ret(struct slave_node *slave, const char *pkgname, const char *filename, const char *func)
 {
 	struct fault_info *info;
 	Eina_List *l;

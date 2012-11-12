@@ -135,5 +135,6 @@ extern int conf_loader(void);
 #define SYS_CLUSTER_KEY		g_conf.vconf_sys_cluster
 
 #define MAX_PENDED_CTX_EVENTS	g_conf.max_pended_ctx_events
+#define HAPI __attribute__((visibility("hidden")))
 
 /* End of a file */

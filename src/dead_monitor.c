@@ -13,6 +13,7 @@
 #include "util.h"
 #include "debug.h"
 #include "liveinfo.h"
+#include "conf.h"
 
 static int evt_cb(int handle, void *data)
 {
@@ -54,14 +55,14 @@ static int evt_cb(int handle, void *data)
 	return 0;
 }
 
-int dead_init(void)
+HAPI int dead_init(void)
 {
 	com_core_add_event_callback(CONNECTOR_DISCONNECTED, evt_cb, NULL);
 //	aul_listen_app_dead_signal(dead_cb, NULL);
 	return 0;
 }
 
-int dead_fini(void)
+HAPI int dead_fini(void)
 {
 	com_core_del_event_callback(CONNECTOR_DISCONNECTED, evt_cb, NULL);
 	return 0;

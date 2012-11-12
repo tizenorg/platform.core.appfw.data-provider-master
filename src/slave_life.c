@@ -241,7 +241,7 @@ static inline struct slave_node *find_slave(const char *name)
 	return NULL;
 }
 
-int slave_expired_ttl(struct slave_node *slave)
+HAPI int slave_expired_ttl(struct slave_node *slave)
 {
 	if (!slave)
 		return 0;
@@ -252,7 +252,7 @@ int slave_expired_ttl(struct slave_node *slave)
 	return !!slave->ttl_timer;
 }
 
-struct slave_node *slave_ref(struct slave_node *slave)
+HAPI struct slave_node *slave_ref(struct slave_node *slave)
 {
 	if (!slave)
 		return NULL;
@@ -261,7 +261,7 @@ struct slave_node *slave_ref(struct slave_node *slave)
 	return slave;
 }
 
-struct slave_node *slave_unref(struct slave_node *slave)
+HAPI struct slave_node *slave_unref(struct slave_node *slave)
 {
 	if (!slave)
 		return NULL;
@@ -280,12 +280,12 @@ struct slave_node *slave_unref(struct slave_node *slave)
 	return slave;
 }
 
-const int const slave_refcnt(struct slave_node *slave)
+HAPI const int const slave_refcnt(struct slave_node *slave)
 {
 	return slave->refcnt;
 }
 
-struct slave_node *slave_create(const char *name, int is_secured, const char *abi, const char *pkgname)
+HAPI struct slave_node *slave_create(const char *name, int is_secured, const char *abi, const char *pkgname)
 {
 	struct slave_node *slave;
 
@@ -311,7 +311,7 @@ struct slave_node *slave_create(const char *name, int is_secured, const char *ab
  * Before destroying slave object,
  * you should check the RPC(slave_async_XXX) state and Private data field (slave_set_data)
  */
-void slave_destroy(struct slave_node *slave)
+HAPI void slave_destroy(struct slave_node *slave)
 {
 	slave_unref(slave);
 }
@@ -352,7 +352,7 @@ static inline void invoke_activate_cb(struct slave_node *slave)
 	}
 }
 
-int slave_activate(struct slave_node *slave)
+HAPI int slave_activate(struct slave_node *slave)
 {
 	bundle *param;
 
@@ -399,7 +399,7 @@ int slave_activate(struct slave_node *slave)
 	return 0;
 }
 
-int slave_give_more_ttl(struct slave_node *slave)
+HAPI int slave_give_more_ttl(struct slave_node *slave)
 {
 	double delay;
 
@@ -411,7 +411,7 @@ int slave_give_more_ttl(struct slave_node *slave)
 	return 0;
 }
 
-int slave_freeze_ttl(struct slave_node *slave)
+HAPI int slave_freeze_ttl(struct slave_node *slave)
 {
 	if (!slave->secured || !slave->ttl_timer)
 		return -EINVAL;
@@ -420,7 +420,7 @@ int slave_freeze_ttl(struct slave_node *slave)
 	return 0;
 }
 
-int slave_thaw_ttl(struct slave_node *slave)
+HAPI int slave_thaw_ttl(struct slave_node *slave)
 {
 	double delay;
 
@@ -434,7 +434,7 @@ int slave_thaw_ttl(struct slave_node *slave)
 	return 0;
 }
 
-int slave_activated(struct slave_node *slave)
+HAPI int slave_activated(struct slave_node *slave)
 {
 	slave->state = SLAVE_RESUMED;
 
@@ -481,7 +481,7 @@ static inline int invoke_deactivate_cb(struct slave_node *slave)
 	return reactivate;
 }
 
-struct slave_node *slave_deactivate(struct slave_node *slave)
+HAPI struct slave_node *slave_deactivate(struct slave_node *slave)
 {
 	int ret;
 
@@ -517,7 +517,7 @@ struct slave_node *slave_deactivate(struct slave_node *slave)
 	return slave;
 }
 
-struct slave_node *slave_deactivated(struct slave_node *slave)
+HAPI struct slave_node *slave_deactivated(struct slave_node *slave)
 {
 	int reactivate;
 
@@ -555,7 +555,7 @@ struct slave_node *slave_deactivated(struct slave_node *slave)
 	return slave;
 }
 
-struct slave_node *slave_deactivated_by_fault(struct slave_node *slave)
+HAPI struct slave_node *slave_deactivated_by_fault(struct slave_node *slave)
 {
 	int ret;
 	struct timeval faulted_at;
@@ -613,7 +613,7 @@ struct slave_node *slave_deactivated_by_fault(struct slave_node *slave)
 	return slave;
 }
 
-const int const slave_is_activated(struct slave_node *slave)
+HAPI const int const slave_is_activated(struct slave_node *slave)
 {
 	switch (slave->state) {
 	case SLAVE_REQUEST_TO_LAUNCH:
@@ -633,7 +633,7 @@ const int const slave_is_activated(struct slave_node *slave)
 	return 0;
 }
 
-int slave_event_callback_add(struct slave_node *slave, enum slave_event event, int (*cb)(struct slave_node *, void *), void *data)
+HAPI int slave_event_callback_add(struct slave_node *slave, enum slave_event event, int (*cb)(struct slave_node *, void *), void *data)
 {
 	struct event *ev;
 
@@ -692,7 +692,7 @@ int slave_event_callback_add(struct slave_node *slave, enum slave_event event, i
 	return 0;
 }
 
-int slave_event_callback_del(struct slave_node *slave, enum slave_event event, int (*cb)(struct slave_node *, void *), void *data)
+HAPI int slave_event_callback_del(struct slave_node *slave, enum slave_event event, int (*cb)(struct slave_node *, void *), void *data)
 {
 	struct event *ev;
 	Eina_List *l;
@@ -760,7 +760,7 @@ int slave_event_callback_del(struct slave_node *slave, enum slave_event event, i
 	return -ENOENT;
 }
 
-int slave_set_data(struct slave_node *slave, const char *tag, void *data)
+HAPI int slave_set_data(struct slave_node *slave, const char *tag, void *data)
 {
 	struct priv_data *priv;
 
@@ -782,7 +782,7 @@ int slave_set_data(struct slave_node *slave, const char *tag, void *data)
 	return 0;
 }
 
-void *slave_del_data(struct slave_node *slave, const char *tag)
+HAPI void *slave_del_data(struct slave_node *slave, const char *tag)
 {
 	struct priv_data *priv;
 	void *data;
@@ -803,7 +803,7 @@ void *slave_del_data(struct slave_node *slave, const char *tag)
 	return NULL;
 }
 
-void *slave_data(struct slave_node *slave, const char *tag)
+HAPI void *slave_data(struct slave_node *slave, const char *tag)
 {
 	struct priv_data *priv;
 	Eina_List *l;
@@ -816,7 +816,7 @@ void *slave_data(struct slave_node *slave, const char *tag)
 	return NULL;
 }
 
-struct slave_node *slave_find_by_pid(pid_t pid)
+HAPI struct slave_node *slave_find_by_pid(pid_t pid)
 {
 	Eina_List *l;
 	struct slave_node *slave;
@@ -829,7 +829,7 @@ struct slave_node *slave_find_by_pid(pid_t pid)
 	return NULL;
 }
 
-struct slave_node *slave_find_by_name(const char *name)
+HAPI struct slave_node *slave_find_by_name(const char *name)
 {
 	Eina_List *l;
 	struct slave_node *slave;
@@ -842,7 +842,7 @@ struct slave_node *slave_find_by_name(const char *name)
 	return NULL;
 }
 
-struct slave_node *slave_find_available(const char *abi, int secured)
+HAPI struct slave_node *slave_find_available(const char *abi, int secured)
 {
 	Eina_List *l;
 	struct slave_node *slave;
@@ -885,7 +885,7 @@ struct slave_node *slave_find_available(const char *abi, int secured)
 	return NULL;
 }
 
-struct slave_node *slave_find_by_pkgname(const char *pkgname)
+HAPI struct slave_node *slave_find_by_pkgname(const char *pkgname)
 {
 	Eina_List *l;
 	struct slave_node *slave;
@@ -901,7 +901,7 @@ struct slave_node *slave_find_by_pkgname(const char *pkgname)
 	return NULL;
 }
 
-struct slave_node *slave_find_by_rpc_handle(int handle)
+HAPI struct slave_node *slave_find_by_rpc_handle(int handle)
 {
 	Eina_List *l;
 	struct slave_node *slave;
@@ -920,12 +920,12 @@ struct slave_node *slave_find_by_rpc_handle(int handle)
 	return NULL;
 }
 
-void slave_load_package(struct slave_node *slave)
+HAPI void slave_load_package(struct slave_node *slave)
 {
 	slave->loaded_package++;
 }
 
-void slave_unload_package(struct slave_node *slave)
+HAPI void slave_unload_package(struct slave_node *slave)
 {
 	if (!slave || slave->loaded_package == 0) {
 		ErrPrint("Slave loaded package is not correct\n");
@@ -935,23 +935,23 @@ void slave_unload_package(struct slave_node *slave)
 	slave->loaded_package--;
 }
 
-void slave_load_instance(struct slave_node *slave)
+HAPI void slave_load_instance(struct slave_node *slave)
 {
 	slave->loaded_instance++;
 	DbgPrint("Instance: (%d)%d\n", slave->pid, slave->loaded_instance);
 }
 
-int const slave_loaded_instance(struct slave_node *slave)
+HAPI int const slave_loaded_instance(struct slave_node *slave)
 {
 	return slave->loaded_instance;
 }
 
-int const slave_loaded_package(struct slave_node *slave)
+HAPI int const slave_loaded_package(struct slave_node *slave)
 {
 	return slave->loaded_package;
 }
 
-struct slave_node *slave_unload_instance(struct slave_node *slave)
+HAPI struct slave_node *slave_unload_instance(struct slave_node *slave)
 {
 	if (!slave || slave->loaded_instance == 0) {
 		ErrPrint("Slave loaded instance is not correct\n");
@@ -970,27 +970,27 @@ struct slave_node *slave_unload_instance(struct slave_node *slave)
 	return slave;
 }
 
-const int const slave_is_secured(const struct slave_node *slave)
+HAPI const int const slave_is_secured(const struct slave_node *slave)
 {
 	return slave->secured;
 }
 
-const char * const slave_name(const struct slave_node *slave)
+HAPI const char * const slave_name(const struct slave_node *slave)
 {
 	return slave->name;
 }
 
-const char * const slave_abi(const struct slave_node *slave)
+HAPI const char * const slave_abi(const struct slave_node *slave)
 {
 	return slave->abi;
 }
 
-const pid_t const slave_pid(const struct slave_node *slave)
+HAPI const pid_t const slave_pid(const struct slave_node *slave)
 {
 	return slave->pid;
 }
 
-int slave_set_pid(struct slave_node *slave, pid_t pid)
+HAPI int slave_set_pid(struct slave_node *slave, pid_t pid)
 {
 	if (!slave)
 		return -EINVAL;
@@ -1091,7 +1091,7 @@ static void pause_cb(struct slave_node *slave, const struct packet *packet, void
 	}
 }
 
-int slave_resume(struct slave_node *slave)
+HAPI int slave_resume(struct slave_node *slave)
 {
 	double timestamp;
 	struct packet *packet;
@@ -1120,7 +1120,7 @@ int slave_resume(struct slave_node *slave)
 	return slave_rpc_async_request(slave, NULL, packet, resume_cb, NULL, 0);
 }
 
-int slave_pause(struct slave_node *slave)
+HAPI int slave_pause(struct slave_node *slave)
 {
 	double timestamp;
 	struct packet *packet;
@@ -1149,17 +1149,17 @@ int slave_pause(struct slave_node *slave)
 	return slave_rpc_async_request(slave, NULL, packet, pause_cb, NULL, 0);
 }
 
-const char *slave_pkgname(const struct slave_node *slave)
+HAPI const char *slave_pkgname(const struct slave_node *slave)
 {
 	return slave ? slave->pkgname : NULL;
 }
 
-enum slave_state slave_state(const struct slave_node *slave)
+HAPI enum slave_state slave_state(const struct slave_node *slave)
 {
 	return slave ? slave->state : SLAVE_ERROR;
 }
 
-const char *slave_state_string(const struct slave_node *slave)
+HAPI const char *slave_state_string(const struct slave_node *slave)
 {
 	switch (slave->state) {
 	case SLAVE_REQUEST_TO_LAUNCH:
@@ -1185,17 +1185,17 @@ const char *slave_state_string(const struct slave_node *slave)
 	return "Unknown";
 }
 
-const void *slave_list(void)
+HAPI const void *slave_list(void)
 {
 	return s_info.slave_list;
 }
 
-int const slave_fault_count(const struct slave_node *slave)
+HAPI int const slave_fault_count(const struct slave_node *slave)
 {
 	return slave->fault_count;
 }
 
-double const slave_ttl(const struct slave_node *slave)
+HAPI double const slave_ttl(const struct slave_node *slave)
 {
 	if (!slave->ttl_timer)
 		return 0.0f;
@@ -1203,22 +1203,22 @@ double const slave_ttl(const struct slave_node *slave)
 	return ecore_timer_pending_get(slave->ttl_timer);
 }
 
-void slave_set_reactivate_instances(struct slave_node *slave, int reactivate)
+HAPI void slave_set_reactivate_instances(struct slave_node *slave, int reactivate)
 {
 	slave->reactivate_instances = reactivate;
 }
 
-int slave_need_to_reactivate_instances(struct slave_node *slave)
+HAPI int slave_need_to_reactivate_instances(struct slave_node *slave)
 {
 	return slave->reactivate_instances;
 }
 
-void slave_set_reactivation(struct slave_node *slave, int flag)
+HAPI void slave_set_reactivation(struct slave_node *slave, int flag)
 {
 	slave->reactivate_slave = flag;
 }
 
-int slave_need_to_reactivate(struct slave_node *slave)
+HAPI int slave_need_to_reactivate(struct slave_node *slave)
 {
 	return slave->reactivate_slave;
 }

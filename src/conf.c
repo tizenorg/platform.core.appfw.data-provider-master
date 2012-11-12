@@ -28,7 +28,7 @@
 #include "util.h"
 #include "debug.h"
 
-struct conf g_conf = {
+HAPI struct conf g_conf = {
 	.width = 0,
 	.height = 0,
 
@@ -241,7 +241,7 @@ static void max_pended_ctx_event_handler(char *buffer)
 		ErrPrint("Failed to parse the max_pended_ctx_events\n");
 }
 
-int conf_loader(void)
+HAPI int conf_loader(void)
 {
 	FILE *fp;
 	int c;

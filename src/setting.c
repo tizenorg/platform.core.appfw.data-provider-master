@@ -17,6 +17,7 @@
 #include "slave_life.h"
 #include "critical_log.h"
 #include "xmonitor.h"
+#include "conf.h"
 
 int errno;
 
@@ -34,7 +35,7 @@ static void lcd_state_cb(keynode_t *node, void *user_data)
 	xmonitor_handle_state_changes();
 }
 
-int setting_is_lcd_off(void)
+HAPI int setting_is_lcd_off(void)
 {
 	int state;
 
@@ -56,7 +57,7 @@ static void power_off_cb(void *data)
 	exit(0);
 }
 
-int setting_init(void)
+HAPI int setting_init(void)
 {
 	int ret;
 
@@ -81,7 +82,7 @@ int setting_init(void)
 	return ret;
 }
 
-int setting_fini(void)
+HAPI int setting_fini(void)
 {
 	int ret;
 	ret = vconf_ignore_key_changed(VCONFKEY_PM_STATE, lcd_state_cb);

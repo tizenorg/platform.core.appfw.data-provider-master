@@ -7,6 +7,7 @@
 
 #include "util.h"
 #include "debug.h"
+#include "conf.h"
 
 int errno;
 
@@ -21,7 +22,7 @@ static struct {
 	.list = NULL,
 };
 
-int abi_add_entry(const char *abi, const char *pkgname)
+HAPI int abi_add_entry(const char *abi, const char *pkgname)
 {
 	struct item *item;
 
@@ -50,7 +51,7 @@ int abi_add_entry(const char *abi, const char *pkgname)
 	return 0;
 }
 
-int abi_update_entry(const char *abi, const char *pkgname)
+HAPI int abi_update_entry(const char *abi, const char *pkgname)
 {
 	Eina_List *l;
 	Eina_List *n;
@@ -75,7 +76,7 @@ int abi_update_entry(const char *abi, const char *pkgname)
 	return -ENOENT;
 }
 
-int abi_del_entry(const char *abi)
+HAPI int abi_del_entry(const char *abi)
 {
 	Eina_List *l;
 	Eina_List *n;
@@ -94,7 +95,7 @@ int abi_del_entry(const char *abi)
 	return -ENOENT;
 }
 
-int abi_del_all(void)
+HAPI int abi_del_all(void)
 {
 	struct item *item;
 
@@ -107,7 +108,7 @@ int abi_del_all(void)
 	return 0;
 }
 
-const char *abi_find_slave(const char *abi)
+HAPI const char *abi_find_slave(const char *abi)
 {
 	Eina_List *l;
 	struct item *item;
@@ -120,7 +121,7 @@ const char *abi_find_slave(const char *abi)
 	return NULL;
 }
 
-const char *abi_find_by_pkgname(const char *pkgname)
+HAPI const char *abi_find_by_pkgname(const char *pkgname)
 {
 	Eina_List *l;
 	struct item *item;

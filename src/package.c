@@ -405,7 +405,7 @@ static inline int load_conf(struct pkg_info *info)
 	return 0;
 }
 
-struct pkg_info *package_create(const char *pkgname)
+HAPI struct pkg_info *package_create(const char *pkgname)
 {
 	struct pkg_info *pkginfo;
 	Eina_List *l;
@@ -455,23 +455,23 @@ struct pkg_info *package_create(const char *pkgname)
 	return pkginfo;
 }
 
-int package_destroy(struct pkg_info *info)
+HAPI int package_destroy(struct pkg_info *info)
 {
 	package_unref(info);
 	return 0;
 }
 
-Eina_List *package_ctx_info(struct pkg_info *pkginfo)
+HAPI Eina_List *package_ctx_info(struct pkg_info *pkginfo)
 {
 	return pkginfo->ctx_list;
 }
 
-void package_add_ctx_info(struct pkg_info *pkginfo, struct context_info *info)
+HAPI void package_add_ctx_info(struct pkg_info *pkginfo, struct context_info *info)
 {
 	pkginfo->ctx_list = eina_list_append(pkginfo->ctx_list, info);
 }
 
-char *package_lb_pkgname(const char *pkgname)
+HAPI char *package_lb_pkgname(const char *pkgname)
 {
 	char *lb_pkgname;
 
@@ -490,7 +490,7 @@ char *package_lb_pkgname(const char *pkgname)
 	return lb_pkgname;
 }
 
-int package_is_lb_pkgname(const char *pkgname)
+HAPI int package_is_lb_pkgname(const char *pkgname)
 {
 	char *lb_pkgname;
 	int ret;
@@ -502,7 +502,7 @@ int package_is_lb_pkgname(const char *pkgname)
 	return ret;
 }
 
-struct pkg_info *package_find(const char *pkgname)
+HAPI struct pkg_info *package_find(const char *pkgname)
 {
 	Eina_List *l;
 	struct pkg_info *info;
@@ -518,7 +518,7 @@ struct pkg_info *package_find(const char *pkgname)
 	return NULL;
 }
 
-struct inst_info *package_find_instance_by_id(const char *pkgname, const char *id)
+HAPI struct inst_info *package_find_instance_by_id(const char *pkgname, const char *id)
 {
 	Eina_List *l;
 	struct inst_info *inst;
@@ -538,7 +538,7 @@ struct inst_info *package_find_instance_by_id(const char *pkgname, const char *i
 	return NULL;
 }
 
-struct inst_info *package_find_instance_by_timestamp(const char *pkgname, double timestamp)
+HAPI struct inst_info *package_find_instance_by_timestamp(const char *pkgname, double timestamp)
 {
 	Eina_List *l;
 	struct inst_info *inst;
@@ -558,7 +558,7 @@ struct inst_info *package_find_instance_by_timestamp(const char *pkgname, double
 	return NULL;
 }
 
-int package_dump_fault_info(struct pkg_info *info)
+HAPI int package_dump_fault_info(struct pkg_info *info)
 {
 	if (!info->fault_info)
 		return -ENOENT;
@@ -571,7 +571,7 @@ int package_dump_fault_info(struct pkg_info *info)
 	return 0;
 }
 
-int package_get_fault_info(struct pkg_info *info, double *timestamp, const char **filename, const char **function)
+HAPI int package_get_fault_info(struct pkg_info *info, double *timestamp, const char **filename, const char **function)
 {
 	if (!info->fault_info)
 		return -ENOENT;
@@ -582,7 +582,7 @@ int package_get_fault_info(struct pkg_info *info, double *timestamp, const char 
 	return 0;
 }
 
-int package_set_fault_info(struct pkg_info *info, double timestamp, const char *filename, const char *function)
+HAPI int package_set_fault_info(struct pkg_info *info, double timestamp, const char *filename, const char *function)
 {
 	struct fault_info *fault;
 
@@ -620,7 +620,7 @@ int package_set_fault_info(struct pkg_info *info, double timestamp, const char *
 	return 0;
 }
 
-int package_clear_fault(struct pkg_info *info)
+HAPI int package_clear_fault(struct pkg_info *info)
 {
 	if (!info->fault_info)
 		return -EINVAL;
@@ -634,52 +634,52 @@ int package_clear_fault(struct pkg_info *info)
 	return 0;
 }
 
-const int const package_is_fault(const struct pkg_info *info)
+HAPI const int const package_is_fault(const struct pkg_info *info)
 {
 	return !!info->fault_info;
 }
 
-struct slave_node * const package_slave(const struct pkg_info *info)
+HAPI struct slave_node * const package_slave(const struct pkg_info *info)
 {
 	return info->slave;
 }
 
-const int const package_timeout(const struct pkg_info *info)
+HAPI const int const package_timeout(const struct pkg_info *info)
 {
 	return info->timeout;
 }
 
-void package_set_timeout(struct pkg_info *info, int timeout)
+HAPI void package_set_timeout(struct pkg_info *info, int timeout)
 {
 	info->timeout = timeout;
 }
 
-const double const package_period(const struct pkg_info *info)
+HAPI const double const package_period(const struct pkg_info *info)
 {
 	return info->period;
 }
 
-void package_set_period(struct pkg_info *info, double period)
+HAPI void package_set_period(struct pkg_info *info, double period)
 {
 	info->period = period;
 }
 
-const int const package_secured(const struct pkg_info *info)
+HAPI const int const package_secured(const struct pkg_info *info)
 {
 	return info->secured;
 }
 
-void package_set_secured(struct pkg_info *info, int secured)
+HAPI void package_set_secured(struct pkg_info *info, int secured)
 {
 	info->secured = secured;
 }
 
-const char * const package_script(const struct pkg_info *info)
+HAPI const char * const package_script(const struct pkg_info *info)
 {
 	return info->script;
 }
 
-int package_set_script(struct pkg_info *info, const char *script)
+HAPI int package_set_script(struct pkg_info *info, const char *script)
 {
 	char *tmp;
 
@@ -694,12 +694,12 @@ int package_set_script(struct pkg_info *info, const char *script)
 	return 0;
 }
 
-const char * const package_abi(const struct pkg_info *info)
+HAPI const char * const package_abi(const struct pkg_info *info)
 {
 	return info->abi;
 }
 
-int package_set_abi(struct pkg_info *info, const char *abi)
+HAPI int package_set_abi(struct pkg_info *info, const char *abi)
 {
 	char *tmp;
 	tmp = strdup(abi);
@@ -713,7 +713,7 @@ int package_set_abi(struct pkg_info *info, const char *abi)
 	return 0;
 }
 
-const char * const package_lb_path(const struct pkg_info *info)
+HAPI const char * const package_lb_path(const struct pkg_info *info)
 {
 	if (info->lb.type != LB_TYPE_SCRIPT)
 		return NULL;
@@ -721,7 +721,7 @@ const char * const package_lb_path(const struct pkg_info *info)
 	return info->lb.info.script.path;
 }
 
-int package_set_lb_path(struct pkg_info *info, const char *path)
+HAPI int package_set_lb_path(struct pkg_info *info, const char *path)
 {
 	char *tmp;
 
@@ -739,7 +739,7 @@ int package_set_lb_path(struct pkg_info *info, const char *path)
 	return 0;
 }
 
-const char * const package_lb_group(const struct pkg_info *info)
+HAPI const char * const package_lb_group(const struct pkg_info *info)
 {
 	if (info->lb.type != LB_TYPE_SCRIPT)
 		return NULL;
@@ -747,7 +747,7 @@ const char * const package_lb_group(const struct pkg_info *info)
 	return info->lb.info.script.group;
 }
 
-int package_set_lb_group(struct pkg_info *info, const char *group)
+HAPI int package_set_lb_group(struct pkg_info *info, const char *group)
 {
 	char *tmp;
 
@@ -765,7 +765,7 @@ int package_set_lb_group(struct pkg_info *info, const char *group)
 	return 0;
 }
 
-const char * const package_pd_path(const struct pkg_info *info)
+HAPI const char * const package_pd_path(const struct pkg_info *info)
 {
 	if (info->pd.type != PD_TYPE_SCRIPT)
 		return NULL;
@@ -773,7 +773,7 @@ const char * const package_pd_path(const struct pkg_info *info)
 	return info->pd.info.script.path;
 }
 
-int package_set_pd_path(struct pkg_info *info, const char *path)
+HAPI int package_set_pd_path(struct pkg_info *info, const char *path)
 {
 	char *tmp;
 
@@ -791,7 +791,7 @@ int package_set_pd_path(struct pkg_info *info, const char *path)
 	return 0;
 }
 
-const char * const package_pd_group(const struct pkg_info *info)
+HAPI const char * const package_pd_group(const struct pkg_info *info)
 {
 	if (info->pd.type != PD_TYPE_SCRIPT)
 		return NULL;
@@ -799,7 +799,7 @@ const char * const package_pd_group(const struct pkg_info *info)
 	return info->pd.info.script.group;
 }
 
-int package_set_pd_group(struct pkg_info *info, const char *group)
+HAPI int package_set_pd_group(struct pkg_info *info, const char *group)
 {
 	char *tmp;
 
@@ -817,63 +817,63 @@ int package_set_pd_group(struct pkg_info *info, const char *group)
 	return 0;
 }
 
-const int const package_pinup(const struct pkg_info *info)
+HAPI const int const package_pinup(const struct pkg_info *info)
 {
 	return info->lb.pinup;
 }
 
-void package_set_pinup(struct pkg_info *info, int pinup)
+HAPI void package_set_pinup(struct pkg_info *info, int pinup)
 {
 	info->lb.pinup = pinup;
 }
 
-const int const package_auto_launch(const struct pkg_info *info)
+HAPI const int const package_auto_launch(const struct pkg_info *info)
 {
 	return info->lb.auto_launch;
 }
 
-void package_set_auto_launch(struct pkg_info *info, int auto_launch)
+HAPI void package_set_auto_launch(struct pkg_info *info, int auto_launch)
 {
 	info->lb.auto_launch = auto_launch;
 }
 
-const unsigned int const package_size_list(const struct pkg_info *info)
+HAPI const unsigned int const package_size_list(const struct pkg_info *info)
 {
 	return info->lb.size_list;
 }
 
-void package_set_size_list(struct pkg_info *info, unsigned int size_list)
+HAPI void package_set_size_list(struct pkg_info *info, unsigned int size_list)
 {
 	info->lb.size_list = size_list;
 }
 
-const int const package_pd_width(const struct pkg_info *info)
+HAPI const int const package_pd_width(const struct pkg_info *info)
 {
 	return info->pd.width;
 }
 
-void package_set_pd_width(struct pkg_info *info, int width)
+HAPI void package_set_pd_width(struct pkg_info *info, int width)
 {
 	info->pd.width = width;
 }
 
-const int const package_pd_height(const struct pkg_info *info)
+HAPI const int const package_pd_height(const struct pkg_info *info)
 {
 	return info->pd.height;
 }
 
-void package_set_pd_height(struct pkg_info *info, int height)
+HAPI void package_set_pd_height(struct pkg_info *info, int height)
 {
 	info->pd.height = height;
 }
 
-struct pkg_info * const package_ref(struct pkg_info *info)
+HAPI struct pkg_info * const package_ref(struct pkg_info *info)
 {
 	info->refcnt++;
 	return info;
 }
 
-struct pkg_info * const package_unref(struct pkg_info *info)
+HAPI struct pkg_info * const package_unref(struct pkg_info *info)
 {
 	if (info->refcnt == 0) {
 		ErrPrint("Invalid request\n");
@@ -889,27 +889,27 @@ struct pkg_info * const package_unref(struct pkg_info *info)
 	return info;
 }
 
-const int const package_refcnt(const struct pkg_info *info)
+HAPI const int const package_refcnt(const struct pkg_info *info)
 {
 	return info->refcnt;
 }
 
-const enum lb_type package_lb_type(const struct pkg_info *info)
+HAPI const enum lb_type package_lb_type(const struct pkg_info *info)
 {
 	return info->lb.type;
 }
 
-void package_set_lb_type(struct pkg_info *info, enum lb_type type)
+HAPI void package_set_lb_type(struct pkg_info *info, enum lb_type type)
 {
 	info->lb.type = type;
 }
 
-const char * const package_libexec(struct pkg_info *info)
+HAPI const char * const package_libexec(struct pkg_info *info)
 {
 	return info->libexec;
 }
 
-int package_set_libexec(struct pkg_info *info, const char *libexec)
+HAPI int package_set_libexec(struct pkg_info *info, const char *libexec)
 {
 	char *tmp;
 
@@ -924,27 +924,27 @@ int package_set_libexec(struct pkg_info *info, const char *libexec)
 	return 0;
 }
 
-int package_network(struct pkg_info *info)
+HAPI int package_network(struct pkg_info *info)
 {
 	return info->network;
 }
 
-void package_set_network(struct pkg_info *info, int network)
+HAPI void package_set_network(struct pkg_info *info, int network)
 {
 	info->network = network;
 }
 
-const enum pd_type const package_pd_type(const struct pkg_info *info)
+HAPI const enum pd_type const package_pd_type(const struct pkg_info *info)
 {
 	return info->pd.type;
 }
 
-void package_set_pd_type(struct pkg_info *info, enum pd_type type)
+HAPI void package_set_pd_type(struct pkg_info *info, enum pd_type type)
 {
 	info->pd.type = type;
 }
 
-int package_add_instance(struct pkg_info *info, struct inst_info *inst)
+HAPI int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 {
 	if (!info->inst_list) {
 		info->slave = slave_find_available(info->abi, info->secured);
@@ -1022,7 +1022,7 @@ int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 	return 0;
 }
 
-int package_del_instance(struct pkg_info *info, struct inst_info *inst)
+HAPI int package_del_instance(struct pkg_info *info, struct inst_info *inst)
 {
 	info->inst_list = eina_list_remove(info->inst_list, inst);
 
@@ -1050,7 +1050,7 @@ int package_del_instance(struct pkg_info *info, struct inst_info *inst)
 	return 0;
 }
 
-Eina_List *package_instance_list(struct pkg_info *info)
+HAPI Eina_List *package_instance_list(struct pkg_info *info)
 {
 	return info->inst_list;
 }
@@ -1246,7 +1246,7 @@ static int crawling_liveboxes(const char *pkgname, int prime, void *data)
 	return 0;
 }
 
-int package_init(void)
+HAPI int package_init(void)
 {
 	client_global_event_handler_add(CLIENT_GLOBAL_EVENT_CREATE, client_created_cb, NULL);
 	pkgmgr_init();
@@ -1259,7 +1259,7 @@ int package_init(void)
 	return 0;
 }
 
-int package_fini(void)
+HAPI int package_fini(void)
 {
 	pkgmgr_del_event_callback(PKGMGR_EVENT_INSTALL, install_cb, NULL);
 	pkgmgr_del_event_callback(PKGMGR_EVENT_UNINSTALL, uninstall_cb, NULL);
@@ -1269,7 +1269,7 @@ int package_fini(void)
 	return 0;
 }
 
-const char *package_find_by_secured_slave(struct slave_node *slave)
+HAPI const char *package_find_by_secured_slave(struct slave_node *slave)
 {
 	Eina_List *l;
 	struct pkg_info *info;
@@ -1285,7 +1285,7 @@ const char *package_find_by_secured_slave(struct slave_node *slave)
 	return NULL;
 }
 
-const char * const package_name(const struct pkg_info *info)
+HAPI const char * const package_name(const struct pkg_info *info)
 {
 	return info->pkgname;
 }
@@ -1293,7 +1293,7 @@ const char * const package_name(const struct pkg_info *info)
 /*!
  * del_or_creat : 1 == create, 0 == delete
  */
-int package_alter_instances_to_client(struct client_node *client, enum alter_type alter)
+HAPI int package_alter_instances_to_client(struct client_node *client, enum alter_type alter)
 {
 	struct pkg_info *info;
 	Eina_List *l;
@@ -1365,12 +1365,12 @@ int package_alter_instances_to_client(struct client_node *client, enum alter_typ
 	return 0;
 }
 
-const Eina_List *package_list(void)
+HAPI const Eina_List *package_list(void)
 {
 	return s_info.pkg_list;
 }
 
-int const package_fault_count(struct pkg_info *info)
+HAPI int const package_fault_count(struct pkg_info *info)
 {
 	return info ? info->fault_count : 0;
 }

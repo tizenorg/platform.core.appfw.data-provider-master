@@ -92,7 +92,7 @@ static struct {
 	.pixmap_list = NULL,
 };
 
-struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buffer_type type, int w, int h, int pixel_size)
+HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buffer_type type, int w, int h, int pixel_size)
 {
 	struct buffer_info *info;
 
@@ -471,7 +471,7 @@ static inline int load_pixmap_buffer(struct buffer_info *info)
 	return 0;
 }
 
-int buffer_handler_load(struct buffer_info *info)
+HAPI int buffer_handler_load(struct buffer_info *info)
 {
 	int ret;
 
@@ -603,7 +603,7 @@ static inline int unload_pixmap_buffer(struct buffer_info *info)
 	return 0;
 }
 
-int buffer_handler_unload(struct buffer_info *info)
+HAPI int buffer_handler_unload(struct buffer_info *info)
 {
 	int ret;
 
@@ -639,7 +639,7 @@ int buffer_handler_unload(struct buffer_info *info)
 	return ret;
 }
 
-int buffer_handler_destroy(struct buffer_info *info)
+HAPI int buffer_handler_destroy(struct buffer_info *info)
 {
 	Eina_List *l;
 	struct buffer *buffer;
@@ -660,17 +660,17 @@ int buffer_handler_destroy(struct buffer_info *info)
 	return 0;
 }
 
-const char *buffer_handler_id(const struct buffer_info *info)
+HAPI const char *buffer_handler_id(const struct buffer_info *info)
 {
 	return info ? info->id : "";
 }
 
-enum buffer_type buffer_handler_type(const struct buffer_info *info)
+HAPI enum buffer_type buffer_handler_type(const struct buffer_info *info)
 {
 	return info ? info->type : BUFFER_TYPE_ERROR;
 }
 
-void *buffer_handler_fb(struct buffer_info *info)
+HAPI void *buffer_handler_fb(struct buffer_info *info)
 {
 	struct buffer *buffer;
 
@@ -694,7 +694,7 @@ void *buffer_handler_fb(struct buffer_info *info)
 	return buffer->data;
 }
 
-int buffer_handler_pixmap(const struct buffer_info *info)
+HAPI int buffer_handler_pixmap(const struct buffer_info *info)
 {
 	struct buffer *buf;
 	struct gem_data *gem;
@@ -719,7 +719,7 @@ int buffer_handler_pixmap(const struct buffer_info *info)
 	return gem->pixmap;
 }
 
-void *buffer_handler_pixmap_acquire_buffer(struct buffer_info *info)
+HAPI void *buffer_handler_pixmap_acquire_buffer(struct buffer_info *info)
 {
 	struct buffer *buffer;
 
@@ -735,7 +735,7 @@ void *buffer_handler_pixmap_acquire_buffer(struct buffer_info *info)
 	return acquire_gem(buffer);
 }
 
-void *buffer_handler_pixmap_buffer(struct buffer_info *info)
+HAPI void *buffer_handler_pixmap_buffer(struct buffer_info *info)
 {
 	struct buffer *buffer;
 	struct gem_data *gem;
@@ -759,7 +759,7 @@ void *buffer_handler_pixmap_buffer(struct buffer_info *info)
 /*!
  * \return "buffer" object (Not the buffer_info)
  */
-void *buffer_handler_pixmap_ref(struct buffer_info *info)
+HAPI void *buffer_handler_pixmap_ref(struct buffer_info *info)
 {
 	struct buffer *buffer;
 
@@ -806,7 +806,7 @@ void *buffer_handler_pixmap_ref(struct buffer_info *info)
 /*!
  * \return "buffer"
  */
-void *buffer_handler_pixmap_find(int pixmap)
+HAPI void *buffer_handler_pixmap_find(int pixmap)
 {
 	struct buffer *buffer;
 	struct gem_data *gem;
@@ -831,7 +831,7 @@ void *buffer_handler_pixmap_find(int pixmap)
 	return NULL;
 }
 
-int buffer_handler_pixmap_release_buffer(void *canvas)
+HAPI int buffer_handler_pixmap_release_buffer(void *canvas)
 {
 	struct buffer *buffer;
 	struct gem_data *gem;
@@ -870,7 +870,7 @@ int buffer_handler_pixmap_release_buffer(void *canvas)
  * \return Return NULL if the buffer is in still uses.
  * 	   Return buffer_ptr if it needs to destroy
  */
-int buffer_handler_pixmap_unref(void *buffer_ptr)
+HAPI int buffer_handler_pixmap_unref(void *buffer_ptr)
 {
 	struct buffer *buffer = buffer_ptr;
 	struct buffer_info *info;
@@ -890,12 +890,12 @@ int buffer_handler_pixmap_unref(void *buffer_ptr)
 	return 0;
 }
 
-int buffer_handler_is_loaded(const struct buffer_info *info)
+HAPI int buffer_handler_is_loaded(const struct buffer_info *info)
 {
 	return info ? info->is_loaded : 0;
 }
 
-void buffer_handler_update_size(struct buffer_info *info, int w, int h)
+HAPI void buffer_handler_update_size(struct buffer_info *info, int w, int h)
 {
 	if (!info)
 		return;
@@ -904,7 +904,7 @@ void buffer_handler_update_size(struct buffer_info *info, int w, int h)
 	info->h = h;
 }
 
-int buffer_handler_resize(struct buffer_info *info, int w, int h)
+HAPI int buffer_handler_resize(struct buffer_info *info, int w, int h)
 {
 	int ret;
 
@@ -936,7 +936,7 @@ int buffer_handler_resize(struct buffer_info *info, int w, int h)
 	return 0;
 }
 
-int buffer_handler_get_size(struct buffer_info *info, int *w, int *h)
+HAPI int buffer_handler_get_size(struct buffer_info *info, int *w, int *h)
 {
 	if (!info)
 		return -EINVAL;
@@ -949,7 +949,7 @@ int buffer_handler_get_size(struct buffer_info *info, int *w, int *h)
 	return 0;
 }
 
-struct inst_info *buffer_handler_instance(struct buffer_info *info)
+HAPI struct inst_info *buffer_handler_instance(struct buffer_info *info)
 {
 	return info->inst;
 }
@@ -1056,7 +1056,7 @@ static inline int sync_for_pixmap(struct buffer *buffer)
 	return 0;
 }
 
-void buffer_handler_flush(struct buffer_info *info)
+HAPI void buffer_handler_flush(struct buffer_info *info)
 {
 	int fd;
 	int size;
@@ -1105,7 +1105,7 @@ void buffer_handler_flush(struct buffer_info *info)
 	}
 }
 
-int buffer_handler_init(void)
+HAPI int buffer_handler_init(void)
 {
 	int dri2Major, dri2Minor;
 	char *driverName, *deviceName;
@@ -1173,7 +1173,7 @@ int buffer_handler_init(void)
 	return 0;
 }
 
-int buffer_handler_fini(void)
+HAPI int buffer_handler_fini(void)
 {
 	if (s_info.fd >= 0) {
 		close(s_info.fd);

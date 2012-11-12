@@ -14,7 +14,7 @@
 
 int errno;
 
-unsigned long util_string_hash(const char *str)
+HAPI unsigned long util_string_hash(const char *str)
 {
 	unsigned long ret = 0;
 
@@ -25,7 +25,7 @@ unsigned long util_string_hash(const char *str)
 	return ret;
 }
 
-double util_timestamp(void)
+HAPI double util_timestamp(void)
 {
 	struct timeval tv;
 
@@ -39,7 +39,7 @@ double util_timestamp(void)
 	return (double)tv.tv_sec + (double)tv.tv_usec / 1000000.0f;
 }
 
-int util_check_ext(const char *filename, const char *check_ptr)
+HAPI int util_check_ext(const char *filename, const char *check_ptr)
 {
 	int name_len;
 
@@ -105,7 +105,7 @@ static inline int check_web_livebox(const char *pkgname)
 	return 0;
 }
 
-int util_validate_livebox_package(const char *pkgname)
+HAPI int util_validate_livebox_package(const char *pkgname)
 {
 	if (!pkgname) {
 		ErrPrint("Invalid argument\n");
@@ -118,7 +118,7 @@ int util_validate_livebox_package(const char *pkgname)
 	return -EINVAL;
 }
 
-int util_unlink(const char *filename)
+HAPI int util_unlink(const char *filename)
 {
 	char *descfile;
 	int desclen;
@@ -145,7 +145,7 @@ int util_unlink(const char *filename)
 	return 0;
 }
 
-char *util_slavename(void)
+HAPI char *util_slavename(void)
 {
 	char slavename[BUFSIZ];
 	static unsigned long idx = 0;
@@ -154,7 +154,7 @@ char *util_slavename(void)
 	return strdup(slavename);
 }
 
-const char *util_basename(const char *name)
+HAPI const char *util_basename(const char *name)
 {
 	int length;
 	length = name ? strlen(name) : 0;
@@ -166,7 +166,7 @@ const char *util_basename(const char *name)
 	return length <= 0 ? name : (name + length + (name[length] == '/'));
 }
 
-unsigned long util_free_space(const char *path)
+HAPI unsigned long util_free_space(const char *path)
 {
 	struct statvfs st;
 	unsigned long space;
@@ -198,7 +198,7 @@ static inline char *extend_heap(char *buffer, int *sz, int incsz)
 	return tmp;
 }
 
-char *util_replace_string(const char *src, const char *pattern, const char *replace)
+HAPI char *util_replace_string(const char *src, const char *pattern, const char *replace)
 {
 	char *ret;
 	int src_idx;
@@ -301,7 +301,7 @@ char *util_replace_string(const char *src, const char *pattern, const char *repl
 	return ret;
 }
 
-const char *util_uri_to_path(const char *uri)
+HAPI const char *util_uri_to_path(const char *uri)
 {
 	int len;
 

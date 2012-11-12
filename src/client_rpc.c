@@ -142,7 +142,7 @@ static inline void push_command(struct command *command)
 	}
 }
 
-int client_rpc_async_request(struct client_node *client, struct packet *packet)
+HAPI int client_rpc_async_request(struct client_node *client, struct packet *packet)
 {
 	struct command *command;
 	struct client_rpc *rpc;
@@ -199,7 +199,7 @@ static int deactivated_cb(struct client_node *client, void *data)
 	return 0;
 }
 
-int client_rpc_init(struct client_node *client, int handle)
+HAPI int client_rpc_init(struct client_node *client, int handle)
 {
 	struct client_rpc *rpc;
 	int ret;
@@ -224,7 +224,7 @@ int client_rpc_init(struct client_node *client, int handle)
 	return 0;
 }
 
-int client_rpc_fini(struct client_node *client)
+HAPI int client_rpc_fini(struct client_node *client)
 {
 	struct client_rpc *rpc;
 
@@ -237,7 +237,7 @@ int client_rpc_fini(struct client_node *client)
 	return 0;
 }
 
-int client_rpc_handle(struct client_node *client)
+HAPI int client_rpc_handle(struct client_node *client)
 {
 	struct client_rpc *rpc;
 

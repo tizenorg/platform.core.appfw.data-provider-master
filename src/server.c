@@ -3806,7 +3806,7 @@ static struct method s_table[] = {
 	},
 };
 
-int server_init(void)
+HAPI int server_init(void)
 {
 	if (unlink(SOCKET_FILE) < 0)
 		ErrPrint("unlink: %s\n", strerror(errno));
@@ -3821,7 +3821,7 @@ int server_init(void)
 	return 0;
 }
 
-int server_fini(void)
+HAPI int server_fini(void)
 {
 	com_core_packet_server_fini(s_info.fd);
 	return 0;

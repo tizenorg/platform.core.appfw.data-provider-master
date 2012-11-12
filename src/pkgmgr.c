@@ -9,6 +9,7 @@
 #include "util.h"
 #include "debug.h"
 #include "pkgmgr.h"
+#include "conf.h"
 
 struct item {
 	char *pkgname;
@@ -407,7 +408,7 @@ static int end_cb(const char *pkgname, const char *val, void *data)
 	return 0;
 }
 
-struct pkgmgr_handler {
+static struct pkgmgr_handler {
 	const char *key;
 	int (*func)(const char *package, const char *val, void *data);
 } handler[] = {
@@ -439,7 +440,7 @@ static int pkgmgr_cb(int req_id, const char *type, const char *pkgname, const ch
 	return 0;
 }
 
-int pkgmgr_init(void)
+HAPI int pkgmgr_init(void)
 {
 	if (s_info.listen_pc)
 		return -EALREADY;
@@ -454,7 +455,7 @@ int pkgmgr_init(void)
 	return 0;
 }
 
-int pkgmgr_fini(void)
+HAPI int pkgmgr_fini(void)
 {
 	struct event_item *item;
 	struct item *ctx;
@@ -496,7 +497,7 @@ int pkgmgr_fini(void)
 	return 0;
 }
 
-int pkgmgr_add_event_callback(enum pkgmgr_event_type type, int (*cb)(const char *pkgname, enum pkgmgr_status status, double value, void *data), void *data)
+HAPI int pkgmgr_add_event_callback(enum pkgmgr_event_type type, int (*cb)(const char *pkgname, enum pkgmgr_status status, double value, void *data), void *data)
 {
 	struct event_item *item;
 
@@ -533,7 +534,7 @@ int pkgmgr_add_event_callback(enum pkgmgr_event_type type, int (*cb)(const char 
 	return 0;
 }
 
-void *pkgmgr_del_event_callback(enum pkgmgr_event_type type, int (*cb)(const char *pkgname, enum pkgmgr_status status, double value, void *data), void *data)
+HAPI void *pkgmgr_del_event_callback(enum pkgmgr_event_type type, int (*cb)(const char *pkgname, enum pkgmgr_status status, double value, void *data), void *data)
 {
 	struct event_item *item;
 	Eina_List *l;

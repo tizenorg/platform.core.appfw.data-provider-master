@@ -548,7 +548,7 @@ static inline int build_group_info(struct pkg_info *info)
 	return 0;
 }
 
-char *io_livebox_pkgname(const char *pkgname)
+HAPI char *io_livebox_pkgname(const char *pkgname)
 {
 	sqlite3_stmt *stmt;
 	char *pkgid;
@@ -598,7 +598,7 @@ out:
 	return pkgid;
 }
 
-int io_crawling_liveboxes(int (*cb)(const char *pkgname, int prime, void *data), void *data)
+HAPI int io_crawling_liveboxes(int (*cb)(const char *pkgname, int prime, void *data), void *data)
 {
 	DIR *dir;
 
@@ -655,7 +655,7 @@ int io_crawling_liveboxes(int (*cb)(const char *pkgname, int prime, void *data),
 	return 0;
 }
 
-int io_update_livebox_package(const char *pkgname, int (*cb)(const char *lb_pkgname, int prime, void *data), void *data)
+HAPI int io_update_livebox_package(const char *pkgname, int (*cb)(const char *lb_pkgname, int prime, void *data), void *data)
 {
 	sqlite3_stmt *stmt;
 	char *pkgid;
@@ -704,7 +704,7 @@ out:
 	return ret;
 }
 
-int io_load_package_db(struct pkg_info *info)
+HAPI int io_load_package_db(struct pkg_info *info)
 {
 	int ret;
 
@@ -774,7 +774,7 @@ static inline int db_fini(void)
 	return 0;
 }
 
-int io_init(void)
+HAPI int io_init(void)
 {
 	int ret;
 
@@ -787,7 +787,7 @@ int io_init(void)
 	return 0;
 }
 
-int io_fini(void)
+HAPI int io_fini(void)
 {
 	int ret;
 

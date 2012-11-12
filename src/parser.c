@@ -72,103 +72,103 @@ struct parser {
 	char *script;
 };
 
-double parser_period(struct parser *handle)
+HAPI double parser_period(struct parser *handle)
 {
 	return handle->period;
 }
 
-int parser_network(struct parser *handle)
+HAPI int parser_network(struct parser *handle)
 {
 	return handle->network;
 }
 
-int parser_timeout(struct parser *handle)
+HAPI int parser_timeout(struct parser *handle)
 {
 	return handle->timeout;
 }
 
-int parser_auto_launch(struct parser *handle)
+HAPI int parser_auto_launch(struct parser *handle)
 {
 	return handle->auto_launch;
 }
 
-const char *parser_script(struct parser *handle)
+HAPI const char *parser_script(struct parser *handle)
 {
 	return handle->script;
 }
 
-const char *parser_abi(struct parser *handle)
+HAPI const char *parser_abi(struct parser *handle)
 {
 	return handle->abi;
 }
 
-unsigned int parser_size(struct parser *handle)
+HAPI unsigned int parser_size(struct parser *handle)
 {
 	return handle->size;
 }
 
-const char *parser_lb_path(struct parser *handle)
+HAPI const char *parser_lb_path(struct parser *handle)
 {
 	return handle->lb_path;
 }
 
-const char *parser_lb_group(struct parser *handle)
+HAPI const char *parser_lb_group(struct parser *handle)
 {
 	return handle->lb_group;
 }
 
-const char *parser_pd_path(struct parser *handle)
+HAPI const char *parser_pd_path(struct parser *handle)
 {
 	return handle->pd_path;
 }
 
-const char *parser_pd_group(struct parser *handle)
+HAPI const char *parser_pd_group(struct parser *handle)
 {
 	return handle->pd_group;
 }
 
-const char *parser_group_str(struct parser *handle)
+HAPI const char *parser_group_str(struct parser *handle)
 {
 	return handle->group;
 }
 
-int parser_secured(struct parser *handle)
+HAPI int parser_secured(struct parser *handle)
 {
 	return handle->secured;
 }
 
-void parser_get_pdsize(struct parser *handle, unsigned int *width, unsigned int *height)
+HAPI void parser_get_pdsize(struct parser *handle, unsigned int *width, unsigned int *height)
 {
 	*width = handle->pd_width;
 	*height = handle->pd_height;
 }
 
-int parser_pinup(struct parser *handle)
+HAPI int parser_pinup(struct parser *handle)
 {
 	return handle->pinup;
 }
 
-int parser_text_lb(struct parser *handle)
+HAPI int parser_text_lb(struct parser *handle)
 {
 	return handle->text_lb;
 }
 
-int parser_text_pd(struct parser *handle)
+HAPI int parser_text_pd(struct parser *handle)
 {
 	return handle->text_pd;
 }
 
-int parser_buffer_lb(struct parser *handle)
+HAPI int parser_buffer_lb(struct parser *handle)
 {
 	return handle->buffer_lb;
 }
 
-int parser_buffer_pd(struct parser *handle)
+HAPI int parser_buffer_pd(struct parser *handle)
 {
 	return handle->buffer_pd;
 }
 
-int parser_find(const char *pkgname)
+HAPI int parser_find(const char *pkgname)
 {
 	Eina_List *l;
 	struct parser *item;
@@ -516,7 +516,7 @@ static void pd_group_handler(struct parser *item, char *buffer)
 		ErrPrint("Error: %s\n", strerror(errno));
 }
 
-struct parser *parser_load(const char *pkgname)
+HAPI struct parser *parser_load(const char *pkgname)
 {
 	struct parser *item;
 	FILE *fp;
@@ -825,7 +825,7 @@ struct parser *parser_load(const char *pkgname)
 	return item;
 }
 
-int parser_unload(struct parser *item)
+HAPI int parser_unload(struct parser *item)
 {
 	s_list = eina_list_remove(s_list, item);
 

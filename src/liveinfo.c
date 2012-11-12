@@ -14,6 +14,7 @@
 
 #include "util.h"
 #include "debug.h"
+#include "conf.h"
 
 int errno;
 
@@ -30,12 +31,12 @@ struct liveinfo {
 	int handle;
 };
 
-int liveinfo_init(void)
+HAPI int liveinfo_init(void)
 {
 	return 0;
 }
 
-int liveinfo_fini(void)
+HAPI int liveinfo_fini(void)
 {
 	struct liveinfo *info;
 
@@ -71,7 +72,7 @@ static inline int valid_requestor(pid_t pid)
 	return target.st_ino == src.st_ino;
 }
 
-struct liveinfo *liveinfo_create(pid_t pid, int handle)
+HAPI struct liveinfo *liveinfo_create(pid_t pid, int handle)
 {
 	struct liveinfo *info;
 
@@ -103,7 +104,7 @@ struct liveinfo *liveinfo_create(pid_t pid, int handle)
 	return info;
 }
 
-int liveinfo_open_fifo(struct liveinfo *info)
+HAPI int liveinfo_open_fifo(struct liveinfo *info)
 {
 	DbgPrint("FIFO is created (%s)\n", info->fifo_name);
 	info->fp = fopen(info->fifo_name, "w");
@@ -115,7 +116,7 @@ int liveinfo_open_fifo(struct liveinfo *info)
 	return 0;
 }
 
-int liveinfo_close_fifo(struct liveinfo *info)
+HAPI int liveinfo_close_fifo(struct liveinfo *info)
 {
 	if (info->fp) {
 		fclose(info->fp);
@@ -125,7 +126,7 @@ int liveinfo_close_fifo(struct liveinfo *info)
 	return 0;
 }
 
-int liveinfo_destroy(struct liveinfo *info)
+HAPI int liveinfo_destroy(struct liveinfo *info)
 {
 	s_info.info_list = eina_list_remove(s_info.info_list, info);
 	liveinfo_close_fifo(info);
@@ -134,22 +135,22 @@ int liveinfo_destroy(struct liveinfo *info)
 	return 0;
 }
 
-pid_t liveinfo_pid(struct liveinfo *info)
+HAPI pid_t liveinfo_pid(struct liveinfo *info)
 {
 	return info ? info->pid : (pid_t)-1;
 }
 
-const char *liveinfo_filename(struct liveinfo *info)
+HAPI const char *liveinfo_filename(struct liveinfo *info)
 {
 	return info ? info->fifo_name : NULL;
 }
 
-FILE *liveinfo_fifo(struct liveinfo *info)
+HAPI FILE *liveinfo_fifo(struct liveinfo *info)
 {
 	return info ? info->fp : NULL;
 }
 
-struct liveinfo *liveinfo_find_by_pid(pid_t pid)
+HAPI struct liveinfo *liveinfo_find_by_pid(pid_t pid)
 {
 	Eina_List *l;
 	struct liveinfo *info;
@@ -162,7 +163,7 @@ struct liveinfo *liveinfo_find_by_pid(pid_t pid)
 	return NULL;
 }
 
-struct liveinfo *liveinfo_find_by_handle(int handle)
+HAPI struct liveinfo *liveinfo_find_by_handle(int handle)
 {
 	Eina_List *l;
 	struct liveinfo *info;

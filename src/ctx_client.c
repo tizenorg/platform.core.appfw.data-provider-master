@@ -212,7 +212,7 @@ static inline void register_callbacks(void)
 	} // cluster
 }
 
-int ctx_enable_event_handler(struct context_info *info)
+HAPI int ctx_enable_event_handler(struct context_info *info)
 {
 	int enabled;
 
@@ -228,7 +228,7 @@ int ctx_enable_event_handler(struct context_info *info)
 	return 0;
 }
 
-int ctx_disable_event_handler(struct context_info *info)
+HAPI int ctx_disable_event_handler(struct context_info *info)
 {
 	Eina_List *l;
 	Eina_List *item_list;
@@ -316,7 +316,7 @@ static int xmonitor_resume_cb(void *data)
 	return 0;
 }
 
-int ctx_client_init(void)
+HAPI int ctx_client_init(void)
 {
 	int ret;
 
@@ -331,7 +331,7 @@ int ctx_client_init(void)
 	return 0;
 }
 
-int ctx_client_fini(void)
+HAPI int ctx_client_fini(void)
 {
 	vconf_ignore_key_changed(SYS_CLUSTER_KEY, ctx_vconf_cb);
 

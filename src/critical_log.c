@@ -29,7 +29,7 @@ static struct {
 
 
 
-int critical_log(const char *func, int line, const char *fmt, ...)
+HAPI int critical_log(const char *func, int line, const char *fmt, ...)
 {
 	va_list ap;
 	int ret;
@@ -78,7 +78,7 @@ int critical_log(const char *func, int line, const char *fmt, ...)
 
 
 
-int critical_log_init(const char *name)
+HAPI int critical_log_init(const char *name)
 {
 	int namelen;
 	char *filename;
@@ -119,7 +119,7 @@ int critical_log_init(const char *name)
 
 
 
-int critical_log_fini(void)
+HAPI int critical_log_fini(void)
 {
 	if (s_info.filename) {
 		DbgFree(s_info.filename);

@@ -313,7 +313,7 @@ static Eina_Bool ping_timeout_cb(void *data)
 	return ECORE_CALLBACK_CANCEL;
 }
 
-int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, struct packet *packet, void (*ret_cb)(struct slave_node *slave, const struct packet *packet, void *data), void *data, int urgent)
+HAPI int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, struct packet *packet, void (*ret_cb)(struct slave_node *slave, const struct packet *packet, void *data), void *data, int urgent)
 {
 	struct command *command;
 	struct slave_rpc *rpc;
@@ -377,7 +377,7 @@ int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, struc
 	return 0;
 }
 
-int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, struct packet *packet, int urgent)
+HAPI int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, struct packet *packet, int urgent)
 {
 	struct command *command;
 	struct slave_rpc *rpc;
@@ -433,7 +433,7 @@ int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, struct
 	return 0;
 }
 
-int slave_rpc_update_handle(struct slave_node *slave, int handle)
+HAPI int slave_rpc_update_handle(struct slave_node *slave, int handle)
 {
 	struct slave_rpc *rpc;
 	struct command *command;
@@ -466,7 +466,7 @@ int slave_rpc_update_handle(struct slave_node *slave, int handle)
 	return 0;
 }
 
-int slave_rpc_init(struct slave_node *slave)
+HAPI int slave_rpc_init(struct slave_node *slave)
 {
 	struct slave_rpc *rpc;
 
@@ -490,7 +490,7 @@ int slave_rpc_init(struct slave_node *slave)
 	return 0;
 }
 
-int slave_rpc_fini(struct slave_node *slave)
+HAPI int slave_rpc_fini(struct slave_node *slave)
 {
 	struct slave_rpc *rpc;
 
@@ -507,7 +507,7 @@ int slave_rpc_fini(struct slave_node *slave)
 	return 0;
 }
 
-int slave_rpc_ping(struct slave_node *slave)
+HAPI int slave_rpc_ping(struct slave_node *slave)
 {
 	struct slave_rpc *rpc;
 
@@ -533,7 +533,7 @@ int slave_rpc_ping(struct slave_node *slave)
 	return 0;
 }
 
-int slave_rpc_ping_freeze(struct slave_node *slave)
+HAPI int slave_rpc_ping_freeze(struct slave_node *slave)
 {
 	struct slave_rpc *rpc;
 
@@ -552,7 +552,7 @@ int slave_rpc_ping_freeze(struct slave_node *slave)
 	return 0;
 }
 
-int slave_rpc_ping_thaw(struct slave_node *slave)
+HAPI int slave_rpc_ping_thaw(struct slave_node *slave)
 {
 	struct slave_rpc *rpc;
 
@@ -571,7 +571,7 @@ int slave_rpc_ping_thaw(struct slave_node *slave)
 	return 0;
 }
 
-void slave_rpc_request_update(const char *pkgname, const char *id, const char *cluster, const char *category)
+HAPI void slave_rpc_request_update(const char *pkgname, const char *id, const char *cluster, const char *category)
 {
 	struct slave_node *slave;
 	struct pkg_info *info;
@@ -598,7 +598,7 @@ void slave_rpc_request_update(const char *pkgname, const char *id, const char *c
 	(void)slave_rpc_request_only(slave, pkgname, packet, 0);
 }
 
-int slave_rpc_handle(struct slave_node *slave)
+HAPI int slave_rpc_handle(struct slave_node *slave)
 {
 	struct slave_rpc *rpc;
 

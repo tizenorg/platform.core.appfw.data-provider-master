@@ -110,7 +110,7 @@ static Eina_Bool destroy_cb(void *data, int type, void *event)
 	return ECORE_CALLBACK_PASS_ON;
 }
 
-void xmonitor_handle_state_changes(void)
+HAPI void xmonitor_handle_state_changes(void)
 {
 	int paused;
 	Eina_List *l;
@@ -138,7 +138,7 @@ void xmonitor_handle_state_changes(void)
 	}
 }
 
-int xmonitor_update_state(int target_pid)
+HAPI int xmonitor_update_state(int target_pid)
 {
 	Ecore_X_Window win;
 	struct client_node *client;
@@ -299,7 +299,7 @@ static inline void sniff_all_windows(void)
 	return;
 }
 
-int xmonitor_init(void)
+HAPI int xmonitor_init(void)
 {
 	if (ecore_x_composite_query() == EINA_FALSE)
 		DbgPrint("====> COMPOSITOR IS NOT ENABLED\n");
@@ -340,7 +340,7 @@ int xmonitor_init(void)
 	return 0;
 }
 
-void xmonitor_fini(void)
+HAPI void xmonitor_fini(void)
 {
 	ecore_event_handler_del(s_info.create_handler);
 	ecore_event_handler_del(s_info.destroy_handler);
@@ -351,7 +351,7 @@ void xmonitor_fini(void)
 	s_info.client_handler = NULL;
 }
 
-int xmonitor_add_event_callback(enum xmonitor_event event, int (*cb)(void *user_data), void *user_data)
+HAPI int xmonitor_add_event_callback(enum xmonitor_event event, int (*cb)(void *user_data), void *user_data)
 {
 	struct event_item *item;
 
@@ -380,7 +380,7 @@ int xmonitor_add_event_callback(enum xmonitor_event event, int (*cb)(void *user_
 	return 0;
 }
 
-int xmonitor_del_event_callback(enum xmonitor_event event, int (*cb)(void *user_data), void *user_data)
+HAPI int xmonitor_del_event_callback(enum xmonitor_event event, int (*cb)(void *user_data), void *user_data)
 {
 	struct event_item *item;
 	Eina_List *l;
@@ -414,7 +414,7 @@ int xmonitor_del_event_callback(enum xmonitor_event event, int (*cb)(void *user_
 	return -ENOENT;
 }
 
-int xmonitor_is_paused(void)
+HAPI int xmonitor_is_paused(void)
 {
 	return s_info.paused;
 }

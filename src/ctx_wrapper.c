@@ -14,6 +14,7 @@
 #include "debug.h"
 #include "group.h"
 #include "ctx_wrapper.h"
+#include "conf.h"
 
 static struct {
 	int enabled;
@@ -105,7 +106,7 @@ static inline struct cbdata *find_registered_callback(const char *ctx_item, Eina
 	return NULL;
 }
 
-void ctx_wrapper_enable(void)
+HAPI void ctx_wrapper_enable(void)
 {
 	int ret;
 
@@ -119,7 +120,7 @@ void ctx_wrapper_enable(void)
 	DbgPrint("Context engine is%senabled\n", s_info.enabled ? " " : " not ");
 }
 
-void ctx_wrapper_disable(void)
+HAPI void ctx_wrapper_disable(void)
 {
 	int ret;
 
@@ -210,7 +211,7 @@ static inline void register_ctx_callback(struct context_item *item, const char *
 	cbfunc->cbdata = cbdata;
 }
 
-void *ctx_wrapper_register_callback(struct context_item *item, int (*cb)(struct context_item *item, void *user_data), void *user_data)
+HAPI void *ctx_wrapper_register_callback(struct context_item *item, int (*cb)(struct context_item *item, void *user_data), void *user_data)
 {
 	const char *ctx_item;
 	struct cbfunc *cbfunc;
@@ -243,7 +244,7 @@ void *ctx_wrapper_register_callback(struct context_item *item, int (*cb)(struct 
 	return cbfunc;
 }
 
-void *ctx_wrapper_unregister_callback(void *_cbfunc)
+HAPI void *ctx_wrapper_unregister_callback(void *_cbfunc)
 {
 	struct cbdata *cbdata;
 	struct cbfunc *cbfunc = (struct cbfunc *)_cbfunc;

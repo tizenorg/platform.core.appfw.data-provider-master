@@ -170,6 +170,10 @@ static void render_post_cb(void *data, Evas *e, void *event_info)
 	return;
 }
 
+/*!
+ * \NOTE
+ * Exported API
+ */
 int script_signal_emit(Evas *e, const char *part, const char *signal, double sx, double sy, double ex, double ey)
 {
 	Ecore_Evas *ee;
@@ -198,7 +202,7 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double sx,
 	return ret;
 }
 
-int script_handler_load(struct script_info *info, int is_pd)
+HAPI int script_handler_load(struct script_info *info, int is_pd)
 {
 	int ret;
 	Evas *e;
@@ -254,7 +258,7 @@ int script_handler_load(struct script_info *info, int is_pd)
 	return 0;
 }
 
-int script_handler_unload(struct script_info *info, int is_pd)
+HAPI int script_handler_unload(struct script_info *info, int is_pd)
 {
 	Ecore_Evas *ee;
 	Evas *e;
@@ -290,7 +294,7 @@ int script_handler_unload(struct script_info *info, int is_pd)
 	return 0;
 }
 
-struct script_info *script_handler_create(struct inst_info *inst, const char *file, const char *group, int w, int h)
+HAPI struct script_info *script_handler_create(struct inst_info *inst, const char *file, const char *group, int w, int h)
 {
 	struct script_info *info;
 	enum buffer_type type;
@@ -348,7 +352,7 @@ struct script_info *script_handler_create(struct inst_info *inst, const char *fi
 	return info;
 }
 
-int script_handler_destroy(struct script_info *info)
+HAPI int script_handler_destroy(struct script_info *info)
 {
 	if (!info || !info->port) {
 		ErrPrint("port is not valid\n");
@@ -368,17 +372,17 @@ int script_handler_destroy(struct script_info *info)
 	return 0;
 }
 
-int script_handler_is_loaded(struct script_info *info)
+HAPI int script_handler_is_loaded(struct script_info *info)
 {
 	return info ? info->loaded > 0 : 0;
 }
 
-struct fb_info *script_handler_fb(struct script_info *info)
+HAPI struct fb_info *script_handler_fb(struct script_info *info)
 {
 	return info ? info->fb : NULL;
 }
 
-void *script_handler_evas(struct script_info *info)
+HAPI void *script_handler_evas(struct script_info *info)
 {
 	if (!info)
 		return NULL;
@@ -541,7 +545,7 @@ static int update_script_drag(struct inst_info *inst, struct block *block, int i
 	return 0;
 }
 
-int script_handler_resize(struct script_info *info, int w, int h)
+HAPI int script_handler_resize(struct script_info *info, int w, int h)
 {
 	if (!info) {
 	//|| (info->w == w && info->h == h)) {
@@ -621,7 +625,7 @@ static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 	return 0;
 }
 
-int script_handler_parse_desc(const char *pkgname, const char *id, const char *descfile, int is_pd)
+HAPI int script_handler_parse_desc(const char *pkgname, const char *id, const char *descfile, int is_pd)
 {
 	struct inst_info *inst;
 	FILE *fp;
@@ -1054,7 +1058,7 @@ errout:
 	return -EINVAL;
 }
 
-int script_init(void)
+HAPI int script_init(void)
 {
 	struct script_port *item;
 	struct dirent *ent;
@@ -1177,7 +1181,7 @@ errout:
 	return -EFAULT;
 }
 
-int script_fini(void)
+HAPI int script_fini(void)
 {
 	struct script_port *item;
 	/*!
@@ -1192,7 +1196,7 @@ int script_fini(void)
 	return 0;
 }
 
-int script_handler_update_pointer(struct script_info *info, double x, double y, int down)
+HAPI int script_handler_update_pointer(struct script_info *info, double x, double y, int down)
 {
 	if (!info)
 		return 0;

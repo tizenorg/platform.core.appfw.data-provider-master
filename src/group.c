@@ -10,6 +10,7 @@
 #include "util.h"
 #include "debug.h"
 #include "group.h"
+#include "conf.h"
 
 int errno;
 
@@ -54,7 +55,7 @@ struct context_option {
 	char *value;
 };
 
-struct context_info *group_create_context_info(struct category *category, const char *pkgname)
+HAPI struct context_info *group_create_context_info(struct category *category, const char *pkgname)
 {
 	struct context_info *info;
 
@@ -98,7 +99,7 @@ static inline void del_context_item(struct context_info *info)
 	}
 }
 
-struct context_item *group_add_context_item(struct context_info *info, const char *ctx_item)
+HAPI struct context_item *group_add_context_item(struct context_info *info, const char *ctx_item)
 {
 	struct context_item *item;
 
@@ -120,7 +121,7 @@ struct context_item *group_add_context_item(struct context_info *info, const cha
 	return item;
 }
 
-int group_add_option(struct context_item *item, const char *key, const char *value)
+HAPI int group_add_option(struct context_item *item, const char *key, const char *value)
 {
 	struct context_option *option;
 
@@ -150,7 +151,7 @@ int group_add_option(struct context_item *item, const char *key, const char *val
 	return 0;
 }
 
-int group_destroy_context_info(struct context_info *info)
+HAPI int group_destroy_context_info(struct context_info *info)
 {
 	struct category *category;
 
@@ -168,7 +169,7 @@ int group_destroy_context_info(struct context_info *info)
 	return 0;
 }
 
-struct cluster *group_create_cluster(const char *name)
+HAPI struct cluster *group_create_cluster(const char *name)
 {
 	struct cluster *cluster;
 
@@ -192,7 +193,7 @@ struct cluster *group_create_cluster(const char *name)
 	return cluster;
 }
 
-struct cluster *group_find_cluster(const char *name)
+HAPI struct cluster *group_find_cluster(const char *name)
 {
 	Eina_List *l;
 	struct cluster *cluster;
@@ -205,7 +206,7 @@ struct cluster *group_find_cluster(const char *name)
 	return NULL;
 }
 
-struct category *group_create_category(struct cluster *cluster, const char *name)
+HAPI struct category *group_create_category(struct cluster *cluster, const char *name)
 {
 	struct category *category;
 
@@ -245,7 +246,7 @@ static inline void destroy_cluster(struct cluster *cluster)
 	DbgFree(cluster);
 }
 
-int group_destroy_cluster(struct cluster *cluster)
+HAPI int group_destroy_cluster(struct cluster *cluster)
 {
 	Eina_List *l;
 	Eina_List *n;
@@ -277,7 +278,7 @@ static inline void destroy_category(struct category *category)
 	DbgFree(category);
 }
 
-int group_destroy_category(struct category *category)
+HAPI int group_destroy_category(struct category *category)
 {
 	struct cluster *cluster;
 
@@ -289,7 +290,7 @@ int group_destroy_category(struct category *category)
 	return 0;
 }
 
-struct category *group_find_category(struct cluster *cluster, const char *name)
+HAPI struct category *group_find_category(struct cluster *cluster, const char *name)
 {
 	struct category *category;
 	Eina_List *l;
@@ -302,62 +303,62 @@ struct category *group_find_category(struct cluster *cluster, const char *name)
 	return NULL;
 }
 
-Eina_List * const group_context_info_list(struct category *category)
+HAPI Eina_List * const group_context_info_list(struct category *category)
 {
 	return category->info_list;
 }
 
-Eina_List *const group_context_item_list(struct context_info *info)
+HAPI Eina_List *const group_context_item_list(struct context_info *info)
 {
 	return info->context_list;
 }
 
-Eina_List *const group_context_option_list(struct context_item *item)
+HAPI Eina_List *const group_context_option_list(struct context_item *item)
 {
 	return item->option_list;
 }
 
-Eina_List *const group_cluster_list(void)
+HAPI Eina_List *const group_cluster_list(void)
 {
 	return s_info.cluster_list;
 }
 
-Eina_List * const group_category_list(struct cluster *cluster)
+HAPI Eina_List * const group_category_list(struct cluster *cluster)
 {
 	return cluster->category_list;
 }
 
-struct context_info * const group_context_info_from_item(struct context_item *item)
+HAPI struct context_info * const group_context_info_from_item(struct context_item *item)
 {
 	return item->info;
 }
 
-struct category * const group_category_from_context_info(struct context_info *info)
+HAPI struct category * const group_category_from_context_info(struct context_info *info)
 {
 	return info->category;
 }
 
-const char * const group_pkgname_from_context_info(struct context_info *info)
+HAPI const char * const group_pkgname_from_context_info(struct context_info *info)
 {
 	return info->pkgname;
 }
 
-const char * const group_option_item_key(struct context_option *option)
+HAPI const char * const group_option_item_key(struct context_option *option)
 {
 	return option->key;
 }
 
-const char * const group_option_item_value(struct context_option *option)
+HAPI const char * const group_option_item_value(struct context_option *option)
 {
 	return option->value;
 }
 
-const char * const group_context_item(struct context_item *item)
+HAPI const char * const group_context_item(struct context_item *item)
 {
 	return item->ctx_item;
 }
 
-int group_context_item_add_data(struct context_item *item, const char *tag, void *data)
+HAPI int group_context_item_add_data(struct context_item *item, const char *tag, void *data)
 {
 	struct context_item_data *tmp;
 
@@ -376,7 +377,7 @@ int group_context_item_add_data(struct context_item *item, const char *tag, void
 	return 0;
 }
 
-void *group_context_item_data(struct context_item *item, const char *tag)
+HAPI void *group_context_item_data(struct context_item *item, const char *tag)
 {
 	struct context_item_data *tmp;
 	Eina_List *l;
@@ -389,7 +390,7 @@ void *group_context_item_data(struct context_item *item, const char *tag)
 	return NULL;
 }
 
-void *group_context_item_del_data(struct context_item *item, const char *tag)
+HAPI void *group_context_item_del_data(struct context_item *item, const char *tag)
 {
 	struct context_item_data *tmp;
 	Eina_List *l;
@@ -409,17 +410,17 @@ void *group_context_item_del_data(struct context_item *item, const char *tag)
 	return NULL;
 }
 
-const char * const group_category_name(struct category *category)
+HAPI const char * const group_category_name(struct category *category)
 {
 	return category->name;
 }
 
-const char * const group_cluster_name(struct cluster *cluster)
+HAPI const char * const group_cluster_name(struct cluster *cluster)
 {
 	return cluster->name;
 }
 
-const char *group_cluster_name_by_category(struct category *category)
+HAPI const char *group_cluster_name_by_category(struct category *category)
 {
 	return !category ? NULL : (category->cluster ? category->cluster->name : NULL);
 }
@@ -450,7 +451,7 @@ static inline char *get_token(char *ptr, int *len)
 	return name;
 }
 
-int group_add_livebox(const char *group, const char *pkgname)
+HAPI int group_add_livebox(const char *group, const char *pkgname)
 {
 	struct cluster *cluster;
 	struct category *category;
@@ -793,7 +794,7 @@ int group_add_livebox(const char *group, const char *pkgname)
 	return 0;
 }
 
-int group_del_livebox(const char *pkgname)
+HAPI int group_del_livebox(const char *pkgname)
 {
 	Eina_List *l;
 	Eina_List *n;
@@ -823,12 +824,12 @@ int group_del_livebox(const char *pkgname)
 	return 0;
 }
 
-int group_init(void)
+HAPI int group_init(void)
 {
 	return 0;
 }
 
-int group_fini(void)
+HAPI int group_fini(void)
 {
 	struct cluster *cluster;
 	struct category *category;
