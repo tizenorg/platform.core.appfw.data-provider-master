@@ -1462,11 +1462,11 @@ HAPI int instance_set_pinup(struct inst_info *inst, int pinup)
 HAPI int instance_freeze_updator(struct inst_info *inst)
 {
 	if (!inst->update_timer) {
-		DbgPrint("Update timer is not exists\n");
+		DbgPrint("Update timer is not exists (%s)\n", inst->id);
 		return -EINVAL;
 	}
 
-	DbgPrint("Freeze the update timer\n");
+	DbgPrint("Freeze the update timer (%s)\n", inst->id);
 	ecore_timer_freeze(inst->update_timer);
 	return 0;
 }
@@ -1474,21 +1474,21 @@ HAPI int instance_freeze_updator(struct inst_info *inst)
 HAPI int instance_thaw_updator(struct inst_info *inst)
 {
 	if (!inst->update_timer) {
-		DbgPrint("Update timer is not exists\n");
+		DbgPrint("Update timer is not exists (%s)\n", inst->id);
 		return -EINVAL;
 	}
 
 	if (client_is_all_paused() || setting_is_lcd_off()) {
-		DbgPrint("Skip thaw\n");
+		DbgPrint("Skip thaw (%s)\n", inst->id);
 		return -EINVAL;
 	}
 
 	if (inst->visible == LB_HIDE_WITH_PAUSE) {
-		DbgPrint("Live box is invisible\n");
+		DbgPrint("Live box is invisible (%s)\n", inst->id);
 		return -EINVAL;
 	}
 
-	DbgPrint("Thaw the update timer\n");
+	DbgPrint("Thaw the update timer (%s)\n", inst->id);
 	ecore_timer_thaw(inst->update_timer);
 	return 0;
 }
@@ -1633,6 +1633,45 @@ out:
 	return;
 }
 
+static Eina_Bool timer_updator_cb(void *data)
+{
+	struct period_cbdata *cbdata = data;
+	struct inst_info *inst;
+	double period;
+	struct packet *result;
+
+	period = cbdata->period;
+	inst = cbdata->inst;
+	DbgFree(cbdata);
+
+	DbgPrint("Update period is changed to %lf from %lf\n", period, inst->period);
+
+	inst->period = period;
+	if (inst->update_timer) {
+		if (inst->period == 0.0f) {
+			ecore_timer_del(inst->update_timer);
+			inst->update_timer = NULL;
+		} else {
+			ecore_timer_interval_set(inst->update_timer, inst->period);
+		}
+	} else if (inst->period > 0.0f) {
+		inst->update_timer = ecore_timer_add(inst->period, update_timer_cb, inst);
+		if (!inst->update_timer)
+			ErrPrint("Failed to add an update timer for instance %s\n", inst->id);
+		else
+			ecore_timer_freeze(inst->update_timer); /* Freeze the update timer as default */
+	}
+
+	result = packet_create_noack("period_changed", "idss", 0, inst->period, package_name(inst->info), inst->id);
+	if (result)
+		(void)CLIENT_SEND_EVENT(inst, result);
+	else
+		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
+
+	instance_unref(inst);
+	return ECORE_CALLBACK_CANCEL;
+}
+
 HAPI int instance_set_period(struct inst_info *inst, double period)
 {
 	struct packet *packet;
@@ -1648,20 +1687,30 @@ HAPI int instance_set_period(struct inst_info *inst, double period)
 		return -EFAULT;
 	}
 
-	cbdata = malloc(sizeof(*cbdata));
-	if (!cbdata) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		return -ENOMEM;
-	}
-
 	if (period < 0.0f) { /* Use the default period */
 		period = package_period(inst->info);
 	} else if (period > 0.0f && period < MINIMUM_PERIOD) {
 		period = MINIMUM_PERIOD; /* defined at conf.h */
 	}
 
+	cbdata = malloc(sizeof(*cbdata));
+	if (!cbdata) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
 	cbdata->period = period;
 	cbdata->inst = instance_ref(inst);
+
+	if (package_secured(inst->info)) {
+		/*!
+		 * Secured livebox doesn't need to send its update period to the slave.
+		 * Slave has no local timer for updating liveboxes
+		 */
+		if (!ecore_timer_add(DELAY_TIME, timer_updator_cb, cbdata))
+			timer_updator_cb(cbdata);
+		return 0;
+	}
 
 	packet = packet_create("set_period", "ssd", package_name(inst->info), inst->id, period);
 	if (!packet) {

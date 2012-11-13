@@ -35,6 +35,7 @@ struct command {
 	char *pkgname;
 	struct packet *packet;
 	struct slave_node *slave;
+	int ttl; /* If it fails to handle this, destroy this */
 
 	/* Don't need to care these data */
 	void (*ret_cb)(struct slave_node *slave, const struct packet *packet, void *cbdata);
@@ -48,6 +49,8 @@ static struct info {
 	.command_list = NULL,
 	.command_consuming_timer = NULL,
 };
+
+#define DEFAULT_CMD_TTL 3
 
 static inline void prepend_command(struct command *command);
 
@@ -72,6 +75,7 @@ static inline struct command *create_command(struct slave_node *slave, const cha
 
 	command->slave = slave_ref(slave); /*!< To prevent from destroying of the slave while communicating with the slave */
 	command->packet = packet_ref(packet);
+	command->ttl = DEFAULT_CMD_TTL;
 
 	return command;
 }
@@ -194,8 +198,20 @@ static Eina_Bool command_consumer_cb(void *data)
 	 * Close current connection and make new one?
 	 * how about pended command lists?
 	 */
-	DbgPrint("Send this packet again\n");
-	prepend_command(command);
+	DbgPrint("Packet type: %d\n", packet_type(command->packet));
+	DbgPrint("Packet: %p\n", command->packet);
+	DbgPrint("Handle: %d\n", rpc->handle);
+	DbgPrint("PID: %d\n", slave_pid(command->slave));
+	DbgPrint("Name: %s\n", slave_name(command->slave));
+	DbgPrint("Package: %s\n", command->pkgname);
+	command->ttl--;
+	if (command->ttl == 0) {
+		DbgPrint("Discard packet (%d)\n", command->ttl);
+		destroy_command(command);
+	} else {
+		DbgPrint("Send again (%d)\n", command->ttl);
+		prepend_command(command);
+	}
 	return ECORE_CALLBACK_RENEW;
 
 errout:

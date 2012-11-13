@@ -25,6 +25,7 @@
 #include "io.h"
 #include "pkgmgr.h"
 #include "ctx_client.h"
+#include "xmonitor.h"
 
 int errno;
 
@@ -190,6 +191,42 @@ static int slave_deactivated_cb(struct slave_node *slave, void *data)
 	return cnt ? SLAVE_NEED_TO_REACTIVATE : 0;
 }
 
+static int xmonitor_paused_cb(void *data)
+{
+	struct pkg_info *info = (struct pkg_info *)data;
+	struct inst_info *inst;
+	Eina_List *l;
+
+	if (slave_state(info->slave) != SLAVE_TERMINATED) {
+		DbgPrint("Skip this\n");
+		return 0;
+	}
+
+	EINA_LIST_FOREACH(info->inst_list, l, inst) {
+		instance_freeze_updator(inst);
+	}
+
+	return 0;
+}
+
+static int xmonitor_resumed_cb(void *data)
+{
+	struct pkg_info *info = data;
+	struct inst_info *inst;
+	Eina_List *l;
+
+	if (slave_state(info->slave) != SLAVE_TERMINATED) {
+		DbgPrint("Skip this\n");
+		return 0;
+	}
+
+	EINA_LIST_FOREACH(info->inst_list, l, inst) {
+		instance_thaw_updator(inst);
+	}
+
+	return 0;
+}
+
 static int slave_paused_cb(struct slave_node *slave, void *data)
 {
 	struct pkg_info *info = (struct pkg_info *)data;
@@ -203,7 +240,7 @@ static int slave_paused_cb(struct slave_node *slave, void *data)
 	return 0;
 }
 
-static int slave_resume_cb(struct slave_node *slave, void *data)
+static int slave_resumed_cb(struct slave_node *slave, void *data)
 {
 	struct pkg_info *info = (struct pkg_info *)data;
 	struct inst_info *inst;
@@ -1014,7 +1051,10 @@ HAPI int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 
 		if (info->secured) {
 			slave_event_callback_add(info->slave, SLAVE_EVENT_PAUSE, slave_paused_cb, info);
-			slave_event_callback_add(info->slave, SLAVE_EVENT_RESUME, slave_resume_cb, info);
+			slave_event_callback_add(info->slave, SLAVE_EVENT_RESUME, slave_resumed_cb, info);
+
+			xmonitor_add_event_callback(XMONITOR_PAUSED, xmonitor_paused_cb, info);
+			xmonitor_add_event_callback(XMONITOR_RESUMED, xmonitor_resumed_cb, info);
 		}
 	}
 
@@ -1036,7 +1076,10 @@ HAPI int package_del_instance(struct pkg_info *info, struct inst_info *inst)
 
 			if (info->secured) {
 				slave_event_callback_del(info->slave, SLAVE_EVENT_PAUSE, slave_paused_cb, info);
-				slave_event_callback_del(info->slave, SLAVE_EVENT_RESUME, slave_resume_cb, info);
+				slave_event_callback_del(info->slave, SLAVE_EVENT_RESUME, slave_resumed_cb, info);
+
+				xmonitor_del_event_callback(XMONITOR_PAUSED, xmonitor_paused_cb, info);
+				xmonitor_del_event_callback(XMONITOR_RESUMED, xmonitor_resumed_cb, info);
 			}
 
 			slave_unref(info->slave);
