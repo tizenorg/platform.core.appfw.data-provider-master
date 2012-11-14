@@ -347,6 +347,7 @@ HAPI int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, 
 
 	command->ret_cb = ret_cb;
 	command->cbdata = data;
+	packet_unref(packet);
 
 	rpc = slave_data(slave, "rpc");
 	if (!rpc) {
@@ -354,7 +355,6 @@ HAPI int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, 
 		if (ret_cb)
 			ret_cb(slave, NULL, data);
 		destroy_command(command);
-		packet_unref(packet);
 		return -EFAULT;
 	}
 
@@ -370,7 +370,6 @@ HAPI int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, 
 					ret_cb(slave, NULL, data);
 
 				destroy_command(command);
-				packet_unref(packet);
 				return ret;
 			}
 		}
@@ -380,7 +379,6 @@ HAPI int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, 
 		else
 			rpc->pending_list = eina_list_append(rpc->pending_list, command);
 
-		packet_unref(packet);
 		return 0;
 	}
 
@@ -389,7 +387,6 @@ HAPI int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, 
 	else
 		push_command(command);
 
-	packet_unref(packet);
 	return 0;
 }
 
@@ -407,12 +404,12 @@ HAPI int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, s
 
 	command->ret_cb = NULL;
 	command->cbdata = NULL;
+	packet_unref(packet);
 
 	rpc = slave_data(slave, "rpc");
 	if (!rpc) {
 		ErrPrint("Slave has no RPC\n");
 		destroy_command(command);
-		packet_unref(packet);
 		return -EFAULT;
 	}
 
@@ -426,7 +423,6 @@ HAPI int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, s
 			ret = slave_activate(slave);
 			if (ret < 0 && ret != -EALREADY) {
 				destroy_command(command);
-				packet_unref(packet);
 				return ret;
 			}
 		}
@@ -436,7 +432,6 @@ HAPI int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, s
 		else
 			rpc->pending_list = eina_list_append(rpc->pending_list, command);
 
-		packet_unref(packet);
 		return 0;
 	}
 
@@ -445,7 +440,6 @@ HAPI int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, s
 	else
 		push_command(command);
 
-	packet_unref(packet);
 	return 0;
 }
 
