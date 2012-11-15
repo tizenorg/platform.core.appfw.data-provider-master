@@ -251,7 +251,6 @@ static inline void *acquire_gem(struct buffer *buffer)
 
 	gem->refcnt++;
 
-	DbgPrint("gem->data %p is gotten (%d)\n", gem->data, gem->refcnt);
 	return gem->data;
 }
 
@@ -274,8 +273,6 @@ static inline void release_gem(struct buffer *buffer)
 			DbgPrint("S/W Gem buffer has no reference\n");
 		} else {
 			gem = (struct gem_data *)buffer->data;
-			DbgPrint("Release gem : %d (%p)\n", buffer->refcnt, gem->data);
-
 			drm_slp_bo_unmap(gem->pixmap_bo, DRM_SLP_DEVICE_CPU);
 			gem->data = NULL;
 		}
@@ -787,19 +784,16 @@ HAPI void *buffer_handler_pixmap_ref(struct buffer_info *info)
 			return NULL;
 		}
 
-		DbgPrint("Buffer is created: %p\n", buffer);
 		info->buffer = buffer;
 	} else if (buffer->state != CREATED || buffer->type != BUFFER_TYPE_PIXMAP) {
 		ErrPrint("Invalid buffer\n");
 		return NULL;
 	} else if (buffer->refcnt > 0) {
 		buffer->refcnt++;
-		DbgPrint("Increase the refcnt - Return buffer %p\n", buffer);
 		return buffer;
 	}
 
 	s_info.pixmap_list = eina_list_append(s_info.pixmap_list, buffer);
-	DbgPrint("(List appended - Return buffer %p\n", buffer);
 	return buffer;
 }
 
@@ -1082,7 +1076,6 @@ HAPI void buffer_handler_flush(struct buffer_info *info)
 			XFixesDestroyRegion(ecore_x_display_get(), region);
 			XFlush(ecore_x_display_get());
 		} else {
-			DbgPrint("Use the S/W backend\n");
 			if (sync_for_pixmap(buffer) < 0)
 				ErrPrint("Failed to sync via S/W Backend\n");
 		}
@@ -1094,8 +1087,6 @@ HAPI void buffer_handler_flush(struct buffer_info *info)
 		}
 
 		size = info->w * info->h * info->pixel_size;
-		DbgPrint("Flush size: %d\n", size);
-
 		if (write(fd, info->buffer, size) != size)
 			ErrPrint("Write is not completed: %s\n", strerror(errno));
 

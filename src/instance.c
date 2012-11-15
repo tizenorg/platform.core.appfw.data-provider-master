@@ -28,6 +28,12 @@
 
 int errno;
 
+static struct info {
+	enum buffer_type env_buf_type;
+} s_info = {
+	.env_buf_type = BUFFER_TYPE_FILE,
+};
+
 struct set_pinup_cbdata {
 	struct inst_info *inst;
 	int pinup;
@@ -955,19 +961,7 @@ HAPI int instance_create_pd_buffer(struct inst_info *inst)
 	}
 
 	if (!inst->pd.canvas.buffer) {
-		enum buffer_type type;
-		const char *env_type;
-
-		type = BUFFER_TYPE_FILE;
-		env_type = getenv("USE_SHM_FOR_LIVE_CONTENT");
-		if (env_type) {
-			if (!strcasecmp(env_type, "shm"))
-				type = BUFFER_TYPE_SHM;
-			else if (!strcasecmp(env_type, "pixmap"))
-				type = BUFFER_TYPE_PIXMAP;
-		}
-
-		inst->pd.canvas.buffer = buffer_handler_create(inst, type, inst->pd.width, inst->pd.height, sizeof(int));
+		inst->pd.canvas.buffer = buffer_handler_create(inst, s_info.env_buf_type, inst->pd.width, inst->pd.height, sizeof(int));
 		if (!inst->pd.canvas.buffer)
 			ErrPrint("Failed to create PD Buffer\n");
 	}
@@ -981,23 +975,12 @@ HAPI int instance_create_lb_buffer(struct inst_info *inst)
 		livebox_service_get_size(LB_SIZE_TYPE_1x1, &inst->lb.width, &inst->lb.height);
 
 	if (!inst->lb.canvas.buffer) {
-		enum buffer_type type;
-		const char *env_type;
-
-		type = BUFFER_TYPE_FILE;
-		env_type = getenv("USE_SHM_FOR_LIVE_CONTENT");
-		if (env_type) {
-			if (!strcasecmp(env_type, "shm"))
-				type = BUFFER_TYPE_SHM;
-			else if (!strcasecmp(env_type, "pixmap"))
-				type = BUFFER_TYPE_PIXMAP;
-		}
 		/*!
 		 * \note
 		 * Slave doesn't call the acquire_buffer.
 		 * In this case, create the buffer from here.
 		 */
-		inst->lb.canvas.buffer = buffer_handler_create(inst, type, inst->lb.width, inst->lb.height, sizeof(int));
+		inst->lb.canvas.buffer = buffer_handler_create(inst, s_info.env_buf_type, inst->lb.width, inst->lb.height, sizeof(int));
 		if (!inst->lb.canvas.buffer)
 			ErrPrint("Failed to create LB\n");
 	}
@@ -1762,8 +1745,6 @@ HAPI int instance_signal_emit(struct inst_info *inst, const char *signal, const 
 		return -EINVAL;
 	}
 
-	DbgPrint("Package[%s], ID[%s]\n", pkgname, id);
-
 	slave = package_slave(instance_package(inst));
 	if (!slave) {
 		ErrPrint("Slave is not valid\n");
@@ -2332,6 +2313,22 @@ HAPI int instance_has_client(struct inst_info *inst, struct client_node *client)
 HAPI void *instance_client_list(struct inst_info *inst)
 {
 	return inst->client_list;
+}
+
+HAPI void instance_init(void)
+{
+	const char *type;
+	type = getenv("USE_SHM_FOR_LIVE_CONTENT");
+	if (type) {
+		if (!strcasecmp(type, "shm"))
+			s_info.env_buf_type = BUFFER_TYPE_SHM;
+		else if (!strcasecmp(type, "pixmap"))
+			s_info.env_buf_type = BUFFER_TYPE_PIXMAP;
+	}
+}
+
+HAPI void instance_fini(void)
+{
 }
 
 /* End of a file */

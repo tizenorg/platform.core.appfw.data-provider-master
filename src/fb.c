@@ -211,7 +211,6 @@ HAPI void *fb_pixmap_render_pre(struct fb_info *info)
 {
 	void *canvas;
 	canvas = buffer_handler_pixmap_acquire_buffer(info->buffer);
-	DbgPrint("Canvas: %p\n", canvas);
 	return canvas;
 }
 
@@ -224,7 +223,6 @@ HAPI int fb_pixmap_render_post(struct fb_info *info)
 	 * info->buffer == struct buffer_info
 	 */
 	canvas = buffer_handler_pixmap_buffer(info->buffer);
-	DbgPrint("Canvas: %p\n", canvas);
 	return buffer_handler_pixmap_release_buffer(canvas);
 }
 

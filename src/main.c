@@ -20,7 +20,7 @@
 #include "slave_rpc.h"
 #include "client_life.h"
 #include "instance.h"
-#include <buffer_handler.h>
+#include "buffer_handler.h"
 #include "script_handler.h"
 #include "package.h"
 #include "group.h"
@@ -81,6 +81,8 @@ static inline int app_create(void)
 	ret = package_init();
 	DbgPrint("pkgmgr initialized: %d\n", ret);
 
+	instance_init();
+
 	ret = xmonitor_init();
 	DbgPrint("XMonitor init is done: %d\n", ret);
 
@@ -112,6 +114,8 @@ static inline int app_terminate(void)
 	DbgPrint("ctx_client_fini returns %d\n", ret);
 
 	xmonitor_fini();
+
+	instance_fini();
 
 	ret = package_fini();
 	DbgPrint("Finalize package info: %d\n", ret);

@@ -32,9 +32,19 @@
 #include "io.h"
 
 static struct info {
-	int fd;
+	int info_fd;
+	int client_fd;
+	int service_fd;
+	int slave_fd;
+	int debug_provider;
+	int prevent_overwrite;
 } s_info = {
-	.fd = -1,
+	.info_fd = -1,
+	.client_fd = -1,
+	.service_fd = -1,
+	.slave_fd = -1,
+	.debug_provider = 0,
+	.prevent_overwrite = 0,
 };
 
 /* Share this with provider */
@@ -2589,10 +2599,7 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
-		const char *dbg;
-
-		dbg = getenv("DEBUG_PROVIDER");
-		if (dbg && !strcasecmp(dbg, "true")) {
+		if (s_info.debug_provider) {
 			char pkgname[pathconf("/", _PC_PATH_MAX)];
 			const char *abi;
 
@@ -2762,7 +2769,7 @@ static inline char *get_file_kept_in_safe(const char *id)
 	/*!
 	 * TODO: Remove me
 	 */
-	if (getenv("DISABLE_PREVENT_OVERWRITE"))
+	if (s_info.prevent_overwrite)
 		return strdup(path);
 
 	len = strlen(path);
@@ -3582,11 +3589,42 @@ static struct packet *liveinfo_pkg_ctrl(pid_t pid, int handle, const struct pack
 	return NULL;
 }
 
-static struct method s_table[] = {
-	/*!
-	 * \note
-	 * service for client
-	 */
+static struct method s_info_table[] = {
+	{
+		.cmd = "liveinfo_hello",
+		.handler = liveinfo_hello,
+	},
+	{
+		.cmd = "slave_list",
+		.handler = liveinfo_slave_list,
+	},
+	{
+		.cmd = "pkg_list",
+		.handler = liveinfo_pkg_list,
+	},
+	{
+		.cmd = "inst_list",
+		.handler = liveinfo_inst_list,
+	},
+	{
+		.cmd = "slave_load",
+		.handler = liveinfo_slave_load,
+	},
+	{
+		.cmd = "slave_ctrl",
+		.handler = liveinfo_slave_ctrl,
+	},
+	{
+		.cmd = "pkg_ctrl",
+		.handler = liveinfo_pkg_ctrl,
+	},
+	{
+		.cmd = NULL,
+		.handler = NULL,
+	},
+};
+
+static struct method s_client_table[] = {
 	{
 		.cmd = "pd_mouse_move",
 		.handler = client_pd_mouse_move, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
@@ -3719,9 +3757,24 @@ static struct method s_table[] = {
 		.cmd = "refresh_group",
 		.handler = client_refresh_group,
 	},
-	/*!
-	 * \note services for slave
-	 */
+	{
+		.cmd = NULL,
+		.handler = NULL,
+	},
+};
+
+static struct method s_service_table[] = {
+	{
+		.cmd = "service_update",
+		.handler = service_update,
+	},
+	{
+		.cmd = NULL,
+		.handler = NULL,
+	},
+};
+
+static struct method s_slave_table[] = {
 	{
 		.cmd = "hello",
 		.handler = slave_hello, /* slave_name, ret */
@@ -3762,44 +3815,6 @@ static struct method s_table[] = {
 		.cmd = "release_buffer",
 		.handler = slave_release_buffer, /* slave_name, id - ret */
 	},
-	/*!
-	 * \note Service
-	 */
-	{
-		.cmd = "service_update",
-		.handler = service_update,
-	},
-	/*!
-	 * \note services for liveinfo (liveinfo)
-	 */
-	{
-		.cmd = "liveinfo_hello",
-		.handler = liveinfo_hello,
-	},
-	{
-		.cmd = "slave_list",
-		.handler = liveinfo_slave_list,
-	},
-	{
-		.cmd = "pkg_list",
-		.handler = liveinfo_pkg_list,
-	},
-	{
-		.cmd = "inst_list",
-		.handler = liveinfo_inst_list,
-	},
-	{
-		.cmd = "slave_load",
-		.handler = liveinfo_slave_load,
-	},
-	{
-		.cmd = "slave_ctrl",
-		.handler = liveinfo_slave_ctrl,
-	},
-	{
-		.cmd = "pkg_ctrl",
-		.handler = liveinfo_pkg_ctrl,
-	},
 	{
 		.cmd = NULL,
 		.handler = NULL,
@@ -3808,22 +3823,80 @@ static struct method s_table[] = {
 
 HAPI int server_init(void)
 {
-	if (unlink(SOCKET_FILE) < 0)
-		ErrPrint("unlink: %s\n", strerror(errno));
+	const char *option;
+	option = getenv("PROVIDER_DEBUG_PROVIDER");
+	if (option && !strcasecmp(option, "true"))
+		s_info.debug_provider = 1;
 
-	s_info.fd = com_core_packet_server_init(SOCKET_FILE, s_table);
-	if (s_info.fd < 0) {
-		ErrPrint("Failed to create a server socket\n");
-		return s_info.fd;
-	}
+	option = getenv("PROVIDER_DISABLE_PREVENT_OVERWRITE");
+	if (option && !strcasecmp(option, "true"))
+		s_info.prevent_overwrite = 1;
 
-	chmod(SOCKET_FILE, 0666);
+	if (unlink(INFO_SOCKET) < 0)
+		ErrPrint("info socket: %s\n", strerror(errno));
+
+	if (unlink(SLAVE_SOCKET) < 0)
+		ErrPrint("slave socket: %s\n", strerror(errno));
+
+	if (unlink(CLIENT_SOCKET) < 0)
+		ErrPrint("client socket: %s\n", strerror(errno));
+
+	if (unlink(SERVICE_SOCKET) < 0)
+		ErrPrint("service socket: %s\n", strerror(errno));
+
+	s_info.info_fd = com_core_packet_server_init(INFO_SOCKET, s_info_table);
+	if (s_info.info_fd < 0)
+		ErrPrint("Failed to create a info socket\n");
+
+	s_info.slave_fd = com_core_packet_server_init(SLAVE_SOCKET, s_slave_table);
+	if (s_info.slave_fd < 0)
+		ErrPrint("Failed to create a slave socket\n");
+
+	s_info.client_fd = com_core_packet_server_init(CLIENT_SOCKET, s_client_table);
+	if (s_info.client_fd < 0)
+		ErrPrint("Failed to create a client socket\n");
+
+	s_info.service_fd = com_core_packet_server_init(SERVICE_SOCKET, s_service_table);
+	if (s_info.service_fd < 0)
+		ErrPrint("Faild to create a service socket\n");
+
+	if (chmod(INFO_SOCKET, 0600) < 0)
+		ErrPrint("info socket: %s\n", strerror(errno));
+
+	if (chmod(SLAVE_SOCKET, 0666) < 0)
+		ErrPrint("slave socket: %s\n", strerror(errno));
+
+	if (chmod(CLIENT_SOCKET, 0666) < 0)
+		ErrPrint("client socket: %s\n", strerror(errno));
+
+	if (chmod(SERVICE_SOCKET, 0666) < 0)
+		ErrPrint("service socket: %s\n", strerror(errno));
+
 	return 0;
 }
 
 HAPI int server_fini(void)
 {
-	com_core_packet_server_fini(s_info.fd);
+	if (s_info.info_fd > 0) {
+		com_core_packet_server_fini(s_info.info_fd);
+		s_info.info_fd = -1;
+	}
+
+	if (s_info.slave_fd > 0) {
+		com_core_packet_server_fini(s_info.slave_fd);
+		s_info.slave_fd = -1;
+	}
+
+	if (s_info.client_fd > 0) {
+		com_core_packet_server_fini(s_info.client_fd);
+		s_info.client_fd = -1;
+	}
+
+	if (s_info.service_fd > 0) {
+		com_core_packet_server_fini(s_info.service_fd);
+		s_info.service_fd = -1;
+	}
+
 	return 0;
 }
 

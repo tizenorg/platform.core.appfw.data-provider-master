@@ -40,8 +40,10 @@ int errno;
 
 static struct info {
 	Eina_List *script_port_list;
+	enum buffer_type env_buf_type;
 } s_info = {
 	.script_port_list = NULL,
+	.env_buf_type = BUFFER_TYPE_FILE,
 };
 
 struct script_port {
@@ -297,8 +299,6 @@ HAPI int script_handler_unload(struct script_info *info, int is_pd)
 HAPI struct script_info *script_handler_create(struct inst_info *inst, const char *file, const char *group, int w, int h)
 {
 	struct script_info *info;
-	enum buffer_type type;
-	const char *env_type;
 
 	DbgPrint("Create script: %s (%s)\n", file, group);
 
@@ -311,16 +311,7 @@ HAPI struct script_info *script_handler_create(struct inst_info *inst, const cha
 		return NULL;
 	}
 
-	type = BUFFER_TYPE_FILE;
-	env_type = getenv("USE_SHM_FOR_LIVE_CONTENT");
-	if (env_type) {
-		if (!strcasecmp(env_type, "shm"))
-			type = BUFFER_TYPE_SHM;
-		else if (!strcasecmp(env_type, "pixmap"))
-			type = BUFFER_TYPE_PIXMAP;
-	}
-
-	info->fb = fb_create(inst, w, h, type);
+	info->fb = fb_create(inst, w, h, s_info.env_buf_type);
 	if (!info->fb) {
 		ErrPrint("Failed to create a FB (%dx%d)\n", w, h);
 		DbgFree(info);
@@ -706,8 +697,6 @@ HAPI int script_handler_parse_desc(const char *pkgname, const char *id, const ch
 		return -EIO;
 	}
 
-	DbgPrint("descfile: %s\n", util_basename(descfile));
-
 	state = UNKNOWN;
 	field_idx = 0;
 	lineno = 1;
@@ -1065,6 +1054,15 @@ HAPI int script_init(void)
 	DIR *dir;
 	char *path;
 	int pathlen;
+	const char *type;
+
+	type = getenv("USE_SHM_FOR_LIVE_CONTENT");
+	if (type) {
+		if (!strcasecmp(type, "shm"))
+			s_info.env_buf_type = BUFFER_TYPE_SHM;
+		else if (!strcasecmp(type, "pixmap"))
+			s_info.env_buf_type = BUFFER_TYPE_PIXMAP;
+	}
 
 	dir = opendir(SCRIPT_PORT_PATH);
 	if (!dir) {

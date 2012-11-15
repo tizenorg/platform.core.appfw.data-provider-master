@@ -151,8 +151,21 @@ HAPI int fault_check_pkgs(struct slave_node *slave)
 			dump_fault_info(slave_name(slave), slave_pid(slave), pkgname, "", "");
 			ErrPrint("Set fault %s(%d)\n", !ret ? "Success" : "Failed", ret);
 			fault_broadcast_info(pkgname, "", "");
-			s_info.fault_mark_count = 0;
 			DbgFree((char *)pkgname);
+
+			s_info.fault_mark_count = 0;
+			clear_log_file(slave);
+			EINA_LIST_REVERSE_FOREACH_SAFE(s_info.call_list, l, n, info) {
+				if (info->slave != slave)
+					continue;
+
+				s_info.call_list = eina_list_remove_list(s_info.call_list, l);
+
+				DbgFree(info->pkgname);
+				DbgFree(info->filename);
+				DbgFree(info->func);
+				DbgFree(info);
+			}
 			return 0;
 		}
 		DbgFree((char *)pkgname);
@@ -172,8 +185,20 @@ HAPI int fault_check_pkgs(struct slave_node *slave)
 			dump_fault_info(slave_name(slave), slave_pid(slave), pkgname, "", "");
 			ErrPrint("Set fault %s(%d)\n", !ret ? "Success" : "Failed", ret);
 			fault_broadcast_info(pkgname, "", "");
+
 			s_info.fault_mark_count = 0;
 			clear_log_file(slave);
+			EINA_LIST_REVERSE_FOREACH_SAFE(s_info.call_list, l, n, info) {
+				if (info->slave != slave)
+					continue;
+
+				s_info.call_list = eina_list_remove_list(s_info.call_list, l);
+
+				DbgFree(info->pkgname);
+				DbgFree(info->filename);
+				DbgFree(info->func);
+				DbgFree(info);
+			}
 			return 0;
 		}
 	}

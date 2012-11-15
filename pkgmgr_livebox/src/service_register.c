@@ -295,7 +295,7 @@ static inline int db_create_provider(void)
 		"abi TEXT, secured INTEGER, box_type INTEGER, " \
 		"box_src TEXT, box_group TEXT, pd_type INTEGER, " \
 		"pd_src TEXT, pd_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, "\
-		"FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid))";
+		"FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
 
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
@@ -506,7 +506,7 @@ static inline int db_create_client(void)
 
 	ddl = "CREATE TABLE client (" \
 		"pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, " \
-		"auto_launch INTEGER, pd_size TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )";
+		"auto_launch INTEGER, pd_size TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -618,7 +618,7 @@ static inline int db_create_i18n(void)
 	static const char *ddl;
 
 	ddl = "CREATE TABLE i18n ( pkgid TEXT NOT NULL, lang TEXT, name TEXT, " \
-		"icon TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )";
+		"icon TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -726,7 +726,7 @@ static inline int db_create_group(void)
 	char *err;
 	static const char *ddl;
 
-	ddl = "CREATE TABLE groupinfo ( id INTEGER PRIMARY KEY AUTOINCREMENT, cluster TEXT NOT NULL, category TEXT NOT NULL, pkgid TEXT NOT NULL, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )";
+	ddl = "CREATE TABLE groupinfo ( id INTEGER PRIMARY KEY AUTOINCREMENT, cluster TEXT NOT NULL, category TEXT NOT NULL, pkgid TEXT NOT NULL, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -868,7 +868,7 @@ static inline int db_create_groupmap(void)
 	char *err;
 	static const char *ddl;
 
- 	ddl = "CREATE TABLE groupmap (option_id INTEGER PRIMARY KEY AUTOINCREMENT, id INTEGER, pkgid TEXT NOT NULL, ctx_item TEXT NOT NULL, FOREIGN KEY(id) REFERENCES groupinfo(id), FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid))";
+ 	ddl = "CREATE TABLE groupmap (option_id INTEGER PRIMARY KEY AUTOINCREMENT, id INTEGER, pkgid TEXT NOT NULL, ctx_item TEXT NOT NULL, FOREIGN KEY(id) REFERENCES groupinfo(id), FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -1022,7 +1022,7 @@ static inline int db_create_option(void)
 
 	ddl = "CREATE TABLE option ( pkgid TEXT NOT NULL, option_id INTEGER, key TEXT NOT NULL, value TEXT NOT NULL, " \
 		"FOREIGN KEY(option_id) REFERENCES groupmap(option_id), " \
-		"FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )";
+		"FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -1129,7 +1129,7 @@ static inline int db_create_box_size(void)
 	static const char *ddl;
 
 	ddl = "CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, " \
-		"FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )";
+		"FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
