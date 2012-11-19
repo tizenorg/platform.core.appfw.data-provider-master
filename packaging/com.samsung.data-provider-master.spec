@@ -1,6 +1,6 @@
 Name: com.samsung.data-provider-master
 Summary: Master data provider
-Version: 0.13.0
+Version: 0.13.1
 Release: 1
 Group: main/app
 License: Samsung Proprietary License
@@ -57,10 +57,12 @@ if [ -x /etc/rc.d/init.d/data-provider-master ]; then
 fi
 
 %post
+
 mkdir -p /opt/usr/share/live_magazine
 chown 5000:5000 /opt/usr/share/live_magazine
-chsmack -a "_" /opt/usr/share/live_magazine
-chsmack -t /opt/usr/share/live_magazine
+## chsmack -a "_" /opt/usr/share/live_magazine
+## chsmack -t /opt/usr/share/live_magazine
+
 # According to this transmute attribute, below log, reader folder will be set as same label
 
 mkdir -p /opt/usr/share/live_magazine/log
@@ -76,7 +78,7 @@ if [ ! -f "/opt/dbspace/livebox.db" ]; then
 	touch /opt/dbspace/.livebox.db
 	chown 0:5000 /opt/dbspace/.livebox.db
 	chmod 640 /opt/dbspace/.livebox.db
-	chsmack -a "data-provider-master::db" /opt/dbspace/.livebox.db
+	## chsmack -a "data-provider-master::db" /opt/dbspace/.livebox.db
 fi
 
 if [ ! -f "/opt/dbspace/livebox.db-journal" ]; then
@@ -84,17 +86,17 @@ if [ ! -f "/opt/dbspace/livebox.db-journal" ]; then
 	touch /opt/dbspace/.livebox.db-journal
 	chown 0:5000 /opt/dbspace/.livebox.db-journal
 	chmod 640 /opt/dbspace/.livebox.db-journal
-	chsmack -a "data-provider-master::db" /opt/dbspace/.livebox.db-journal
+	## chsmack -a "data-provider-master::db" /opt/dbspace/.livebox.db-journal
 fi
 
 mkdir -p /etc/rc.d/rc3.d
 ln -sf /etc/rc.d/init.d/data-provider-master /etc/rc.d/rc3.d/S99data-provider-master
-chsmack -a "_" /etc/rc.d/rc3.d/S99data-provider-master
-chsmack -e "_" /etc/rc.d/rc3.d/S99data-provider-master
+## chsmack -a "_" /etc/rc.d/rc3.d/S99data-provider-master
+## chsmack -e "_" /etc/rc.d/rc3.d/S99data-provider-master
 
 mkdir -p /usr/lib/systemd/user/tizen-middleware.target.wants
 ln -sf /usr/lib/systemd/user/data-provider-master.service /usr/lib/systemd/user/tizen-middleware.target.wants/data-provider-master.service
-chsmack -a "_" /usr/lib/systemd/user/tizen-middleware.target.wants/data-provider-master.service
+## chsmack -a "_" /usr/lib/systemd/user/tizen-middleware.target.wants/data-provider-master.service
 
 echo "Successfully installed. Please start a daemon again manually"
 echo "/etc/init.d/data-provider-master start"

@@ -52,7 +52,7 @@ struct script_port {
 	const char *(*magic_id)(void);
 	int (*update_text)(void *handle, Evas *e, const char *id, const char *part, const char *text);
 	int (*update_image)(void *handle, Evas *e, const char *id, const char *part, const char *path);
-	int (*update_script)(void *handle, Evas *e, const char *id, const char *part, const char *path, const char *group);
+	int (*update_script)(void *handle, Evas *e, const char *src_id, const char *target_id, const char *part, const char *path, const char *group);
 	int (*update_signal)(void *handle, Evas *e, const char *id, const char *part, const char *signal);
 	int (*update_drag)(void *handle, Evas *e, const char *id, const char *part, double x, double y);
 	int (*update_size)(void *handle, Evas *e, const char *id, int w, int h);
@@ -86,6 +86,9 @@ struct block {
 
 	char *id;
 	int id_len;
+
+	char *target_id;
+	int target_len;
 };
 
 struct script_info {
@@ -465,7 +468,7 @@ static int update_script_script(struct inst_info *inst, struct block *block, int
 
 	e = script_handler_evas(info);
 	if (e)
-		info->port->update_script(info->port_data, e, block->id, block->part, block->data, block->group);
+		info->port->update_script(info->port_data, e, block->id, block->target_id, block->part, block->data, block->group);
 	else
 		ErrPrint("Evas: (nil) id[%s] part[%s] data[%s] group[%s]\n",
 						block->id, block->part, block->data, block->group);
@@ -635,6 +638,7 @@ HAPI int script_handler_parse_desc(const char *pkgname, const char *id, const ch
 		VALUE_FILE = 0x03,
 		VALUE_GROUP = 0x04,
 		VALUE_ID = 0x05,
+		VALUE_TARGET = 0x06,
 	};
 	const char *field_name[] = {
 		"type",
@@ -643,6 +647,7 @@ HAPI int script_handler_parse_desc(const char *pkgname, const char *id, const ch
 		"file",
 		"group",
 		"id",
+		"target",
 		NULL
 	};
 	enum state state;
@@ -809,6 +814,15 @@ HAPI int script_handler_parse_desc(const char *pkgname, const char *id, const ch
 						DbgFree(block->id);
 						block->id = NULL;
 						block->id_len = 0;
+					}
+					idx = 0;
+					break;
+				case 6:
+					state = VALUE_TARGET;
+					if (block->target_id) {
+						DbgFree(block->target_id);
+						block->target_id = NULL;
+						block->target_len = 0;
 					}
 					idx = 0;
 					break;
@@ -986,6 +1000,29 @@ HAPI int script_handler_parse_desc(const char *pkgname, const char *id, const ch
 			block->id[idx] = ch;
 			idx++;
 			break;
+		case VALUE_TARGET:
+			if (idx == block->target_len) {
+				char *tmp;
+				block->target_len += ADDEND;
+				tmp = realloc(block->target_id, block->target_len);
+				if (!tmp) {
+					ErrPrint("Heap: %s\n", strerror(errno));
+					goto errout;
+				}
+				block->target_id = tmp;
+			}
+
+			if (ch == '\n') {
+				block->target_id[idx] = '\0';
+				state = FIELD;
+				idx = 0;
+				field_idx = 0;
+				break;
+			}
+
+			block->target_id[idx] = ch;
+			idx++;
+			break;
 		case BLOCK_CLOSE:
 			if (!block->file) {
 				block->file = strdup(util_uri_to_path(id));
@@ -1013,6 +1050,7 @@ HAPI int script_handler_parse_desc(const char *pkgname, const char *id, const ch
 			DbgFree(block->data);
 			DbgFree(block->group);
 			DbgFree(block->id);
+			DbgFree(block->target_id);
 			DbgFree(block);
 			block = NULL;
 
@@ -1041,6 +1079,7 @@ errout:
 		DbgFree(block->data);
 		DbgFree(block->group);
 		DbgFree(block->id);
+		DbgFree(block->target_id);
 		DbgFree(block);
 	}
 	fclose(fp);

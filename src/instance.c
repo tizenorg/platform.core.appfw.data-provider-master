@@ -108,9 +108,64 @@ struct inst_info {
 	int refcnt;
 
 	Ecore_Timer *update_timer; /*!< Only used for secured livebox */
+	double sleep_time;
 };
 
 #define CLIENT_SEND_EVENT(instance, packet)	((instance)->client ? client_rpc_async_request((instance)->client, (packet)) : client_broadcast((instance), (packet)))
+
+static Eina_Bool update_timer_cb(void *data);
+
+static inline void timer_thaw(struct inst_info *inst)
+{
+	struct timeval tv;
+	double cur_time;
+
+	ecore_timer_thaw(inst->update_timer);
+
+	if (inst->sleep_time == 0.0f)
+		return;
+
+	if (gettimeofday(&tv, NULL) < 0) {
+		ErrPrint("Failed to get timeofday: %s\n", strerror(errno));
+		inst->sleep_time = 0.0f;
+		return;
+	}
+
+	cur_time = (double)tv.tv_sec + ((double)tv.tv_usec / 1000000.0f);
+	cur_time -= inst->sleep_time;
+	if (cur_time >= ecore_timer_pending_get(inst->update_timer)) {
+		double interval;
+
+		interval = ecore_timer_interval_get(inst->update_timer);
+		while (cur_time > interval) {
+			cur_time -= interval;
+		}
+		/*!
+		 * \NOTE
+		 * Compensate the update period
+		 */
+		ecore_timer_reset(inst->update_timer);
+		ecore_timer_delay(inst->update_timer, -cur_time);
+		update_timer_cb(inst);
+	}
+
+	inst->sleep_time = 0.0f;
+}
+
+static inline void timer_freeze(struct inst_info *inst)
+{
+	struct timeval tv;
+
+	ecore_timer_freeze(inst->update_timer);
+
+	if (gettimeofday(&tv, NULL) < 0) {
+		ErrPrint("Failed to get timeofday: %s\n", strerror(errno));
+		return;
+	}
+
+	inst->sleep_time = (double)tv.tv_sec + ((double)tv.tv_usec / 1000000.0f);
+}
+
 
 static int viewer_deactivated_cb(struct client_node *client, void *data)
 {
@@ -457,7 +512,7 @@ static inline int fork_package(struct inst_info *inst, const char *pkgname)
 		if (!inst->update_timer)
 			ErrPrint("Failed to add an update timer for instance %s\n", inst->id);
 		else
-			ecore_timer_freeze(inst->update_timer); /* Freeze the update timer as default */
+			timer_freeze(inst); /* Freeze the update timer as default */
 	}
 
 	return 0;
@@ -1450,7 +1505,7 @@ HAPI int instance_freeze_updator(struct inst_info *inst)
 	}
 
 	DbgPrint("Freeze the update timer (%s)\n", inst->id);
-	ecore_timer_freeze(inst->update_timer);
+	timer_freeze(inst);
 	return 0;
 }
 
@@ -1472,7 +1527,7 @@ HAPI int instance_thaw_updator(struct inst_info *inst)
 	}
 
 	DbgPrint("Thaw the update timer (%s)\n", inst->id);
-	ecore_timer_thaw(inst->update_timer);
+	timer_thaw(inst);
 	return 0;
 }
 
@@ -1642,7 +1697,7 @@ static Eina_Bool timer_updator_cb(void *data)
 		if (!inst->update_timer)
 			ErrPrint("Failed to add an update timer for instance %s\n", inst->id);
 		else
-			ecore_timer_freeze(inst->update_timer); /* Freeze the update timer as default */
+			timer_freeze(inst); /* Freeze the update timer as default */
 	}
 
 	result = packet_create_noack("period_changed", "idss", 0, inst->period, package_name(inst->info), inst->id);
