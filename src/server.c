@@ -3835,6 +3835,10 @@ HAPI int server_init(void)
 	if (option && !strcasecmp(option, "true"))
 		s_info.prevent_overwrite = 1;
 
+	option = getenv("PROVIDER_COM_CORE_THREAD");
+	if (option && !strcasecmp(option, "true"))
+		com_core_packet_use_thread(1);
+
 	if (unlink(INFO_SOCKET) < 0)
 		ErrPrint("info socket: %s\n", strerror(errno));
 
