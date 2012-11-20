@@ -2043,6 +2043,8 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 	const char *id;
 	int ret;
 	struct inst_info *inst;
+	double x;
+	double y;
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -2051,8 +2053,8 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		goto out;
 	}
 
-	ret = packet_get(packet, "ss", &pkgname, &id);
-	if (ret != 2) {
+	ret = packet_get(packet, "ssdd", &pkgname, &id, &x, &y);
+	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
 		ret = -EINVAL;
 		goto out;
@@ -2082,7 +2084,7 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		ret = instance_slave_open_pd(inst);
 		ret = instance_signal_emit(inst,
 				"pd,show", util_uri_to_path(instance_id(inst)),
-				0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0);
+				0.0, 0.0, 0.0, 0.0, x, y, 0);
 
 		/*!
 		 * \note
@@ -2122,6 +2124,7 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		 */
 		ret = instance_slave_open_pd(inst);
 
+		script_handler_update_pointer(instance_pd_script(inst), x, y, 0);
 		ret = script_handler_load(instance_pd_script(inst), 1);
 
 		/*!
