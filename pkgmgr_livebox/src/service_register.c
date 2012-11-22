@@ -70,12 +70,12 @@
  *
  *
  * box_size
- * +-------+-----------+
- * | pkgid | size_type |
- * +-------+-----------+
- * |   -   |     -     |
- * +-------+-----------+
- * CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
+ * +-------+-----------+---------+
+ * | pkgid | size_type | preview |
+ * +-------+-----------+---------+
+ * |   -   |     -     |    -    |
+ * +-------+-----------+---------+
+ * CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, preview TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
  *
  * = box_size_list = { WIDTHxHEIGHT; WIDTHxHEIGHT; ... }
  *
@@ -1128,7 +1128,7 @@ static inline int db_create_box_size(void)
 	char *err;
 	static const char *ddl;
 
-	ddl = "CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, " \
+	ddl = "CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, preview TEXT, " \
 		"FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
@@ -1141,14 +1141,14 @@ static inline int db_create_box_size(void)
 	return 0;
 }
 
-static inline int db_insert_box_size(const char *pkgid, int size_type)
+static inline int db_insert_box_size(const char *pkgid, int size_type, const char *preview)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	DbgPrint("box size: %s - %d is added\n", pkgid, size_type);
-	dml = "INSERT INTO box_size ( pkgid, size_type ) VALUES (?, ?)";
+	DbgPrint("box size: %s - %d (%s) is added\n", pkgid, size_type, preview);
+	dml = "INSERT INTO box_size ( pkgid, size_type, preview ) VALUES (?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
@@ -1163,6 +1163,13 @@ static inline int db_insert_box_size(const char *pkgid, int size_type)
 	}
 
 	ret = sqlite3_bind_int(stmt, 2, size_type);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 3, preview ? preview : "", -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -1367,6 +1374,8 @@ struct livebox {
 	xmlChar *lb_group;
 	int size_list; /* 172x172, 348x172, 348x348, 720x348 */
 
+	xmlChar *preview[6];
+
 	enum pd_type pd_type;
 	xmlChar *pd_src;
 	xmlChar *pd_group;
@@ -1416,6 +1425,12 @@ static inline int livebox_destroy(struct livebox *livebox)
 	xmlFree(livebox->libexec);
 	xmlFree(livebox->script);
 	xmlFree(livebox->period);
+	xmlFree(livebox->preview[0]); /* 1x1 */
+	xmlFree(livebox->preview[1]); /* 2x1 */
+	xmlFree(livebox->preview[2]); /* 2x2 */
+	xmlFree(livebox->preview[3]); /* 4x1 */
+	xmlFree(livebox->preview[4]); /* 4x2 */
+	xmlFree(livebox->preview[5]); /* 4x4 */
 
 	dlist_foreach_safe(livebox->i18n_list, l, n, i18n) {
 		livebox->i18n_list = dlist_remove(livebox->i18n_list, l);
@@ -1584,20 +1599,39 @@ static inline void update_box(struct livebox *livebox, xmlNodePtr node)
 				continue;
 			}
 
-			if (!xmlStrcasecmp(size, (const xmlChar *)"1x1"))
+			if (!xmlStrcasecmp(size, (const xmlChar *)"1x1")) {
 				livebox->size_list |= LB_SIZE_1x1;
-			else if (!xmlStrcasecmp(size, (const xmlChar *)"2x1"))
+				if (xmlHasProp(node, (const xmlChar *)"preview")) {
+					livebox->preview[0] = xmlGetProp(node, (const xmlChar *)"preview");
+				}
+			} else if (!xmlStrcasecmp(size, (const xmlChar *)"2x1")) {
 				livebox->size_list |= LB_SIZE_2x1;
-			else if (!xmlStrcasecmp(size, (const xmlChar *)"2x2"))
+				if (xmlHasProp(node, (const xmlChar *)"preview")) {
+					livebox->preview[1] = xmlGetProp(node, (const xmlChar *)"preview");
+				}
+			} else if (!xmlStrcasecmp(size, (const xmlChar *)"2x2")) {
 				livebox->size_list |= LB_SIZE_2x2;
-			else if (!xmlStrcasecmp(size, (const xmlChar *)"4x1"))
+				if (xmlHasProp(node, (const xmlChar *)"preview")) {
+					livebox->preview[2] = xmlGetProp(node, (const xmlChar *)"preview");
+				}
+			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x1")) {
 				livebox->size_list |= LB_SIZE_4x1;
-			else if (!xmlStrcasecmp(size, (const xmlChar *)"4x2"))
+				if (xmlHasProp(node, (const xmlChar *)"preview")) {
+					livebox->preview[3] = xmlGetProp(node, (const xmlChar *)"preview");
+				}
+			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x2")) {
 				livebox->size_list |= LB_SIZE_4x2;
-			else if (!xmlStrcasecmp(size, (const xmlChar *)"4x4"))
+				if (xmlHasProp(node, (const xmlChar *)"preview")) {
+					livebox->preview[4] = xmlGetProp(node, (const xmlChar *)"preview");
+				}
+			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x4")) {
 				livebox->size_list |= LB_SIZE_4x4;
-			else
+				if (xmlHasProp(node, (const xmlChar *)"preview")) {
+					livebox->preview[5] = xmlGetProp(node, (const xmlChar *)"preview");
+				}
+			} else {
 				ErrPrint("Invalid size tag (%s)\n", size);
+			}
 
 			xmlFree(size);
 		} else if (!xmlStrcasecmp(node->name, (const xmlChar *)"script")) {
@@ -1876,37 +1910,37 @@ static inline int db_insert_livebox(struct livebox *livebox, const char *appid)
 	}
 
 	if (livebox->size_list & LB_SIZE_1x1) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_1x1);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_1x1, (char *)livebox->preview[0]);
 		if (ret < 0)
 			goto errout;
 	}
 
 	if (livebox->size_list & LB_SIZE_2x1) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_2x1);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_2x1, (char *)livebox->preview[1]);
 		if (ret < 0)
 			goto errout;
 	}
 
 	if (livebox->size_list & LB_SIZE_2x2) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_2x2);
-		if (ret < 0)
-			goto errout;
-	}
-
-	if (livebox->size_list & LB_SIZE_4x2) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_4x2);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_2x2, (char *)livebox->preview[2]);
 		if (ret < 0)
 			goto errout;
 	}
 
 	if (livebox->size_list & LB_SIZE_4x1) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_4x1);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_4x1, (char *)livebox->preview[3]);
+		if (ret < 0)
+			goto errout;
+	}
+
+	if (livebox->size_list & LB_SIZE_4x2) {
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_4x2, (char *)livebox->preview[4]);
 		if (ret < 0)
 			goto errout;
 	}
 
 	if (livebox->size_list & LB_SIZE_4x4) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_4x4);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_4x4, (char *)livebox->preview[5]);
 		if (ret < 0)
 			goto errout;
 	}
