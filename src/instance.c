@@ -1270,8 +1270,11 @@ HAPI void instance_lb_updated_by_instance(struct inst_info *inst)
 	const char *content;
 
 	if (inst->client && inst->visible != LB_SHOW) {
-		DbgPrint("Livebox is hidden. ignore update event\n");
-		return;
+		if (inst->visible == LB_HIDE) {
+			DbgPrint("Ignore update event %s(HIDE)\n", inst->id);
+			return;
+		}
+		DbgPrint("Livebox(%s) is PAUSED. But content is updated.\n", inst->id);
 	}
 
 	lb_type = package_lb_type(inst->info);
