@@ -841,7 +841,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 				 */
 				instance_slave_open_pd(inst);
 			} else if (pd_type == PD_TYPE_BUFFER && inst->pd.canvas.buffer && inst->pd.is_opened_for_reactivate) {
-				buffer_handler_load(inst->lb.canvas.buffer);
+				buffer_handler_load(inst->pd.canvas.buffer);
 
 				/*!
 				 * \note
