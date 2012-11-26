@@ -96,6 +96,7 @@ struct inst_info {
 			struct buffer_info *buffer;
 		} canvas;
 
+		struct client_node *owner;
 		int is_opened_for_reactivate;
 		int need_to_send_close_event;
 	} pd;
@@ -839,7 +840,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 				 * We have to keep the view of PD seamless even if the livebox is reactivated.
 				 * To do that, send open request from here.
 				 */
-				instance_slave_open_pd(inst);
+				ret = instance_slave_open_pd(inst, NULL);
 			} else if (pd_type == PD_TYPE_BUFFER && inst->pd.canvas.buffer && inst->pd.is_opened_for_reactivate) {
 				buffer_handler_load(inst->pd.canvas.buffer);
 
@@ -850,7 +851,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 				 * We have to keep the view of PD seamless even if the livebox is reactivated.
 				 * To do that, send open request from here.
 				 */
-				instance_slave_open_pd(inst);
+				ret = instance_slave_open_pd(inst, NULL);
 			}
 
 			/*!
@@ -1082,6 +1083,64 @@ HAPI int instance_destroy(struct inst_info *inst)
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, deactivate_cb, instance_ref(inst), 0);
 }
 
+/* Client Deactivated Callback */
+static int pd_buffer_close_cb(struct client_node *client, void *inst)
+{
+	int ret;
+
+	ret = instance_slave_close_pd(inst, client);
+	DbgPrint("Forcely close the PD ret: %d\n", ret);
+	return -1; /* Delete this callback */
+}
+
+/* Client Deactivated Callback */
+static int pd_script_close_cb(struct client_node *client, void *inst)
+{
+	int ret;
+
+	ret = instance_slave_close_pd(inst, client);
+	DbgPrint("Forcely close the PD ret: %d\n", ret);
+
+	ret = script_handler_unload(instance_pd_script(inst), 1);
+	return -1; /* Delete this callback */
+}
+
+static inline void release_resource_for_closing_pd(struct pkg_info *info, struct inst_info *inst, struct client_node *client)
+{
+	if (!client) {
+		client = inst->pd.owner;
+		if (!client)
+			return;
+	}
+
+	/*!
+	 * \note
+	 * Clean up the resources
+	 */
+	if (package_pd_type(info) == PD_TYPE_BUFFER) {
+		if (client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, pd_buffer_close_cb, inst) == 0) {
+			/*!
+			 * \note
+			 * Only if this function succeed to remove the pd_buffer_close_cb,
+			 * Decrease the reference count of this instance
+			 */
+		}
+		instance_unref(inst);
+	} else if (package_pd_type(info) == PD_TYPE_SCRIPT) {
+		if (client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, pd_script_close_cb, inst) == 0) {
+			/*!
+			 * \note
+			 * Only if this function succeed to remove the script_close_cb,
+			 * Decrease the reference count of this instance
+			 */
+		}
+		instance_unref(inst);
+	} else {
+		ErrPrint("Unknown PD type\n");
+	}
+
+}
+
 HAPI int instance_state_reset(struct inst_info *inst)
 {
 	enum lb_type lb_type;
@@ -1105,9 +1164,11 @@ HAPI int instance_state_reset(struct inst_info *inst)
 
 	if (pd_type == PD_TYPE_SCRIPT && inst->pd.canvas.script) {
 		inst->pd.is_opened_for_reactivate = script_handler_is_loaded(inst->pd.canvas.script);
+		release_resource_for_closing_pd(instance_package(inst), inst, NULL);
 		script_handler_unload(inst->pd.canvas.script, 1);
 	} else if (pd_type == PD_TYPE_BUFFER && inst->pd.canvas.buffer) {
 		inst->pd.is_opened_for_reactivate = buffer_handler_is_loaded(inst->pd.canvas.buffer);
+		release_resource_for_closing_pd(instance_package(inst), inst, NULL);
 		buffer_handler_unload(inst->pd.canvas.buffer);
 	}
 
@@ -2223,13 +2284,27 @@ HAPI int instance_need_slave(struct inst_info *inst)
 	return ret;
 }
 
-HAPI int instance_slave_open_pd(struct inst_info *inst)
+HAPI int instance_slave_open_pd(struct inst_info *inst, struct client_node *client)
 {
 	const char *pkgname;
 	const char *id;
 	struct packet *packet;
 	struct slave_node *slave;
 	const struct pkg_info *info;
+	int ret;
+
+	if (!client) {
+		client = inst->pd.owner;
+		if (!client) {
+			ErrPrint("Client is not valid\n");
+			return -EINVAL;
+		}
+	} else if (inst->pd.owner) {
+		if (inst->pd.owner != client) {
+			ErrPrint("Client is already owned\n");
+			return -EBUSY;
+		}
+	}
 
 	slave = package_slave(instance_package(inst));
 	if (!slave)
@@ -2251,16 +2326,45 @@ HAPI int instance_slave_open_pd(struct inst_info *inst)
 		return -EFAULT;
 	}
 
-	return slave_rpc_request_only(slave, pkgname, packet, 0);
+	slave_freeze_ttl(slave);
+
+	ret = slave_rpc_request_only(slave, pkgname, packet, 0);
+
+	/*!
+	 * \note
+	 * If a client is disconnected, the slave has to close the PD
+	 * So the pd_buffer_close_cb/pd_script_close_cb will catch the disconnection event
+	 * then it will send the close request to the slave
+	 */
+	if (package_pd_type(info) == PD_TYPE_BUFFER) {
+		instance_ref(inst);
+		if (client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, pd_buffer_close_cb, inst) < 0) {
+			instance_unref(inst);
+		}
+	} else if (package_pd_type(info) == PD_TYPE_SCRIPT) {
+		instance_ref(inst);
+		if (client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, pd_script_close_cb, inst) < 0) {
+			instance_unref(inst);
+		}
+	}
+
+	inst->pd.owner = client;
+	return ret;
 }
 
-HAPI int instance_slave_close_pd(struct inst_info *inst)
+HAPI int instance_slave_close_pd(struct inst_info *inst, struct client_node *client)
 {
 	const char *pkgname;
 	const char *id;
 	struct packet *packet;
 	struct slave_node *slave;
 	struct pkg_info *info;
+	int ret;
+
+	if (inst->pd.owner != client) {
+		ErrPrint("PD owner is not matched\n");
+		return -EINVAL;
+	}
 
 	slave = package_slave(instance_package(inst));
 	if (!slave)
@@ -2282,7 +2386,12 @@ HAPI int instance_slave_close_pd(struct inst_info *inst)
 		return -EFAULT;
 	}
 
-	return slave_rpc_request_only(slave, pkgname, packet, 0);
+	slave_thaw_ttl(slave);
+
+	ret = slave_rpc_request_only(slave, pkgname, packet, 0);
+	release_resource_for_closing_pd(info, inst, client);
+	inst->pd.owner = NULL;
+	return ret;
 }
 
 HAPI int instance_client_pd_created(struct inst_info *inst, int status)

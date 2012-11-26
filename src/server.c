@@ -1981,42 +1981,6 @@ out:
 	return result;
 }
 
-/* Client Deactivated Callback */
-static int pd_buffer_close_cb(struct client_node *client, void *inst)
-{
-	int ret;
-	struct slave_node *slave;
-
-	DbgPrint("Forcely close the PD\n");
-	ret = instance_slave_close_pd(inst);
-
-	slave = package_slave(instance_package(inst));
-	if (slave)
-		slave_thaw_ttl(slave);
-
-	instance_unref(inst);
-	return -1; /* Delete this callback */
-}
-
-/* Client Deactivated Callback */
-static int pd_script_close_cb(struct client_node *client, void *inst)
-{
-	int ret;
-	struct slave_node *slave;
-
-	ret = instance_slave_close_pd(inst);
-
-	DbgPrint("Forcely close the PD\n");
-	ret = script_handler_unload(instance_pd_script(inst), 1);
-
-	slave = package_slave(instance_package(inst));
-	if (slave)
-		slave_thaw_ttl(slave);
-
-	instance_unref(inst);
-	return -1; /* Delete this callback */
-}
-
 static Eina_Bool lazy_pd_created_cb(void *data)
 {
 	DbgPrint("Send PD Create event\n");
@@ -2075,17 +2039,10 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 	else if (util_free_space(IMAGE_PATH) < MINIMUM_SPACE)
 		ret = -ENOSPC;
 	else if (package_pd_type(instance_package(inst)) == PD_TYPE_BUFFER) {
-		struct slave_node *slave;
-
-		slave = package_slave(instance_package(inst));
-		if (slave)
-			slave_freeze_ttl(slave);
-
-		ret = instance_slave_open_pd(inst);
+		ret = instance_slave_open_pd(inst, client);
 		ret = instance_signal_emit(inst,
 				"pd,show", util_uri_to_path(instance_id(inst)),
 				0.0, 0.0, 0.0, 0.0, x, y, 0);
-
 		/*!
 		 * \note
 		 * PD craeted event will be send by the acquire_buffer function.
@@ -2094,25 +2051,7 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		 *
 		 * instance_client_pd_created(inst);
 		 */
-
-		/*!
-		 * \note
-		 * If a client is disconnected, the slave has to close the PD
-		 * So the pd_buffer_close_cb will catch the disconnection event
-		 * of a client,
-		 * and it will send the close request to the slave
-		 */
-		instance_ref(inst);
-		if (client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, pd_buffer_close_cb, inst) < 0) {
-			instance_unref(inst);
-		}
 	} else if (package_pd_type(instance_package(inst)) == PD_TYPE_SCRIPT) {
-		struct slave_node *slave;
-
-		slave = package_slave(instance_package(inst));
-		if (slave)
-			slave_freeze_ttl(slave);
-
 		/*!
 		 * \note
 		 * ret value should be cared but in this case,
@@ -2122,8 +2061,7 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		 * but the script mode doesn't need slave for rendering default view of PD
 		 * so we can hanle it later.
 		 */
-		ret = instance_slave_open_pd(inst);
-
+		ret = instance_slave_open_pd(inst, client);
 		script_handler_update_pointer(instance_pd_script(inst), x, y, 0);
 		ret = script_handler_load(instance_pd_script(inst), 1);
 
@@ -2141,18 +2079,6 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 			inst = instance_ref(inst); /* To guarantee the inst */
 			if (!ecore_timer_add(DELAY_TIME, lazy_pd_created_cb, inst))
 				instance_unref(inst);
-		}
-
-		/*!
-		 * \note
-		 * If a client is disconnected, the slave has to close the PD
-		 * So the pd_buffer_close_cb will catch the disconnection event
-		 * of a client,
-		 * and it will send the close request to the slave
-		 */
-		instance_ref(inst);
-		if (client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, pd_script_close_cb, inst) < 0) {
-			instance_unref(inst);
 		}
 	} else {
 		ErrPrint("Invalid PD TYPE\n");
@@ -2203,16 +2129,10 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 	else if (package_is_fault(instance_package(inst)))
 		ret = -EFAULT;
 	else if (package_pd_type(instance_package(inst)) == PD_TYPE_BUFFER) {
-		struct slave_node *slave;
-
-		slave = package_slave(instance_package(inst));
-		if (slave)
-			slave_thaw_ttl(slave);
-
 		ret = instance_signal_emit(inst,
 				"pd,hide", util_uri_to_path(instance_id(inst)),
 				0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0);
-		ret = instance_slave_close_pd(inst);
+		ret = instance_slave_close_pd(inst, client);
 
 		/*!
 		 * \note
@@ -2222,21 +2142,8 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 		 * instance_client_pd_destroyed(inst);
 		 */
 
-		/*!
-		 * \note
-		 * Clean up the resoruces
-		 */
-		if (client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, pd_buffer_close_cb, inst) == 0) {
-			instance_unref(inst);
-		}
 	} else if (package_pd_type(instance_package(inst)) == PD_TYPE_SCRIPT) {
-		struct slave_node *slave;
-
-		slave = package_slave(instance_package(inst));
-		if (slave)
-			slave_thaw_ttl(slave);
-
-		ret = instance_slave_close_pd(inst);
+		ret = instance_slave_close_pd(inst, client);
 
 		ret = script_handler_unload(instance_pd_script(inst), 1);
 
@@ -2248,19 +2155,6 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 			inst = instance_ref(inst);
 			if (!ecore_timer_add(DELAY_TIME, lazy_pd_destroyed_cb, inst))
 				instance_unref(inst);
-		}
-
-		/*!
-		 * \note
-		 * Clean up the resources
-		 */
-		if (client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, pd_script_close_cb, inst) == 0) {
-			/*!
-			 * \note
-			 * Only if this function succeed to remove the script_close_cb,
-			 * Decrease the reference count of this instance
-			 */
-			instance_unref(inst);
 		}
 	} else {
 		ErrPrint("Invalid PD TYPE\n");
