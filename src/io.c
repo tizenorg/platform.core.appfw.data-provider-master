@@ -535,11 +535,13 @@ static inline int build_group_info(struct pkg_info *info)
 				} else {
 					DbgPrint("Context info is not valid\n");
 					group_destroy_context_info(ctx_info);
+					ctx_info = NULL;
 				}
 			}
-		}
 
-		package_add_ctx_info(info, ctx_info);
+			if (ctx_info)
+				package_add_ctx_info(info, ctx_info);
+		}
 	}
 
 	sqlite3_reset(stmt);
