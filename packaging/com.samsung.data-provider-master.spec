@@ -1,6 +1,6 @@
 Name: com.samsung.data-provider-master
 Summary: Master data provider
-Version: 0.13.7
+Version: 0.13.8
 Release: 1
 Group: main/app
 License: Samsung Proprietary License

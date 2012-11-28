@@ -61,6 +61,8 @@ struct gem_data {
 	Pixmap pixmap;
 	void *data; /* Gem layer */
 	int refcnt;
+
+	void *compensate_data; /* Check the pitch value, copy this to data */
 };
 
 struct buffer_info
@@ -225,6 +227,17 @@ static inline struct buffer *create_gem(Display *disp, Window parent, int w, int
 		return NULL;
 	}
 
+	if (gem->dri2_buffer->pitch != gem->w * gem->depth) {
+		gem->compensate_data = calloc(1, gem->w * gem->h * gem->depth);
+		if (!gem->compensate_data) {
+			ErrPrint("Failed to allocate heap\n");
+		} else {
+			DbgPrint("Allocate compensate buffer %p(%dx%d %d)\n",
+								gem->compensate_data,
+								gem->w, gem->h, gem->depth);
+		}
+	}
+
 	DbgPrint("Return buffer: %p\n", buffer);
 	return buffer;
 }
@@ -251,7 +264,12 @@ static inline void *acquire_gem(struct buffer *buffer)
 
 	gem->refcnt++;
 
-	return gem->data;
+	/*!
+	 * \note
+	 * If there is a compensate canvas buffer,
+	 * use it
+	 */
+	return gem->compensate_data ? gem->compensate_data : gem->data;
 }
 
 static inline void release_gem(struct buffer *buffer)
@@ -272,7 +290,28 @@ static inline void release_gem(struct buffer *buffer)
 		if (s_info.fd < 0) {
 			DbgPrint("S/W Gem buffer has no reference\n");
 		} else {
-			gem = (struct gem_data *)buffer->data;
+			/*!
+			 * \note
+			 * Update the gem buffer using compensate data buffer if it is exists
+			 */
+			if (gem->compensate_data) {
+				register int x;
+				register int y;
+				int *gem_pixel;
+				int *pixel;
+				int gap;
+
+				pixel = gem->compensate_data;
+				gem_pixel = gem->data;
+				gap = gem->dri2_buffer->pitch - (gem->w * gem->depth);
+
+				for (y = 0; y < gem->h; y++) {
+					for (x = 0; x < gem->w; x++)
+						*gem_pixel++ = *pixel++;
+
+					gem_pixel = (int *)(((char *)gem_pixel) + gap);
+				}
+			}
 			drm_slp_bo_unmap(gem->pixmap_bo, DRM_SLP_DEVICE_CPU);
 			gem->data = NULL;
 		}
@@ -297,6 +336,12 @@ static inline int destroy_gem(struct buffer *buffer)
 		return -EFAULT;
 
 	if (s_info.fd > 0) {
+		if (gem->compensate_data) {
+			DbgPrint("Release compensate buffer %p\n", gem->compensate_data);
+			free(gem->compensate_data);
+			gem->compensate_data = NULL;
+		}
+
 		DbgPrint("unref pixmap bo\n");
 		drm_slp_bo_unref(gem->pixmap_bo);
 		gem->pixmap_bo = NULL;
@@ -750,7 +795,7 @@ HAPI void *buffer_handler_pixmap_buffer(struct buffer_info *info)
 		return NULL;
 
 	gem = (struct gem_data *)buffer->data;
-	return gem->data;
+	return gem->compensate_data ? gem->compensate_data : gem->data;
 }
 
 /*!
@@ -843,7 +888,7 @@ HAPI int buffer_handler_pixmap_release_buffer(void *canvas)
 		}
 
 		gem = (struct gem_data *)buffer->data;
-		_ptr = gem->data;
+		_ptr = gem->compensate_data ? gem->compensate_data : gem->data;
 
 		if (!_ptr)
 			continue;
@@ -948,6 +993,10 @@ HAPI struct inst_info *buffer_handler_instance(struct buffer_info *info)
 	return info->inst;
 }
 
+/*!
+ * \note
+ * Only for used S/W Backend
+ */
 static inline int sync_for_pixmap(struct buffer *buffer)
 {
 	XShmSegmentInfo si;
