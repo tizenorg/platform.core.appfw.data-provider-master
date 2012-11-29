@@ -12,8 +12,9 @@ KillSignal=SIGTERM
 [Exec]
 Environment=BUFMGR_LOCK_TYPE="once"
 Environment=BUFMGR_MAP_CACHE="true"
-Environment=DEBUG_PROVIDER="false"
-Environment=USE_SHM_FOR_LIVE_CONTENT="pixmap"
+Environment=PROVIDER_DEBUG_PROVIDER="false"
+Environment=PROVIDER_METHOD="pixmap"
+Environment=PROVIDER_COM_CORE_THREAD="true"
 StandardInput=/dev/null
 StandardOutput=/dev/null
 StandardError=/dev/null

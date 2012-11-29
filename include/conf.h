@@ -77,6 +77,12 @@ struct conf {
 
 	char *vconf_sys_cluster;
 	int max_pended_ctx_events;
+
+	int use_sw_backend;
+	char *provider_method;
+	int debug_mode;
+	int overwrite_content;
+	int com_core_thread;
 };
 
 extern struct conf g_conf;
@@ -88,6 +94,12 @@ extern int conf_loader(void);
 
 #define CR 13
 #define LF 10
+
+#define USE_SW_BACKEND		g_conf.use_sw_backend
+#define PROVIDER_METHOD		g_conf.provider_method
+#define DEBUG_MODE		g_conf.debug_mode
+#define OVERWRITE_CONTENT	g_conf.overwrite_content
+#define COM_CORE_THREAD		g_conf.com_core_thread
 
 #define MINIMUM_PERIOD		g_conf.minimum_period
 

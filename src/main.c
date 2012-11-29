@@ -43,8 +43,6 @@ static inline int app_create(void)
 {
 	int ret;
 
-	conf_loader();
-
 	if (access(SLAVE_LOG_PATH, R_OK|W_OK) != 0) {
 		if (mkdir(SLAVE_LOG_PATH, 755) < 0)
 			ErrPrint("Failed to create %s (%s)\n", SLAVE_LOG_PATH, strerror(errno));
@@ -216,6 +214,8 @@ int main(int argc, char *argv[])
 	}
 
 	g_type_init();
+
+	conf_loader();
 
 	script_init();
 

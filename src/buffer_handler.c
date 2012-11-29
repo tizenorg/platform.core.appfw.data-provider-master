@@ -1172,7 +1172,7 @@ HAPI int buffer_handler_init(void)
 
 	DbgPrint("Open: %s (driver: %s)", deviceName, driverName);
 
-	if (getenv("USE_SW_BACKEND_FOR_LIVE_CONTENT")) {
+	if (USE_SW_BACKEND) {
 		DbgPrint("Fallback to the S/W Backend\n");
 		s_info.evt_base = 0;
 		s_info.err_base = 0;

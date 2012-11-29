@@ -36,15 +36,11 @@ static struct info {
 	int client_fd;
 	int service_fd;
 	int slave_fd;
-	int debug_provider;
-	int prevent_overwrite;
 } s_info = {
 	.info_fd = -1,
 	.client_fd = -1,
 	.service_fd = -1,
 	.slave_fd = -1,
-	.debug_provider = 0,
-	.prevent_overwrite = 0,
 };
 
 /* Share this with provider */
@@ -2496,7 +2492,7 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
-		if (s_info.debug_provider) {
+		if (DEBUG_MODE) {
 			char pkgname[pathconf("/", _PC_PATH_MAX)];
 			const char *abi;
 
@@ -2666,7 +2662,7 @@ static inline char *get_file_kept_in_safe(const char *id)
 	/*!
 	 * TODO: Remove me
 	 */
-	if (s_info.prevent_overwrite)
+	if (OVERWRITE_CONTENT)
 		return strdup(path);
 
 	len = strlen(path);
@@ -3720,18 +3716,7 @@ static struct method s_slave_table[] = {
 
 HAPI int server_init(void)
 {
-	const char *option;
-	option = getenv("PROVIDER_DEBUG_PROVIDER");
-	if (option && !strcasecmp(option, "true"))
-		s_info.debug_provider = 1;
-
-	option = getenv("PROVIDER_DISABLE_PREVENT_OVERWRITE");
-	if (option && !strcasecmp(option, "true"))
-		s_info.prevent_overwrite = 1;
-
-	option = getenv("PROVIDER_COM_CORE_THREAD");
-	if (option && !strcasecmp(option, "true"))
-		com_core_packet_use_thread(1);
+	com_core_packet_use_thread(COM_CORE_THREAD);
 
 	if (unlink(INFO_SOCKET) < 0)
 		ErrPrint("info socket: %s\n", strerror(errno));

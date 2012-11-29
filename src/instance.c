@@ -99,6 +99,8 @@ struct inst_info {
 		struct client_node *owner;
 		int is_opened_for_reactivate;
 		int need_to_send_close_event;
+		char *pended_update_desc;
+		int pended_update_cnt;
 	} pd;
 
 	int timeout;
@@ -1378,7 +1380,20 @@ HAPI void instance_pd_updated_by_instance(struct inst_info *inst, const char *de
 	}
 
 	if (!inst->pd.need_to_send_close_event) {
-		DbgPrint("PD is not created yet. Ignore update event\n");
+		DbgPrint("PD is not created yet. Ignore update event - %s\n", descfile);
+
+		if (inst->pd.pended_update_desc) {
+			DbgFree(inst->pd.pended_update_desc);
+			inst->pd.pended_update_desc = NULL;
+		}
+
+		if (descfile) {
+			inst->pd.pended_update_desc = strdup(descfile);
+			if (!inst->pd.pended_update_desc)
+				ErrPrint("Heap: %s\n", strerror(errno));
+		}
+
+		inst->pd.pended_update_cnt++;
 		return;
 	}
 
@@ -2398,6 +2413,7 @@ HAPI int instance_client_pd_created(struct inst_info *inst, int status)
 {
 	struct packet *packet;
 	const char *buf_id;
+	int ret;
 
 	if (inst->pd.need_to_send_close_event) {
 		DbgPrint("PD is already created\n");
@@ -2427,7 +2443,17 @@ HAPI int instance_client_pd_created(struct inst_info *inst, int status)
 		return -EFAULT;
 	}
 
-	return CLIENT_SEND_EVENT(inst, packet);
+	ret = CLIENT_SEND_EVENT(inst, packet);
+
+	if (inst->pd.pended_update_cnt) {
+		DbgPrint("Apply pended desc(%d) - %s\n", inst->pd.pended_update_cnt, inst->pd.pended_update_desc);
+		instance_pd_updated_by_instance(inst, inst->pd.pended_update_desc);
+		inst->pd.pended_update_cnt = 0;
+		DbgFree(inst->pd.pended_update_desc);
+		inst->pd.pended_update_desc = NULL;
+	}
+
+	return ret;
 }
 
 HAPI int instance_client_pd_destroyed(struct inst_info *inst, int status)
@@ -2484,14 +2510,10 @@ HAPI void *instance_client_list(struct inst_info *inst)
 
 HAPI void instance_init(void)
 {
-	const char *type;
-	type = getenv("USE_SHM_FOR_LIVE_CONTENT");
-	if (type) {
-		if (!strcasecmp(type, "shm"))
-			s_info.env_buf_type = BUFFER_TYPE_SHM;
-		else if (!strcasecmp(type, "pixmap"))
-			s_info.env_buf_type = BUFFER_TYPE_PIXMAP;
-	}
+	if (!strcasecmp(PROVIDER_METHOD, "shm"))
+		s_info.env_buf_type = BUFFER_TYPE_SHM;
+	else if (!strcasecmp(PROVIDER_METHOD, "pixmap"))
+		s_info.env_buf_type = BUFFER_TYPE_PIXMAP;
 }
 
 HAPI void instance_fini(void)

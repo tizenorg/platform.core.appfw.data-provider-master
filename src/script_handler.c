@@ -1093,15 +1093,11 @@ HAPI int script_init(void)
 	DIR *dir;
 	char *path;
 	int pathlen;
-	const char *type;
 
-	type = getenv("USE_SHM_FOR_LIVE_CONTENT");
-	if (type) {
-		if (!strcasecmp(type, "shm"))
-			s_info.env_buf_type = BUFFER_TYPE_SHM;
-		else if (!strcasecmp(type, "pixmap"))
-			s_info.env_buf_type = BUFFER_TYPE_PIXMAP;
-	}
+	if (!strcasecmp(PROVIDER_METHOD, "shm"))
+		s_info.env_buf_type = BUFFER_TYPE_SHM;
+	else if (!strcasecmp(PROVIDER_METHOD, "pixmap"))
+		s_info.env_buf_type = BUFFER_TYPE_PIXMAP;
 
 	dir = opendir(SCRIPT_PORT_PATH);
 	if (!dir) {
