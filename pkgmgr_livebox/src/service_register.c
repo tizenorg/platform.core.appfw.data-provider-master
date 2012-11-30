@@ -1997,35 +1997,11 @@ errout:
 	return ret;
 }
 
-int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *appid)
+static inline int do_install(xmlNodePtr node, const char *appid)
 {
-	xmlNodePtr node;
 	struct livebox *livebox;
 	xmlChar *pkgid;
 	xmlChar *tmp;
-
-	if (!s_info.handle) {
-		if (db_init() < 0) {
-			ErrPrint("Failed to init DB\n");
-			return -EIO;
-		}
-	}
-
-	node = xmlDocGetRootElement(docPtr);
-	if (!node) {
-		ErrPrint("Invalid document\n");
-		return -EINVAL;
-	}
-
-	for (node = node->children; node; node = node->next) {
-		if (!xmlStrcasecmp(node->name, (const xmlChar *)"livebox"))
-			break;
-	}
-
-	if (!node) {
-		ErrPrint("Root has no children\n");
-		return -EINVAL;
-	}
 
 	if (!xmlHasProp(node, (const xmlChar *)"appid")) {
 		ErrPrint("Missing appid\n");
@@ -2038,6 +2014,8 @@ int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *appid)
 		xmlFree(pkgid);
 		return -EINVAL;
 	}
+
+	DbgPrint("appid: %s\n", (char *)pkgid);
 
 	livebox = calloc(1, sizeof(*livebox));
 	if (!livebox) {
@@ -2178,6 +2156,35 @@ int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *appid)
 	return db_insert_livebox(livebox, appid);
 }
 
+int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *appid)
+{
+	xmlNodePtr node;
+	int ret;
+
+	if (!s_info.handle) {
+		if (db_init() < 0) {
+			ErrPrint("Failed to init DB\n");
+			return -EIO;
+		}
+	}
+
+	node = xmlDocGetRootElement(docPtr);
+	if (!node) {
+		ErrPrint("Invalid document\n");
+		return -EINVAL;
+	}
+
+	for (node = node->children; node; node = node->next) {
+		DbgPrint("node->name: %s\n", node->name);
+		if (!xmlStrcasecmp(node->name, (const xmlChar *)"livebox")) {
+			ret = do_install(node, appid);
+			DbgPrint("Returns: %d\n", ret);
+		}
+	}
+
+	return 0;
+}
+
 int PKGMGR_PARSER_PLUGIN_UPGRADE(xmlDocPtr docPtr, const char *appid)
 {
 	xmlNodePtr node;
@@ -2208,34 +2215,10 @@ int PKGMGR_PARSER_PLUGIN_UPGRADE(xmlDocPtr docPtr, const char *appid)
 	return 0;
 }
 
-int PKGMGR_PARSER_PLUGIN_UNINSTALL(xmlDocPtr docPtr, const char *appid)
+static inline int do_uninstall(xmlNodePtr node, const char *appid)
 {
-	xmlNodePtr node;
 	xmlChar *pkgid;
 	int ret;
-
-	if (!s_info.handle) {
-		if (db_init() < 0) {
-			ErrPrint("Failed to init DB\n");
-			return -EIO;
-		}
-	}
-
-	node = xmlDocGetRootElement(docPtr);
-	if (!node) {
-		ErrPrint("Invalid document\n");
-		return -EINVAL;
-	}
-
-	for (node = node->children; node; node = node->next) {
-		if (!xmlStrcasecmp(node->name, (const xmlChar *)"livebox"))
-			break;
-	}
-
-	if (!node) {
-		ErrPrint("Root has no livebox\n");
-		return -EINVAL;
-	}
 
 	if (!xmlHasProp(node, (const xmlChar *)"appid")) {
 		ErrPrint("Missing appid\n");
@@ -2282,12 +2265,41 @@ int PKGMGR_PARSER_PLUGIN_UNINSTALL(xmlDocPtr docPtr, const char *appid)
 
 	commit_transaction();
 	xmlFree(pkgid);
+
 	return 0;
 
 errout:
 	rollback_transaction();
 	xmlFree(pkgid);
 	return ret;
+}
+
+int PKGMGR_PARSER_PLUGIN_UNINSTALL(xmlDocPtr docPtr, const char *appid)
+{
+	xmlNodePtr node;
+	int ret;
+
+	if (!s_info.handle) {
+		if (db_init() < 0) {
+			ErrPrint("Failed to init DB\n");
+			return -EIO;
+		}
+	}
+
+	node = xmlDocGetRootElement(docPtr);
+	if (!node) {
+		ErrPrint("Invalid document\n");
+		return -EINVAL;
+	}
+
+	for (node = node->children; node; node = node->next) {
+		if (!xmlStrcasecmp(node->name, (const xmlChar *)"livebox")) {
+			ret = do_uninstall(node, appid);
+			DbgPrint("Returns: %d\n", ret);
+		}
+	}
+
+	return 0;
 }
 
 /*
