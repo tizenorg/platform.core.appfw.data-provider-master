@@ -550,6 +550,42 @@ static inline int build_group_info(struct pkg_info *info)
 	return 0;
 }
 
+HAPI int io_is_exists(const char *pkgname) /* Manifest Package Name */
+{
+	sqlite3_stmt *stmt;
+	int ret;
+
+	if (!s_info.handle) {
+		ErrPrint("DB is not ready\n");
+		return -EIO;
+	}
+
+	ret = sqlite3_prepare_v2(s_info.handle, "SELECT COUNT(pkgid) FROM pkgmap WHERE appid = ?", -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		ErrPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		return -EIO;
+	}
+
+	ret = sqlite3_bind_text(stmt, 1, pkgname, -1, NULL);
+	if (ret != SQLITE_OK) {
+		ErrPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	if (sqlite3_step(stmt) != SQLITE_ROW) {
+		ErrPrint("%s has no record (%s)\n", pkgname, sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_column_int(stmt, 0);
+out:
+	sqlite3_reset(stmt);
+	sqlite3_finalize(stmt);
+	return ret;
+}
+
 HAPI char *io_livebox_pkgname(const char *pkgname)
 {
 	sqlite3_stmt *stmt;

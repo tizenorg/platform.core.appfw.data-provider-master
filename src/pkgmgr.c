@@ -118,6 +118,7 @@ static inline void invoke_callback(const char *pkgname, struct item *item, doubl
 		invoke_recover_event_handler(pkgname, item->status, value);
 		break;
 	default:
+		ErrPrint("Unknown type: %d\n", item->type);
 		break;
 	}
 }
@@ -304,17 +305,11 @@ static int download_cb(const char *pkgname, const char *val, void *data)
 	item = find_item(pkgname);
 	if (!item) {
 		DbgPrint("ITEM is not started from the start_cb\n");
-		start_cb(pkgname, "download", data);
-
-		item = find_item(pkgname);
-		if (!item) {
-			ErrPrint("Package %s has no valid state\n", pkgname);
-			return -EINVAL;
-		}
+		return -EINVAL;
 	}
 
 	if (item->type != PKGMGR_EVENT_DOWNLOAD) {
-		DbgPrint("TYPE is not \"install\" : %d\n", item->type);
+		DbgPrint("TYPE is not \"download\" : %d\n", item->type);
 		item->type = PKGMGR_EVENT_DOWNLOAD;
 	}
 
@@ -340,7 +335,7 @@ static int download_cb(const char *pkgname, const char *val, void *data)
 	return 0;
 }
 
-static int install_cb(const char *pkgname, const char *val, void *data)
+static int progress_cb(const char *pkgname, const char *val, void *data)
 {
 	/* val = integer */
 	struct item *item;
@@ -350,19 +345,8 @@ static int install_cb(const char *pkgname, const char *val, void *data)
 
 	item = find_item(pkgname);
 	if (!item) {
-		DbgPrint("ITEM is not started from the start_cb\n");
-		start_cb(pkgname, "install", data);
-
-		item = find_item(pkgname);
-		if (!item) {
-			ErrPrint("Package %s has no valid state\n", pkgname);
-			return -EINVAL;
-		}
-	}
-
-	if (item->type != PKGMGR_EVENT_INSTALL) {
-		DbgPrint("TYPE is not \"install\" : %d\n", item->type);
-		item->type = PKGMGR_EVENT_INSTALL;
+		ErrPrint("ITEM is not started from the start_cb\n");
+		return -EINVAL;
 	}
 
 	switch (item->status) {
@@ -383,7 +367,7 @@ static int install_cb(const char *pkgname, const char *val, void *data)
 		value = (double)-EINVAL;
 	}
 
-	invoke_install_event_handler(pkgname, item->status, value);
+	invoke_callback(pkgname, item, value);
 	return 0;
 }
 
@@ -412,10 +396,10 @@ static struct pkgmgr_handler {
 	const char *key;
 	int (*func)(const char *package, const char *val, void *data);
 } handler[] = {
-	{ "install_percent", install_cb },
+	{ "install_percent", progress_cb },
+	{ "download_percent", download_cb },
 	{ "start", start_cb },
 	{ "end", end_cb },
-	{ "download_percent", download_cb },
 	{ "change_pkg_name", change_pkgname_cb },
 	{ "icon_path", icon_path_cb },
 	{ "command", command_cb },

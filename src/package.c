@@ -1242,10 +1242,15 @@ static int install_cb(const char *pkgname, enum pkgmgr_status status, double val
 
 static int uninstall_cb(const char *pkgname, enum pkgmgr_status status, double value, void *data)
 {
-	if (status == PKGMGR_STATUS_COMMAND) {
-		int ret;
+	int ret;
+
+	if (status == PKGMGR_STATUS_START) {
 		ret = io_update_livebox_package(pkgname, io_uninstall_cb, NULL);
 		DbgPrint("Processed %d packages\n", ret);
+		if (ret == 0) {
+			/*! for keeping the old style */
+			(void)io_uninstall_cb(pkgname, -1, NULL);
+		}
 	}
 
 	return 0;
