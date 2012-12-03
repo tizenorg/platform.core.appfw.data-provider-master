@@ -3,9 +3,9 @@
 	<define>
 		<domain name="com.samsung.data-provider-master" policy="restricted" />
 		<provide>
-			<label name="data-provider-master::log" />
-			<label name="data-provider-master::db" />
-			<label name="data-provider-master::data" />
+			<label name="com.samsung.data-provider-master::log" />
+			<label name="com.samsung.data-provider-master::db" />
+			<label name="com.samsung.data-provider-master::data" />
 		</provide>
 	</define>
 	<request>
@@ -18,8 +18,8 @@
 		<filesystem path="/usr/bin/liveinfo" label="com.samsung.data-provider-master" exec_label="com.samsung.data-provider-master" />
 
 		<!-- Configuration data -->
-		<filesystem path="/usr/share/data-provider-master" label="data-provider-master::data" />
-		<filesystem path="/usr/share/data-provider-master/abi.ini" label="data-provider-master::data" />
+		<filesystem path="/usr/share/data-provider-master" label="com.samsung.data-provider-master::data" />
+		<filesystem path="/usr/share/data-provider-master/abi.ini" label="com.samsung.data-provider-master::data" />
 
 		<!-- Package manager & Init script -->
 		<filesystem path="/etc/rc.d/init.d/data-provider-master" label="_" />
