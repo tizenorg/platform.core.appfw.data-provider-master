@@ -8,11 +8,13 @@
 	<label xml:lang="ko_KR">Hangul</label>
 
 	<box type="image">
-		<size>172x172</size>
-		<size>348x172</size>
-		<size>348x348</size>
-		<size>700x348</size>
-		<size>700x172</size>
+		<size>1x1</size>
+		<size>2x1</size>
+		<size>2x2</size>
+		<size>4x1</size>
+		<size>4x2</size>
+		<size>4x3</size>
+		<size>4x4</size>
 
 		<script src="/res/script/my.edj" group="my_group" />
 	</box>

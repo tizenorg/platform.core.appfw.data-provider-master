@@ -1350,7 +1350,8 @@ enum lb_size {
 	LB_SIZE_2x2 = 0x04,
 	LB_SIZE_4x1 = 0x08,
 	LB_SIZE_4x2 = 0x10,
-	LB_SIZE_4x4 = 0x20,
+	LB_SIZE_4x3 = 0x20,
+	LB_SIZE_4x4 = 0x40,
 };
 
 struct livebox {
@@ -1372,9 +1373,9 @@ struct livebox {
 	enum lb_type lb_type;
 	xmlChar *lb_src;
 	xmlChar *lb_group;
-	int size_list; /* 172x172, 348x172, 348x348, 720x348 */
+	int size_list; /* 1x1, 2x1, 2x2, 4x1, 4x2, 4x3, 4x4 */
 
-	xmlChar *preview[6];
+	xmlChar *preview[7];
 
 	enum pd_type pd_type;
 	xmlChar *pd_src;
@@ -1430,7 +1431,8 @@ static inline int livebox_destroy(struct livebox *livebox)
 	xmlFree(livebox->preview[2]); /* 2x2 */
 	xmlFree(livebox->preview[3]); /* 4x1 */
 	xmlFree(livebox->preview[4]); /* 4x2 */
-	xmlFree(livebox->preview[5]); /* 4x4 */
+	xmlFree(livebox->preview[5]); /* 4x3 */
+	xmlFree(livebox->preview[6]); /* 4x4 */
 
 	dlist_foreach_safe(livebox->i18n_list, l, n, i18n) {
 		livebox->i18n_list = dlist_remove(livebox->i18n_list, l);
@@ -1624,10 +1626,15 @@ static inline void update_box(struct livebox *livebox, xmlNodePtr node)
 				if (xmlHasProp(node, (const xmlChar *)"preview")) {
 					livebox->preview[4] = xmlGetProp(node, (const xmlChar *)"preview");
 				}
+			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x3")) {
+				livebox->size_list |= LB_SIZE_4x3;
+				if (xmlHasProp(node, (const xmlChar *)"preview")) {
+					livebox->preview[5] = xmlGetProp(node, (const xmlChar *)"preview");
+				}
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x4")) {
 				livebox->size_list |= LB_SIZE_4x4;
 				if (xmlHasProp(node, (const xmlChar *)"preview")) {
-					livebox->preview[5] = xmlGetProp(node, (const xmlChar *)"preview");
+					livebox->preview[6] = xmlGetProp(node, (const xmlChar *)"preview");
 				}
 			} else {
 				ErrPrint("Invalid size tag (%s)\n", size);
@@ -1939,8 +1946,14 @@ static inline int db_insert_livebox(struct livebox *livebox, const char *appid)
 			goto errout;
 	}
 
+	if (livebox->size_list & LB_SIZE_4x3) {
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_4x3, (char *)livebox->preview[5]);
+		if (ret < 0)
+			goto errout;
+	}
+
 	if (livebox->size_list & LB_SIZE_4x4) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_4x4, (char *)livebox->preview[5]);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_4x4, (char *)livebox->preview[6]);
 		if (ret < 0)
 			goto errout;
 	}

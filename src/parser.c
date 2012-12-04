@@ -38,7 +38,8 @@ enum lb_size {
 	LB_SIZE_2x2 = 0x04,
 	LB_SIZE_4x1 = 0x08,
 	LB_SIZE_4x2 = 0x10,
-	LB_SIZE_4x4 = 0x20,
+	LB_SIZE_4x3 = 0x20,
+	LB_SIZE_4x4 = 0x40,
 };
 
 static Eina_List *s_list;
@@ -299,6 +300,8 @@ static inline int parse_size(const char *buffer, unsigned int *size)
 				*size |= LB_SIZE_4x1;
 			} else if (w == 4 && h == 2) {
 				*size |= LB_SIZE_4x2;
+			} else if (w == 4 && h == 3) {
+				*size |= LB_SIZE_4x3;
 			} else if (w == 4 && h == 4) {
 				*size |= LB_SIZE_4x4;
 			} else {
