@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <manifest xmlns="http://tizen.org/ns/packages" package="com.samsung.nicesj" version="1.0" install-location="auto">
 
-<livebox appid="com.samsung.nicesj.livebox" primary="true" secured="false" auto_launch="true" network="false" abi="c" timeout="20" period="10.0" libexec="/libexec/liblive-com.samsung.nicesj.so" pinup="false" script="edje">
+<livebox appid="com.samsung.nicesj.livebox" primary="true" secured="false" auto_launch="true" network="false" abi="c" timeout="20" period="10.0" libexec="/usr/apps/com.samsung.myapp/libexec/liblive-com.samsung.nicesj.so" pinup="false" script="edje">
 	<label>My livebox</label>
-	<icon>com.samsung.live-nicesj.png</icon>
+	<icon>/usr/share/icons/small/com.samsung.live-nicesj.png</icon>
 	<label xml:lang="en_US">Sample</label>
 	<label xml:lang="ko_KR">Hangul</label>
+	<content>Content information</content>
 
 	<box type="image">
 		<size>1x1</size>
@@ -16,12 +17,12 @@
 		<size>4x3</size>
 		<size>4x4</size>
 
-		<script src="/res/script/my.edj" group="my_group" />
+		<script src="/opt/usr/apps/com.samsung.myapp/res/script/my.edj" group="my_group" />
 	</box>
 
 	<pd type="script">
 		<size>720x100</size>
-		<script src="res/script/mypd.edj" group="group_string" />
+		<script src="/opt/usr/apps/com.samsung.myapp/res/script/mypd.edj" group="group_string" />
 	</pd>
 
 	<group>
@@ -30,7 +31,6 @@
 				<option key="time_span" value="value" />
 				<option key="result_size" value="value" />
 			</category>
-
 			<category name="category2" context="APP_USED_FREQUENTLY_THISTIME">
 				<option key="time_span" value="value" />
 				<option key="result_size" value="value" />

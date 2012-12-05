@@ -49,12 +49,12 @@
  *
  *
  * client
- * +-------+------+---------+-------------+---------+
- * | pkgid | Icon |  Name   | auto_launch | pd_size |
- * +-------+------+---------+-------------+---------+
- * |   -   |   -  |    -    |      -      |    -    |
- * +-------+------+---------+-------------+---------+
- * CREATE TABLE client ( pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch INTEGER, pd_size TEXT,FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
+ * +-------+------+---------+-------------+---------+---------+
+ * | pkgid | Icon |  Name   | auto_launch | pd_size | content |
+ * +-------+------+---------+-------------+---------+---------+
+ * |   -   |   -  |    -    |      -      |    -    |    -    |
+ * +-------+------+---------+-------------+---------+---------+
+ * CREATE TABLE client ( pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch INTEGER, pd_size TEXT, content TEXT DEFAULT "default", FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
  *
  * = auto_launch = { 1 | 0 }
  * = pd_size = WIDTHxHEIGHT
@@ -506,7 +506,7 @@ static inline int db_create_client(void)
 
 	ddl = "CREATE TABLE client (" \
 		"pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, " \
-		"auto_launch INTEGER, pd_size TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
+		"auto_launch INTEGER, pd_size TEXT, content TEXT DEFAULT 'default', FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -518,13 +518,13 @@ static inline int db_create_client(void)
 	return 0;
 }
 
-static inline int db_insert_client(const char *pkgid, const char *icon, const char *name, int auto_launch, const char *pd_size)
+static inline int db_insert_client(const char *pkgid, const char *icon, const char *name, int auto_launch, const char *pd_size, const char *content)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	dml = "INSERT INTO client ( pkgid, icon, name, auto_launch, pd_size ) VALUES (?, ?, ?, ?, ?)";
+	dml = "INSERT INTO client ( pkgid, icon, name, auto_launch, pd_size, content ) VALUES (?, ?, ?, ?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
@@ -560,6 +560,13 @@ static inline int db_insert_client(const char *pkgid, const char *icon, const ch
 	}
 
 	ret = sqlite3_bind_text(stmt, 5, pd_size, -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 6, content ? content : "default", -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -1366,6 +1373,7 @@ struct livebox {
 	xmlChar *timeout; /* INTEGER, timeout */
 	xmlChar *period; /* DOUBLE, update period */
 	xmlChar *script; /* Script engine */
+	xmlChar *content; /* Content information */
 
 	int pinup; /* Is this support the pinup feature? */
 	int primary; /* Is this primary livebox? */
@@ -1426,6 +1434,7 @@ static inline int livebox_destroy(struct livebox *livebox)
 	xmlFree(livebox->libexec);
 	xmlFree(livebox->script);
 	xmlFree(livebox->period);
+	xmlFree(livebox->content);
 	xmlFree(livebox->preview[0]); /* 1x1 */
 	xmlFree(livebox->preview[1]); /* 2x1 */
 	xmlFree(livebox->preview[2]); /* 2x2 */
@@ -1564,6 +1573,22 @@ static inline void update_i18n_icon(struct livebox *livebox, xmlNodePtr node)
 	i18n->lang = lang;
 	DbgPrint("Icon[%s] - [%s] added\n", i18n->lang, i18n->icon);
 	livebox->i18n_list = dlist_append(livebox->i18n_list, i18n);
+}
+
+static inline void update_content(struct livebox *livebox, xmlNodePtr node)
+{
+	xmlChar *content;
+	content = xmlNodeGetContent(node);
+	if (!content) {
+		DbgPrint("Has no content\n");
+		return;
+	}
+
+	livebox->content = xmlStrdup(content);
+	if (!livebox->content) {
+		ErrPrint("Failed to duplicate string: %s\n", (char *)content);
+		return;
+	}
 }
 
 static inline void update_box(struct livebox *livebox, xmlNodePtr node)
@@ -1906,7 +1931,7 @@ static inline int db_insert_livebox(struct livebox *livebox, const char *appid)
 	if (ret < 0)
 		goto errout;
 
-	ret = db_insert_client((char *)livebox->pkgid, (char *)livebox->icon, (char *)livebox->name, livebox->auto_launch, (char *)livebox->pd_size);
+	ret = db_insert_client((char *)livebox->pkgid, (char *)livebox->icon, (char *)livebox->name, livebox->auto_launch, (char *)livebox->pd_size, (char *)livebox->content);
 	if (ret < 0)
 		goto errout;
 
@@ -2162,6 +2187,11 @@ static inline int do_install(xmlNodePtr node, const char *appid)
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"group")) {
 			update_group(livebox, node);
+			continue;
+		}
+
+		if (!xmlStrcasecmp(node->name, (const xmlChar *)"content")) {
+			update_content(livebox, node);
 			continue;
 		}
 	}
