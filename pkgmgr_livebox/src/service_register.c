@@ -49,12 +49,12 @@
  *
  *
  * client
- * +-------+------+---------+-------------+---------+---------+
- * | pkgid | Icon |  Name   | auto_launch | pd_size | content |
- * +-------+------+---------+-------------+---------+---------+
- * |   -   |   -  |    -    |      -      |    -    |    -    |
- * +-------+------+---------+-------------+---------+---------+
- * CREATE TABLE client ( pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch INTEGER, pd_size TEXT, content TEXT DEFAULT "default", FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
+ * +-------+------+---------+-------------+---------+---------+-----------+
+ * | pkgid | Icon |  Name   | auto_launch | pd_size | content | nodisplay |
+ * +-------+------+---------+-------------+---------+---------+-----------+
+ * |   -   |   -  |    -    |      -      |    -    |    -    |     -     |
+ * +-------+------+---------+-------------+---------+---------+-----------+
+ * CREATE TABLE client ( pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch INTEGER, pd_size TEXT, content TEXT DEFAULT "default", nodisplay INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
  *
  * = auto_launch = { 1 | 0 }
  * = pd_size = WIDTHxHEIGHT
@@ -506,7 +506,7 @@ static inline int db_create_client(void)
 
 	ddl = "CREATE TABLE client (" \
 		"pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, " \
-		"auto_launch INTEGER, pd_size TEXT, content TEXT DEFAULT 'default', FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
+		"auto_launch INTEGER, pd_size TEXT, content TEXT DEFAULT 'default', nodisplay INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -518,13 +518,13 @@ static inline int db_create_client(void)
 	return 0;
 }
 
-static inline int db_insert_client(const char *pkgid, const char *icon, const char *name, int auto_launch, const char *pd_size, const char *content)
+static inline int db_insert_client(const char *pkgid, const char *icon, const char *name, int auto_launch, const char *pd_size, const char *content, int nodisplay)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	dml = "INSERT INTO client ( pkgid, icon, name, auto_launch, pd_size, content ) VALUES (?, ?, ?, ?, ?, ?)";
+	dml = "INSERT INTO client ( pkgid, icon, name, auto_launch, pd_size, content, nodisplay ) VALUES (?, ?, ?, ?, ?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
@@ -567,6 +567,13 @@ static inline int db_insert_client(const char *pkgid, const char *icon, const ch
 	}
 
 	ret = sqlite3_bind_text(stmt, 6, content ? content : "default", -1, NULL);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_int(stmt, 7, nodisplay);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -1377,6 +1384,7 @@ struct livebox {
 
 	int pinup; /* Is this support the pinup feature? */
 	int primary; /* Is this primary livebox? */
+	int nodisplay;
 
 	enum lb_type lb_type;
 	xmlChar *lb_src;
@@ -1931,7 +1939,7 @@ static inline int db_insert_livebox(struct livebox *livebox, const char *appid)
 	if (ret < 0)
 		goto errout;
 
-	ret = db_insert_client((char *)livebox->pkgid, (char *)livebox->icon, (char *)livebox->name, livebox->auto_launch, (char *)livebox->pd_size, (char *)livebox->content);
+	ret = db_insert_client((char *)livebox->pkgid, (char *)livebox->icon, (char *)livebox->name, livebox->auto_launch, (char *)livebox->pd_size, (char *)livebox->content, livebox->nodisplay);
 	if (ret < 0)
 		goto errout;
 
@@ -2074,6 +2082,12 @@ static inline int do_install(xmlNodePtr node, const char *appid)
 		livebox->script = xmlGetProp(node, (const xmlChar *)"script");
 		if (!livebox->script)
 			ErrPrint("script is NIL\n");
+	}
+
+	if (xmlHasProp(node, (const xmlChar *)"nodisplay")) {
+		tmp = xmlGetProp(node, (const xmlChar *)"nodisplay");
+		livebox->nodisplay = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
+		xmlFree(tmp);
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"pinup")) {
