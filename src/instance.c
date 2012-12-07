@@ -90,6 +90,8 @@ struct inst_info {
 	struct {
 		int width;
 		int height;
+		double x;
+		double y;
 
 		union {
 			struct script_info *script;
@@ -833,7 +835,9 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 				buffer_handler_load(inst->lb.canvas.buffer);
 
 			if (pd_type == PD_TYPE_SCRIPT && inst->pd.canvas.script && inst->pd.is_opened_for_reactivate) {
-				script_handler_load(inst->pd.canvas.script, 1);
+				double x, y;
+
+				instance_slave_get_pd_pos(inst, &x, &y);
 
 				/*!
 				 * \note
@@ -843,8 +847,20 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 				 * To do that, send open request from here.
 				 */
 				ret = instance_slave_open_pd(inst, NULL);
+
+				/*!
+				 * \note
+				 * In this case, master already loads the PD script.
+				 * So just send the pd,show event to the slave again.
+				 */
+				ret = instance_signal_emit(inst,
+						"pd,show", util_uri_to_path(instance_id(inst)),
+						0.0, 0.0, 0.0, 0.0, x, y, 0);
 			} else if (pd_type == PD_TYPE_BUFFER && inst->pd.canvas.buffer && inst->pd.is_opened_for_reactivate) {
+				double x, y;
+
 				buffer_handler_load(inst->pd.canvas.buffer);
+				instance_slave_get_pd_pos(inst, &x, &y);
 
 				/*!
 				 * \note
@@ -854,6 +870,14 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 				 * To do that, send open request from here.
 				 */
 				ret = instance_slave_open_pd(inst, NULL);
+
+				/*!
+				 * \note
+				 * In this case, just send the pd,show event for keeping the compatibility
+				 */
+				ret = instance_signal_emit(inst,
+						"pd,show", util_uri_to_path(instance_id(inst)),
+						0.0, 0.0, 0.0, 0.0, x, y, 0);
 			}
 
 			/*!
@@ -2299,6 +2323,20 @@ HAPI int instance_need_slave(struct inst_info *inst)
 	return ret;
 }
 
+HAPI void instance_slave_set_pd_pos(struct inst_info *inst, double x, double y)
+{
+	inst->pd.x = x;
+	inst->pd.y = y;
+}
+
+HAPI void instance_slave_get_pd_pos(struct inst_info *inst, double *x, double *y)
+{
+	if (x)
+		*x = inst->pd.x;
+	if (y)
+		*y = inst->pd.y;
+}
+
 HAPI int instance_slave_open_pd(struct inst_info *inst, struct client_node *client)
 {
 	const char *pkgname;
@@ -2335,7 +2373,7 @@ HAPI int instance_slave_open_pd(struct inst_info *inst, struct client_node *clie
 	if (!pkgname || !id)
 		return -EINVAL;
 
-	packet = packet_create_noack("pd_show", "ssii", pkgname, id, instance_pd_width(inst), instance_pd_height(inst));
+	packet = packet_create_noack("pd_show", "ssiidd", pkgname, id, instance_pd_width(inst), instance_pd_height(inst), inst->pd.x, inst->pd.y);
 	if (!packet) {
 		ErrPrint("Failed to create a packet\n");
 		return -EFAULT;

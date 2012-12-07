@@ -2040,6 +2040,7 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 	else if (util_free_space(IMAGE_PATH) < MINIMUM_SPACE)
 		ret = -ENOSPC;
 	else if (package_pd_type(instance_package(inst)) == PD_TYPE_BUFFER) {
+		instance_slave_set_pd_pos(inst, x, y);
 		ret = instance_slave_open_pd(inst, client);
 		ret = instance_signal_emit(inst,
 				"pd,show", util_uri_to_path(instance_id(inst)),
@@ -2062,6 +2063,7 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		 * but the script mode doesn't need slave for rendering default view of PD
 		 * so we can hanle it later.
 		 */
+		instance_slave_set_pd_pos(inst, x, y);
 		ret = instance_slave_open_pd(inst, client);
 		script_handler_update_pointer(instance_pd_script(inst), x, y, 0);
 		ret = script_handler_load(instance_pd_script(inst), 1);

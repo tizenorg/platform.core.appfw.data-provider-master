@@ -171,6 +171,9 @@ extern int instance_unicast_deleted_event(struct inst_info *inst, struct client_
 extern int instance_create_lb_buffer(struct inst_info *inst);
 extern int instance_create_pd_buffer(struct inst_info *inst);
 
+extern void instance_slave_set_pd_pos(struct inst_info *inst, double x, double y);
+extern void instance_slave_get_pd_pos(struct inst_info *inst, double *x, double *y);
+
 extern int instance_slave_open_pd(struct inst_info *inst, struct client_node *client);
 extern int instance_slave_close_pd(struct inst_info *inst, struct client_node *client);
 
