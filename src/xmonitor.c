@@ -25,6 +25,9 @@
 #include <assert.h>
 #include <errno.h>
 #include <malloc.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include <Evas.h>
 #include <Ecore_X.h>
@@ -70,6 +73,22 @@ static struct info {
 
 	.paused = 0,
 };
+
+static inline void touch_paused_file(void)
+{
+	int fd;
+	fd = creat(PAUSED_FILE, 0644);
+	if (fd >= 0)
+		close(fd);
+	else
+		ErrPrint("Create .live.paused: %s\n", strerror(errno));
+}
+
+static inline void remove_paused_file(void)
+{
+	if (unlink(PAUSED_FILE) < 0)
+		ErrPrint("Unlink .live.paused: %s\n", strerror(errno));
+}
 
 static inline int get_pid(Ecore_X_Window win)
 {
@@ -128,9 +147,13 @@ HAPI void xmonitor_handle_state_changes(void)
 				item->cb(item->user_data);
 		}
 
+		touch_paused_file();
+
 		sqlite3_release_memory(SQLITE_FLUSH_MAX);
 		malloc_trim(0);
 	} else {
+		remove_paused_file();
+
 		EINA_LIST_FOREACH(s_info.resume_list, l, item) {
 			if (item->cb)
 				item->cb(item->user_data);
@@ -337,6 +360,11 @@ HAPI int xmonitor_init(void)
 	sniff_all_windows();
 
 	s_info.paused = client_is_all_paused() || setting_is_lcd_off();
+	if (s_info.paused) {
+		touch_paused_file();
+	} else {
+		remove_paused_file();
+	}
 	return 0;
 }
 

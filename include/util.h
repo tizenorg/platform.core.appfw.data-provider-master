@@ -8,6 +8,8 @@ extern const char *util_basename(const char *name);
 extern unsigned long util_free_space(const char *path);
 extern char *util_replace_string(const char *src, const char *pattern, const char *replace);
 extern const char *util_uri_to_path(const char *uri);
+extern void *util_timer_add(double interval, Eina_Bool (*cb)(void *data), void *data);
+extern void util_timer_interval_set(void *timer, double interval);
 
 #define SCHEMA_FILE	"file://"
 #define SCHEMA_PIXMAP	"pixmap://"

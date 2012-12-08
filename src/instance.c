@@ -433,6 +433,8 @@ static inline void destroy_instance(struct inst_info *inst)
 	pd_type = package_pd_type(pkg);
 	slave = package_slave(inst->info);
 
+	DbgPrint("Instance is destroyed (%p), slave(%p)\n", inst, slave);
+
 	if (inst->pd.need_to_send_close_event)
 		send_pd_destroyed_to_client(inst, 0);
 
@@ -470,7 +472,6 @@ static inline void destroy_instance(struct inst_info *inst)
 	DbgFree(inst);
 
 	slave = slave_unload_instance(slave);
-	DbgPrint("Instance is destroyed (%p), slave(%p)\n", inst, slave);
 }
 
 static Eina_Bool update_timer_cb(void *data)
@@ -513,7 +514,7 @@ static inline int fork_package(struct inst_info *inst, const char *pkgname)
 
 	if (package_secured(info)) {
 		DbgPrint("Register the update timer for secured livebox [%s]\n", package_name(info));
-		inst->update_timer = ecore_timer_add(inst->period, update_timer_cb, inst);
+		inst->update_timer = util_timer_add(inst->period, update_timer_cb, inst);
 		if (!inst->update_timer)
 			ErrPrint("Failed to add an update timer for instance %s\n", inst->id);
 		else
@@ -1793,10 +1794,10 @@ static Eina_Bool timer_updator_cb(void *data)
 			ecore_timer_del(inst->update_timer);
 			inst->update_timer = NULL;
 		} else {
-			ecore_timer_interval_set(inst->update_timer, inst->period);
+			util_timer_interval_set(inst->update_timer, inst->period);
 		}
 	} else if (inst->period > 0.0f) {
-		inst->update_timer = ecore_timer_add(inst->period, update_timer_cb, inst);
+		inst->update_timer = util_timer_add(inst->period, update_timer_cb, inst);
 		if (!inst->update_timer)
 			ErrPrint("Failed to add an update timer for instance %s\n", inst->id);
 		else
@@ -1845,8 +1846,11 @@ HAPI int instance_set_period(struct inst_info *inst, double period)
 
 	if (package_secured(inst->info)) {
 		/*!
+		 * \note
 		 * Secured livebox doesn't need to send its update period to the slave.
 		 * Slave has no local timer for updating liveboxes
+		 *
+		 * So update its timer at here.
 		 */
 		if (!ecore_timer_add(DELAY_TIME, timer_updator_cb, cbdata))
 			timer_updator_cb(cbdata);

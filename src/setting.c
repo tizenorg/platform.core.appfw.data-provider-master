@@ -11,6 +11,8 @@
 #include <dlog.h>
 #include <heynoti.h>
 
+#include <Eina.h>
+
 #include "setting.h"
 #include "util.h"
 #include "debug.h"

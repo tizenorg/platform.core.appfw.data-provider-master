@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include <dlog.h>
+#include <Eina.h>
 
 #include "conf.h"
 #include "debug.h"

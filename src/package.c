@@ -108,7 +108,7 @@ struct pkg_info {
 	Eina_List *inst_list;
 	Eina_List *ctx_list;
 
-	int need_to_delete;
+	int is_uninstalled;
 };
 
 static struct {
@@ -981,64 +981,79 @@ HAPI void package_set_pd_type(struct pkg_info *info, enum pd_type type)
 	info->pd.type = type;
 }
 
+/*!
+ * \note
+ * Add the instance to the package info.
+ * If a package has no slave, assign a new slave.
+ */
+static inline int assign_new_slave(struct pkg_info *info)
+{
+	char *s_name;
+	char *s_pkgname;
+	const char *tmp;
+
+	s_name = util_slavename();
+	if (!s_name) {
+		ErrPrint("Failed to get a new slave name\n");
+		return -EFAULT;
+	}
+
+	tmp = abi_find_slave(info->abi);
+	if (!tmp) {
+		DbgFree(s_name);
+		ErrPrint("Failed to find a proper pkgname of a slave\n");
+		return -EINVAL;
+	}
+
+	DbgPrint("Slave package: \"%s\" (abi: %s)\n", tmp, info->abi);
+	s_pkgname = util_replace_string(tmp, REPLACE_TAG_APPID, info->pkgname);
+	if (!s_pkgname) {
+		s_pkgname = strdup(tmp);
+		if (!s_pkgname) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			DbgFree(s_name);
+			return -ENOMEM;
+		}
+	} else if (!info->secured) {
+		DbgPrint("Slave package name is specified but the livebox is not secured\n");
+		DbgPrint("Forcely set secured flag for livebox %s\n", info->pkgname);
+		info->secured = 1;
+	}
+
+	DbgPrint("New slave name is %s, it is assigned for livebox %s (using %s)\n", s_name, info->pkgname, s_pkgname);
+	info->slave = slave_create(s_name, info->secured, info->abi, s_pkgname);
+
+	DbgFree(s_name);
+	DbgFree(s_pkgname);
+
+	if (!info->slave) {
+		/*!
+		 * \note
+		 * package_destroy will try to remove "info" from the pkg_list.
+		 * but we didn't add this to it yet.
+		 * If the list method couldn't find an "info" from the list,
+		 * it just do nothing so I'll leave this.
+		 */
+		return -EFAULT;
+	}
+	/*!
+	 * \note
+	 * Slave is not activated yet.
+	 */
+	return 0;
+}
+
 HAPI int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 {
 	if (!info->inst_list) {
 		info->slave = slave_find_available(info->abi, info->secured);
 
 		if (!info->slave) {
-			char *s_name;
-			char *s_pkgname;
-			const char *tmp;
+			int ret;
 
-			s_name = util_slavename();
-			if (!s_name) {
-				ErrPrint("Failed to get a new slave name\n");
-				return -EFAULT;
-			}
-
-			tmp = abi_find_slave(info->abi);
-			if (!tmp) {
-				DbgFree(s_name);
-				ErrPrint("Failed to find a proper pkgname of a slave\n");
-				return -EINVAL;
-			}
-
-			DbgPrint("Slave package: \"%s\" (abi: %s)\n", tmp, info->abi);
-			s_pkgname = util_replace_string(tmp, REPLACE_TAG_APPID, info->pkgname);
-			if (!s_pkgname) {
-				s_pkgname = strdup(tmp);
-				if (!s_pkgname) {
-					ErrPrint("Heap: %s\n", strerror(errno));
-					DbgFree(s_name);
-					return -ENOMEM;
-				}
-			} else if (!info->secured) {
-				DbgPrint("Slave package name is specified but the livebox is not secured\n");
-				DbgPrint("Forcely set secured flag for livebox %s\n", info->pkgname);
-				info->secured = 1;
-			}
-
-			DbgPrint("New slave name is %s, it is assigned for livebox %s (using %s)\n", s_name, info->pkgname, s_pkgname);
-			info->slave = slave_create(s_name, info->secured, info->abi, s_pkgname);
-
-			DbgFree(s_name);
-			DbgFree(s_pkgname);
-
-			if (!info->slave) {
-				/*!
-				 * \note
-				 * package_destroy will try to remove "info" from the pkg_list.
-				 * but we didn't add this to it yet.
-				 * If the list method couldn't find an "info" from the list,
-				 * it just do nothing so I'll leave this.
-				 */
-				return -EFAULT;
-			}
-			/*!
-			 * \note
-			 * Slave is not activated yet.
-			 */
+			ret = assign_new_slave(info);
+			if (ret < 0)
+				return ret;
 		} else {
 			DbgPrint("Slave %s is assigned for %s\n", slave_name(info->slave), info->pkgname);
 		}
@@ -1053,6 +1068,14 @@ HAPI int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 			slave_event_callback_add(info->slave, SLAVE_EVENT_PAUSE, slave_paused_cb, info);
 			slave_event_callback_add(info->slave, SLAVE_EVENT_RESUME, slave_resumed_cb, info);
 
+			/*!
+			 * \note
+			 * In case of the slave is terminated because of expired TTL timer,
+			 * Master should freeze the all update time.
+			 * But the callback should check the slave's state to prevent from duplicated freezing.
+			 *
+			 * This callback will freeze the timer only if a slave doesn't running.
+			 */
 			xmonitor_add_event_callback(XMONITOR_PAUSED, xmonitor_paused_cb, info);
 			xmonitor_add_event_callback(XMONITOR_RESUMED, xmonitor_resumed_cb, info);
 		}
@@ -1066,29 +1089,30 @@ HAPI int package_del_instance(struct pkg_info *info, struct inst_info *inst)
 {
 	info->inst_list = eina_list_remove(info->inst_list, inst);
 
-	if (!info->inst_list) {
-		if (info->slave) {
-			slave_unload_package(info->slave);
+	if (info->inst_list)
+		return 0;
 
-			slave_event_callback_del(info->slave, SLAVE_EVENT_FAULT, slave_fault_cb, info);
-			slave_event_callback_del(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
-			slave_event_callback_del(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
+	if (info->slave) {
+		slave_unload_package(info->slave);
 
-			if (info->secured) {
-				slave_event_callback_del(info->slave, SLAVE_EVENT_PAUSE, slave_paused_cb, info);
-				slave_event_callback_del(info->slave, SLAVE_EVENT_RESUME, slave_resumed_cb, info);
+		slave_event_callback_del(info->slave, SLAVE_EVENT_FAULT, slave_fault_cb, info);
+		slave_event_callback_del(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
+		slave_event_callback_del(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
 
-				xmonitor_del_event_callback(XMONITOR_PAUSED, xmonitor_paused_cb, info);
-				xmonitor_del_event_callback(XMONITOR_RESUMED, xmonitor_resumed_cb, info);
-			}
+		if (info->secured) {
+			slave_event_callback_del(info->slave, SLAVE_EVENT_PAUSE, slave_paused_cb, info);
+			slave_event_callback_del(info->slave, SLAVE_EVENT_RESUME, slave_resumed_cb, info);
 
-			slave_unref(info->slave);
-			info->slave = NULL;
+			xmonitor_del_event_callback(XMONITOR_PAUSED, xmonitor_paused_cb, info);
+			xmonitor_del_event_callback(XMONITOR_RESUMED, xmonitor_resumed_cb, info);
 		}
 
-		if (info->need_to_delete)
-			package_destroy(info);
+		slave_unref(info->slave);
+		info->slave = NULL;
 	}
+
+	if (info->is_uninstalled)
+		package_destroy(info);
 
 	return 0;
 }
@@ -1159,7 +1183,7 @@ static int io_uninstall_cb(const char *pkgname, int prime, void *data)
 		return 0;
 	}
 
-	info->need_to_delete = 1;
+	info->is_uninstalled = 1;
 
 	/*!
 	 * \NOTE
@@ -1192,7 +1216,7 @@ static inline void reload_package_info(struct pkg_info *info)
 
 	/*!
 	 * \note
-	 * Without need_to_delete, the package will be kept
+	 * Without "is_uninstalled", the package will be kept
 	 */
 	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
 		instance_destroy(inst);

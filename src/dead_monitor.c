@@ -6,6 +6,8 @@
 #include <com-core.h>
 #include <dlog.h>
 
+#include <Eina.h>
+
 #include "slave_life.h"
 #include "client_life.h"
 #include "instance.h"

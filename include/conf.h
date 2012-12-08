@@ -137,6 +137,7 @@ extern int conf_loader(void);
 
 #define SLAVE_MAX_LOAD		g_conf.slave_max_load
 #define DEFAULT_PING_TIME	g_conf.ping_time
+#define PAUSED_FILE		"/tmp/.live.paused"
 
 #define MAX_ABI		256
 #define MAX_PKGNAME	512

@@ -7,6 +7,8 @@
 #include <sys/statvfs.h>
 
 #include <dlog.h>
+#include <Eina.h>
+#include <Ecore.h>
 
 #include "util.h"
 #include "debug.h"
@@ -310,6 +312,44 @@ HAPI const char *util_uri_to_path(const char *uri)
 		return NULL;
 
 	return uri + len;
+}
+
+static inline void compensate_timer(Ecore_Timer *timer)
+{
+	struct timeval tv;
+	struct timeval compensator;
+	double delay;
+
+	if (gettimeofday(&tv, NULL) < 0) {
+		ErrPrint("Error: %s\n", strerror(errno));
+		return;
+	}
+
+	compensator.tv_sec = tv.tv_sec % 60;
+	if (compensator.tv_sec == 0)
+		compensator.tv_sec = 59;
+
+	delay = (double)compensator.tv_sec + (1.0f - (double)tv.tv_usec / 1000000.0f);
+	ecore_timer_delay(timer, delay);
+	DbgPrint("COMPENSATED: %lf\n", delay);
+}
+
+HAPI void *util_timer_add(double interval, Eina_Bool (*cb)(void *data), void *data)
+{
+	Ecore_Timer *timer;
+
+	timer = ecore_timer_add(interval, cb, data);
+	if (!timer)
+		return NULL;
+
+	compensate_timer(timer);
+	return timer;
+}
+
+HAPI void util_timer_interval_set(void *timer, double interval)
+{
+	ecore_timer_interval_set(timer, interval);
+	compensate_timer(timer);
 }
 
 /* End of a file */
