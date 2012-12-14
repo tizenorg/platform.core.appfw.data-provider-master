@@ -128,6 +128,31 @@ static inline void dump_fault_info(const char *name, pid_t pid, const char *pkgn
 	ErrPrint("Funcname: %s\n", funcname);
 }
 
+HAPI int fault_info_set(struct slave_node *slave, const char *pkgname, const char *id, const char *func)
+{
+	struct pkg_info *pkg;
+	int ret;
+
+	pkg = package_find(pkgname);
+	if (!pkg)
+		return -ENOENT;
+
+	ret = package_set_fault_info(pkg, util_timestamp(), id, func);
+	if (ret < 0)
+		return -EFAULT;
+
+	dump_fault_info(slave_name(slave), slave_pid(slave), pkgname, id, func);
+	ErrPrint("Set fault %s(%d)\n", !ret ? "Success" : "Failed", ret);
+	fault_broadcast_info(pkgname, id, func);
+
+	/*!
+	 * \note
+	 * Update statistics
+	 */
+	s_info.fault_mark_count++;
+	return 0;
+}
+
 HAPI int fault_check_pkgs(struct slave_node *slave)
 {
 	struct fault_info *info;

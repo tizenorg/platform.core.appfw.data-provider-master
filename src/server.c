@@ -2484,7 +2484,6 @@ out:
 static struct packet *slave_hello(pid_t pid, int handle, const struct packet *packet) /* slave_name, ret */
 {
 	struct slave_node *slave;
-	struct packet *result;
 	const char *slavename;
 	int ret;
 
@@ -2545,17 +2544,12 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 	slave_rpc_update_handle(slave, handle);
 
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-
-	return result;
+	return NULL;
 }
 
 static struct packet *slave_ping(pid_t pid, int handle, const struct packet *packet) /* slave_name, ret */
 {
 	struct slave_node *slave;
-	struct packet *result;
 	const char *slavename;
 	int ret;
 
@@ -2576,17 +2570,42 @@ static struct packet *slave_ping(pid_t pid, int handle, const struct packet *pac
 	slave_rpc_ping(slave);
 
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
+	return NULL;
+}
 
-	return result;
+static struct packet *slave_faulted(pid_t pid, int handle, const struct packet *packet)
+{
+	struct slave_node *slave;
+	const char *slavename;
+	const char *pkgname;
+	const char *id;
+	const char *func;
+	int ret;
+
+	slave = slave_find_by_pid(pid);
+	if (!slave) {
+		ErrPrint("Slave %d is not exists\n", pid);
+		ret = -ENOENT;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssss", &slavename, &pkgname, &id, &func);
+	if (ret != 4) {
+		ErrPrint("Parameter is not matched\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	DbgPrint("Slave Faulted: %s\n", slavename);
+	ret = fault_info_set(slave, pkgname, id, func);
+
+out:
+	return NULL;
 }
 
 static struct packet *slave_call(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, filename, function, ret */
 {
 	struct slave_node *slave;
-	struct packet *result;
 	const char *slavename;
 	const char *pkgname;
 	const char *id;
@@ -2611,17 +2630,12 @@ static struct packet *slave_call(pid_t pid, int handle, const struct packet *pac
 	slave_give_more_ttl(slave);
 
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-
-	return result;
+	return NULL;
 }
 
 static struct packet *slave_ret(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, filename, function, ret */
 {
 	struct slave_node *slave;
-	struct packet *result;
 	const char *slavename;
 	const char *pkgname;
 	const char *id;
@@ -2646,11 +2660,7 @@ static struct packet *slave_ret(pid_t pid, int handle, const struct packet *pack
 	slave_give_more_ttl(slave);
 
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-
-	return result;
+	return NULL;
 }
 
 static inline char *get_file_kept_in_safe(const char *id)
@@ -2692,7 +2702,6 @@ static inline char *get_file_kept_in_safe(const char *id)
 static struct packet *slave_updated(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, filename, width, height, priority, ret */
 {
 	struct slave_node *slave;
-	struct packet *result;
 	const char *slavename;
 	const char *pkgname;
 	const char *id;
@@ -2766,17 +2775,12 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 	}
 
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-
-	return result;
+	return NULL;
 }
 
 static struct packet *slave_desc_updated(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, filename, decsfile, ret */
 {
 	struct slave_node *slave;
-	struct packet *result;
 	const char *slavename;
 	const char *pkgname;
 	const char *id;
@@ -2831,17 +2835,12 @@ static struct packet *slave_desc_updated(pid_t pid, int handle, const struct pac
 	}
 
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-
-	return result;
+	return NULL;
 }
 
 static struct packet *slave_deleted(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, id, ret */
 {
 	struct slave_node *slave;
-	struct packet *result;
 	const char *slavename;
 	const char *pkgname;
 	const char *id;
@@ -2871,11 +2870,7 @@ static struct packet *slave_deleted(pid_t pid, int handle, const struct packet *
 		ret = instance_destroyed(inst);
 
 out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result)
-		ErrPrint("Failed to create a packet\n");
-
-	return result;
+	return NULL;
 }
 
 /*!
@@ -3714,6 +3709,10 @@ static struct method s_slave_table[] = {
 	{
 		.cmd = "release_buffer",
 		.handler = slave_release_buffer, /* slave_name, id - ret */
+	},
+	{
+		.cmd = "faulted",
+		.handler = slave_faulted, /* slave_name, pkgname, id, funcname */
 	},
 	{
 		.cmd = NULL,
