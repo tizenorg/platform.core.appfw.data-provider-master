@@ -113,6 +113,84 @@
 
 int errno;
 
+struct i18n {
+	xmlChar *lang;
+	xmlChar *name;
+	xmlChar *icon;
+};
+
+enum lb_type {
+	LB_TYPE_NONE = 0x0,
+	LB_TYPE_SCRIPT,
+	LB_TYPE_FILE,
+	LB_TYPE_TEXT,
+	LB_TYPE_BUFFER,
+};
+
+enum pd_type {
+	PD_TYPE_NONE = 0x0,
+	PD_TYPE_SCRIPT,
+	PD_TYPE_TEXT,
+	PD_TYPE_BUFFER,
+};
+
+enum lb_size {
+	LB_SIZE_1x1 = 0x01,
+	LB_SIZE_2x1 = 0x02,
+	LB_SIZE_2x2 = 0x04,
+	LB_SIZE_4x1 = 0x08,
+	LB_SIZE_4x2 = 0x10,
+	LB_SIZE_4x3 = 0x20,
+	LB_SIZE_4x4 = 0x40,
+};
+
+struct livebox {
+	xmlChar *pkgid;
+	int secured;
+	int auto_launch;
+	int network;
+	xmlChar *abi;
+	xmlChar *name; /* Default name */
+	xmlChar *icon; /* Default icon */
+	xmlChar *libexec; /* Path of the SO file */
+	xmlChar *timeout; /* INTEGER, timeout */
+	xmlChar *period; /* DOUBLE, update period */
+	xmlChar *script; /* Script engine */
+	xmlChar *content; /* Content information */
+	xmlChar *setup;
+
+	int pinup; /* Is this support the pinup feature? */
+	int primary; /* Is this primary livebox? */
+	int nodisplay;
+
+	enum lb_type lb_type;
+	xmlChar *lb_src;
+	xmlChar *lb_group;
+	int size_list; /* 1x1, 2x1, 2x2, 4x1, 4x2, 4x3, 4x4 */
+
+	xmlChar *preview[7];
+
+	enum pd_type pd_type;
+	xmlChar *pd_src;
+	xmlChar *pd_group;
+	xmlChar *pd_size; /* Default PD size */
+
+	struct dlist *i18n_list;
+	struct dlist *group_list;
+};
+
+struct group {
+	xmlChar *cluster;
+	xmlChar *category;
+	xmlChar *ctx_item;
+	struct dlist *option_list;
+};
+
+struct option {
+	xmlChar *key;
+	xmlChar *value;
+};
+
 static struct {
 	const char *dbfile;
 	sqlite3 *handle;
@@ -567,7 +645,7 @@ static inline int db_insert_client(struct livebox *livebox)
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 5, livebox->pd_size, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 5, (char *)livebox->pd_size, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -588,7 +666,7 @@ static inline int db_insert_client(struct livebox *livebox)
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 8, livebox->setup ? livebox->setup : "", -1, NULL);
+	ret = sqlite3_bind_text(stmt, 8, livebox->setup ? (char *)livebox->setup : "", -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -1352,83 +1430,6 @@ static inline int db_fini(void)
 	return 0;
 }
 
-struct i18n {
-	xmlChar *lang;
-	xmlChar *name;
-	xmlChar *icon;
-};
-
-enum lb_type {
-	LB_TYPE_NONE = 0x0,
-	LB_TYPE_SCRIPT,
-	LB_TYPE_FILE,
-	LB_TYPE_TEXT,
-	LB_TYPE_BUFFER,
-};
-
-enum pd_type {
-	PD_TYPE_NONE = 0x0,
-	PD_TYPE_SCRIPT,
-	PD_TYPE_TEXT,
-	PD_TYPE_BUFFER,
-};
-
-enum lb_size {
-	LB_SIZE_1x1 = 0x01,
-	LB_SIZE_2x1 = 0x02,
-	LB_SIZE_2x2 = 0x04,
-	LB_SIZE_4x1 = 0x08,
-	LB_SIZE_4x2 = 0x10,
-	LB_SIZE_4x3 = 0x20,
-	LB_SIZE_4x4 = 0x40,
-};
-
-struct livebox {
-	xmlChar *pkgid;
-	int secured;
-	int auto_launch;
-	int network;
-	xmlChar *abi;
-	xmlChar *name; /* Default name */
-	xmlChar *icon; /* Default icon */
-	xmlChar *libexec; /* Path of the SO file */
-	xmlChar *timeout; /* INTEGER, timeout */
-	xmlChar *period; /* DOUBLE, update period */
-	xmlChar *script; /* Script engine */
-	xmlChar *content; /* Content information */
-
-	int pinup; /* Is this support the pinup feature? */
-	int primary; /* Is this primary livebox? */
-	int nodisplay;
-
-	enum lb_type lb_type;
-	xmlChar *lb_src;
-	xmlChar *lb_group;
-	int size_list; /* 1x1, 2x1, 2x2, 4x1, 4x2, 4x3, 4x4 */
-
-	xmlChar *preview[7];
-
-	enum pd_type pd_type;
-	xmlChar *pd_src;
-	xmlChar *pd_group;
-	xmlChar *pd_size; /* Default PD size */
-
-	struct dlist *i18n_list;
-	struct dlist *group_list;
-};
-
-struct group {
-	xmlChar *cluster;
-	xmlChar *category;
-	xmlChar *ctx_item;
-	struct dlist *option_list;
-};
-
-struct option {
-	xmlChar *key;
-	xmlChar *value;
-};
-
 static inline int validate_pkgid(const char *appid, const char *pkgid)
 {
 	/* Just return 1 Always */
@@ -1458,6 +1459,7 @@ static inline int livebox_destroy(struct livebox *livebox)
 	xmlFree(livebox->script);
 	xmlFree(livebox->period);
 	xmlFree(livebox->content);
+	xmlFree(livebox->setup);
 	xmlFree(livebox->preview[0]); /* 1x1 */
 	xmlFree(livebox->preview[1]); /* 2x1 */
 	xmlFree(livebox->preview[2]); /* 2x2 */
@@ -1596,6 +1598,22 @@ static inline void update_i18n_icon(struct livebox *livebox, xmlNodePtr node)
 	i18n->lang = lang;
 	DbgPrint("Icon[%s] - [%s] added\n", i18n->lang, i18n->icon);
 	livebox->i18n_list = dlist_append(livebox->i18n_list, i18n);
+}
+
+static inline void update_setup(struct livebox *livebox, xmlNodePtr node)
+{
+	xmlChar *setup;
+	setup = xmlNodeGetContent(node);
+	if (!setup) {
+		DbgPrint("Has no setup\n");
+		return;
+	}
+
+	livebox->setup = xmlStrdup(setup);
+	if (!livebox->setup) {
+		ErrPrint("Failed to duplicate string: %s\n", (char *)setup);
+		return;
+	}
 }
 
 static inline void update_content(struct livebox *livebox, xmlNodePtr node)
@@ -2221,6 +2239,11 @@ static inline int do_install(xmlNodePtr node, const char *appid)
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"content")) {
 			update_content(livebox, node);
+			continue;
+		}
+
+		if (!xmlStrcasecmp(node->name, (const xmlChar *)"setup")) {
+			update_setup(livebox, node);
 			continue;
 		}
 	}
