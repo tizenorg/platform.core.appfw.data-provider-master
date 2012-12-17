@@ -8,6 +8,8 @@
 	<label xml:lang="ko_KR">Hangul</label>
 	<content>Content information</content>
 
+	<setup>com.samsung.nicesj</setup>
+
 	<box type="image">
 		<size>1x1</size>
 		<size>2x1</size>

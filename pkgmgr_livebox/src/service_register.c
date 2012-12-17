@@ -49,12 +49,12 @@
  *
  *
  * client
- * +-------+------+---------+-------------+---------+---------+-----------+
- * | pkgid | Icon |  Name   | auto_launch | pd_size | content | nodisplay |
- * +-------+------+---------+-------------+---------+---------+-----------+
- * |   -   |   -  |    -    |      -      |    -    |    -    |     -     |
- * +-------+------+---------+-------------+---------+---------+-----------+
- * CREATE TABLE client ( pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch INTEGER, pd_size TEXT, content TEXT DEFAULT "default", nodisplay INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
+ * +-------+------+---------+-------------+---------+---------+-----------+-------+
+ * | pkgid | Icon |  Name   | auto_launch | pd_size | content | nodisplay | setup |
+ * +-------+------+---------+-------------+---------+---------+-----------+-------+
+ * |   -   |   -  |    -    |      -      |    -    |    -    |     -     |   -   |
+ * +-------+------+---------+-------------+---------+---------+-----------+-------+
+ * CREATE TABLE client ( pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch INTEGER, pd_size TEXT, content TEXT DEFAULT "default", nodisplay INTEGER, setup TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
  *
  * = auto_launch = { 1 | 0 }
  * = pd_size = WIDTHxHEIGHT
@@ -340,12 +340,20 @@ out:
 	sqlite3_finalize(stmt);
 	return ret;
 }
-
-static inline int db_insert_provider(const char *pkgid, int net, const char *abi, int secured, int box_type, const char *box_src, const char *box_group, int pd_type, const char *pd_src, const char *pd_group, const char *libexec, const char *timeout, const char *period, const char *script, int pinup)
+static inline int db_insert_provider(struct livebox *livebox)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
+	char *abi = (char *)livebox->abi;
+	char *box_src = (char *)livebox->lb_src;
+	char *box_group = (char *)livebox->lb_group;
+	char *pd_src = (char *)livebox->pd_src;
+	char *pd_group = (char *)livebox->pd_group;
+	char *libexec = (char *)livebox->libexec;
+	char *timeout = (char *)livebox->timeout;
+	char *period = (char *)livebox->period;
+	char *script = (char *)livebox->script;
 
 	if (!abi)
 		abi = "c";
@@ -381,14 +389,15 @@ static inline int db_insert_provider(const char *pkgid, int net, const char *abi
 		return -EIO;
 	}
 
-	ret = sqlite3_bind_text(stmt, 1, pkgid, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 1, (char *)livebox->pkgid, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_int(stmt, 2, net);
+
+	ret = sqlite3_bind_int(stmt, 2, livebox->network);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -401,15 +410,14 @@ static inline int db_insert_provider(const char *pkgid, int net, const char *abi
 		ret = -EIO;
 		goto out;
 	}
-
-	ret = sqlite3_bind_int(stmt, 4, secured);
+	ret = sqlite3_bind_int(stmt, 4, livebox->secured);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_int(stmt, 5, box_type);
+	ret = sqlite3_bind_int(stmt, 5, livebox->lb_type);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -430,7 +438,7 @@ static inline int db_insert_provider(const char *pkgid, int net, const char *abi
 		goto out;
 	}
 
-	ret = sqlite3_bind_int(stmt, 8, pd_type);
+	ret = sqlite3_bind_int(stmt, 8, livebox->pd_type);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -479,7 +487,7 @@ static inline int db_insert_provider(const char *pkgid, int net, const char *abi
 		goto out;
 	}
 
-	ret = sqlite3_bind_int(stmt, 15, pinup);
+	ret = sqlite3_bind_int(stmt, 15, livebox->pinup);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -506,7 +514,7 @@ static inline int db_create_client(void)
 
 	ddl = "CREATE TABLE client (" \
 		"pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, " \
-		"auto_launch INTEGER, pd_size TEXT, content TEXT DEFAULT 'default', nodisplay INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
+		"auto_launch INTEGER, pd_size TEXT, content TEXT DEFAULT 'default', nodisplay INTEGER, setup TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -518,62 +526,69 @@ static inline int db_create_client(void)
 	return 0;
 }
 
-static inline int db_insert_client(const char *pkgid, const char *icon, const char *name, int auto_launch, const char *pd_size, const char *content, int nodisplay)
+static inline int db_insert_client(struct livebox *livebox)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
-	dml = "INSERT INTO client ( pkgid, icon, name, auto_launch, pd_size, content, nodisplay ) VALUES (?, ?, ?, ?, ?, ?, ?)";
+	dml = "INSERT INTO client ( pkgid, icon, name, auto_launch, pd_size, content, nodisplay, setup ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		return -EIO;
 	}
 
-	ret = sqlite3_bind_text(stmt, 1, pkgid, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 1, (char *)livebox->pkgid, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 2, icon, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 2, (char *)livebox->icon, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 3, name, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 3, (char *)livebox->name, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_int(stmt, 4, auto_launch);
+	ret = sqlite3_bind_int(stmt, 4, livebox->auto_launch);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 5, pd_size, -1, NULL);
+	ret = sqlite3_bind_text(stmt, 5, livebox->pd_size, -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 6, content ? content : "default", -1, NULL);
+	ret = sqlite3_bind_text(stmt, 6, livebox->content ? (char *)livebox->content : "default", -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_int(stmt, 7, nodisplay);
+	ret = sqlite3_bind_int(stmt, 7, livebox->nodisplay);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 8, livebox->setup ? livebox->setup : "", -1, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -1935,11 +1950,11 @@ static inline int db_insert_livebox(struct livebox *livebox, const char *appid)
 	if (ret < 0)
 		goto errout;
 
-	ret = db_insert_provider((char *)livebox->pkgid, livebox->network, (char *)livebox->abi, livebox->secured, livebox->lb_type, (char *)livebox->lb_src, (char *)livebox->lb_group, livebox->pd_type, (char *)livebox->pd_src, (char *)livebox->pd_group, (char *)livebox->libexec, (char *)livebox->timeout, (char *)livebox->period, (char *)livebox->script, livebox->pinup);
+	ret = db_insert_provider(livebox);
 	if (ret < 0)
 		goto errout;
 
-	ret = db_insert_client((char *)livebox->pkgid, (char *)livebox->icon, (char *)livebox->name, livebox->auto_launch, (char *)livebox->pd_size, (char *)livebox->content, livebox->nodisplay);
+	ret = db_insert_client(livebox);
 	if (ret < 0)
 		goto errout;
 
