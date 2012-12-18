@@ -2576,6 +2576,7 @@ out:
 static struct packet *slave_faulted(pid_t pid, int handle, const struct packet *packet)
 {
 	struct slave_node *slave;
+	struct inst_info *inst;
 	const char *slavename;
 	const char *pkgname;
 	const char *id;
@@ -2596,8 +2597,20 @@ static struct packet *slave_faulted(pid_t pid, int handle, const struct packet *
 		goto out;
 	}
 
-	DbgPrint("Slave Faulted: %s\n", slavename);
 	ret = fault_info_set(slave, pkgname, id, func);
+	DbgPrint("Slave Faulted: %s (%d)\n", slavename, ret);
+
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst) {
+		DbgPrint("There is no such instance: %s\n", id);
+		ret = -ENOENT;
+	} else if (instance_state(inst) == INST_DESTROYED) {
+		ErrPrint("Instance is already destroyed (%s)\n", id);
+		ret = -EINVAL;
+	} else {
+		DbgPrint("Destroy instance (%s)\n", id);
+		ret = instance_destroy(inst);
+	}
 
 out:
 	return NULL;
