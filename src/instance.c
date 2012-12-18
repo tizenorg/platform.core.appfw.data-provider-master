@@ -71,6 +71,7 @@ struct inst_info {
 	char *category;
 	char *title;
 	int is_pinned_up;
+	double sleep_at;
 
 	enum livebox_visible_state visible;
 
@@ -113,7 +114,6 @@ struct inst_info {
 	int refcnt;
 
 	Ecore_Timer *update_timer; /*!< Only used for secured livebox */
-	double sleep_time;
 };
 
 #define CLIENT_SEND_EVENT(instance, packet)	((instance)->client ? client_rpc_async_request((instance)->client, (packet)) : client_broadcast((instance), (packet)))
@@ -123,52 +123,42 @@ static Eina_Bool update_timer_cb(void *data);
 static inline void timer_thaw(struct inst_info *inst)
 {
 	struct timeval tv;
-	double cur_time;
+	double pending;
+	double compensate;
+	double sleep_time;
 
 	ecore_timer_thaw(inst->update_timer);
 
-	if (inst->sleep_time == 0.0f)
+	if (inst->sleep_at == 0.0f)
 		return;
+
+	pending = ecore_timer_pending_get(inst->update_timer);
 
 	if (gettimeofday(&tv, NULL) < 0) {
 		ErrPrint("Failed to get timeofday: %s\n", strerror(errno));
-		inst->sleep_time = 0.0f;
 		return;
 	}
+	compensate = 60.0f - ((double)(tv.tv_sec % 60) + ((double)tv.tv_usec / 1000000.0f));
+	sleep_time = (double)tv.tv_sec + ((double)tv.tv_usec / 1000000.0f) - inst->sleep_at;
 
-	cur_time = (double)tv.tv_sec + ((double)tv.tv_usec / 1000000.0f);
-	cur_time -= inst->sleep_time;
-	if (cur_time >= ecore_timer_pending_get(inst->update_timer)) {
-		double interval;
+	ecore_timer_delay(inst->update_timer, compensate - pending);
+	DbgPrint("Compensate: %lf\n", compensate - pending);
 
-		interval = ecore_timer_interval_get(inst->update_timer);
-		while (cur_time > interval) {
-			cur_time -= interval;
-		}
-		/*!
-		 * \NOTE
-		 * Compensate the update period
-		 */
-		ecore_timer_reset(inst->update_timer);
-		ecore_timer_delay(inst->update_timer, -cur_time);
-		update_timer_cb(inst);
+	if (sleep_time > pending) {
+		DbgPrint("Update time elapsed\n");
+		(void)update_timer_cb(inst);
 	}
 
-	inst->sleep_time = 0.0f;
+	inst->sleep_at = 0.0f;
 }
 
 static inline void timer_freeze(struct inst_info *inst)
 {
 	struct timeval tv;
-
 	ecore_timer_freeze(inst->update_timer);
 
-	if (gettimeofday(&tv, NULL) < 0) {
-		ErrPrint("Failed to get timeofday: %s\n", strerror(errno));
-		return;
-	}
-
-	inst->sleep_time = (double)tv.tv_sec + ((double)tv.tv_usec / 1000000.0f);
+	gettimeofday(&tv, NULL);
+	inst->sleep_at = (double)tv.tv_sec + (double)tv.tv_usec / 1000000.0f;
 }
 
 
@@ -1603,10 +1593,8 @@ HAPI int instance_set_pinup(struct inst_info *inst, int pinup)
 
 HAPI int instance_freeze_updator(struct inst_info *inst)
 {
-	if (!inst->update_timer) {
-		DbgPrint("Update timer is not exists (%s)\n", inst->id);
+	if (!inst->update_timer)
 		return -EINVAL;
-	}
 
 	DbgPrint("Freeze the update timer (%s)\n", inst->id);
 	timer_freeze(inst);
@@ -1615,10 +1603,8 @@ HAPI int instance_freeze_updator(struct inst_info *inst)
 
 HAPI int instance_thaw_updator(struct inst_info *inst)
 {
-	if (!inst->update_timer) {
-		DbgPrint("Update timer is not exists (%s)\n", inst->id);
+	if (!inst->update_timer)
 		return -EINVAL;
-	}
 
 	if (client_is_all_paused() || setting_is_lcd_off()) {
 		DbgPrint("Skip thaw (%s)\n", inst->id);
