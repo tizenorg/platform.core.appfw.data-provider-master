@@ -319,6 +319,7 @@ static inline void compensate_timer(Ecore_Timer *timer)
 	struct timeval tv;
 	struct timeval compensator;
 	double delay;
+	double pending;
 
 	if (gettimeofday(&tv, NULL) < 0) {
 		ErrPrint("Error: %s\n", strerror(errno));
@@ -329,8 +330,9 @@ static inline void compensate_timer(Ecore_Timer *timer)
 	if (compensator.tv_sec == 0)
 		compensator.tv_sec = 59;
 
-	delay = (double)compensator.tv_sec + (1.0f - (double)tv.tv_usec / 1000000.0f);
-	ecore_timer_delay(timer, delay);
+	delay = 60.0f - ((double)compensator.tv_sec + ((double)tv.tv_usec / 1000000.0f));
+	pending = ecore_timer_pending_get(timer);
+	ecore_timer_delay(timer, delay - pending);
 	DbgPrint("COMPENSATED: %lf\n", delay);
 }
 
