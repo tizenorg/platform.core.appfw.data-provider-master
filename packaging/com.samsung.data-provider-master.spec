@@ -1,9 +1,9 @@
 Name: com.samsung.data-provider-master
 Summary: Master data provider
-Version: 0.13.20
+Version: 0.13.21
 Release: 1
 Group: main/app
-License: Samsung Proprietary License
+License: Flora License
 Source0: %{name}-%{version}.tar.gz
 BuildRequires: cmake, gettext-tools
 BuildRequires: pkgconfig(ail)
