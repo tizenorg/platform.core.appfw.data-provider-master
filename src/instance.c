@@ -836,10 +836,11 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 			 *   Just leave it only for now.
 			 */
 
-			if (lb_type == LB_TYPE_SCRIPT && inst->lb.canvas.script)
+			if (lb_type == LB_TYPE_SCRIPT && inst->lb.canvas.script) {
 				script_handler_load(inst->lb.canvas.script, 0);
-			else if (lb_type == LB_TYPE_BUFFER && inst->lb.canvas.buffer)
+			} else if (lb_type == LB_TYPE_BUFFER && inst->lb.canvas.buffer) {
 				buffer_handler_load(inst->lb.canvas.buffer);
+			}
 
 			if (pd_type == PD_TYPE_SCRIPT && inst->pd.canvas.script && inst->pd.is_opened_for_reactivate) {
 				double x, y;
@@ -891,8 +892,10 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 			 * \note
 			 * After create an instance again,
 			 * Send resize request to the livebox.
+			 * instance_resize(inst, inst->lb.width, inst->lb.height);
+			 *
+			 * renew request will resize the livebox while creating it again
 			 */
-			instance_resize(inst, inst->lb.width, inst->lb.height);
 
 			/*!
 			 * \note
