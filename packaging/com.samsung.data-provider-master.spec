@@ -1,6 +1,6 @@
 Name: com.samsung.data-provider-master
 Summary: Master data provider
-Version: 0.13.26
+Version: 0.13.27
 Release: 1
 Group: main/app
 License: Flora License
