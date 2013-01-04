@@ -21,9 +21,6 @@ After=xorg.target
 [Service]
 Environment=BUFMGR_LOCK_TYPE="once"
 Environment=BUFMGR_MAP_CACHE="true"
-Environment=PROVIDER_DEBUG_PROVIDER="false"
-Environment=PROVIDER_METHOD="pixmap"
-Environment=PROVIDER_COM_CORE_THREAD="true"
 Type=simple
 ExecStart=/usr/bin/data-provider-master
 RestartSec=1
