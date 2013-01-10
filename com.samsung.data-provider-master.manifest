@@ -6,6 +6,7 @@
 			<label name="com.samsung.data-provider-master::log" />
 			<label name="com.samsung.data-provider-master::db" />
 			<label name="com.samsung.data-provider-master::data" />
+			<label name="com.samsung.data-provider-master::share" />
 		</provide>
 	</define>
 	<request>
@@ -20,6 +21,12 @@
 		<!-- Configuration data -->
 		<filesystem path="/usr/share/data-provider-master" label="com.samsung.data-provider-master::data" />
 		<filesystem path="/usr/share/data-provider-master/abi.ini" label="com.samsung.data-provider-master::data" />
+
+		<!-- livebox-service is able to access the resolution.ini file -->
+		<filesystem path="/usr/share/data-provider-master/resolution.ini" label="_" />
+
+		<!-- slave provider and the master provider are able to access the conf.ini file -->
+		<filesystem path="/usr/share/data-provider-master/conf.ini" label="_" />
 
 		<!-- Package manager & Init script -->
 		<filesystem path="/etc/rc.d/init.d/data-provider-master" label="_" />
