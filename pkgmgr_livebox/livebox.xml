@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <manifest xmlns="http://tizen.org/ns/packages" package="com.samsung.nicesj" version="1.0" install-location="auto">
 
-<livebox appid="com.samsung.nicesj.livebox" primary="true" secured="false" network="false" abi="c" timeout="20" period="10.0" libexec="/usr/apps/com.samsung.myapp/libexec/liblive-com.samsung.nicesj.so" pinup="false" script="edje">
+<livebox appid="com.samsung.nicesj.livebox" primary="true" secured="false" network="false" abi="c" timeout="20" period="10.0" libexec="/usr/apps/com.samsung.myapp/libexec/liblive-com.samsung.nicesj.so" pinup="false" script="edje" nodisplay="false">
 	<label>My livebox</label>
 	<icon>/usr/share/icons/small/com.samsung.live-nicesj.png</icon>
 	<label xml:lang="en_US">Sample</label>
@@ -12,7 +12,7 @@
 
 	<setup>com.samsung.nicesj</setup>
 
-	<box type="image">
+	<box type="image" mouse_event="false">
 		<size>1x1</size>
 		<size>2x1</size>
 		<size>2x2</size>
