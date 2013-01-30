@@ -26,13 +26,13 @@
 		<filesystem path="/usr/share/data-provider-master/resolution.ini" label="_" />
 
 		<!-- Slave provider and the master provider are able to access the conf.ini file -->
-		<filesystem path="/usr/share/data-provider-master/conf.ini" label="_" />
+		<filesystem path="/usr/share/data-provider-master/conf.ini" label="com.samsung.data-provider-master::data" />
 
 		<!-- Shared data folder -->
-		<filesystem path="/opt/usr/share/live_magazine" label="com.samsung.data-provider-master::share" />
-		<filesystem path="/opt/usr/share/live_magazine/log" label="com.samsung.data-provider-master::share" />
-		<filesystem path="/opt/usr/share/live_magazine/reader" label="com.samsung.data-provider-master::share" />
-		<filesystem path="/opt/usr/share/live_magazine/always" label="com.samsung.data-provider-master::share" />
+		<filesystem path="/opt/usr/share/live_magazine" label="com.samsung.data-provider-master::share" type="transmutable" />
+		<filesystem path="/opt/usr/share/live_magazine/log" label="com.samsung.data-provider-master::share" type="transmutable" />
+		<filesystem path="/opt/usr/share/live_magazine/reader" label="com.samsung.data-provider-master::share" type="transmutable" />
+		<filesystem path="/opt/usr/share/live_magazine/always" label="com.samsung.data-provider-master::share" type="transmutable" />
 
 		<!-- Database -->
 		<filesystem path="/opt/dbspace/.livebox.db" label="data-provider-master::db" />
