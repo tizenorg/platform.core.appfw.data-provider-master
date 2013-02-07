@@ -20,9 +20,14 @@
 #include <errno.h>
 #include <libgen.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <termios.h>
+
+#include <X11/Xlib.h>
+#include <X11/extensions/Xdamage.h>
+#include <X11/extensions/Xfixes.h>
 
 #include <glib.h>
 #include <glib-object.h>
@@ -447,13 +452,19 @@ static void send_inst_list(const char *pkgname)
 static inline void help(void)
 {
 	printf("liveinfo - Livebox utility\n");
+	printf("------------------------------ [Option] ------------------------------\n");
+	printf("-b Batch mode\n");
 	printf("------------------------------ [Command list] ------------------------------\n");
 	printf("[32mcd [PATH] - Change directory[0m\n");
 	printf("[32mls [ | PATH] - List up content as a file[0m\n");
 	printf("[32mrm [PKG_ID|INST_ID] - Delete package or instance[0m\n");
-	printf("[32mcat [FILE] - Open a file to get some detail information[0m\n");
-	printf("[32mpull [FILE] - Pull given file to host dir[0m\n");
 	printf("[32mset [debug] [on|off] Set the control variable of master provider[0m\n");
+	printf("[32mx damage Pix x y w h - Create damage event for given pixmap[0m\n");
+	printf("[32mx move Pix x y - Move the window[0m\n");
+	printf("[32mx resize Pix w h - Resize the window[0m\n");
+	printf("[32mx map Pix - Show the window[0m\n");
+	printf("[32mx unmap Pix - Hide the window[0m\n");
+	printf("[32msh [command] Execute shell command, [command] should be abspath[0m\n");
 	printf("[32mexit - [0m\n");
 	printf("[32mquit - [0m\n");
 	printf("----------------------------------------------------------------------------\n");
@@ -669,6 +680,144 @@ static inline int do_rm(const char *cmd)
 	return 0;
 }
 
+#if !defined(WCOREDUMP)
+#define WCOREDUMP(a)	0
+#endif
+
+static inline void do_sh(const char *cmd)
+{
+	pid_t pid;
+
+	cmd += 3;
+
+	while (*cmd && *cmd == ' ') cmd++;
+	if (!*cmd)
+		return;
+
+	pid = fork();
+	if (pid == 0) {
+		char command[256];
+		int idx;
+		idx = 0;
+
+		while (idx < sizeof(command) && *cmd && *cmd != ' ')
+			command[idx++] = *cmd++;
+		command[idx] = '\0';
+
+		if (execl(command, cmd, NULL) < 0)
+			printf("Failed to execute: %s\n", strerror(errno));
+
+		exit(0);
+	} else if (pid < 0) {
+		printf("Failed to create a new process: %s\n", strerror(errno));
+	} else {
+		int status;
+		if (waitpid(pid, &status, 0) < 0) {
+			printf("error: %s\n", strerror(errno));
+		} else {
+			if (WIFEXITED(status)) {
+				printf("Exit: %d\n", WEXITSTATUS(status));
+			} else if (WIFSIGNALED(status)) {
+				printf("Terminated by %d %s\n", WTERMSIG(status), WCOREDUMP(status) ? " - core generated" : "");
+			} else if (WIFSTOPPED(status)) {
+				printf("Stopped by %d\n", WSTOPSIG(status));
+			} else if (WIFCONTINUED(status)) {
+				printf("Child is resumed\n");
+			}
+		}
+	}
+}
+
+static inline void do_x(const char *cmd)
+{
+	Display *disp;
+
+	cmd += 2;
+
+	while (*cmd && *cmd == ' ') cmd++;
+	if (!*cmd)
+		return;
+
+	disp = XOpenDisplay(NULL);
+	if (!disp) {
+		printf("Failed to connect to the X\n");
+		return;
+	}
+
+	if (!strncasecmp(cmd, "damage ", 7)) {
+		unsigned int winId;
+		XRectangle rect;
+		XserverRegion region;
+		int x, y, w, h;
+
+		cmd += 7;
+
+		if (sscanf(cmd, "%u %d %d %d %d", &winId, &x, &y, &w, &h) != 5) {
+			printf("Invalid argument\nx damage WINID_DEC X Y W H\n");
+			return;
+		}
+		rect.x = x;
+		rect.y = y;
+		rect.width = w;
+		rect.height = h;
+		region = XFixesCreateRegion(disp, &rect, 1);
+		XDamageAdd(disp, winId, region);
+		XFixesDestroyRegion(disp, region);
+		XFlush(disp);
+
+		printf("Damage: %u %d %d %d %d\n", winId, x, y, w, h);
+	} else if (!strncasecmp(cmd, "resize ", 7)) {
+		unsigned int winId;
+		int w;
+		int h;
+
+		cmd += 7;
+
+		if (sscanf(cmd, "%u %d %d", &winId, &w, &h) != 3) {
+			printf("Invalid argument\nx resize WINID_DEC W H\n");
+			return;
+		}
+
+		XResizeWindow(disp, winId, w, h);
+		printf("Resize: %u %d %d\n", winId, w, h);
+	} else if (!strncasecmp(cmd, "move ", 5)) {
+		unsigned int winId;
+		int x;
+		int y;
+
+		cmd += 5;
+		if (sscanf(cmd, "%u %d %d", &winId, &x, &y) != 3) {
+			printf("Invalid argument\nx move WINID_DEC X Y\n");
+			return;
+		}
+
+		XMoveWindow(disp, winId, x, y);
+		printf("Move: %u %d %d\n", winId, x, y);
+	} else if (!strncasecmp(cmd, "map ", 4)) {
+		unsigned int winId;
+		cmd += 4;
+		if (sscanf(cmd, "%u", &winId) != 1) {
+			printf("Invalid argument\nx map WINID_DEC\n");
+			return;
+		}
+		XMapRaised(disp, winId);
+		printf("Map: %u\n", winId);
+	} else if (!strncasecmp(cmd, "unmap ", 6)) {
+		unsigned int winId;
+		cmd += 6;
+		if (sscanf(cmd, "%u", &winId) != 1) {
+			printf("Invalid argument\nx unmap WINID_DEC\n");
+			return;
+		}
+		XUnmapWindow(disp, winId);
+		printf("Unmap: %u\n", winId);
+	} else {
+		printf("Unknown command\n");
+	}
+
+	XCloseDisplay(disp);
+}
+
 static inline void do_command(const char *cmd)
 {
 	/* Skip the first spaces */
@@ -692,6 +841,10 @@ static inline void do_command(const char *cmd)
 		} else if (!strncasecmp(cmd, "rm", 2)) {
 			if (do_rm(cmd) == 0)
 				return;
+		} else if (!strncasecmp(cmd, "sh ", 3)) {
+			do_sh(cmd);
+		} else if (!strncasecmp(cmd, "x ", 2)) {
+			do_x(cmd);
 		} else {
 			help();
 		}
