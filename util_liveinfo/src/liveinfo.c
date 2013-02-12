@@ -235,7 +235,7 @@ static inline void ls(void)
 			}
 
 			info = node_data(node);
-			printf(" %3d %5s %5.2f ", info->loaded_inst, info->abi ? info->abi : "?", info->ttl);
+			printf("%6d %3d %5s %5.2f ", info->pid, info->loaded_inst, info->abi ? info->abi : "?", info->ttl);
 		} else if (is_instance) {
 			struct instance *info;
 			struct stat stat;
@@ -458,6 +458,7 @@ static inline void help(void)
 	printf("[32mcd [PATH] - Change directory[0m\n");
 	printf("[32mls [ | PATH] - List up content as a file[0m\n");
 	printf("[32mrm [PKG_ID|INST_ID] - Delete package or instance[0m\n");
+	printf("[32mstat [path] - Display the information of given path[0m\n");
 	printf("[32mset [debug] [on|off] Set the control variable of master provider[0m\n");
 	printf("[32mx damage Pix x y w h - Create damage event for given pixmap[0m\n");
 	printf("[32mx move Pix x y - Move the window[0m\n");
@@ -528,6 +529,120 @@ static int get_token(const char *src, char *out)
 
 	*out = '\0';
 	return len;
+}
+
+static inline int do_stat(const char *cmd)
+{
+	int i;
+	struct node *node;
+	struct node *parent;
+	char *tmp;
+	enum stat_type {
+		PKG_INSTANCE = 0x01,
+		PKG,
+		PROVIDER_INSTANCE,
+		PROVIDER,
+		ROOT,
+	} type;
+
+	cmd += 5;
+	while (*cmd && *cmd == ' ') cmd++;
+
+	if (!*cmd){
+		printf("Invalid argument\n");
+		return -EINVAL;
+	}
+
+	node = node_find(*cmd == '/' ? s_info.rootdir : s_info.curdir, cmd);
+	if (!node) {
+		printf("Invalid path\n");
+		return -EINVAL;
+	}
+
+	i = 0;
+	type = ROOT;
+	parent = node_parent(node);
+	while (parent) {
+		if (!node_name(parent)) {
+			printf("%s has no info\n", node_name(node));
+			return -EINVAL;
+		} else if (!strcmp(node_name(parent), "package")) {
+			type = (i == 0) ? PKG : PKG_INSTANCE;
+			break;
+		} else if (!strcmp(node_name(parent), "provider")){
+			type = (i == 0) ? PROVIDER : PROVIDER_INSTANCE;
+			break;
+		}
+
+		parent = node_parent(parent);
+		i++;
+		if (i > 1) {
+			printf("%s is invalid path\n", node_name(node));
+			return -EINVAL;
+		}
+	}
+
+	switch (type){
+	case PKG:
+		tmp = livebox_service_i18n_name(node_name(node), NULL);
+		printf("Name: %s (", tmp);
+		free(tmp);
+
+		i = livebox_service_is_enabled(node_name(node));
+		printf("%s)\n", i ? "enabled" : "disabled");
+
+		tmp = livebox_service_i18n_icon(node_name(node), NULL);
+		printf("Icon: %s\n", tmp);
+		free(tmp);
+
+		tmp = livebox_service_provider_name(node_name(node));
+		printf("Provider: %s (content:", tmp);
+		free(tmp);
+
+		tmp = livebox_service_content(node_name(node));
+		printf("%s)\n", tmp);
+		free(tmp);
+
+		tmp = livebox_service_lb_script_path(node_name(node));
+		printf("LB Script: %s (", tmp);
+		free(tmp);
+
+		tmp = livebox_service_lb_script_group(node_name(node));
+		printf("%s)\n", tmp);
+		free(tmp);
+
+		tmp = livebox_service_pd_script_path(node_name(node));
+		printf("PD Script: %s (", tmp);
+		free(tmp);
+
+		tmp = livebox_service_pd_script_group(node_name(node));
+		printf("%s)\n", tmp);
+		free(tmp);
+
+		i = livebox_service_mouse_event(node_name(node));
+		printf("Mouse event: %s\n", i ? "enabled" : "disabled");
+
+		i = livebox_service_touch_effect(node_name(node));
+		printf("Touch effect: %s\n", i ? "enabled" : "disabled");
+		break;
+	case PROVIDER:
+		printf("Not supported yet\n");
+		break;
+	case PKG_INSTANCE:
+		printf("Not supported yet\n");
+		break;
+	case PROVIDER_INSTANCE:
+		printf("Not supported yet\n");
+		break;
+	case ROOT:
+		printf("Not supported yet\n");
+		break;
+	default:
+		printf("Invalid type\n");
+		return -EFAULT;
+	}
+
+	return 0;
 }
 
 static inline int do_set(const char *cmd)
@@ -829,6 +944,8 @@ static inline void do_command(const char *cmd)
 		} else if (!strncasecmp(cmd, "set ", 4)) {
 			if (do_set(cmd) == 0)
 				return;
+		} else if (!strncasecmp(cmd, "stat ", 5)) {
+			do_stat(cmd);
 		} else if (!strncasecmp(cmd, "get ", 4)) {
 			if (do_get(cmd) == 0)
 				return;
