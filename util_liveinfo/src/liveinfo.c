@@ -106,6 +106,13 @@ static struct info {
 	int verbose;
 
 	int age;
+
+	char *history[1024];
+	int history_top;
+	int history_idx;
+
+	struct node *quick_search_node;
+	int quick_idx;
 } s_info = {
 	.fifo_handle = -EINVAL,
 	.fd = -EINVAL,
@@ -118,6 +125,11 @@ static struct info {
 	.input_fd = STDIN_FILENO,
 	.verbose = 0,
 	.age = 0,
+	.history = { 0, },
+	.history_top = 0,
+	.history_idx = 0,
+	.quick_search_node = NULL,
+	.quick_idx = 0,
 };
 
 char *optarg;
@@ -933,6 +945,26 @@ static inline void do_x(const char *cmd)
 	XCloseDisplay(disp);
 }
 
+static inline void put_command(const char *cmd)
+{
+	if (s_info.history[s_info.history_top]) {
+		free(s_info.history[s_info.history_top]);
+		s_info.history[s_info.history_top] = NULL;
+	}
+
+	s_info.history[s_info.history_top] = strdup(cmd);
+	s_info.history_top = (s_info.history_top + !!s_info.history[s_info.history_top]) % (sizeof(s_info.history) / sizeof(s_info.history[0]));
+}
+
+static inline const char *get_command(int idx)
+{
+	idx = s_info.history_top + idx;
+	while (idx < 0)
+		idx += (sizeof(s_info.history) / sizeof(s_info.history[0]));
+
+	return s_info.history[idx];
+}
+
 static inline void do_command(const char *cmd)
 {
 	/* Skip the first spaces */
@@ -978,6 +1010,9 @@ static Eina_Bool input_cb(void *data, Ecore_Fd_Handler *fd_handler)
 	char ch;
 	int fd;
 	int ret;
+	const char escape_str[] = { 0x1b, 0x5b, 0x0 };
+	const char *escape_ptr = escape_str;
+	const char *tmp;
 
 	if (fd_handler) {
 		fd = ecore_main_fd_handler_fd_get(fd_handler);
@@ -998,6 +1033,53 @@ static Eina_Bool input_cb(void *data, Ecore_Fd_Handler *fd_handler)
 
 	/* Silly.. Silly */
 	while ((ret = read(fd, &ch, sizeof(ch))) == sizeof(ch)) {
+		if (*escape_ptr == '\0') {
+			/* Function key */
+			switch (ch) {
+			case 0x41: /* UP */
+				printf("%s2K%s1G", escape_str, escape_str);
+				tmp = get_command(--s_info.history_idx);
+				if (!tmp) {
+					s_info.history_idx = 0;
+					cmd_buffer[0] = '\0';
+					prompt(NULL);
+				} else {
+					strcpy(cmd_buffer, tmp);
+					idx = strlen(cmd_buffer);
+					prompt(cmd_buffer);
+				}
+				break;
+			case 0x42: /* DOWN */
+				if (s_info.history_idx >= 0)
+					break;
+
+				printf("%s2K%s1G", escape_str, escape_str);
+				tmp = get_command(++s_info.history_idx);
+				if (s_info.history_idx == 0) {
+					s_info.history_idx = 0;
+					cmd_buffer[0] = '\0';
+					prompt(NULL);
+				} else {
+					strcpy(cmd_buffer, tmp);
+					idx = strlen(cmd_buffer);
+					prompt(cmd_buffer);
+				}
+				break;
+			case 0x43: /* RIGHT */
+				break;
+			case 0x44: /* LEFT */
+				break;
+			default:
+				break;
+			}
+
+			escape_ptr = escape_str;
+			continue;
+		} else if (ch == *escape_ptr) {
+			escape_ptr++;
+			continue;
+		}
+
 		switch (ch) {
 		case 0x08: /* BKSP */
 			cmd_buffer[idx] = '\0';
@@ -1012,6 +1094,23 @@ static Eina_Bool input_cb(void *data, Ecore_Fd_Handler *fd_handler)
 			putc('\r', stdout);
 			prompt(cmd_buffer);
 			break;
+		case 0x09: /* TAB */
+			if (!s_info.quick_search_node) {
+				s_info.quick_search_node = node_child(s_info.curdir);
+				s_info.quick_idx = idx;
+			} else {
+				s_info.quick_search_node = node_next_sibling(s_info.quick_search_node);
+				idx = s_info.quick_idx;
+			}
+
+			if (!s_info.quick_search_node)
+				break;
+
+			printf("%s2K%s1G", escape_str, escape_str);
+			strcpy(cmd_buffer + idx, node_name(s_info.quick_search_node));
+			idx += strlen(node_name(s_info.quick_search_node));
+			prompt(cmd_buffer);
+			break;
 		case '\n':
 		case '\r':
 			cmd_buffer[idx] = '\0';
@@ -1019,7 +1118,10 @@ static Eina_Bool input_cb(void *data, Ecore_Fd_Handler *fd_handler)
 			if (s_info.input_fd == STDIN_FILENO || s_info.verbose)
 				putc((int)'\n', stdout);
 			do_command(cmd_buffer);
+			put_command(cmd_buffer);
 			memset(cmd_buffer, 0, sizeof(cmd_buffer));
+			s_info.history_idx = 0;
+			s_info.quick_search_node = NULL;
 
 			/* Make a main loop processing for command handling */
 			return ECORE_CALLBACK_RENEW;
