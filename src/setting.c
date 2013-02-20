@@ -29,6 +29,7 @@
 
 #include <Eina.h>
 
+#include "client_life.h"
 #include "setting.h"
 #include "util.h"
 #include "debug.h"
