@@ -1,6 +1,6 @@
 Name: com.samsung.data-provider-master
 Summary: Master service provider for liveboxes.
-Version: 0.16.9
+Version: 0.16.10
 Release: 1
 Group: framework/livebox
 License: Flora License

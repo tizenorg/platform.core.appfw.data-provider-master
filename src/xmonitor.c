@@ -66,7 +66,7 @@ static struct info {
 	.pause_list = NULL,
 	.resume_list = NULL,
 
-	.paused = 0,
+	.paused = 1, /*!< The provider is treated as paused process when it is launched */
 };
 
 static inline void touch_paused_file(void)
@@ -314,6 +314,7 @@ static inline void sniff_all_windows(void)
 
 HAPI int xmonitor_pause(struct client_node *client)
 {
+	DbgPrint("%d is paused\n", client_pid(client));
 	client_paused(client);
 	xmonitor_handle_state_changes();
 	return 0;
@@ -321,6 +322,7 @@ HAPI int xmonitor_pause(struct client_node *client)
 
 HAPI int xmonitor_resume(struct client_node *client)
 {
+	DbgPrint("%d is resumed\n", client_pid(client));
 	client_resumed(client);
 	xmonitor_handle_state_changes();
 	return 0;

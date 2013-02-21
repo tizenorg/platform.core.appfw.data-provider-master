@@ -2355,7 +2355,10 @@ static struct packet *client_pause_request(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
-	xmonitor_pause(client);
+	if (USE_XMONITOR)
+		DbgPrint("XMONITOR enabled. ignore client paused request\n");
+	else
+		xmonitor_pause(client);
 
 out:
 	return NULL;
@@ -2381,7 +2384,10 @@ static struct packet *client_resume_request(pid_t pid, int handle, const struct 
 		goto out;
 	}
 
-	xmonitor_resume(client);
+	if (USE_XMONITOR)
+		DbgPrint("XMONITOR enabled. ignore client resumed request\n");
+	else
+		xmonitor_resume(client);
 
 out:
 	return NULL;

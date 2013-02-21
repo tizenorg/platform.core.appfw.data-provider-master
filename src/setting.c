@@ -63,6 +63,7 @@ HAPI int setting_is_lcd_off(void)
 		state = VCONFKEY_PM_STATE_NORMAL; /* UNLOCK */
 	}
 
+	DbgPrint("State: %d, (%d:lcdoff, %d:sleep)\n", state, VCONFKEY_PM_STATE_LCDOFF, VCONFKEY_PM_STATE_SLEEP);
 	return state == VCONFKEY_PM_STATE_LCDOFF || state == VCONFKEY_PM_STATE_SLEEP;
 }
 
