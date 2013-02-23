@@ -42,9 +42,6 @@
 #include "fb.h"
 #include "setting.h"
 
-#define IS_PD	1
-#define IS_LB	0
-
 int errno;
 
 static struct info {
@@ -98,11 +95,6 @@ struct inst_info {
 		int width;
 		int height;
 		double priority;
-		struct {
-			int w;
-			int h;
-			int on;
-		} resized;
 
 		union {
 			struct script_info *script;
@@ -255,7 +247,7 @@ static inline int instance_recover_visible_state(struct inst_info *inst)
 	return ret;
 }
 
-static inline void send_size_changed_event(struct inst_info *inst, int is_pd, int w, int h, int status)
+HAPI void instance_send_resized_event(struct inst_info *inst, int is_pd, int w, int h, int status)
 {
 	struct packet *packet;
 	const char *pkgname;
@@ -263,6 +255,8 @@ static inline void send_size_changed_event(struct inst_info *inst, int is_pd, in
 
 	pkgname = package_name(inst->info);
 	id = inst->id;
+
+	DbgPrint("Size is changed to %dx%d (%s) %s\n", w, h, id, is_pd ? "pd" : "lb");
 
 	packet = packet_create_noack("size_changed", "ssiiii", pkgname, id, is_pd, w, h, status);
 	if (packet)
@@ -328,9 +322,11 @@ HAPI int instance_unicast_created_event(struct inst_info *inst, struct client_no
 static int update_client_list(struct client_node *client, void *data)
 {
 	struct inst_info *inst = data;
+
 	if (!instance_has_client(inst, client)) {
 		instance_add_client(inst, client);
 	}
+
 	return 0;
 }
 
@@ -1416,18 +1412,6 @@ HAPI void instance_lb_updated_by_instance(struct inst_info *inst)
 	else
 		title = "";
 
-	if (inst->lb.resized.on) {
-		if (inst->lb.resized.w == inst->lb.width && inst->lb.resized.h == inst->lb.height) {
-			DbgPrint("Size is changed to %dx%d\n", inst->lb.width, inst->lb.height);
-			inst->lb.resized.on = 0;
-			send_size_changed_event(inst, IS_LB, inst->lb.width, inst->lb.height, 0);
-		} else {
-			DbgPrint("Size is changed but not same with requested one (%dx%d) - (%dx%d)\n",
-							 inst->lb.resized.w, inst->lb.resized.h,
-							 inst->lb.width, inst->lb.height);
-		}
-	}
-
 	packet = packet_create_noack("lb_updated", "sssiidss",
 			package_name(inst->info), inst->id, id,
 			inst->lb.width, inst->lb.height, inst->lb.priority, content, title);
@@ -1721,7 +1705,8 @@ static void resize_cb(struct slave_node *slave, const struct packet *packet, voi
 	int ret;
 
 	if (!packet) {
-		send_size_changed_event(cbdata->inst, IS_LB, cbdata->inst->lb.width, cbdata->inst->lb.height, -EFAULT);
+		ErrPrint("Invalid packet\n");
+		instance_send_resized_event(cbdata->inst, IS_LB, cbdata->inst->lb.width, cbdata->inst->lb.height, -EFAULT);
 		instance_unref(cbdata->inst);
 		DbgFree(cbdata);
 		return;
@@ -1729,25 +1714,20 @@ static void resize_cb(struct slave_node *slave, const struct packet *packet, voi
 
 	if (packet_get(packet, "i", &ret) != 1) {
 		ErrPrint("Invalid parameter\n");
-		send_size_changed_event(cbdata->inst, IS_LB, cbdata->inst->lb.width, cbdata->inst->lb.height, -EINVAL);
+		instance_send_resized_event(cbdata->inst, IS_LB, cbdata->inst->lb.width, cbdata->inst->lb.height, -EINVAL);
 		instance_unref(cbdata->inst);
 		DbgFree(cbdata);
 		return;
 	}
 
 	if (ret == 0) {
-		if (cbdata->inst->lb.width == cbdata->w && cbdata->inst->lb.height == cbdata->h) {
-			DbgPrint("Size is successfully updated\n");
-			send_size_changed_event(cbdata->inst, IS_LB, cbdata->inst->lb.width, cbdata->inst->lb.height, 0);
-		} else {
-			DbgPrint("Waiting the first update\n");
-			cbdata->inst->lb.resized.on = 1;
-			cbdata->inst->lb.resized.w = cbdata->w;
-			cbdata->inst->lb.resized.h = cbdata->h;
-		}
+		/*!
+		 * \note
+		 * else waiting the first update with new size
+		 */
 	} else {
-		DbgPrint("Livebox reject the resize: %dx%d (%d)\n", cbdata->w, cbdata->h, ret);
-		send_size_changed_event(cbdata->inst, IS_LB, cbdata->inst->lb.width, cbdata->inst->lb.height, ret);
+		DbgPrint("Livebox rejects the new size: %dx%d (%d)\n", cbdata->w, cbdata->h, ret);
+		instance_send_resized_event(cbdata->inst, IS_LB, cbdata->inst->lb.width, cbdata->inst->lb.height, ret);
 	}
 
 	instance_unref(cbdata->inst);
