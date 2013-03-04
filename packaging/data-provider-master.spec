@@ -1,6 +1,6 @@
-Name: com.samsung.data-provider-master
+Name: data-provider-master
 Summary: Master service provider for liveboxes.
-Version: 0.16.15
+Version: 0.17.0
 Release: 1
 Group: framework/livebox
 License: Flora License
@@ -88,8 +88,8 @@ chmod 640 /opt/dbspace/.livebox.db-journal
 echo "Successfully installed. Please start a daemon again manually"
 echo "%{_sysconfdir}/init.d/data-provider-master start"
 
-%files -n com.samsung.data-provider-master
-%manifest com.samsung.data-provider-master.manifest
+%files -n data-provider-master
+%manifest data-provider-master.manifest
 %defattr(-,root,root,-)
 %{_sysconfdir}/rc.d/init.d/data-provider-master
 %{_sysconfdir}/rc.d/rc3.d/S99data-provider-master
