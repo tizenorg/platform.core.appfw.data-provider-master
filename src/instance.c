@@ -2504,14 +2504,12 @@ HAPI int instance_slave_open_pd(struct inst_info *inst, struct client_node *clie
 	 */
 	if (package_pd_type(info) == PD_TYPE_BUFFER) {
 		instance_ref(inst);
-		if (client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, pd_buffer_close_cb, inst) < 0) {
+		if (client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, pd_buffer_close_cb, inst) < 0)
 			instance_unref(inst);
-		}
 	} else if (package_pd_type(info) == PD_TYPE_SCRIPT) {
 		instance_ref(inst);
-		if (client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, pd_script_close_cb, inst) < 0) {
+		if (client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, pd_script_close_cb, inst) < 0)
 			instance_unref(inst);
-		}
 	}
 
 	inst->pd.owner = client;
