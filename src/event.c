@@ -311,34 +311,16 @@ static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 	return ECORE_CALLBACK_RENEW;
 }
 
-static inline char *detect_input_device(void)
-{
-	/*!
-	 * \NOTE
-	 * Implements this first.
-	 * We should detect the input device.
-	 */
-	return strdup("/dev/input/event1");
-}
-
 HAPI int event_activate(int x, int y, int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data)
 {
 	int status;
-	char *device_node;
 
 	if (s_info.handle >= 0) {
 		DbgPrint("Already activated\n");
 		return 0;
 	}
 
-	device_node = detect_input_device();
-	if (!device_node) {
-		ErrPrint("Input device is not recognized\n");
-		return -ENOTSUP;
-	}
-
-	s_info.handle = open(device_node, O_RDONLY);
-	free(device_node);
+	s_info.handle = open(INPUT_PATH, O_RDONLY);
 	if (s_info.handle < 0) {
 		ErrPrint("Unable to access the device: %s\n", strerror(errno));
 		return -EIO;
