@@ -131,8 +131,7 @@ static inline int app_terminate(void)
 	ret = package_fini();
 	DbgPrint("Finalize package info: %d\n", ret);
 
-	ret = client_fini();
-	DbgPrint("Finalize client connections : %d\n", ret);
+	client_fini();
 
 	ret = server_fini();
 	DbgPrint("Finalize dbus: %d\n", ret);

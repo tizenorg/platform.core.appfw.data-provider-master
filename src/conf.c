@@ -18,6 +18,7 @@
 #include <ctype.h>
 
 #include <dlog.h>
+#include <livebox-errno.h>
 
 #include "conf.h"
 #include "util.h"
@@ -492,7 +493,7 @@ HAPI int conf_loader(void)
 	fp = fopen("/usr/share/data-provider-master/conf.ini", "rt");
 	if (!fp) {
 		ErrPrint("Error: %s\n", strerror(errno));
-		return -EIO;
+		return LB_STATUS_ERROR_IO;
 	}
 
 	state = START;
@@ -650,7 +651,7 @@ HAPI int conf_loader(void)
 	 } while (c != EOF);
 
 	fclose(fp);
-	return 0;
+	return LB_STATUS_SUCCESS;
 }
 
 /* End of a file */
