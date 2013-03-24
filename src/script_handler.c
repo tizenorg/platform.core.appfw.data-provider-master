@@ -418,12 +418,12 @@ static int update_script_color(struct inst_info *inst, struct block *block, int 
 
 	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
-		ErrPrint("info is NIL\n");
+		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
 		return LB_STATUS_ERROR_FAULT;
 	}
 
 	if (!info->port) {
-		ErrPrint("info->port is NIL\n");
+		ErrPrint("info->port is NIL (%d, %s)\n", is_pd, instance_id(inst));
 		return LB_STATUS_ERROR_INVALID;
 	}
 
@@ -448,7 +448,7 @@ static int update_script_text(struct inst_info *inst, struct block *block, int i
 
 	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
-		ErrPrint("info is NIL\n");
+		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
 		return LB_STATUS_ERROR_FAULT;
 	}
 
@@ -477,7 +477,7 @@ static int update_script_image(struct inst_info *inst, struct block *block, int 
 
 	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
-		ErrPrint("info is NIL\n");
+		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
 		return LB_STATUS_ERROR_FAULT;
 	}
 
@@ -506,7 +506,7 @@ static int update_script_script(struct inst_info *inst, struct block *block, int
 
 	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
-		ErrPrint("info is NIL\n");
+		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
 		return LB_STATUS_ERROR_FAULT;
 	}
 
@@ -536,7 +536,7 @@ static int update_script_signal(struct inst_info *inst, struct block *block, int
 
 	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
-		ErrPrint("info is NIL\n");
+		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
 		return LB_STATUS_ERROR_FAULT;
 	}
 
@@ -566,7 +566,7 @@ static int update_script_drag(struct inst_info *inst, struct block *block, int i
 
 	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
-		ErrPrint("info is NIL\n");
+		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
 		return LB_STATUS_ERROR_FAULT;
 	}
 
@@ -634,7 +634,7 @@ static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 
 	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
-		ErrPrint("info is NIL\n");
+		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
 		return LB_STATUS_ERROR_FAULT;
 	}
 
