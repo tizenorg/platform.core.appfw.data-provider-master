@@ -1814,6 +1814,37 @@ static void resize_cb(struct slave_node *slave, const struct packet *packet, voi
 		 * \note
 		 * else waiting the first update with new size
 		 */
+		if (cbdata->inst->lb.width == cbdata->w && cbdata->inst->lb.height == cbdata->h) {
+			/*!
+			 * \note
+			 * Right after the viewer adds a new box,
+			 * Box has no size information, then it will try to use the default size,
+			 * After a box returns created event.
+			 *
+			 * A box will start to generate default size content.
+			 * But the viewer doesn't know it,.
+			 *
+			 * So the viewer will try to change the size of a box.
+			 *
+			 * At that time, the provider gots the size changed event from the box.
+			 * So it sent the size changed event to the viewer.
+			 * But the viewer ignores it. if it doesn't care the size changed event.
+			 * (even if it cares the size changed event, there is a timing issue)
+			 *
+			 * And the provider receives resize request,
+			 * right before send the size changed event.
+			 * but there is no changes about the size.
+			 *
+			 * Now the view will waits size changed event forever.
+			 * To resolve this timing issue.
+			 *
+			 * Check the size of a box from here.
+			 * And if the size is already updated, send the ALREADY event to the viewer
+			 * to get the size changed event callback correctly.
+			 */
+			instance_send_resized_event(cbdata->inst, IS_LB, cbdata->inst->lb.width, cbdata->inst->lb.height, LB_STATUS_ERROR_ALREADY);
+			DbgPrint("Livebox is already resized\n");
+		}
 	} else {
 		DbgPrint("Livebox rejects the new size: %dx%d (%d)\n", cbdata->w, cbdata->h, ret);
 		instance_send_resized_event(cbdata->inst, IS_LB, cbdata->inst->lb.width, cbdata->inst->lb.height, ret);
