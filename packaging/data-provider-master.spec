@@ -1,8 +1,8 @@
 Name: data-provider-master
 Summary: Master service provider for liveboxes.
-Version: 0.18.2
+Version: 0.18.3
 Release: 1
-Group: framework/livebox
+Group: HomeTF/Livebox
 License: Flora License
 Source0: %{name}-%{version}.tar.gz
 BuildRequires: cmake, gettext-tools, smack, coreutils

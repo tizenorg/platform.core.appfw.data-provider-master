@@ -1,5 +1,5 @@
 /*
- * Copyright 2012  Samsung Electronics Co., Ltd
+ * Copyright 2013  Samsung Electronics Co., Ltd
  *
  * Licensed under the Flora License, Version 1.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -580,7 +580,7 @@ static inline void destroy_instance(struct inst_info *inst)
 	DbgFree(inst->cluster);
 	DbgFree(inst->content);
 	DbgFree(inst->title);
-	util_unlink(inst->id);
+	util_unlink(util_uri_to_path(inst->id));
 	DbgFree(inst->id);
 	package_del_instance(inst->info, inst);
 	DbgFree(inst);
