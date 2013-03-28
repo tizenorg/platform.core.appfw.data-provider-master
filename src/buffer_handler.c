@@ -1,5 +1,5 @@
 /*
- * Copyright 2012  Samsung Electronics Co., Ltd
+ * Copyright 2013  Samsung Electronics Co., Ltd
  *
  * Licensed under the Flora License, Version 1.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -201,8 +201,9 @@ static inline struct buffer *create_pixmap(struct buffer_info *info)
 	 * \NOTE
 	 * Use the 24 Bits
 	 * 32 Bits is not supported for video playing.
+	 * But for the transparent background, use the 32 bits, and give up video.
 	 */
-	gem->pixmap = XCreatePixmap(disp, parent, info->w, info->h, 24 /* (info->pixel_size << 3) */);
+	gem->pixmap = XCreatePixmap(disp, parent, info->w, info->h, (info->pixel_size << 3));
 	if (gem->pixmap == (Pixmap)0) {
 		ErrPrint("Failed to create a pixmap\n");
 		DbgFree(buffer);

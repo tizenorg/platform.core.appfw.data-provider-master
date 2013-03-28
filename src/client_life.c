@@ -1,5 +1,5 @@
 /*
- * Copyright 2012  Samsung Electronics Co., Ltd
+ * Copyright 2013  Samsung Electronics Co., Ltd
  *
  * Licensed under the Flora License, Version 1.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -161,6 +161,7 @@ static inline void invoke_activated_cb(struct client_node *client)
 			}
 		}
 	}
+	client_unref(client);
 }
 
 static inline void destroy_client_data(struct client_node *client)
