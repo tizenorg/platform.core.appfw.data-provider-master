@@ -94,6 +94,7 @@ struct inst_info {
 	char *title;
 	int is_pinned_up;
 	double sleep_at;
+	int scroll_locked;
 
 	enum livebox_visible_state visible;
 
@@ -1504,6 +1505,25 @@ HAPI void instance_lb_updated_by_instance(struct inst_info *inst)
 	}
 
 	(void)CLIENT_SEND_EVENT(inst, packet);
+}
+
+HAPI int instance_hold_scroll(struct inst_info *inst, int hold)
+{
+	struct packet *packet;
+
+	if (inst->scroll_locked == hold) {
+		DbgPrint("There is changes for hold state: %d\n", hold);
+		return LB_STATUS_ERROR_ALREADY;
+	}
+
+	packet = packet_create_noack("scroll", "ssi", package_name(inst->info), inst->id, hold);
+	if (!packet) {
+		ErrPrint("Failed to build a packet\n");
+		return LB_STATUS_ERROR_FAULT;
+	}
+
+	inst->scroll_locked = hold;
+	return CLIENT_SEND_EVENT(inst, packet);
 }
 
 HAPI void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfile)

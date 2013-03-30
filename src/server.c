@@ -4578,7 +4578,6 @@ static struct packet *slave_faulted(pid_t pid, int handle, const struct packet *
 {
 	struct slave_node *slave;
 	struct inst_info *inst;
-	const char *slavename;
 	const char *pkgname;
 	const char *id;
 	const char *func;
@@ -4590,14 +4589,14 @@ static struct packet *slave_faulted(pid_t pid, int handle, const struct packet *
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssss", &slavename, &pkgname, &id, &func);
-	if (ret != 4) {
+	ret = packet_get(packet, "sss", &pkgname, &id, &func);
+	if (ret != 3) {
 		ErrPrint("Parameter is not matched\n");
 		goto out;
 	}
 
 	ret = fault_info_set(slave, pkgname, id, func);
-	DbgPrint("Slave Faulted: %s (%d)\n", slavename, ret);
+	DbgPrint("Slave Faulted: %s (%d)\n", slave_name(slave), ret);
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
@@ -4616,7 +4615,6 @@ out:
 static struct packet *slave_call(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, filename, function, ret */
 {
 	struct slave_node *slave;
-	const char *slavename;
 	const char *pkgname;
 	const char *id;
 	const char *func;
@@ -4628,8 +4626,8 @@ static struct packet *slave_call(pid_t pid, int handle, const struct packet *pac
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssss", &slavename, &pkgname, &id, &func);
-	if (ret != 4) {
+	ret = packet_get(packet, "sss", &pkgname, &id, &func);
+	if (ret != 3) {
 		ErrPrint("Parameter is not matched\n");
 		goto out;
 	}
@@ -4644,7 +4642,6 @@ out:
 static struct packet *slave_ret(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, filename, function, ret */
 {
 	struct slave_node *slave;
-	const char *slavename;
 	const char *pkgname;
 	const char *id;
 	const char *func;
@@ -4656,8 +4653,8 @@ static struct packet *slave_ret(pid_t pid, int handle, const struct packet *pack
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssss", &slavename, &pkgname, &id, &func);
-	if (ret != 4) {
+	ret = packet_get(packet, "sss", &pkgname, &id, &func);
+	if (ret != 3) {
 		ErrPrint("Parameter is not matched\n");
 		goto out;
 	}
@@ -4672,7 +4669,6 @@ out:
 static struct packet *slave_updated(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, filename, width, height, priority, ret */
 {
 	struct slave_node *slave;
-	const char *slavename;
 	const char *pkgname;
 	const char *id;
 	const char *content_info;
@@ -4689,10 +4685,10 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 		goto out;
 	}
 
-	ret = packet_get(packet, "sssiidss", &slavename, &pkgname, &id,
+	ret = packet_get(packet, "ssiidss", &pkgname, &id,
 						&w, &h, &priority,
 						&content_info, &title);
-	if (ret != 8) {
+	if (ret != 7) {
 		ErrPrint("Parameter is not matched\n");
 		goto out;
 	}
@@ -4737,10 +4733,45 @@ out:
 	return NULL;
 }
 
+static struct packet *slave_hold_scroll(pid_t pid, int handle, const struct packet *packet)
+{
+	struct slave_node *slave;
+	struct inst_info *inst;
+	const char *pkgname;
+	const char *id;
+	int seize;
+	int ret;
+
+	slave = slave_find_by_pid(pid);
+	if (!slave) {
+		ErrPrint("Slave %d is not exists\n", pid);
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssi", &pkgname, &id, &seize);
+	if (ret != 3) {
+		ErrPrint("Parameter is not matched\n");
+		goto out;
+	}
+
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst) {
+		ErrPrint("No such instance(%s)\n", id);
+	} else if (package_is_fault(instance_package(inst))) {
+		ErrPrint("Faulted instance cannot seize the screen\n");
+	} else if (instance_state(inst) == INST_DESTROYED) {
+		ErrPrint("Instance(%s) is already destroyed\n", id);
+	} else {
+		(void)instance_hold_scroll(inst, seize);
+	}
+
+out:
+	return NULL;
+}
+
 static struct packet *slave_desc_updated(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, filename, decsfile, ret */
 {
 	struct slave_node *slave;
-	const char *slavename;
 	const char *pkgname;
 	const char *id;
 	const char *descfile;
@@ -4753,8 +4784,8 @@ static struct packet *slave_desc_updated(pid_t pid, int handle, const struct pac
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssss", &slavename, &pkgname, &id, &descfile);
-	if (ret != 4) {
+	ret = packet_get(packet, "sss", &pkgname, &id, &descfile);
+	if (ret != 3) {
 		ErrPrint("Parameter is not matched\n");
 		goto out;
 	}
@@ -4793,7 +4824,6 @@ out:
 static struct packet *slave_deleted(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, id, ret */
 {
 	struct slave_node *slave;
-	const char *slavename;
 	const char *pkgname;
 	const char *id;
 	int ret;
@@ -4805,8 +4835,8 @@ static struct packet *slave_deleted(pid_t pid, int handle, const struct packet *
 		goto out;
 	}
 
-	ret = packet_get(packet, "sss", &slavename, &pkgname, &id);
-	if (ret != 3) {
+	ret = packet_get(packet, "ss", &pkgname, &id);
+	if (ret != 2) {
 		ErrPrint("Parameter is not matched\n");
 		goto out;
 	}
@@ -4829,7 +4859,6 @@ out:
 static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct packet *packet) /* type, id, w, h, size */
 {
 	enum target_type target;
-	const char *slavename;
 	const char *pkgname;
 	const char *id;
 	int w;
@@ -4849,8 +4878,8 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
-	ret = packet_get(packet, "isssiii", &target, &slavename, &pkgname, &id, &w, &h, &pixel_size);
-	if (ret != 7) {
+	ret = packet_get(packet, "issiii", &target, &pkgname, &id, &w, &h, &pixel_size);
+	if (ret != 6) {
 		ErrPrint("Invalid argument\n");
 		id = "";
 		ret = LB_STATUS_ERROR_INVALID;
@@ -4961,7 +4990,6 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 	struct slave_node *slave;
 	struct packet *result;
 	enum target_type type;
-	const char *slavename;
 	const char *pkgname;
 	const char *id;
 	int w;
@@ -4985,8 +5013,8 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 		goto out;
 	}
 
-	ret = packet_get(packet, "isssii", &type, &slavename, &pkgname, &id, &w, &h);
-	if (ret != 6) {
+	ret = packet_get(packet, "issii", &type, &pkgname, &id, &w, &h);
+	if (ret != 5) {
 		ErrPrint("Invalid argument\n");
 		ret = LB_STATUS_ERROR_INVALID;
 		id = "";
@@ -5066,7 +5094,6 @@ out:
 static struct packet *slave_release_buffer(pid_t pid, int handle, const struct packet *packet)
 {
 	enum target_type type;
-	const char *slavename;
 	const char *pkgname;
 	const char *id;
 	struct packet *result;
@@ -5081,7 +5108,7 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
-	if (packet_get(packet, "isss", &type, &slavename, &pkgname, &id) != 4) {
+	if (packet_get(packet, "iss", &type, &pkgname, &id) != 3) {
 		ErrPrint("Inavlid argument\n");
 		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
@@ -5869,6 +5896,10 @@ static struct method s_slave_table[] = {
 	{
 		.cmd = "faulted",
 		.handler = slave_faulted, /* slave_name, pkgname, id, funcname */
+	},
+	{
+		.cmd = "scroll",
+		.handler = slave_hold_scroll, /* slave_name, pkgname, id, seize */
 	},
 	{
 		.cmd = NULL,
