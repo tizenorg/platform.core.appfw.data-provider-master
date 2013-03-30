@@ -4521,13 +4521,13 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 					DbgPrint("Slave pkgname is invalid, ABI is replaced with '%s'(default)\n", abi);
 				}
 
-				slave = slave_create(slavename, 1, abi, pkgname);
+				slave = slave_create(slavename, 1, abi, pkgname, 0);
 				if (!slave) {
 					ErrPrint("Failed to create a new slave for %s\n", slavename);
 					goto out;
 				}
 
-				DbgPrint("New slave is created\n");
+				DbgPrint("New slave is created (net: 0)\n");
 			} else {
 				DbgPrint("Registered slave is replaced with this new one\n");
 				abi = slave_abi(slave);
