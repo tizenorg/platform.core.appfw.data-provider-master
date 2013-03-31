@@ -258,6 +258,7 @@ static inline int instance_recover_visible_state(struct inst_info *inst)
 static inline void instance_send_resized_event(struct inst_info *inst, int is_pd, int w, int h, int status)
 {
 	struct packet *packet;
+	enum lb_type lb_type;
 	const char *pkgname;
 	const char *id;
 
@@ -267,11 +268,18 @@ static inline void instance_send_resized_event(struct inst_info *inst, int is_pd
 	}
 
 	pkgname = package_name(inst->info);
-	id = inst->id;
+
+	lb_type = package_lb_type(inst->info);
+	if (lb_type == LB_TYPE_SCRIPT)
+		id = fb_id(script_handler_fb(inst->lb.canvas.script));
+	else if (lb_type == LB_TYPE_BUFFER)
+		id = buffer_handler_id(inst->lb.canvas.buffer);
+	else
+		id = "";
 
 	DbgPrint("Size is changed to %dx%d (%s) %s\n", w, h, id, is_pd ? "pd" : "lb");
 
-	packet = packet_create_noack("size_changed", "ssiiii", pkgname, id, is_pd, w, h, status);
+	packet = packet_create_noack("size_changed", "sssiiii", pkgname, inst->id, id, is_pd, w, h, status);
 	if (packet)
 		CLIENT_SEND_EVENT(inst, packet);
 	else
