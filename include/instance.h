@@ -162,6 +162,8 @@ extern int instance_signal_emit(struct inst_info *inst, const char *emission, co
 extern int instance_change_group(struct inst_info *inst, const char *cluster, const char *category);
 extern int instance_set_visible_state(struct inst_info *inst, enum livebox_visible_state state);
 extern enum livebox_visible_state instance_visible_state(struct inst_info *inst);
+extern int instance_set_update_mode(struct inst_info *inst, int active_update);
+extern int instance_active_update(struct inst_info *inst);
 
 /*!
  * \note

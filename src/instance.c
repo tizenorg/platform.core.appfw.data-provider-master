@@ -94,7 +94,8 @@ struct inst_info {
 	char *title;
 	int is_pinned_up;
 	double sleep_at;
-	int scroll_locked;
+	int scroll_locked; /*!< Scroller which is in viewer is locked. */
+	int active_update; /*!< Viewer will reload the buffer by itself, so the provider doesn't need to send the updated event */
 
 	enum livebox_visible_state visible;
 
@@ -1354,7 +1355,7 @@ HAPI int instance_reactivate(struct inst_info *inst)
 		break;
 	}
 
-	packet = packet_create("renew", "sssiidssiis",
+	packet = packet_create("renew", "sssiidssiisii",
 			package_name(inst->info),
 			inst->id,
 			inst->content,
@@ -1364,7 +1365,9 @@ HAPI int instance_reactivate(struct inst_info *inst)
 			inst->cluster,
 			inst->category,
 			inst->lb.width, inst->lb.height,
-			package_abi(inst->info));
+			package_abi(inst->info),
+			inst->scroll_locked,
+			inst->active_update);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return LB_STATUS_ERROR_FAULT;
@@ -1598,6 +1601,41 @@ HAPI void instance_pd_updated(const char *pkgname, const char *id, const char *d
 		return;
 
 	instance_pd_updated_by_instance(inst, descfile);
+}
+
+HAPI int instance_set_update_mode(struct inst_info *inst, int active_update)
+{
+	int ret;
+	struct packet *packet;
+
+	if (package_is_fault(inst->info)) {
+		DbgPrint("Fault package [%s]\n", package_name(inst->info));
+		return LB_STATUS_ERROR_FAULT;
+	}
+
+	if (inst->active_update == active_update) {
+		DbgPrint("Active update is not changed: %d\n", inst->active_update);
+		return LB_STATUS_ERROR_ALREADY;
+	}
+
+	/* NOTE: param is resued from here */
+	packet = packet_create_noack("update_mode", "ssi", package_name(inst->info), inst->id, active_update);
+	if (!packet) {
+		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
+		return LB_STATUS_ERROR_FAULT;
+	}
+
+	ret = slave_rpc_request_only(package_slave(inst->info), package_name(inst->info), packet, 0);
+
+	if (ret == LB_STATUS_SUCCESS)
+		inst->active_update = active_update;
+
+	return ret;
+}
+
+HAPI int instance_active_update(struct inst_info *inst)
+{
+	return inst->active_update;
 }
 
 HAPI void instance_set_lb_info(struct inst_info *inst, int w, int h, double priority, const char *content, const char *title)

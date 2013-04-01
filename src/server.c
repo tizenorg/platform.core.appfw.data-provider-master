@@ -315,14 +315,12 @@ static struct packet *client_clicked(pid_t pid, int handle, const struct packet 
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = LB_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "sssddd", &pkgname, &id, &event, &timestamp, &x, &y);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
 	}
 
@@ -335,11 +333,45 @@ static struct packet *client_clicked(pid_t pid, int handle, const struct packet 
 	 */
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst)
-		ret = LB_STATUS_ERROR_NOT_EXIST;
+		ErrPrint("Instance is not exists\n");
 	else if (package_is_fault(instance_package(inst)))
-		ret = LB_STATUS_ERROR_FAULT;
+		ErrPrint("Fault package\n");
 	else
-		ret = instance_clicked(inst, event, timestamp, x, y);
+		(void)instance_clicked(inst, event, timestamp, x, y);
+
+out:
+	/*! \note No reply packet */
+	return NULL;
+}
+
+static struct packet *client_update_mode(pid_t pid, int handle, const struct packet *packet)
+{
+	struct client_node *client;
+	int active_update;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	struct inst_info *inst;
+
+	client = client_find_by_pid(pid);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssi", &pkgname, &id, &active_update);
+	if (ret != 3) {
+		ErrPrint("Invalid argument\n");
+		goto out;
+	}
+
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst)
+		ErrPrint("Instance is not exists\n");
+	else if (package_is_fault(instance_package(inst)))
+		ErrPrint("Fault package\n");
+	else
+		instance_set_update_mode(inst, active_update);
 
 out:
 	/*! \note No reply packet */
@@ -3019,15 +3051,13 @@ static struct packet *client_resume_request(pid_t pid, int handle, const struct 
 
 	client = client_find_by_pid(pid);
 	if (!client) {
-		ErrPrint("Client %d is paused - manually reported\n", pid);
-		ret = LB_STATUS_ERROR_NOT_EXIST;
+		ErrPrint("Client %d is not exists\n", pid);
 		goto out;
 	}
 
 	ret = packet_get(packet, "d", &timestamp);
 	if (ret != 1) {
 		ErrPrint("Invalid parameter\n");
-		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
 	}
 
@@ -6241,6 +6271,11 @@ static struct method s_client_table[] = {
 	{
 		.cmd = "client_resumed",
 		.handler = client_resume_request,
+	},
+
+	{
+		.cmd = "update_mode",
+		.handler = client_update_mode,
 	},
 
 	{
