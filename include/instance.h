@@ -149,6 +149,12 @@ extern void instance_lb_updated(const char *pkgname, const char *id);
 extern void instance_lb_updated_by_instance(struct inst_info *inst);
 extern void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfile);
 
+extern int instance_lb_update_begin(struct inst_info *inst, double priority, const char *content, const char *title);
+extern int instance_lb_update_end(struct inst_info *inst);
+
+extern int instance_pd_update_begin(struct inst_info *inst);
+extern int instance_pd_update_end(struct inst_info *inst);
+
 extern int instance_client_pd_destroyed(struct inst_info *inst, int status);
 extern int instance_client_pd_created(struct inst_info *inst, int status);
 

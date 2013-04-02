@@ -62,6 +62,11 @@ struct resize_cbdata {
 	int h;
 };
 
+struct update_mode_cbdata {
+	struct inst_info *inst;
+	int active_update;
+};
+
 struct change_group_cbdata {
 	struct inst_info *inst;
 	char *cluster;
@@ -256,6 +261,25 @@ static inline int instance_recover_visible_state(struct inst_info *inst)
 	return ret;
 }
 
+static inline void instance_send_update_mode_event(struct inst_info *inst, int active_mode, int status)
+{
+	struct packet *packet;
+	const char *pkgname;
+
+	if (!inst->info) {
+		ErrPrint("Instance info is not ready to use\n");
+		return;
+	}
+
+	pkgname = package_name(inst->info);
+
+	packet = packet_create_noack("update_mode", "ssii", pkgname, inst->id, status, active_mode);
+	if (packet)
+		CLIENT_SEND_EVENT(inst, packet);
+	else
+		ErrPrint("Failed to send update mode event\n");
+}
+
 static inline void instance_send_resized_event(struct inst_info *inst, int is_pd, int w, int h, int status)
 {
 	struct packet *packet;
@@ -285,6 +309,36 @@ static inline void instance_send_resized_event(struct inst_info *inst, int is_pd
 		CLIENT_SEND_EVENT(inst, packet);
 	else
 		ErrPrint("Failed to send size changed event\n");
+}
+
+static void update_mode_cb(struct slave_node *slave, const struct packet *packet, void *data)
+{
+	struct update_mode_cbdata *cbdata = data;
+	int ret;
+
+	if (!packet) {
+		ErrPrint("Invalid packet\n");
+		instance_send_update_mode_event(cbdata->inst, cbdata->active_update, LB_STATUS_ERROR_FAULT);
+		instance_unref(cbdata->inst);
+		DbgFree(cbdata);
+		return;
+	}
+
+	if (packet_get(packet, "i", &ret) != 1) {
+		ErrPrint("Invalid parameters\n");
+		instance_send_update_mode_event(cbdata->inst, cbdata->active_update, LB_STATUS_ERROR_INVALID);
+		instance_unref(cbdata->inst);
+		DbgFree(cbdata);
+		return;
+	}
+
+	if (ret == LB_STATUS_SUCCESS)
+		cbdata->inst->active_update = cbdata->active_update;
+
+	instance_send_update_mode_event(cbdata->inst, cbdata->active_update, ret);
+
+	instance_unref(cbdata->inst);
+	DbgFree(cbdata);
 }
 
 HAPI int instance_unicast_created_event(struct inst_info *inst, struct client_node *client)
@@ -1462,6 +1516,156 @@ HAPI int instance_activate(struct inst_info *inst)
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, activate_cb, instance_ref(inst), 1);
 }
 
+HAPI int instance_lb_update_begin(struct inst_info *inst, double priority, const char *content, const char *title)
+{
+	struct packet *packet;
+	const char *fbfile;
+
+	if (!inst->active_update) {
+		ErrPrint("Invalid request [%s]\n", inst->id);
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	switch (package_lb_type(inst->info)) {
+	case LB_TYPE_BUFFER:
+		if (!inst->lb.canvas.buffer) {
+			ErrPrint("Buffer is null [%s]\n", inst->id);
+			return LB_STATUS_ERROR_INVALID;
+		}
+		fbfile = buffer_handler_id(inst->lb.canvas.buffer);
+		break;
+	case LB_TYPE_SCRIPT:
+		if (!inst->lb.canvas.script) {
+			ErrPrint("Script is null [%s]\n", inst->id);
+			return LB_STATUS_ERROR_INVALID;
+		}
+		fbfile = fb_id(script_handler_fb(inst->lb.canvas.script));
+		break;
+	default:
+		ErrPrint("Invalid request[%s]\n", inst->id);
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	packet = packet_create_noack("lb_update_begin", "ssdsss", package_name(inst->info), inst->id, priority, content, title, fbfile);
+	if (!packet) {
+		ErrPrint("Unable to create a packet\n");
+		return LB_STATUS_ERROR_FAULT;
+	}
+	
+	return CLIENT_SEND_EVENT(inst, packet);
+}
+
+HAPI int instance_lb_update_end(struct inst_info *inst)
+{
+	struct packet *packet;
+
+	if (!inst->active_update) {
+		ErrPrint("Invalid request [%s]\n", inst->id);
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	switch (package_lb_type(inst->info)) {
+	case LB_TYPE_BUFFER:
+		if (!inst->lb.canvas.buffer) {
+			ErrPrint("Buffer is null [%s]\n", inst->id);
+			return LB_STATUS_ERROR_INVALID;
+		}
+		break;
+	case LB_TYPE_SCRIPT:
+		if (!inst->lb.canvas.script) {
+			ErrPrint("Script is null [%s]\n", inst->id);
+			return LB_STATUS_ERROR_INVALID;
+		}
+		break;
+	default:
+		ErrPrint("Invalid request[%s]\n", inst->id);
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	packet = packet_create_noack("lb_update_end", "ss", package_name(inst->info), inst->id);
+	if (!packet) {
+		ErrPrint("Unable to create a packet\n");
+		return LB_STATUS_ERROR_FAULT;
+	}
+
+	return CLIENT_SEND_EVENT(inst, packet);
+}
+
+HAPI int instance_pd_update_begin(struct inst_info *inst)
+{
+	struct packet *packet;
+	const char *fbfile;
+
+	if (!inst->active_update) {
+		ErrPrint("Invalid request [%s]\n", inst->id);
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	switch (package_pd_type(inst->info)) {
+	case PD_TYPE_BUFFER:
+		if (!inst->pd.canvas.buffer) {
+			ErrPrint("Buffer is null [%s]\n", inst->id);
+			return LB_STATUS_ERROR_INVALID;
+		}
+		fbfile = buffer_handler_id(inst->pd.canvas.buffer);
+		break;
+	case PD_TYPE_SCRIPT:
+		if (!inst->pd.canvas.script) {
+			ErrPrint("Script is null [%s]\n", inst->id);
+			return LB_STATUS_ERROR_INVALID;
+		}
+		fbfile = fb_id(script_handler_fb(inst->pd.canvas.script));
+		break;
+	default:
+		ErrPrint("Invalid request[%s]\n", inst->id);
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	packet = packet_create_noack("pd_update_begin", "sss", package_name(inst->info), inst->id, fbfile);
+	if (!packet) {
+		ErrPrint("Unable to create a packet\n");
+		return LB_STATUS_ERROR_FAULT;
+	}
+
+	return CLIENT_SEND_EVENT(inst, packet);
+}
+
+HAPI int instance_pd_update_end(struct inst_info *inst)
+{
+	struct packet *packet;
+
+	if (!inst->active_update) {
+		ErrPrint("Invalid request [%s]\n", inst->id);
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	switch (package_pd_type(inst->info)) {
+	case PD_TYPE_BUFFER:
+		if (!inst->pd.canvas.buffer) {
+			ErrPrint("Buffer is null [%s]\n", inst->id);
+			return LB_STATUS_ERROR_INVALID;
+		}
+		break;
+	case PD_TYPE_SCRIPT:
+		if (!inst->pd.canvas.script) {
+			ErrPrint("Script is null [%s]\n", inst->id);
+			return LB_STATUS_ERROR_INVALID;
+		}
+		break;
+	default:
+		ErrPrint("Invalid request[%s]\n", inst->id);
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	packet = packet_create_noack("pd_update_end", "ss", package_name(inst->info), inst->id);
+	if (!packet) {
+		ErrPrint("Unable to create a packet\n");
+		return LB_STATUS_ERROR_FAULT;
+	}
+
+	return CLIENT_SEND_EVENT(inst, packet);
+}
+
 HAPI void instance_lb_updated(const char *pkgname, const char *id)
 {
 	struct inst_info *inst;
@@ -1605,8 +1809,8 @@ HAPI void instance_pd_updated(const char *pkgname, const char *id, const char *d
 
 HAPI int instance_set_update_mode(struct inst_info *inst, int active_update)
 {
-	int ret;
 	struct packet *packet;
+	struct update_mode_cbdata *cbdata;
 
 	if (package_is_fault(inst->info)) {
 		DbgPrint("Fault package [%s]\n", package_name(inst->info));
@@ -1618,19 +1822,25 @@ HAPI int instance_set_update_mode(struct inst_info *inst, int active_update)
 		return LB_STATUS_ERROR_ALREADY;
 	}
 
+	cbdata = malloc(sizeof(*cbdata));
+	if (!cbdata) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return LB_STATUS_ERROR_MEMORY;
+	}
+
+	cbdata->inst = instance_ref(inst);
+	cbdata->active_update = active_update;
+
 	/* NOTE: param is resued from here */
-	packet = packet_create_noack("update_mode", "ssi", package_name(inst->info), inst->id, active_update);
+	packet = packet_create("update_mode", "ssi", package_name(inst->info), inst->id, active_update);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
+		instance_unref(cbdata->inst);
+		free(cbdata);
 		return LB_STATUS_ERROR_FAULT;
 	}
 
-	ret = slave_rpc_request_only(package_slave(inst->info), package_name(inst->info), packet, 0);
-
-	if (ret == LB_STATUS_SUCCESS)
-		inst->active_update = active_update;
-
-	return ret;
+	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, update_mode_cb, cbdata, 0);
 }
 
 HAPI int instance_active_update(struct inst_info *inst)

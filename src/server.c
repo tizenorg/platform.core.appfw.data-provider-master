@@ -346,6 +346,7 @@ out:
 
 static struct packet *client_update_mode(pid_t pid, int handle, const struct packet *packet)
 {
+	struct packet *result;
 	struct client_node *client;
 	int active_update;
 	const char *pkgname;
@@ -356,26 +357,38 @@ static struct packet *client_update_mode(pid_t pid, int handle, const struct pac
 	client = client_find_by_pid(pid);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
+		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssi", &pkgname, &id, &active_update);
 	if (ret != 3) {
 		ErrPrint("Invalid argument\n");
+		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
 	}
 
 	inst = package_find_instance_by_id(pkgname, id);
-	if (!inst)
+	if (!inst) {
 		ErrPrint("Instance is not exists\n");
-	else if (package_is_fault(instance_package(inst)))
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+	} else if (package_is_fault(instance_package(inst))) {
 		ErrPrint("Fault package\n");
-	else
-		instance_set_update_mode(inst, active_update);
+		ret = LB_STATUS_ERROR_FAULT;
+	} else {
+		/*!
+		 * \note
+		 * Send change update mode request to a slave
+		 */
+		ret = instance_set_update_mode(inst, active_update);
+	}
 
 out:
-	/*! \note No reply packet */
-	return NULL;
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a packet\n");
+
+	return result;
 }
 
 /* pid, pkgname, filename, emission, source, s, sy, ex, ey, ret */
@@ -5038,6 +5051,191 @@ out:
 	return NULL;
 }
 
+static struct packet *slave_lb_update_begin(pid_t pid, int handle, const struct packet *packet)
+{
+	struct slave_node *slave;
+	struct inst_info *inst;
+	struct pkg_info *pkg;
+	const char *pkgname;
+	const char *id;
+	double priority;
+	const char *content;
+	const char *title;
+	int ret;
+
+	slave = slave_find_by_pid(pid);
+	if (!slave) {
+		ErrPrint("Slave %d is not exists\n", pid);
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssdss", &pkgname, &id, &priority, &content, &title);
+	if (ret != 5) {
+		ErrPrint("Invalid parameters\n");
+		goto out;
+	}
+
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst) {
+		ErrPrint("Instance(%s) is not exists\n", id);
+		goto out;
+	} else if (instance_state(inst) == INST_DESTROYED) {
+		ErrPrint("Instance(%s) is already destroyed\n", id);
+		goto out;
+	}
+
+	pkg = instance_package(inst);
+	if (!pkg) {
+		ErrPrint("Invalid instance\n");
+	} else if (package_is_fault(pkg)) {
+		ErrPrint("Faulted instance %s.\n", id);
+	} else if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
+		ret = instance_lb_update_begin(inst, priority, content, title);
+		if (ret == LB_STATUS_SUCCESS)
+			slave_freeze_ttl(slave);
+	} else {
+		ErrPrint("Invalid request[%s]\n", id);
+	}
+
+out:
+	return NULL;
+}
+
+static struct packet *slave_lb_update_end(pid_t pid, int handle, const struct packet *packet)
+{
+	struct slave_node *slave;
+	struct inst_info *inst;
+	struct pkg_info *pkg;
+	const char *pkgname;
+	const char *id;
+	int ret;
+
+	slave = slave_find_by_pid(pid);
+	if (!slave) {
+		ErrPrint("Slave %d is not exists\n", pid);
+		goto out;
+	}
+
+	ret = packet_get(packet, "ss", &pkgname, &id);
+	if (ret != 2) {
+		ErrPrint("Invalid parameters\n");
+		goto out;
+	}
+
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst) {
+		ErrPrint("Instance[%s] is not exists\n", id);
+		goto out;
+	} else if (instance_state(inst) == INST_DESTROYED) {
+		ErrPrint("Instance[%s] is already destroyed\n", id);
+		goto out;
+	}
+
+	pkg = instance_package(inst);
+	if (!pkg) {
+		ErrPrint("Invalid instance\n");
+	} else if (package_is_fault(pkg)) {
+		ErrPrint("Faulted instance %s\n", id);
+	} else if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
+		ret = instance_lb_update_end(inst);
+		if (ret == LB_STATUS_SUCCESS)
+			slave_thaw_ttl(slave);
+	} else {
+		ErrPrint("Invalid request[%s]\n", id);
+	}
+
+out:
+	return NULL;
+}
+
+static struct packet *slave_pd_update_begin(pid_t pid, int handle, const struct packet *packet)
+{
+	struct slave_node *slave;
+	struct pkg_info *pkg;
+	struct inst_info *inst;
+	const char *pkgname;
+	const char *id;
+	int ret;
+
+	slave = slave_find_by_pid(pid);
+	if (!slave) {
+		ErrPrint("Slave %d is not exists\n", pid);
+		goto out;
+	}
+
+	ret = packet_get(packet, "ss", &pkgname, &id);
+	if (ret != 2) {
+		ErrPrint("Invalid parameters\n");
+		goto out;
+	}
+
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst) {
+		ErrPrint("Instance[%s] is not exists\n", id);
+		goto out;
+	}
+
+	pkg = instance_package(inst);
+	if (!pkg) {
+		ErrPrint("Invalid package\n");
+	} else if (package_is_fault(pkg)) {
+		ErrPrint("Faulted instance %s\n", id);
+	} else if (instance_state(inst) == INST_DESTROYED) {
+		ErrPrint("Instance[%s] is already destroyed\n", id);
+	} else if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
+		(void)instance_pd_update_begin(inst);
+	} else {
+		ErrPrint("Invalid request[%s]\n", id);
+	}
+
+out:
+	return NULL;
+}
+
+static struct packet *slave_pd_update_end(pid_t pid, int handle, const struct packet *packet)
+{
+	struct slave_node *slave;
+	struct pkg_info *pkg;
+	struct inst_info *inst;
+	const char *pkgname;
+	const char *id;
+	int ret;
+
+	slave = slave_find_by_pid(pid);
+	if (!slave) {
+		ErrPrint("Slave %d is not exists\n", pid);
+		goto out;
+	}
+
+	ret = packet_get(packet, "ss", &pkgname, &id);
+	if (ret != 2) {
+		ErrPrint("Invalid parameters\n");
+		goto out;
+	}
+
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst) {
+		ErrPrint("Instance[%s] is not exists\n", id);
+		goto out;
+	}
+
+	pkg = instance_package(inst);
+	if (!pkg) {
+		ErrPrint("Invalid package\n");
+	} else if (package_is_fault(pkg)) {
+		ErrPrint("Faulted instance %s\n", id);
+	} else if (instance_state(inst) == INST_DESTROYED) {
+		ErrPrint("Instance[%s] is already destroyed\n", id);
+	} else if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
+		(void)instance_pd_update_end(inst);
+	} else {
+		ErrPrint("Invalid request[%s]\n", id);
+	}
+
+out:
+	return NULL;
+}
+
 static struct packet *slave_call(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, filename, function, ret */
 {
 	struct slave_node *slave;
@@ -6348,6 +6546,24 @@ static struct method s_slave_table[] = {
 		.cmd = "scroll",
 		.handler = slave_hold_scroll, /* slave_name, pkgname, id, seize */
 	},
+
+	{
+		.cmd = "lb_update_begin",
+		.handler = slave_lb_update_begin,
+	},
+	{
+		.cmd = "lb_update_end",
+		.handler = slave_lb_update_end,
+	},
+	{
+		.cmd = "pd_update_begin",
+		.handler = slave_pd_update_begin,
+	},
+	{
+		.cmd = "pd_update_end",
+		.handler = slave_pd_update_end,
+	},
+
 	{
 		.cmd = NULL,
 		.handler = NULL,
