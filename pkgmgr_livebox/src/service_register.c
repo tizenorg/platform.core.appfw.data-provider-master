@@ -66,12 +66,12 @@
  *
  *
  * client
- * +-------+------+---------+-------------+---------+---------+-----------+-------+-------------+--------------+
- * | pkgid | Icon |  Name   | auto_launch | pd_size | content | nodisplay | setup | mouse_event | touch_effect |
- * +-------+------+---------+-------------+---------+---------+-----------+-------+-------------+--------------+
- * |   -   |   -  |    -    |      -      |    -    |    -    |     -     |   -   |      -      }       -      |
- * +-------+------+---------+-------------+---------+---------+-----------+-------+-------------+--------------+
- * CREATE TABLE client ( pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch TEXT, pd_size TEXT, content TEXT DEFAULT "default", nodisplay INTEGER, setup TEXT, mouse_event INTEGER, touch_effect INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
+ * +-------+------+---------+-------------+---------+---------+-----------+-------+-------------+--------------+-------------+
+ * | pkgid | Icon |  Name   | auto_launch | pd_size | content | nodisplay | setup | mouse_event | touch_effect | need_frame  |
+ * +-------+------+---------+-------------+---------+---------+-----------+-------+-------------+--------------+-------------+
+ * |   -   |   -  |    -    |      -      |    -    |    -    |     -     |   -   |      -      }       -      |      -      |
+ * +-------+------+---------+-------------+---------+---------+-----------+-------+-------------+--------------+-------------+
+ * CREATE TABLE client ( pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch TEXT, pd_size TEXT, content TEXT DEFAULT "default", nodisplay INTEGER, setup TEXT, mouse_event INTEGER, touch_effect INTEGER, need_frame INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
  *
  * = auto_launch = UI-APPID
  * = pd_size = WIDTHxHEIGHT
@@ -171,6 +171,7 @@ struct livebox {
 	int nodisplay;
 	int mouse_event; /* Mouse event processing option for livebox */
 	int touch_effect; /* Touch effect of a livebox */
+	int need_frame; /* Box needs frame which should be cared by viewer */
 
 	enum lb_type lb_type;
 	xmlChar *lb_src;
@@ -601,7 +602,7 @@ static inline int db_create_client(void)
 
 	ddl = "CREATE TABLE client (" \
 		"pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, " \
-		"auto_launch TEXT, pd_size TEXT, content TEXT DEFAULT 'default', nodisplay INTEGER, setup TEXT, mouse_event INTEGER, touch_effect INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
+		"auto_launch TEXT, pd_size TEXT, content TEXT DEFAULT 'default', nodisplay INTEGER, setup TEXT, mouse_event INTEGER, touch_effect INTEGER, need_frame INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -619,7 +620,7 @@ static inline int db_insert_client(struct livebox *livebox)
 	int ret;
 	sqlite3_stmt *stmt;
 
-	dml = "INSERT INTO client ( pkgid, icon, name, auto_launch, pd_size, content, nodisplay, setup, mouse_event, touch_effect ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	dml = "INSERT INTO client ( pkgid, icon, name, auto_launch, pd_size, content, nodisplay, setup, mouse_event, touch_effect, need_frame ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
@@ -690,6 +691,13 @@ static inline int db_insert_client(struct livebox *livebox)
 	}
 
 	ret = sqlite3_bind_int(stmt, 10, livebox->touch_effect);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_int(stmt, 11, livebox->need_frame);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -1727,6 +1735,20 @@ static inline void update_box(struct livebox *livebox, xmlNodePtr node)
 		} else {
 			livebox->touch_effect = !xmlStrcasecmp(touch_effect, (const xmlChar *)"true");
 			xmlFree(touch_effect);
+		}
+	}
+
+	if (!xmlHasProp(node, (const xmlChar *)"need_frame")) {
+		livebox->need_frame = 0;
+	} else {
+		xmlChar *need_frame;
+		need_frame = xmlGetProp(node, (const xmlChar *)"need_frame");
+		if (!need_frame) {
+			ErrPrint("need_frame is NIL\n");
+			livebox->need_frame = 0;
+		} else {
+			livebox->need_frame = !xmlStrcasecmp(need_frame, (const xmlChar *)"true");
+			xmlFree(need_frame);
 		}
 	}
 
