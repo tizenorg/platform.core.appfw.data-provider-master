@@ -50,6 +50,8 @@
 #define TYPE_SIGNAL "signal"
 #define TYPE_INFO "info"
 #define TYPE_DRAG "drag"
+#define TYPE_ACCESS "access"
+
 #define INFO_SIZE "size"
 #define INFO_CATEGORY "category"
 #define ADDEND 256
@@ -71,6 +73,7 @@ struct script_port {
 	int (*update_color)(void *handle, Evas *e, const char *id, const char *part, const char *rgba);
 	int (*update_text)(void *handle, Evas *e, const char *id, const char *part, const char *text);
 	int (*update_image)(void *handle, Evas *e, const char *id, const char *part, const char *path, const char *option);
+	int (*update_access)(void *handle, Evas *e, const char *id, const char *part, const char *text, const char *option);
 	int (*update_script)(void *handle, Evas *e, const char *src_id, const char *target_id, const char *part, const char *path, const char *option);
 	int (*update_signal)(void *handle, Evas *e, const char *id, const char *part, const char *signal);
 	int (*update_drag)(void *handle, Evas *e, const char *id, const char *part, double x, double y);
@@ -494,6 +497,35 @@ static int update_script_image(struct inst_info *inst, struct block *block, int 
 	return LB_STATUS_SUCCESS;
 }
 
+static int update_access(struct inst_info *inst, struct block *block, int is_pd)
+{
+	struct script_info *info;
+	Evas *e;
+
+	if (!block || !block->part || !block->data) {
+		ErrPrint("Block or block->part or block->data is NIL\n");
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
+	if (!info) {
+		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
+		return LB_STATUS_ERROR_FAULT;
+	}
+
+	if (!info->port) {
+		ErrPrint("info->port is NIL\n");
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	e = script_handler_evas(info);
+	if (e)
+		info->port->update_access(info->port_data, e, block->id, block->part, block->data, block->option);
+	else
+		ErrPrint("Evas: (nil) id[%s] part[%s] data[%s]\n", block->id, block->part, block->data);
+	return LB_STATUS_SUCCESS;
+}
+
 static int update_script_script(struct inst_info *inst, struct block *block, int is_pd)
 {
 	struct script_info *info;
@@ -740,6 +772,10 @@ HAPI int script_handler_parse_desc(const char *pkgname, const char *id, const ch
 		{
 			.type = TYPE_INFO,
 			.handler = update_info,
+		},
+		{
+			.type = TYPE_ACCESS,
+			.handler = update_access,
 		},
 		{
 			.type = NULL,
@@ -1211,6 +1247,10 @@ HAPI int script_init(void)
 
 		item->update_image = dlsym(item->handle, "script_update_image");
 		if (!item->update_image)
+			goto errout;
+
+		item->update_access = dlsym(item->handle, "script_update_access");
+		if (!item->update_access)
 			goto errout;
 
 		item->update_script = dlsym(item->handle, "script_update_script");
