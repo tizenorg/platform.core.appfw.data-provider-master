@@ -27,6 +27,7 @@
 #include <packet.h>
 #include <com-core_packet.h>
 #include <livebox-errno.h>
+#include <livebox-service.h>
 
 #include "conf.h"
 #include "debug.h"
@@ -68,10 +69,29 @@ enum target_type {
 	TYPE_ERROR,
 };
 
+struct access_cbdata {
+	int status;
+	struct inst_info *inst;
+};
+
 struct deleted_item {
 	struct client_node *client;
 	struct inst_info *inst;
 };
+
+static Eina_Bool lazy_access_status_cb(void *data)
+{
+	struct access_cbdata *cbdata = data;
+
+	if (instance_unref(cbdata->inst))
+		instance_send_access_status(cbdata->inst, cbdata->status);
+	/*!
+	 * If instance_unref returns NULL,
+	 * The instance is destroyed. it means, we don't need to send event to the viewer
+	 */
+	free(cbdata);
+	return ECORE_CALLBACK_CANCEL;
+}
 
 static int event_lb_route_cb(enum event_state state, struct event_data *event_info, void *data)
 {
@@ -135,17 +155,15 @@ static int event_lb_consume_cb(enum event_state state, struct event_data *event_
 	switch (state) {
 	case EVENT_STATE_ACTIVATE:
 		script_handler_update_pointer(script, event_info->x, event_info->y, 1);
-		evas_event_feed_mouse_move(e, event_info->x, event_info->y, timestamp, NULL);
-		evas_event_feed_mouse_down(e, 1, EVAS_BUTTON_NONE, timestamp + 0.01f, NULL);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_DOWN, timestamp);
 		break;
 	case EVENT_STATE_ACTIVATED:
 		script_handler_update_pointer(script, event_info->x, event_info->y, -1);
-		evas_event_feed_mouse_move(e, event_info->x, event_info->y, timestamp, NULL);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_MOVE, timestamp);
 		break;
 	case EVENT_STATE_DEACTIVATE:
 		script_handler_update_pointer(script, event_info->x, event_info->y, 0);
-		evas_event_feed_mouse_move(e, event_info->x, event_info->y, timestamp, NULL);
-		evas_event_feed_mouse_up(e, 1, EVAS_BUTTON_NONE, timestamp + 0.1f, NULL);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_UP, timestamp);
 		break;
 	default:
 		break;
@@ -218,17 +236,15 @@ static int event_pd_consume_cb(enum event_state state, struct event_data *event_
 	switch (state) {
 	case EVENT_STATE_ACTIVATE:
 		script_handler_update_pointer(script, event_info->x, event_info->y, 1);
-		evas_event_feed_mouse_move(e, event_info->x, event_info->y, timestamp, NULL);
-		evas_event_feed_mouse_down(e, 1, EVAS_BUTTON_NONE, timestamp + 0.01f, NULL);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_DOWN, timestamp);
 		break;
 	case EVENT_STATE_ACTIVATED:
 		script_handler_update_pointer(script, event_info->x, event_info->y, -1);
-		evas_event_feed_mouse_move(e, event_info->x, event_info->y, timestamp, NULL);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_MOVE, timestamp);
 		break;
 	case EVENT_STATE_DEACTIVATE:
 		script_handler_update_pointer(script, event_info->x, event_info->y, 0);
-		evas_event_feed_mouse_move(e, event_info->x, event_info->y, timestamp, NULL);
-		evas_event_feed_mouse_up(e, 1, EVAS_BUTTON_NONE, timestamp + 0.1f, NULL);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_UP, timestamp);
 		break;
 	default:
 		break;
@@ -509,7 +525,6 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 				ErrPrint("Heap: %s\n", strerror(errno));
 				ret = LB_STATUS_ERROR_MEMORY;
 			} else {
-				ret = 0;
 				/*!
 				 * \NOTE:
 				 * Send DELETED EVENT to the client.
@@ -528,6 +543,8 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 					instance_unref(inst);
 					DbgFree(item);
 					ret = LB_STATUS_ERROR_FAULT;
+				} else {
+					ret = LB_STATUS_SUCCESS;
 				}
 			}
 		} else {
@@ -922,7 +939,7 @@ static struct packet *client_pd_mouse_enter(pid_t pid, int handle, const struct 
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		evas_event_feed_mouse_in(e, timestamp, NULL);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_IN, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -1034,7 +1051,7 @@ static struct packet *client_pd_mouse_leave(pid_t pid, int handle, const struct 
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		evas_event_feed_mouse_out(e, timestamp, NULL);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_OUT, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -1148,8 +1165,7 @@ static struct packet *client_pd_mouse_down(pid_t pid, int handle, const struct p
 		}
 
 		script_handler_update_pointer(script, x, y, 1);
-		evas_event_feed_mouse_move(e, x, y, timestamp, NULL);
-		evas_event_feed_mouse_down(e, 1, EVAS_BUTTON_NONE, timestamp + 0.01f, NULL);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_DOWN, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -1262,8 +1278,7 @@ static struct packet *client_pd_mouse_up(pid_t pid, int handle, const struct pac
 		}
 
 		script_handler_update_pointer(script, x, y, 0);
-		evas_event_feed_mouse_move(e, x, y, timestamp, NULL);
-		evas_event_feed_mouse_up(e, 1, EVAS_BUTTON_NONE, timestamp + 0.1f, NULL);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_UP, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -1376,7 +1391,7 @@ static struct packet *client_pd_mouse_move(pid_t pid, int handle, const struct p
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		evas_event_feed_mouse_move(e, x, y, timestamp, NULL);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_MOVE, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -1487,7 +1502,7 @@ static struct packet *client_lb_mouse_move(pid_t pid, int handle, const struct p
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		evas_event_feed_mouse_move(e, x, y, timestamp, NULL);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_MOVE, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -1879,7 +1894,7 @@ static struct packet *client_lb_mouse_enter(pid_t pid, int handle, const struct 
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		evas_event_feed_mouse_in(e, timestamp, NULL);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_IN, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -1991,7 +2006,7 @@ static struct packet *client_lb_mouse_leave(pid_t pid, int handle, const struct 
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		evas_event_feed_mouse_out(e, timestamp, NULL);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_OUT, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -2103,8 +2118,7 @@ static struct packet *client_lb_mouse_down(pid_t pid, int handle, const struct p
 		}
 
 		script_handler_update_pointer(script, x, y, 1);
-		evas_event_feed_mouse_move(e, x, y, timestamp, NULL);
-		evas_event_feed_mouse_down(e, 1, EVAS_BUTTON_NONE, timestamp + 0.01f, NULL);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_DOWN, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -2216,8 +2230,7 @@ static struct packet *client_lb_mouse_up(pid_t pid, int handle, const struct pac
 		}
 
 		script_handler_update_pointer(script, x, y, 0);
-		evas_event_feed_mouse_move(e, x, y, timestamp, NULL);
-		evas_event_feed_mouse_up(e, 1, EVAS_BUTTON_NONE, timestamp + 0.1f, NULL);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_UP, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -2231,6 +2244,7 @@ out:
 
 static struct packet *client_pd_access_value_change(pid_t pid, int handle, const struct packet *packet)
 {
+	struct packet *result;
 	struct client_node *client;
 	const char *pkgname;
 	const char *id;
@@ -2329,22 +2343,42 @@ static struct packet *client_pd_access_value_change(pid_t pid, int handle, const
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		/*!
-		 * \TODO: Push up the ACCESS_VALUE_CHANGE event
-		 */
-		ret = 0;
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_VALUE_CHANGE, timestamp);
+		if (ret >= 0) {
+			struct access_cbdata *cbdata;
+
+			cbdata = malloc(sizeof(*cbdata));
+			if (!cbdata) {
+				ret = LB_STATUS_ERROR_MEMORY;
+			} else {
+				cbdata->inst = instance_ref(inst);
+				cbdata->status = ret;
+
+				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
+					instance_unref(cbdata->inst);
+					free(cbdata);
+					ret = LB_STATUS_ERROR_FAULT;
+				} else {
+					ret = LB_STATUS_SUCCESS;
+				}
+			}
+		}
 	} else {
 		ErrPrint("Unsupported package\n");
 		ret = LB_STATUS_ERROR_INVALID;
 	}
 
 out:
-	/*! \note No reply packet */
-	return NULL;
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a reply packet\n");
+
+	return result;
 }
 
 static struct packet *client_pd_access_scroll(pid_t pid, int handle, const struct packet *packet)
 {
+	struct packet *result;
 	struct client_node *client;
 	const char *pkgname;
 	const char *id;
@@ -2443,22 +2477,42 @@ static struct packet *client_pd_access_scroll(pid_t pid, int handle, const struc
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		/*!
-		 * \TODO: Push up the ACCESS_SCROLL event
-		 */
-		ret = 0;
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_SCROLL, timestamp);
+		if (ret >= 0) {
+			struct access_cbdata *cbdata;
+
+			cbdata = malloc(sizeof(*cbdata));
+			if (!cbdata) {
+				ret = LB_STATUS_ERROR_MEMORY;
+			} else {
+				cbdata->inst = instance_ref(inst);
+				cbdata->status = ret;
+
+				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
+					instance_unref(cbdata->inst);
+					free(cbdata);
+					ret = LB_STATUS_ERROR_FAULT;
+				} else {
+					ret = LB_STATUS_SUCCESS;
+				}
+			}
+		}
 	} else {
 		ErrPrint("Unsupported package\n");
 		ret = LB_STATUS_ERROR_INVALID;
 	}
 
 out:
-	/*! \note No reply packet */
-	return NULL;
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a reply packet\n");
+
+	return result;
 }
 
 static struct packet *client_pd_access_hl(pid_t pid, int handle, const struct packet *packet)
 {
+	struct packet *result;
 	struct client_node *client;
 	const char *pkgname;
 	const char *id;
@@ -2557,22 +2611,42 @@ static struct packet *client_pd_access_hl(pid_t pid, int handle, const struct pa
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		/*!
-		 * \TODO: Push up the ACCESS_HIGHLIGHT event
-		 */
-		ret = 0;
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_HIGHLIGHT, timestamp);
+		if (ret >= 0) {
+			struct access_cbdata *cbdata;
+
+			cbdata = malloc(sizeof(*cbdata));
+			if (!cbdata) {
+				ret = LB_STATUS_ERROR_MEMORY;
+			} else {
+				cbdata->inst = instance_ref(inst);
+				cbdata->status = ret;
+
+				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
+					instance_unref(cbdata->inst);
+					free(cbdata);
+					ret = LB_STATUS_ERROR_FAULT;
+				} else {
+					ret = LB_STATUS_SUCCESS;
+				}
+			}
+		}
 	} else {
 		ErrPrint("Unsupported package\n");
 		ret = LB_STATUS_ERROR_INVALID;
 	}
 
 out:
-	/*! \note No reply packet */
-	return NULL;
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a reply packet\n");
+
+	return result;
 }
 
 static struct packet *client_pd_access_hl_prev(pid_t pid, int handle, const struct packet *packet)
 {
+	struct packet *result;
 	struct client_node *client;
 	const char *pkgname;
 	const char *id;
@@ -2671,22 +2745,42 @@ static struct packet *client_pd_access_hl_prev(pid_t pid, int handle, const stru
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		/*!
-		 * \TODO: Push up the ACCESS_HIGHLIGHT_PREV event
-		 */
-		ret = 0;
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_HIGHLIGHT_PREV, timestamp);
+		if (ret >= 0) {
+			struct access_cbdata *cbdata;
+
+			cbdata = malloc(sizeof(*cbdata));
+			if (!cbdata) {
+				ret = LB_STATUS_ERROR_MEMORY;
+			} else {
+				cbdata->inst = instance_ref(inst);
+				cbdata->status = ret;
+
+				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
+					instance_unref(cbdata->inst);
+					free(cbdata);
+					ret = LB_STATUS_ERROR_FAULT;
+				} else {
+					ret = LB_STATUS_SUCCESS;
+				}
+			}
+		}
 	} else {
 		ErrPrint("Unsupported package\n");
 		ret = LB_STATUS_ERROR_INVALID;
 	}
 
 out:
-	/*! \note No reply packet */
-	return NULL;
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a reply packet\n");
+
+	return result;
 }
 
 static struct packet *client_pd_access_hl_next(pid_t pid, int handle, const struct packet *packet)
 {
+	struct packet *result;
 	struct client_node *client;
 	const char *pkgname;
 	const char *id;
@@ -2785,22 +2879,42 @@ static struct packet *client_pd_access_hl_next(pid_t pid, int handle, const stru
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		/*!
-		 * \TODO: Push up the ACCESS_HIGHLIGHT_NEXT event
-		 */
-		ret = 0;
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_HIGHLIGHT_NEXT, timestamp);
+		if (ret >= 0) {
+			struct access_cbdata *cbdata;
+
+			cbdata = malloc(sizeof(*cbdata));
+			if (!cbdata) {
+				ret = LB_STATUS_ERROR_MEMORY;
+			} else {
+				cbdata->inst = instance_ref(inst);
+				cbdata->status = ret;
+
+				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
+					instance_unref(cbdata->inst);
+					free(cbdata);
+					ret = LB_STATUS_ERROR_FAULT;
+				} else {
+					ret = LB_STATUS_SUCCESS;
+				}
+			}
+		}
 	} else {
 		ErrPrint("Unsupported package\n");
 		ret = LB_STATUS_ERROR_INVALID;
 	}
 
 out:
-	/*! \note No reply packet */
-	return NULL;
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a reply packet\n");
+
+	return result;
 }
 
 static struct packet *client_pd_access_activate(pid_t pid, int handle, const struct packet *packet)
 {
+	struct packet *result;
 	struct client_node *client;
 	const char *pkgname;
 	const char *id;
@@ -2899,18 +3013,37 @@ static struct packet *client_pd_access_activate(pid_t pid, int handle, const str
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		/*!
-		 * \TODO: Push up the ACCESS_ACTIVATE event
-		 */
-		ret = 0;
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_ACTIVATE, timestamp);
+		if (ret >= 0) {
+			struct access_cbdata *cbdata;
+
+			cbdata = malloc(sizeof(*cbdata));
+			if (!cbdata) {
+				ret = LB_STATUS_ERROR_MEMORY;
+			} else {
+				cbdata->inst = instance_ref(inst);
+				cbdata->status = ret;
+
+				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
+					instance_unref(cbdata->inst);
+					free(cbdata);
+					ret = LB_STATUS_ERROR_FAULT;
+				} else {
+					ret = LB_STATUS_SUCCESS;
+				}
+			}
+		}
 	} else {
 		ErrPrint("Unsupported package\n");
 		ret = LB_STATUS_ERROR_INVALID;
 	}
 
 out:
-	/*! \note No reply packet */
-	return NULL;
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a reply packet\n");
+
+	return result;
 }
 
 static struct packet *client_pd_key_down(pid_t pid, int handle, const struct packet *packet)
@@ -3199,6 +3332,7 @@ out:
 
 static struct packet *client_lb_access_hl(pid_t pid, int handle, const struct packet *packet)
 {
+	struct packet *result;
 	struct client_node *client;
 	const char *pkgname;
 	const char *id;
@@ -3297,23 +3431,42 @@ static struct packet *client_lb_access_hl(pid_t pid, int handle, const struct pa
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_HIGHLIGHT, timestamp);
+		if (ret >= 0) {
+			struct access_cbdata *cbdata;
 
-		/*!
-		 * \TODO: Feed up this ACCESS_HIGHLIGHT event
-		 */
-		ret = 0;
+			cbdata = malloc(sizeof(*cbdata));
+			if (!cbdata) {
+				ret = LB_STATUS_ERROR_MEMORY;
+			} else {
+				cbdata->inst = instance_ref(inst);
+				cbdata->status = ret;
+
+				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
+					instance_unref(cbdata->inst);
+					free(cbdata);
+					ret = LB_STATUS_ERROR_FAULT;
+				} else {
+					ret = LB_STATUS_SUCCESS;
+				}
+			}
+		}
 	} else {
 		ErrPrint("Unsupported package\n");
 		ret = LB_STATUS_ERROR_INVALID;
 	}
 
 out:
-	/*! \note No reply packet */
-	return NULL;
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a reply packet\n");
+
+	return result;
 }
 
 static struct packet *client_lb_access_hl_prev(pid_t pid, int handle, const struct packet *packet)
 {
+	struct packet *result;
 	struct client_node *client;
 	const char *pkgname;
 	const char *id;
@@ -3412,23 +3565,42 @@ static struct packet *client_lb_access_hl_prev(pid_t pid, int handle, const stru
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_HIGHLIGHT_PREV, timestamp);
+		if (ret >= 0) {
+			struct access_cbdata *cbdata;
 
-		/*!
-		 * \TODO: Feed up this ACCESS_HIGHLIGHT_PREV event
-		 */
-		ret = 0;
+			cbdata = malloc(sizeof(*cbdata));
+			if (!cbdata) {
+				ret = LB_STATUS_ERROR_MEMORY;
+			} else {
+				cbdata->inst = instance_ref(inst);
+				cbdata->status = ret;
+
+				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
+					instance_unref(cbdata->inst);
+					free(cbdata);
+					ret = LB_STATUS_ERROR_FAULT;
+				} else {
+					ret = LB_STATUS_SUCCESS;
+				}
+			}
+		}
 	} else {
 		ErrPrint("Unsupported package\n");
 		ret = LB_STATUS_ERROR_INVALID;
 	}
 
 out:
-	/*! \note No reply packet */
-	return NULL;
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a reply packet\n");
+
+	return result;
 }
 
 static struct packet *client_lb_access_hl_next(pid_t pid, int handle, const struct packet *packet)
 {
+	struct packet *result;
 	struct client_node *client;
 	const char *pkgname;
 	const char *id;
@@ -3527,23 +3699,42 @@ static struct packet *client_lb_access_hl_next(pid_t pid, int handle, const stru
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_HIGHLIGHT_NEXT, timestamp);
+		if (ret >= 0) {
+			struct access_cbdata *cbdata;
 
-		/*!
-		 * \TODO: Feed up this ACCESS_HIGHLIGHT_NEXT event
-		 */
-		ret = 0;
+			cbdata = malloc(sizeof(*cbdata));
+			if (!cbdata) {
+				ret = LB_STATUS_ERROR_MEMORY;
+			} else {
+				cbdata->inst = instance_ref(inst);
+				cbdata->status = ret;
+
+				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
+					instance_unref(cbdata->inst);
+					free(cbdata);
+					ret = LB_STATUS_ERROR_FAULT;
+				} else {
+					ret = LB_STATUS_SUCCESS;
+				}
+			}
+		}
 	} else {
 		ErrPrint("Unsupported package\n");
 		ret = LB_STATUS_ERROR_INVALID;
 	}
 
 out:
-	/*! \note No reply packet */
-	return NULL;
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a reply packet\n");
+
+	return result;
 }
 
 static struct packet *client_lb_access_value_change(pid_t pid, int handle, const struct packet *packet)
 {
+	struct packet *result;
 	struct client_node *client;
 	const char *pkgname;
 	const char *id;
@@ -3618,21 +3809,42 @@ static struct packet *client_lb_access_value_change(pid_t pid, int handle, const
 			goto out;
 		}
 
-		// script_handler_update_pointer(script, x, y, -1);
+		script_handler_update_pointer(script, x, y, -1);
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_VALUE_CHANGE, timestamp);
+		if (ret >= 0) {
+			struct access_cbdata *cbdata;
 
-		/*!
-		 * \TODO: Feed up this VALUE_CHANGE event
-		 */
+			cbdata = malloc(sizeof(*cbdata));
+			if (!cbdata) {
+				ret = LB_STATUS_ERROR_MEMORY;
+			} else {
+				cbdata->inst = instance_ref(inst);
+				cbdata->status = ret;
+
+				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
+					instance_unref(cbdata->inst);
+					free(cbdata);
+					ret = LB_STATUS_ERROR_FAULT;
+				} else {
+					ret = LB_STATUS_SUCCESS;
+				}
+			}
+		}
 	} else {
 		ErrPrint("Unsupported package\n");
 	}
 
 out:
-	return NULL;
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a reply packet\n");
+
+	return result;
 }
 
 static struct packet *client_lb_access_scroll(pid_t pid, int handle, const struct packet *packet)
 {
+	struct packet *result;
 	struct client_node *client;
 	const char *pkgname;
 	const char *id;
@@ -3708,20 +3920,41 @@ static struct packet *client_lb_access_scroll(pid_t pid, int handle, const struc
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_SCROLL, timestamp);
+		if (ret >= 0) {
+			struct access_cbdata *cbdata;
 
-		/*!
-		 * \TODO: Feed up this ACCESS_SCROLL event
-		 */
+			cbdata = malloc(sizeof(*cbdata));
+			if (!cbdata) {
+				ret = LB_STATUS_ERROR_MEMORY;
+			} else {
+				cbdata->inst = instance_ref(inst);
+				cbdata->status = ret;
+
+				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
+					instance_unref(cbdata->inst);
+					free(cbdata);
+					ret = LB_STATUS_ERROR_FAULT;
+				} else {
+					ret = LB_STATUS_SUCCESS;
+				}
+			}
+		}
 	} else {
 		ErrPrint("Unsupported package\n");
 	}
 
 out:
-	return NULL;
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a reply packet\n");
+
+	return result;
 }
 
 static struct packet *client_lb_access_activate(pid_t pid, int handle, const struct packet *packet)
 {
+	struct packet *result;
 	struct client_node *client;
 	const char *pkgname;
 	const char *id;
@@ -3814,17 +4047,36 @@ static struct packet *client_lb_access_activate(pid_t pid, int handle, const str
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_ACTIVATE, timestamp);
+		if (ret >= 0) {
+			struct access_cbdata *cbdata;
 
-		/*!
-		 * \TODO: Feed up this ACCESS_ACTIVATE event
-		 */
+			cbdata = malloc(sizeof(*cbdata));
+			if (!cbdata) {
+				ret = LB_STATUS_ERROR_MEMORY;
+			} else {
+				cbdata->inst = instance_ref(inst);
+				cbdata->status = ret;
+
+				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
+					instance_unref(cbdata->inst);
+					free(cbdata);
+					ret = LB_STATUS_ERROR_FAULT;
+				} else {
+					ret = LB_STATUS_SUCCESS;
+				}
+			}
+		}
 	} else {
 		ErrPrint("Unsupported package\n");
 	}
 
 out:
-	/*! \note No reply packet */
-	return NULL;
+	result = packet_create_reply(packet, "i", ret);
+	if (!result)
+		ErrPrint("Failed to create a reply packet\n");
+
+	return result;
 }
 
 static struct packet *client_lb_key_down(pid_t pid, int handle, const struct packet *packet)
@@ -4325,21 +4577,22 @@ out:
 
 static Eina_Bool lazy_pd_created_cb(void *data)
 {
-	int ret;
+	if (instance_unref(data)) {
+		int ret;
+		ret = instance_client_pd_created(data, LB_STATUS_SUCCESS);
+		DbgPrint("Send PD Create event (%d)\n", ret);
+	}
 
-	ret = instance_client_pd_created(data, LB_STATUS_SUCCESS);
-	DbgPrint("Send PD Create event (%d)\n", ret);
-
-	instance_unref(data);
 	return ECORE_CALLBACK_CANCEL;
 }
 
 static Eina_Bool lazy_pd_destroyed_cb(void *data)
 {
-	DbgPrint("Send PD Destroy event\n");
-	instance_client_pd_destroyed(data, LB_STATUS_SUCCESS);
+	if (instance_unref(data)) {
+		DbgPrint("Send PD Destroy event\n");
+		instance_client_pd_destroyed(data, LB_STATUS_SUCCESS);
+	}
 
-	instance_unref(data);
 	return ECORE_CALLBACK_CANCEL;
 }
 
@@ -4570,10 +4823,15 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 		 * \note
 		 * Send the destroyed PD event to the client
 		 */
-		if (ret == 0) {
+		if (ret == LB_STATUS_SUCCESS) {
 			inst = instance_ref(inst);
-			if (!ecore_timer_add(DELAY_TIME, lazy_pd_destroyed_cb, inst))
+			if (!ecore_timer_add(DELAY_TIME, lazy_pd_destroyed_cb, inst)) {
 				instance_unref(inst);
+				/*!
+				 * How can we handle this?
+				 */
+				ret = LB_STATUS_ERROR_FAULT;
+			}
 		}
 	} else {
 		ErrPrint("Invalid PD TYPE\n");
@@ -5186,6 +5444,53 @@ static struct packet *slave_pd_update_begin(pid_t pid, int handle, const struct 
 		(void)instance_pd_update_begin(inst);
 	} else {
 		ErrPrint("Invalid request[%s]\n", id);
+	}
+
+out:
+	return NULL;
+}
+
+static struct packet *slave_access_status(pid_t pid, int handle, const struct packet *packet)
+{
+	struct slave_node *slave;
+	struct pkg_info *pkg;
+	struct inst_info *inst;
+	const char *pkgname;
+	const char *id;
+	int status;
+	int ret;
+
+	slave = slave_find_by_pid(pid);
+	if (!slave) {
+		ErrPrint("Slave %d is not exists\n", pid);
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssi", &pkgname, &id, &status);
+	if (ret != 3) {
+		ErrPrint("Invalid parameters\n");
+		goto out;
+	}
+
+	inst = package_find_instance_by_id(pkgname, id);
+	if (!inst) {
+		ErrPrint("Instance[%s] is not exists\n", id);
+		goto out;
+	}
+
+	pkg = instance_package(inst);
+	if (!pkg) {
+		ErrPrint("Invalid package\n");
+	} else if (package_is_fault(pkg)) {
+		ErrPrint("Faulted instance %s\n", id);
+	} else if (instance_state(inst) == INST_DESTROYED) {
+		ErrPrint("Instance[%s] is already destroyed\n", id);
+	} else {
+		/*!
+		 * \note
+		 * Forward packet to client
+		 */
+		(void)instance_forward_packet(inst, packet_ref((struct packet *)packet));
 	}
 
 out:
@@ -6562,6 +6867,11 @@ static struct method s_slave_table[] = {
 	{
 		.cmd = "pd_update_end",
 		.handler = slave_pd_update_end,
+	},
+
+	{
+		.cmd = "access_status",
+		.handler = slave_access_status,
 	},
 
 	{

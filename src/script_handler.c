@@ -79,6 +79,7 @@ struct script_port {
 	int (*update_drag)(void *handle, Evas *e, const char *id, const char *part, double x, double y);
 	int (*update_size)(void *handle, Evas *e, const char *id, int w, int h);
 	int (*update_category)(void *handle, Evas *e, const char *id, const char *category);
+	int (*feed_event)(void *handle, Evas *e, int event_type, int x, int y, double timestamp);
 
 	void *(*create)(const char *file, const char *option);
 	int (*destroy)(void *handle);
@@ -1297,6 +1298,10 @@ HAPI int script_init(void)
 		if (!item->fini)
 			goto errout;
 
+		item->feed_event = dlsym(item->handle, "script_feed_event");
+		if (!item->feed_event)
+			goto errout;
+
 		if (item->init() < 0) {
 			ErrPrint("Failed to initialize script engine\n");
 			goto errout;
@@ -1345,6 +1350,24 @@ HAPI int script_handler_update_pointer(struct script_info *info, int x, int y, i
 		info->down = 1;
 
 	return LB_STATUS_SUCCESS;
+}
+
+HAPI int script_handler_feed_event(struct script_info *info, int event, double timestamp)
+{
+	Evas *e;
+
+	if (!info->port) {
+		ErrPrint("info->port is NIL\n");
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	e = script_handler_evas(info);
+	if (!e) {
+		ErrPrint("Evas is not exists\n");
+		return LB_STATUS_ERROR_FAULT;
+	}
+
+	return info->port->feed_event(info->port_data, e, event, info->x, info->y, timestamp);
 }
 
 /* End of a file */

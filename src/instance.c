@@ -2757,6 +2757,24 @@ HAPI int instance_need_slave(struct inst_info *inst)
 	return ret;
 }
 
+HAPI int instance_forward_packet(struct inst_info *inst, struct packet *packet)
+{
+	return CLIENT_SEND_EVENT(inst, packet);
+}
+
+HAPI int instance_send_access_status(struct inst_info *inst, int status)
+{
+	struct packet *packet;
+
+	packet = packet_create_noack("access_status", "ssi", package_name(inst->info), inst->id, status);
+	if (!packet) {
+		ErrPrint("Failed to build a packet\n");
+		return LB_STATUS_ERROR_FAULT;
+	}
+
+	return CLIENT_SEND_EVENT(inst, packet);
+}
+
 HAPI void instance_slave_set_pd_pos(struct inst_info *inst, double x, double y)
 {
 	inst->pd.x = x;
