@@ -1551,7 +1551,7 @@ HAPI int instance_lb_update_begin(struct inst_info *inst, double priority, const
 		ErrPrint("Unable to create a packet\n");
 		return LB_STATUS_ERROR_FAULT;
 	}
-	
+
 	return CLIENT_SEND_EVENT(inst, packet);
 }
 
@@ -1727,16 +1727,17 @@ HAPI int instance_hold_scroll(struct inst_info *inst, int hold)
 	struct packet *packet;
 
 	if (inst->scroll_locked == hold) {
-		DbgPrint("There is changes for hold state: %d\n", hold);
+		DbgPrint("[HOLD] There is changes for hold state: %d\n", hold);
 		return LB_STATUS_ERROR_ALREADY;
 	}
 
 	packet = packet_create_noack("scroll", "ssi", package_name(inst->info), inst->id, hold);
 	if (!packet) {
-		ErrPrint("Failed to build a packet\n");
+		ErrPrint("[HOLD] Failed to build a packet\n");
 		return LB_STATUS_ERROR_FAULT;
 	}
 
+	DbgPrint("[HOLD] (%s) %d\n", inst->id, hold);
 	inst->scroll_locked = hold;
 	return CLIENT_SEND_EVENT(inst, packet);
 }
