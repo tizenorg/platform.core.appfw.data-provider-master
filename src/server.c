@@ -83,8 +83,11 @@ static Eina_Bool lazy_access_status_cb(void *data)
 {
 	struct access_cbdata *cbdata = data;
 
-	if (instance_unref(cbdata->inst))
+	if (instance_unref(cbdata->inst)) {
 		instance_send_access_status(cbdata->inst, cbdata->status);
+	} else {
+		DbgPrint("Skip sending access status (%d)\n", cbdata->status);
+	}
 	/*!
 	 * If instance_unref returns NULL,
 	 * The instance is destroyed. it means, we don't need to send event to the viewer
@@ -2928,6 +2931,7 @@ static struct packet *client_pd_access_hl_next(pid_t pid, int handle, const stru
 		goto out;
 	}
 
+	DbgPrint("%s %s %lf %d %d\n", pkgname, id, timestamp, x, y);
 	/*!
 	 * \NOTE:
 	 * Trust the package name which are sent by the client.
@@ -2982,6 +2986,7 @@ static struct packet *client_pd_access_hl_next(pid_t pid, int handle, const stru
 			goto out;
 		}
 		*/
+		DbgPrint("Buffer type PD\n");
 
 		packet_ref((struct packet *)packet);
 		ret = slave_rpc_request_only(slave, pkgname, (struct packet *)packet, 0);
@@ -2991,12 +2996,14 @@ static struct packet *client_pd_access_hl_next(pid_t pid, int handle, const stru
 
 		script = instance_pd_script(inst);
 		if (!script) {
+			DbgPrint("Script is not created yet\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		e = script_handler_evas(script);
 		if (!e) {
+			DbgPrint("Evas is not exists\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -3008,19 +3015,24 @@ static struct packet *client_pd_access_hl_next(pid_t pid, int handle, const stru
 
 			cbdata = malloc(sizeof(*cbdata));
 			if (!cbdata) {
+				ErrPrint("Heap: %s\n", strerror(errno));
 				ret = LB_STATUS_ERROR_MEMORY;
 			} else {
 				cbdata->inst = instance_ref(inst);
 				cbdata->status = ret;
 
 				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
+					DbgPrint("Failed to add timer\n");
 					instance_unref(cbdata->inst);
 					free(cbdata);
 					ret = LB_STATUS_ERROR_FAULT;
 				} else {
+					DbgPrint("Timer is added\n");
 					ret = LB_STATUS_SUCCESS;
 				}
 			}
+		} else {
+			DbgPrint("Returns: %d\n", ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
