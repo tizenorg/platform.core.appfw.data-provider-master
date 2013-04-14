@@ -40,6 +40,8 @@ start ()
 		exit 0
 	fi
 
+	df > /var/log/master.space.log
+
 	rm /tmp/.stop.provider
 	launch_provider &
 }

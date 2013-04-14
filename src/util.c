@@ -199,6 +199,7 @@ HAPI unsigned long util_free_space(const char *path)
 	}
 
 	space = st.f_bsize * st.f_bfree;
+	DbgPrint("Available size: %lu, f_bsize: %lu, f_bfree: %lu\n", space, st.f_bsize, st.f_bfree);
 	/*!
 	 * \note
 	 * Must have to check the overflow
