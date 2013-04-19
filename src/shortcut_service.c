@@ -26,6 +26,7 @@
 #include "service_common.h"
 #include "debug.h"
 #include "util.h"
+#include "conf.h"
 
 #define SHORTCUT_ADDR	"/tmp/.shortcut.service"
 
@@ -105,7 +106,7 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 		DbgPrint("REQ: Command: [%s]\n", command);
 		if (!strcmp(command, "register_service")) {
 			/*!
-			 * To multicast event packets to the service clients
+			 * Multicast packets event packets to the service clients
 			 */
 			tcb_client_type_set(tcb, TCB_CLIENT_TYPE_SERVICE);
 			break;
@@ -157,7 +158,7 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
  * Do not try to do anyother operation in these functions
  */
 
-int service_shortcut_init(void)
+HAPI int shortcut_service_init(void)
 {
 	if (s_info.svc_ctx) {
 		ErrPrint("Already initialized\n");
@@ -165,13 +166,15 @@ int service_shortcut_init(void)
 	}
 
 	s_info.svc_ctx = service_common_create(SHORTCUT_ADDR, service_thread_main, NULL);
-	if (!s_info.svc_ctx)
+	if (!s_info.svc_ctx) {
+		ErrPrint("Unable to activate service thread\n");
 		return LB_STATUS_ERROR_FAULT;
+	}
 
 	return LB_STATUS_SUCCESS;
 }
 
-int service_shortcut_fini(void)
+HAPI int shortcut_service_fini(void)
 {
 	if (!s_info.svc_ctx)
 		return LB_STATUS_ERROR_INVALID;
