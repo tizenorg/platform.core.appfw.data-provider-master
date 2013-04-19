@@ -84,12 +84,6 @@ struct packet_info {
 	struct packet *packet;
 };
 
-enum tcb_type {
-	TCB_CLIENT_TYPE_UNDEFINED = 0x00,
-	TCB_CLIENT_TYPE_APP	= 0x01,
-	TCB_CLIENT_TYPE_SERVICE	= 0x02,
-	TCB_CLIENT_TYPE_UNKNOWN = 0xff,
-};
 /*!
  * \note
  * Thread Control Block
@@ -142,6 +136,7 @@ static void *client_packet_pump_main(void *data)
 	struct tcb *tcb = data;
 	struct service_context *svc_ctx = tcb->svc_ctx;
 	struct packet *packet;
+	fd_set set;
 	char *ptr;
 	int size;
 	int packet_offset;
@@ -159,7 +154,35 @@ static void *client_packet_pump_main(void *data)
 
 	ret = 0;
 	recv_state = RECV_INIT;
+	/*!
+	 * \note
+	 * To escape from the switch statement, we use this ret value
+	 */
 	while (ret == 0) {
+		FD_ZERO(&set);
+		FD_SET(tcb->fd, &set);
+		ret = select(tcb->fd + 1, &set, NULL, NULL, NULL);
+		if (ret < 0) {
+			ret = -errno;
+			if (errno == EINTR) {
+				DbgPrint("INTERRUPTED\n");
+				ret = 0;
+				continue;
+			}
+			ErrPrint("Error: %s\n",strerror(errno));
+			break;
+		} else if (ret == 0) {
+			ErrPrint("Timeout\n");
+			ret = -ETIMEDOUT;
+			break;
+		}
+
+		if (FD_ISSET(tcb->fd, &set)) {
+			ErrPrint("Unexpected handler is toggled\n");
+			ret = -EINVAL;
+			break;
+		}
+		
 		/*!
 		 * \TODO
 		 * Service!!! Receive packet & route packet
@@ -176,15 +199,19 @@ static void *client_packet_pump_main(void *data)
 				ret = -ENOMEM;
 				break;
 			}
-			break;
+			recv_state = RECV_HEADER;
+			/* Go through, don't break from here */
 		case RECV_HEADER:
 			ret = secure_socket_recv(tcb->fd, ptr, size - recv_offset, &pid);
 			if (ret <= 0) {
+				if (ret == 0)
+					ret = -ECANCELED;
 				free(ptr);
 				break;
 			}
 
 			recv_offset += ret;
+			ret = 0;
 
 			if (recv_offset == size) {
 				packet = packet_build(packet, packet_offset, ptr, size);
@@ -198,7 +225,7 @@ static void *client_packet_pump_main(void *data)
 
 				recv_state = RECV_PAYLOAD;
 				recv_offset = 0;
-				size = packet_size(packet);
+				size = packet_payload_size(packet);
 
 				ptr = malloc(size);
 				if (!ptr) {
@@ -210,11 +237,14 @@ static void *client_packet_pump_main(void *data)
 		case RECV_PAYLOAD:
 			ret = secure_socket_recv(tcb->fd, ptr, size - recv_offset, &pid);
 			if (ret <= 0) {
+				if (ret == 0)
+					ret = -ECANCELED;
 				free(ptr);
 				break;
 			}
 
 			recv_offset += ret;
+			ret = 0;
 
 			if (recv_offset == size) {
 				packet = packet_build(packet, packet_offset, ptr, size);
@@ -262,8 +292,11 @@ static void *client_packet_pump_main(void *data)
 				break;
 			}
 			DbgPrint("Packet received: %d bytes\n", packet_offset);
+
+			recv_state = RECV_INIT;
 			break;
 		default:
+			/* Dead code */
 			break;
 		}
 	}
@@ -633,7 +666,7 @@ HAPI int tcb_client_type(struct tcb *tcb)
 	return tcb->type;
 }
 
-HAPI int tcb_client_set_type(struct tcb *tcb, enum tcb_type type)
+HAPI int tcb_client_type_set(struct tcb *tcb, enum tcb_type type)
 {
 	if (!tcb)
 		return -EINVAL;
@@ -654,6 +687,7 @@ HAPI int service_common_unicast_packet(struct tcb *tcb, struct packet *packet)
 {
 	if (!tcb || !packet)
 		return -EINVAL;
+
 	return secure_socket_send(tcb->fd, (void *)packet_data(packet), packet_size(packet));
 }
 

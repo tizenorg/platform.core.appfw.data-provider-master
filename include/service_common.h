@@ -13,12 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+enum tcb_type {
+	TCB_CLIENT_TYPE_UNDEFINED = 0x00,
+	TCB_CLIENT_TYPE_APP	= 0x01,
+	TCB_CLIENT_TYPE_SERVICE	= 0x02,
+	TCB_CLIENT_TYPE_UNKNOWN = 0xff,
+};
+
 struct tcb;
 struct service_context;
 
 extern int tcb_fd(struct tcb *tcb);
 extern struct service_context *tcb_svc_ctx(struct tcb *tcb);
 extern int tcb_client_type(struct tcb *tcb);
+extern int tcb_client_type_set(struct tcb *tcb, enum tcb_type type);
 
 extern struct service_context *service_common_create(const char *addr, int (*service_thread_main)(struct tcb *tcb, struct packet *packet, void *data), void *data);
 extern int service_common_destroy(struct service_context *svc_ctx);
