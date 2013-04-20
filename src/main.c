@@ -28,6 +28,7 @@
 #include <glib.h>
 #include <glib-object.h>
 #include <aul.h>
+#include <vconf.h>
 
 #include <packet.h>
 #include <dlog.h>
@@ -243,7 +244,11 @@ int main(int argc, char *argv[])
 	script_init();
 
 	app_create();
+
+	vconf_set_bool(VCONFKEY_MASTER_STARTED, 1);
 	ecore_main_loop_begin();
+	vconf_set_bool(VCONFKEY_MASTER_STARTED, 0);
+
 	app_terminate();
 
 	script_fini();
