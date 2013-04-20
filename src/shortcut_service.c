@@ -94,24 +94,19 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 {
 	const char *command;
 
+	DbgPrint("TCB: %p, Packet: %p\n", tcb, packet);
+
 	command = packet_command(packet);
 	if (!command) {
 		ErrPrint("Invalid command\n");
 		return -EINVAL;
 	}
+	DbgPrint("Command: %s, Packet type[%d]\n", command, packet_type(packet));
 
 	switch (packet_type(packet)) {
 	case PACKET_REQ:
 		/* Need to send reply packet */
 		DbgPrint("REQ: Command: [%s]\n", command);
-		if (!strcmp(command, "register_service")) {
-			/*!
-			 * Multicast packets event packets to the service clients
-			 */
-			tcb_client_type_set(tcb, TCB_CLIENT_TYPE_SERVICE);
-			break;
-		}
-
 		if (service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE) < 0)
 			ErrPrint("Unable to send service request packet\n");
 		else
@@ -120,7 +115,7 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 	case PACKET_REQ_NOACK:
 		/* Doesn't need to send reply packet */
 		DbgPrint("REQ_NOACK: Command: [%s]\n", command);
-		if (!strcmp(command, "register_service")) {
+		if (!strcmp(command, "service_register")) {
 			tcb_client_type_set(tcb, TCB_CLIENT_TYPE_SERVICE);
 			break;
 		}
@@ -171,6 +166,7 @@ HAPI int shortcut_service_init(void)
 		return LB_STATUS_ERROR_FAULT;
 	}
 
+	DbgPrint("Successfully initiated\n");
 	return LB_STATUS_SUCCESS;
 }
 
@@ -180,6 +176,7 @@ HAPI int shortcut_service_fini(void)
 		return LB_STATUS_ERROR_INVALID;
 
 	service_common_destroy(s_info.svc_ctx);
+	DbgPrint("Successfully Finalized\n");
 	return LB_STATUS_SUCCESS;
 }
 

@@ -50,6 +50,7 @@
 #include "debug.h"
 #include "critical_log.h"
 #include "event.h"
+#include "shortcut_service.h"
 
 #if defined(FLOG)
 FILE *__file_log_fp;
@@ -238,6 +239,7 @@ int main(int argc, char *argv[])
 	(void)util_unlink_files(IMAGE_PATH);
 	(void)util_unlink_files(SLAVE_LOG_PATH);
 
+	shortcut_service_init();
 	script_init();
 
 	app_create();
@@ -245,6 +247,7 @@ int main(int argc, char *argv[])
 	app_terminate();
 
 	script_fini();
+	shortcut_service_fini();
 
 	ecore_evas_shutdown();
 	evas_shutdown();

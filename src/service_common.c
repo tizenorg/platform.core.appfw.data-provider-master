@@ -104,6 +104,7 @@ static void *client_packet_pump_main(void *data)
 
 	ret = 0;
 	recv_state = RECV_INIT;
+	DbgPrint("Socket data pumping thread is activated\n");
 	/*!
 	 * \note
 	 * To escape from the switch statement, we use this ret value
@@ -238,6 +239,7 @@ static void *client_packet_pump_main(void *data)
 			packet_info->packet = packet;
 			packet_info->tcb = tcb;
 
+			DbgPrint("New packet is built\n");
 			CRITICAL_SECTION_BEGIN(&svc_ctx->packet_list_lock);
 			svc_ctx->packet_list = eina_list_append(svc_ctx->packet_list, packet_info);
 			CRITICAL_SECTION_END(&svc_ctx->packet_list_lock);
@@ -297,7 +299,9 @@ static inline struct tcb *tcb_create(struct service_context *svc_ctx, int fd)
 
 	tcb->fd = fd;
 	tcb->svc_ctx = svc_ctx;
+	tcb->type = TCB_CLIENT_TYPE_APP;
 
+	DbgPrint("Create a new service thread [%d]\n", fd);
 	status = pthread_create(&tcb->thid, NULL, client_packet_pump_main, tcb);
 	if (status != 0) {
 		ErrPrint("Unable to create a new thread: %s\n", strerror(status));
@@ -385,6 +389,7 @@ static void *server_main(void *data)
 	Eina_List *n;
 	struct packet_info *packet_info;
 
+	DbgPrint("Server thread is activated\n");
 	fd = svc_ctx->fd > svc_ctx->tcb_pipe[PIPE_READ] ? svc_ctx->fd : svc_ctx->tcb_pipe[PIPE_READ];
 	fd = fd > svc_ctx->evt_pipe[PIPE_READ] ? fd : svc_ctx->evt_pipe[PIPE_READ];
 	fd += 1;
@@ -515,7 +520,7 @@ HAPI struct service_context *service_common_create(const char *addr, int (*servi
 	if (unlink(addr) < 0)
 		ErrPrint("[%s] - %s\n", addr, strerror(errno));
 
-	svc_ctx = malloc(sizeof(*svc_ctx));
+	svc_ctx = calloc(1, sizeof(*svc_ctx));
 	if (!svc_ctx) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		return NULL;
@@ -561,6 +566,7 @@ HAPI struct service_context *service_common_create(const char *addr, int (*servi
 		return NULL;
 	}
 
+	DbgPrint("Creating server thread\n");
 	status = pthread_create(&svc_ctx->server_thid, NULL, server_main, svc_ctx);
 	if (status != 0) {
 		ErrPrint("Unable to create a thread for shortcut service: %s\n", strerror(status));
@@ -644,6 +650,7 @@ HAPI int tcb_client_type_set(struct tcb *tcb, enum tcb_type type)
 	if (!tcb)
 		return -EINVAL;
 
+	DbgPrint("TCB[%p] Client type is changed to %d from %d\n", tcb, type, tcb->type);
 	tcb->type = type;
 	return 0;
 }
@@ -672,6 +679,7 @@ HAPI int service_common_unicast_packet(struct tcb *tcb, struct packet *packet)
 
 	svc_ctx = tcb->svc_ctx;
 
+	DbgPrint("Unicast packet\n");
 	return secure_socket_send(tcb->fd, (void *)packet_data(packet), packet_size(packet));
 }
 
@@ -691,14 +699,18 @@ HAPI int service_common_multicast_packet(struct tcb *tcb, struct packet *packet,
 
 	svc_ctx = tcb->svc_ctx;
 
+	DbgPrint("Multicasting packets\n");
 	EINA_LIST_FOREACH(svc_ctx->tcb_list, l, target) {
-		if (target == tcb || target->type != type)
+		if (target == tcb || target->type != type) {
+			DbgPrint("Skip target: %p(%d) == %p/%d\n", target, target->type, tcb, type);
 			continue;
+		}
 
 		ret = secure_socket_send(target->fd, (void *)packet_data(packet), packet_size(packet));
 		if (ret < 0)
 			ErrPrint("Failed to send packet: %d\n", ret);
 	}
+	DbgPrint("Finish to multicast packet\n");
 	return 0;
 }
 
