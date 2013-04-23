@@ -126,7 +126,7 @@ static void _handler_insert(struct tcb *tcb, struct packet *packet, void *data)
 				packet_destroy(packet_reply);
 			}
 
-			packet_service = notification_ipc_make_packet_from_noti(noti, "add_noti", 3);
+			packet_service = notification_ipc_make_packet_from_noti(noti, "add_noti", 2);
 			if (packet_service != NULL) {
 				service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE);
 				packet_destroy(packet_service);
@@ -164,7 +164,7 @@ static void _handler_update(struct tcb *tcb, struct packet *packet, void *data)
 				packet_destroy(packet_reply);
 			}
 
-			packet_service = notification_ipc_make_packet_from_noti(noti, "update_noti", 3);
+			packet_service = notification_ipc_make_packet_from_noti(noti, "update_noti", 2);
 			if (packet_service != NULL) {
 				service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE);
 				packet_destroy(packet_service);
@@ -271,6 +271,20 @@ static void _handler_delete_multiple(struct tcb *tcb, struct packet *packet, voi
 	}
 }
 
+static void _handler_service_register(struct tcb *tcb, struct packet *packet, void *data)
+{
+	struct packet *packet_reply;
+	int ret;
+
+	ret = tcb_client_type_set(tcb, TCB_CLIENT_TYPE_SERVICE);
+
+	packet_reply = packet_create_reply(packet, "i", ret);
+	if (packet_reply) {
+		service_common_unicast_packet(tcb, packet_reply);
+		packet_destroy(packet_reply);
+	}
+}
+
 /*!
  * SERVICE THREAD
  */
@@ -300,6 +314,10 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 			.handler = _handler_delete_multiple,
 		},
 		{
+			.cmd = "service_register",
+			.handler = _handler_service_register,
+		},
+		{
 			.cmd = NULL,
 			.handler = NULL,
 		},
@@ -325,12 +343,9 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 
 			service_req_table[i].handler(tcb, packet, data);
 		}
+
 		break;
 	case PACKET_REQ_NOACK:
-		DbgPrint("REQ_NOACK: Command: [%s]\n", command);
-		if (!strcmp(command, "service_register")) {
-			tcb_client_type_set(tcb, TCB_CLIENT_TYPE_SERVICE);
-		}
 		break;
 	case PACKET_ACK:
 		break;
