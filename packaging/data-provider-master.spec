@@ -32,6 +32,7 @@ BuildRequires: pkgconfig(xext)
 BuildRequires: pkgconfig(xdamage)
 BuildRequires: pkgconfig(pkgmgr)
 BuildRequires: pkgconfig(livebox-service)
+BuildRequires: pkgconfig(notification)
 BuildRequires: sec-product-features
 
 %description

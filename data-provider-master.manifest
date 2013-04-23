@@ -13,6 +13,7 @@
 		</request>
 		<permit>
 			<smack permit="dbus" type="rx" />
+			<smack permit="notification::db" type="rw" />
 		</permit>
 	</define>
 	<request>

@@ -28,6 +28,7 @@ pkg_check_modules(pkg REQUIRED
 	xdamage
 	pkgmgr
 	livebox-service
+	notification
 )
 
 SET(PACKAGE "${PROJECT_NAME}")
