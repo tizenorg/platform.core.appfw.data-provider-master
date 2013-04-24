@@ -266,6 +266,11 @@ static void _handler_delete_multiple(struct tcb *tcb, struct packet *packet, voi
 				}
 			}
 		}
+
+		if (list_deleted != NULL) {
+			free(list_deleted);
+			list_deleted = NULL;
+		}
 	} else {
 		ErrPrint("Failed to get data from the packet");
 	}
