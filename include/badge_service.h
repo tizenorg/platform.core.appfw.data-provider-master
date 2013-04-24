@@ -14,3 +14,7 @@
  * limitations under the License.
  */
 
+extern int badge_service_init(void);
+extern int badge_service_fini(void);
+
+/* End of a file */
