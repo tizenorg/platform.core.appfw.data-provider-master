@@ -87,6 +87,7 @@ HAPI int critical_log(const char *func, int line, const char *fmt, ...)
 		return LB_STATUS_ERROR_IO;
 
 	if (gettimeofday(&tv, NULL) < 0) {
+		ErrPrint("gettimeofday: %s\n", strerror(errno));
 		tv.tv_sec = 0;
 		tv.tv_usec = 0;
 	}

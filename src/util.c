@@ -352,12 +352,26 @@ HAPI double util_time_delay_for_compensation(double period)
 	unsigned int usec;
 	double ret;
 
-	gettimeofday(&tv, NULL);
+	if (period == 0.0f) {
+		DbgPrint("Period is ZERO\n");
+		return 0.0f;
+	}
+
+	if (gettimeofday(&tv, NULL) < 0){
+		ErrPrint("gettimeofday: %s\n", strerror(errno));
+		return period;
+	}
+
 	curtime = (unsigned long long)tv.tv_sec * 1000000llu + (unsigned long long)tv.tv_usec;
 
 	sec = (unsigned int)period;
 	usec = (period - sec) * 1000000;
+
 	_period = (unsigned long long)sec * 1000000llu + usec;
+	if (_period == 0) {
+		DbgPrint("_period is ZERO\n");
+		return period;
+	}
 
 	remain = curtime % _period;
 
