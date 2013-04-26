@@ -52,8 +52,8 @@
 #include "critical_log.h"
 #include "event.h"
 #include "shortcut_service.h"
-#include "notification_service.h"
-#include "badge_service.h"
+//#include "notification_service.h"
+//#include "badge_service.h"
 
 #if defined(FLOG)
 FILE *__file_log_fp;
@@ -243,8 +243,8 @@ int main(int argc, char *argv[])
 	(void)util_unlink_files(SLAVE_LOG_PATH);
 
 	shortcut_service_init();
-	notification_service_init();
-	badge_service_init();
+//	notification_service_init();
+//	badge_service_init();
 	script_init();
 
 	app_create();
@@ -257,8 +257,8 @@ int main(int argc, char *argv[])
 
 	script_fini();
 	shortcut_service_fini();
-	notification_service_fini();
-	badge_service_fini();
+//	notification_service_fini();
+//	badge_service_fini();
 
 	ecore_evas_shutdown();
 	evas_shutdown();
