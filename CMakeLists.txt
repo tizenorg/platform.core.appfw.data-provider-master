@@ -29,6 +29,7 @@ pkg_check_modules(pkg REQUIRED
 	pkgmgr
 	livebox-service
 	notification
+	badge
 )
 
 SET(PACKAGE "${PROJECT_NAME}")
