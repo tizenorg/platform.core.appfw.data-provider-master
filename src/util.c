@@ -20,7 +20,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <sys/statvfs.h>
+#include <sys/vfs.h>
 #include <sys/types.h>
 #include <dirent.h>
 #include <ctype.h>
@@ -191,18 +191,21 @@ HAPI const char *util_basename(const char *name)
 	return length <= 0 ? name : (name + length + (name[length] == '/'));
 }
 
-HAPI unsigned long util_free_space(const char *path)
+/*!
+ * Return size of stroage in MegaBytes unit.
+ */
+HAPI unsigned long long util_free_space(const char *path)
 {
-	struct statvfs st;
-	unsigned long space;
+	struct statfs st;
+	unsigned long long space;
 
-	if (statvfs(path, &st) < 0) {
+	if (statfs(path, &st) < 0) {
 		ErrPrint("statvfs: %s\n", strerror(errno));
 		return 0lu;
 	}
 
-	space = st.f_bsize * st.f_bfree;
-	DbgPrint("Available size: %lu, f_bsize: %lu, f_bfree: %lu\n", space, st.f_bsize, st.f_bfree);
+	space = (unsigned long long)st.f_bsize * (unsigned long long)st.f_bavail;
+	DbgPrint("Available size: %llu, f_bsize: %lu, f_bavail: %lu\n", space, st.f_bsize, st.f_bavail);
 	/*!
 	 * \note
 	 * Must have to check the overflow
