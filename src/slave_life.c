@@ -509,8 +509,11 @@ HAPI int slave_activated(struct slave_node *slave)
 	slave_set_reactivation(slave, 0);
 	slave_set_reactivate_instances(slave, 0);
 
-	if (gettimeofday(&slave->activated_at, NULL) < 0)
+	if (gettimeofday(&slave->activated_at, NULL) < 0) {
 		ErrPrint("Failed to get time of day: %s\n", strerror(errno));
+		slave->activated_at.tv_sec = 0;
+		slave->activated_at.tv_usec = 0;
+	}
 
 	if (slave->activate_timer) {
 		ecore_timer_del(slave->activate_timer);
