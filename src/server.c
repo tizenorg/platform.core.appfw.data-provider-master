@@ -674,9 +674,6 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		if (period > 0.0f && period < MINIMUM_PERIOD)
 			period = MINIMUM_PERIOD;
 
-		if (!strlen(content))
-			content = DEFAULT_CONTENT;
-
 		inst = instance_create(client, timestamp, lb_pkgname, content, cluster, category, period, width, height);
 		/*!
 		 * \note
@@ -6077,7 +6074,7 @@ static inline int update_pkg_cb(struct category *category, const char *pkgname)
 		 * Because this callback is called by the requests of clients.
 		 * It means. some clients wants to handle this instances ;)
 		 */
-		inst = instance_create(NULL, timestamp, pkgname, DEFAULT_CONTENT, c_name, s_name, DEFAULT_PERIOD, 0, 0);
+		inst = instance_create(NULL, timestamp, pkgname, "", c_name, s_name, DEFAULT_PERIOD, 0, 0);
 		if (!inst)
 			ErrPrint("Failed to create a new instance\n");
 	} else {
