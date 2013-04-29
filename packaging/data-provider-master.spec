@@ -32,9 +32,8 @@ BuildRequires: pkgconfig(xext)
 BuildRequires: pkgconfig(xdamage)
 BuildRequires: pkgconfig(pkgmgr)
 BuildRequires: pkgconfig(livebox-service)
-# Temporarly comment out the notification & badge
-# BuildRequires: pkgconfig(notification)
-# BuildRequires: pkgconfig(badge)
+BuildRequires: pkgconfig(notification)
+BuildRequires: pkgconfig(badge)
 BuildRequires: sec-product-features
 
 %description

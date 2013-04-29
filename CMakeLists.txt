@@ -28,8 +28,8 @@ pkg_check_modules(pkg REQUIRED
 	xdamage
 	pkgmgr
 	livebox-service
-#	notification
-#	badge
+	notification
+	badge
 )
 
 SET(PACKAGE "${PROJECT_NAME}")
@@ -80,8 +80,8 @@ ADD_EXECUTABLE(${PROJECT_NAME}
 	src/pkgmgr.c
 	src/event.c
 	src/shortcut_service.c
-#	src/badge_service.c
-#	src/notification_service.c
+	src/badge_service.c
+	src/notification_service.c
 	src/service_common.c
 )
 
