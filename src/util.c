@@ -351,8 +351,6 @@ HAPI double util_time_delay_for_compensation(double period)
 	unsigned long long curtime;
 	unsigned long long _period;
 	unsigned long long remain;
-	unsigned int sec;
-	unsigned int usec;
 	double ret;
 
 	if (period == 0.0f) {
@@ -366,22 +364,16 @@ HAPI double util_time_delay_for_compensation(double period)
 	}
 
 	curtime = (unsigned long long)tv.tv_sec * 1000000llu + (unsigned long long)tv.tv_usec;
-
-	sec = (unsigned int)period;
-	usec = (period - sec) * 1000000;
-
-	_period = (unsigned long long)sec * 1000000llu + usec;
-	if (_period == 0) {
-		DbgPrint("_period is ZERO\n");
+	_period = (unsigned long long)(period * (double)1000000);
+	if (_period == 0llu) {
+		ErrPrint("%lf <> %llu\n", period, _period);
 		return period;
 	}
 
 	remain = curtime % _period;
 
-	sec = (unsigned int)(remain / 1000000llu);
-	usec = (unsigned int)(remain % 1000000llu);
-
-	ret = (double)sec + (double)usec / 1000000.0f;
+	ret = (double)remain / (double)1000000;
+	DbgPrint("curtime: %llu, _period: %llu, remain: %llu, ret: %lf, result: %lf\n", curtime, _period, remain, ret, period - ret);
 	return period - ret;
 }
 
