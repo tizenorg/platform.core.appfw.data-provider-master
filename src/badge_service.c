@@ -287,6 +287,7 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 				continue;
 
 			service_req_table[i].handler(tcb, packet, data);
+			break;
 		}
 
 		break;
