@@ -395,8 +395,6 @@ static void *server_main(void *data)
 	struct tcb *tcb;
 	int fd;
 	char evt_ch;
-	Eina_List *l;
-	Eina_List *n;
 	struct packet_info *packet_info;
 
 	DbgPrint("Server thread is activated\n");
@@ -497,10 +495,9 @@ static void *server_main(void *data)
 	 * This only should be happenes while terminating the master daemon process.
 	 */
 	CRITICAL_SECTION_BEGIN(&svc_ctx->packet_list_lock);
-	EINA_LIST_FOREACH_SAFE(svc_ctx->packet_list, l, n, packet_info) {
+	EINA_LIST_FREE(svc_ctx->packet_list, packet_info) {
 		ret = read(svc_ctx->evt_pipe[PIPE_READ], &evt_ch, sizeof(evt_ch));
 		DbgPrint("Flushing pipe: %d (%c)\n", ret, evt_ch);
-		svc_ctx->packet_list = eina_list_remove(svc_ctx->packet_list, packet_info);
 		ret = svc_ctx->service_thread_main(packet_info->tcb, packet_info->packet, svc_ctx->service_thread_data);
 		if (ret < 0)
 			ErrPrint("Service thread returns: %d\n", ret);
