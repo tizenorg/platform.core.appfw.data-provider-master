@@ -1,7 +1,7 @@
 /*
  * Copyright 2013  Samsung Electronics Co., Ltd
  *
- * Licensed under the Flora License, Version 1.0 (the "License");
+ * Licensed under the Flora License, Version 1.1 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -22,7 +22,7 @@ extern int util_unlink(const char *filename);
 extern int util_unlink_files(const char *folder);
 extern char *util_slavename(void);
 extern const char *util_basename(const char *name);
-extern unsigned long util_free_space(const char *path);
+extern unsigned long long util_free_space(const char *path);
 extern char *util_replace_string(const char *src, const char *pattern, const char *replace);
 extern const char *util_uri_to_path(const char *uri);
 extern void *util_timer_add(double interval, Eina_Bool (*cb)(void *data), void *data);
@@ -33,5 +33,49 @@ extern double util_time_delay_for_compensation(double period);
 #define SCHEMA_FILE	"file://"
 #define SCHEMA_PIXMAP	"pixmap://"
 #define SCHEMA_SHM	"shm://"
+
+#define CRITICAL_SECTION_BEGIN(handle) \
+do { \
+	int ret; \
+	ret = pthread_mutex_lock(handle); \
+	if (ret != 0) \
+		ErrPrint("Failed to lock: %s\n", strerror(ret)); \
+} while (0)
+
+#define CRITICAL_SECTION_END(handle) \
+do { \
+	int ret; \
+	ret = pthread_mutex_unlock(handle); \
+	if (ret != 0) \
+		ErrPrint("Failed to unlock: %s\n", strerror(ret)); \
+} while (0)
+
+#define CANCEL_SECTION_BEGIN() do { \
+	int ret; \
+	ret = pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL); \
+	if (ret != 0) \
+		ErrPrint("Unable to set cancelate state: %s\n", strerror(ret)); \
+} while (0)
+
+#define CANCEL_SECTION_END() do { \
+	int ret; \
+	ret = pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL); \
+	if (ret != 0) \
+		ErrPrint("Unable to set cancelate state: %s\n", strerror(ret)); \
+} while (0)
+
+#define CLOSE_PIPE(p)	do { \
+	int status; \
+	status = close(p[PIPE_READ]); \
+	if (status < 0) \
+		ErrPrint("close: %s\n", strerror(errno)); \
+	status = close(p[PIPE_WRITE]); \
+	if (status < 0) \
+		ErrPrint("close: %s\n", strerror(errno)); \
+} while (0)
+
+#define PIPE_READ 0
+#define PIPE_WRITE 1
+#define PIPE_MAX 2
 
 /* End of a file */

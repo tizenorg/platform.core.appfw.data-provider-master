@@ -1,7 +1,7 @@
 /*
  * Copyright 2013  Samsung Electronics Co., Ltd
  *
- * Licensed under the Flora License, Version 1.0 (the "License");
+ * Licensed under the Flora License, Version 1.1 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -173,7 +173,7 @@ static int slave_fault_cb(struct slave_node *slave, void *data)
 		return 0;
 	}
 
-	package_set_fault_info(info, util_timestamp(), slave_name(slave), __func__);
+	(void)package_set_fault_info(info, util_timestamp(), slave_name(slave), __func__);
 	fault_broadcast_info(package_name(info), slave_name(slave), __func__);
 
 	DbgPrint("Slave critical fault - package: %s (by slave fault %s\n", package_name(info), slave_name(slave));

@@ -1,7 +1,7 @@
 /*
  * Copyright 2013  Samsung Electronics Co., Ltd
  *
- * Licensed under the Flora License, Version 1.0 (the "License");
+ * Licensed under the Flora License, Version 1.1 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -28,6 +28,7 @@
 #include <glib.h>
 #include <glib-object.h>
 #include <aul.h>
+#include <vconf.h>
 
 #include <packet.h>
 #include <dlog.h>
@@ -50,6 +51,9 @@
 #include "debug.h"
 #include "critical_log.h"
 #include "event.h"
+#include "shortcut_service.h"
+#include "notification_service.h"
+#include "badge_service.h"
 
 #if defined(FLOG)
 FILE *__file_log_fp;
@@ -238,13 +242,23 @@ int main(int argc, char *argv[])
 	(void)util_unlink_files(IMAGE_PATH);
 	(void)util_unlink_files(SLAVE_LOG_PATH);
 
+	shortcut_service_init();
+	notification_service_init();
+	badge_service_init();
 	script_init();
 
 	app_create();
+
+	vconf_set_bool(VCONFKEY_MASTER_STARTED, 1);
 	ecore_main_loop_begin();
+	vconf_set_bool(VCONFKEY_MASTER_STARTED, 0);
+
 	app_terminate();
 
 	script_fini();
+	badge_service_fini();
+	notification_service_fini();
+	shortcut_service_fini();
 
 	ecore_evas_shutdown();
 	evas_shutdown();

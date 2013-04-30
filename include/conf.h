@@ -1,7 +1,7 @@
 /*
  * Copyright 2013  Samsung Electronics Co., Ltd
  *
- * Licensed under the Flora License, Version 1.0 (the "License");
+ * Licensed under the Flora License, Version 1.1 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -154,6 +154,10 @@ extern int conf_loader(void);
 #define DELAY_TIME	0.0000001f
 #define DEFAULT_CLUSTER	"user,created"
 #define MINIMUM_REACTIVATION_TIME	10
+
+#if !defined(VCONFKEY_MASTER_STARTED)
+#define VCONFKEY_MASTER_STARTED	"memory/data-provider-master/started"
+#endif
 
 #define USE_XMONITOR		g_conf.use_xmonitor
 

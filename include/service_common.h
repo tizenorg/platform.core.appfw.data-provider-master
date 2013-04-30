@@ -1,7 +1,7 @@
 /*
  * Copyright 2013  Samsung Electronics Co., Ltd
  *
- * Licensed under the Flora License, Version 1.0 (the "License");
+ * Licensed under the Flora License, Version 1.1 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 enum tcb_type {
-	TCB_CLIENT_TYPE_UNDEFINED = 0x00,
-	TCB_CLIENT_TYPE_APP	= 0x01,
-	TCB_CLIENT_TYPE_SERVICE	= 0x02,
+	TCB_CLIENT_TYPE_APP	= 0x00,
+	TCB_CLIENT_TYPE_SERVICE	= 0x01,
 	TCB_CLIENT_TYPE_UNKNOWN = 0xff,
 };
 

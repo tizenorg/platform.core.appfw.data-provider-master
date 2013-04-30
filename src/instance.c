@@ -1,7 +1,7 @@
 /*
  * Copyright 2013  Samsung Electronics Co., Ltd
  *
- * Licensed under the Flora License, Version 1.0 (the "License");
+ * Licensed under the Flora License, Version 1.1 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -184,7 +184,11 @@ static inline void timer_freeze(struct inst_info *inst)
 	if (ecore_timer_interval_get(inst->update_timer) <= 1.0f)
 		return;
 
-	gettimeofday(&tv, NULL);
+	if (gettimeofday(&tv, NULL) < 0) {
+		ErrPrint("gettimeofday: %s\n", strerror(errno));
+		tv.tv_sec = 0;
+		tv.tv_usec = 0;
+	}
 	inst->sleep_at = (double)tv.tv_sec + (double)tv.tv_usec / 1000000.0f;
 }
 

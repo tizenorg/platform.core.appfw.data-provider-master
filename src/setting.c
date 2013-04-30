@@ -1,7 +1,7 @@
 /*
  * Copyright 2013  Samsung Electronics Co., Ltd
  *
- * Licensed under the Flora License, Version 1.0 (the "License");
+ * Licensed under the Flora License, Version 1.1 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -99,7 +99,12 @@ HAPI int setting_fini(void)
 {
 	int ret;
 	ret = vconf_ignore_key_changed(VCONFKEY_PM_STATE, lcd_state_cb);
+	if (ret < 0)
+		ErrPrint("Failed to ignore vconf key (%d)\n", ret);
+
 	ret = vconf_ignore_key_changed(VCONFKEY_SYSMAN_POWER_OFF_STATUS, power_off_cb);
+	if (ret < 0)
+		ErrPrint("Failed to ignore vconf key (%d)\n", ret);
 	return ret;
 }
 
