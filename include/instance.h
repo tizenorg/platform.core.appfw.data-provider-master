@@ -141,8 +141,9 @@ extern int instance_activate(struct inst_info *inst);
 extern int instance_recover_state(struct inst_info *inst);
 extern int instance_need_slave(struct inst_info *inst);
 
-extern void instance_set_lb_info(struct inst_info *inst, int w, int h, double priority, const char *content, const char *title);
-extern void instance_set_pd_info(struct inst_info *inst, int w, int h);
+extern void instance_set_lb_info(struct inst_info *inst, double priority, const char *content, const char *title);
+extern void instance_set_lb_size(struct inst_info *inst, int w, int h);
+extern void instance_set_pd_size(struct inst_info *inst, int w, int h);
 
 extern int instance_set_pinup(struct inst_info *inst, int pinup);
 extern int instance_resize(struct inst_info *inst, int w, int h);
