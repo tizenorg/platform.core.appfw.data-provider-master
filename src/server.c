@@ -6699,6 +6699,8 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 	} else {
 		char *filename;
 
+		instance_set_lb_info(inst, priority, content_info, title);
+
 		switch (package_lb_type(instance_package(inst))) {
 		case LB_TYPE_SCRIPT:
 			script_handler_resize(instance_lb_script(inst), w, h);
@@ -6718,7 +6720,7 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 			 * \check
 			 * text format (inst)
 			 */
-			instance_set_lb_info(inst, w, h, priority, content_info, title);
+			instance_set_lb_size(inst, w, h);
 			instance_lb_updated_by_instance(inst);
 			break;
 		}
@@ -6803,7 +6805,7 @@ static struct packet *slave_desc_updated(pid_t pid, int handle, const struct pac
 			}
 			break;
 		case PD_TYPE_TEXT:
-			instance_set_pd_info(inst, 0, 0);
+			instance_set_pd_size(inst, 0, 0);
 		case PD_TYPE_BUFFER:
 			instance_pd_updated(pkgname, id, descfile);
 			break;
@@ -6926,7 +6928,8 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 
 			ret = buffer_handler_load(info);
 			if (ret == 0) {
-				instance_set_lb_info(inst, w, h, PRIORITY_NO_CHANGE, CONTENT_NO_CHANGE, TITLE_NO_CHANGE);
+				instance_set_lb_size(inst, w, h);
+				instance_set_lb_info(inst, PRIORITY_NO_CHANGE, CONTENT_NO_CHANGE, TITLE_NO_CHANGE);
 				id = buffer_handler_id(info);
 				DbgPrint("Buffer handler ID: %s\n", id);
 			} else {
@@ -6960,7 +6963,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 
 			ret = buffer_handler_load(info);
 			if (ret == 0) {
-				instance_set_pd_info(inst, w, h);
+				instance_set_pd_size(inst, w, h);
 				id = buffer_handler_id(info);
 				DbgPrint("Buffer handler ID: %s\n", id);
 			} else {
@@ -7057,7 +7060,8 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 				 */
 				if (!ret) {
 					id = buffer_handler_id(info);
-					instance_set_lb_info(inst, w, h, PRIORITY_NO_CHANGE, CONTENT_NO_CHANGE, TITLE_NO_CHANGE);
+					instance_set_lb_size(inst, w, h);
+					instance_set_lb_info(inst, PRIORITY_NO_CHANGE, CONTENT_NO_CHANGE, TITLE_NO_CHANGE);
 				}
 			}
 		}
@@ -7074,7 +7078,7 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 				 */
 				if (!ret) {
 					id = buffer_handler_id(info);
-					instance_set_pd_info(inst, w, h);
+					instance_set_pd_size(inst, w, h);
 				}
 			}
 		}

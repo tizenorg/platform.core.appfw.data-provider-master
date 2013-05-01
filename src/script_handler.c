@@ -671,14 +671,12 @@ HAPI int script_handler_resize(struct script_info *info, int w, int h)
 			ErrPrint("Evas(nil) resize to %dx%d\n", w, h);
 	}
 
-	if (info->w != w || info->h != h) {
-		if (instance_lb_script(info->inst) == info) {
-			instance_set_lb_info(info->inst, w, h, PRIORITY_NO_CHANGE, CONTENT_NO_CHANGE, TITLE_NO_CHANGE);
-		} else if (instance_pd_script(info->inst) == info) {
-			instance_set_pd_info(info->inst, w, h);
-		} else {
-			ErrPrint("Script is not known\n");
-		}
+	if (instance_lb_script(info->inst) == info) {
+		instance_set_lb_size(info->inst, w, h);
+	} else if (instance_pd_script(info->inst) == info) {
+		instance_set_pd_size(info->inst, w, h);
+	} else {
+		ErrPrint("Script is not known\n");
 	}
 
 	info->w = w;
