@@ -53,6 +53,7 @@
 #include "event.h"
 #include "shortcut_service.h"
 #include "notification_service.h"
+#include "utility_service.h"
 #include "badge_service.h"
 
 #if defined(FLOG)
@@ -245,6 +246,7 @@ int main(int argc, char *argv[])
 	shortcut_service_init();
 	notification_service_init();
 	badge_service_init();
+	utility_service_init();
 	script_init();
 
 	app_create();
@@ -256,6 +258,7 @@ int main(int argc, char *argv[])
 	app_terminate();
 
 	script_fini();
+	utility_service_fini();
 	badge_service_fini();
 	notification_service_fini();
 	shortcut_service_fini();
