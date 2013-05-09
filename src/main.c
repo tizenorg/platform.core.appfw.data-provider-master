@@ -157,11 +157,11 @@ static inline int app_terminate(void)
 static void signal_handler(int signum, siginfo_t *info, void *unused)
 {
 	int fd;
+
 	CRITICAL_LOG("Terminated(SIGTERM)\n");
 	fd = creat("/tmp/.stop.provider", 0644);
 	if (fd > 0)
 		close(fd);
-	exit(0);
 }
 
 int main(int argc, char *argv[])
