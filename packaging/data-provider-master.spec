@@ -88,7 +88,7 @@ chown 0:5000 /opt/dbspace/.livebox.db
 chmod 640 /opt/dbspace/.livebox.db
 chown 0:5000 /opt/dbspace/.livebox.db-journal
 chmod 640 /opt/dbspace/.livebox.db-journal
-vconftool set -t bool "memory/data-provider-master/started" 0 -i -u 5000 -f
+vconftool set -t bool "memory/data-provider-master/started" 0 -i -u 5000 -f -s system::vconf_system
 echo "Successfully installed. Please start a daemon again manually"
 echo "%{_sysconfdir}/init.d/data-provider-master start"
 
