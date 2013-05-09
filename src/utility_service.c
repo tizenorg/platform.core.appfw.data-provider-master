@@ -116,6 +116,8 @@ static inline int flush_pended_request(void)
 			if (service_common_unicast_packet(item->tcb, reply) < 0)
 				ErrPrint("Unable to send packet\n");
 			packet_destroy(reply);
+		} else {
+			put_reply_tcb(item->tcb, packet_seq(item->packet));
 		}
 		packet_unref(item->packet);
 		free(item);
