@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
 	 */
 	ret = critical_log_init(util_basename(argv[0]));
 	if (ret < 0)
-		fprintf(stderr, "Failed to init the critical log\n");
+		ErrPrint("Failed to init the critical log\n");
 
 #if defined(FLOG)
 	__file_log_fp = fopen("/tmp/live.log", "w+t");
