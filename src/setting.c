@@ -22,6 +22,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <locale.h>
 
 #include <vconf.h>
 #include <dlog.h>
@@ -80,6 +81,19 @@ static void power_off_cb(keynode_t *node, void *user_data)
 	}
 }
 
+static void lang_changed_cb(keynode_t *node, void *user_data)
+{
+	char *lang;
+
+	lang = vconf_get_str(VCONFKEY_LANGSET);
+	if (!lang)
+		return;
+
+	setlocale(LC_ALL, lang);
+	DbgPrint("Lang changed: %s\n", lang);
+	free(lang);
+}
+
 HAPI int setting_init(void)
 {
 	int ret;
@@ -92,12 +106,22 @@ HAPI int setting_init(void)
 	if (ret < 0)
 		ErrPrint("Failed to add vconf for power state\n");
 
+	ret = vconf_notify_key_changed(VCONFKEY_LANGSET, lang_changed_cb, NULL);
+	if (ret < 0)
+		ErrPrint("Failed to add vconf for lang change\n");
+
+	lang_changed_cb(NULL, NULL);
 	return ret;
 }
 
 HAPI int setting_fini(void)
 {
 	int ret;
+
+	ret = vconf_ignore_key_changed(VCONFKEY_LANGSET, lang_changed_cb);
+	if (ret < 0)
+		ErrPrint("Failed to ignore vconf key (%d)\n", ret);
+
 	ret = vconf_ignore_key_changed(VCONFKEY_PM_STATE, lcd_state_cb);
 	if (ret < 0)
 		ErrPrint("Failed to ignore vconf key (%d)\n", ret);
