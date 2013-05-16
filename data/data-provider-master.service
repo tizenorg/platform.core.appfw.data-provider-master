@@ -20,6 +20,7 @@ After=rc-sdlevelinit.service
 Requires=rc-sdlevelinit.service
 
 [Service]
+EnvironmentFile=/run/tizen-mobile-env
 Environment=BUFMGR_LOCK_TYPE="once"
 Environment=BUFMGR_MAP_CACHE="true"
 Type=simple
