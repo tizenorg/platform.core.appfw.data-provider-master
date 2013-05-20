@@ -26,7 +26,7 @@ Environment=BUFMGR_MAP_CACHE="true"
 Type=simple
 ExecStart=/usr/bin/data-provider-master
 RestartSec=1
-Restart=restart-always
+Restart=always
 
 [Install]
 WantedBy=multi-user.target
