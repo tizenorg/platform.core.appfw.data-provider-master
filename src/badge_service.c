@@ -315,9 +315,8 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 		},
 	};
 
-	DbgPrint("TCB: %p, Packet: %p\n", tcb, packet);
 	if (!packet) {
-		DbgPrint("TCB: %p is terminated\n", tcb);
+		DbgPrint("TCB: %p is terminated (NIL packet)\n", tcb);
 		return 0;
 	}
 
@@ -326,13 +325,11 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 		ErrPrint("Invalid command\n");
 		return -EINVAL;
 	}
-	DbgPrint("Command: %s, Packet type[%d]\n", command, packet_type(packet));
+	DbgPrint("Command: [%s], Packet type[%d]\n", command, packet_type(packet));
 
 	switch (packet_type(packet)) {
 	case PACKET_REQ:
 		/* Need to send reply packet */
-		DbgPrint("REQ: Command: [%s]\n", command);
-
 		for (i = 0; service_req_table[i].cmd; i++) {
 			if (strcmp(service_req_table[i].cmd, command))
 				continue;
@@ -386,7 +383,7 @@ HAPI int badge_service_fini(void)
 		return LB_STATUS_ERROR_INVALID;
 
 	service_common_destroy(s_info.svc_ctx);
-	DbgPrint("Successfully Finalized\n");
+	DbgPrint("Successfully finalized\n");
 	return LB_STATUS_SUCCESS;
 }
 
