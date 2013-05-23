@@ -65,7 +65,7 @@ mkdir -p %{buildroot}/%{_sysconfdir}/rc.d/rc3.d
 mkdir -p %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants
 touch %{buildroot}/opt/dbspace/.livebox.db
 touch %{buildroot}/opt/dbspace/.livebox.db-journal
-ln -sf %{_sysconfdir}/rc.d/init.d/data-provider-master %{buildroot}/%{_sysconfdir}/rc.d/rc3.d/S99data-provider-master
+#ln -sf %{_sysconfdir}/rc.d/init.d/data-provider-master %{buildroot}/%{_sysconfdir}/rc.d/rc3.d/S99data-provider-master
 ln -sf ../data-provider-master.service %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants/data-provider-master.service
 
 
@@ -96,7 +96,7 @@ echo "%{_sysconfdir}/init.d/data-provider-master start"
 %manifest data-provider-master.manifest
 %defattr(-,root,root,-)
 %{_sysconfdir}/rc.d/init.d/data-provider-master
-%{_sysconfdir}/rc.d/rc3.d/S99data-provider-master
+#%{_sysconfdir}/rc.d/rc3.d/S99data-provider-master
 %{_bindir}/data-provider-master
 %{_bindir}/liveinfo
 %{_prefix}/etc/package-manager/parserlib/*
