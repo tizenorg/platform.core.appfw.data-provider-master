@@ -4586,9 +4586,7 @@ static struct packet *client_pd_move(pid_t pid, int handle, const struct packet 
 
 	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
 		instance_slave_set_pd_pos(inst, x, y);
-		ret = instance_signal_emit(inst,
-				"pd,move", util_uri_to_path(instance_id(inst)),
-				0.0, 0.0, 0.0, 0.0, x, y, 0);
+		ret = instance_signal_emit(inst, "pd,move", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		int ix;
 		int iy;
@@ -4597,9 +4595,7 @@ static struct packet *client_pd_move(pid_t pid, int handle, const struct packet 
 		ix = x * instance_pd_width(inst);
 		iy = y * instance_pd_height(inst);
 		script_handler_update_pointer(instance_pd_script(inst), ix, iy, 0);
-		ret = instance_signal_emit(inst,
-				"pd,move", util_uri_to_path(instance_id(inst)),
-				0.0, 0.0, 0.0, 0.0, x, y, 0);
+		ret = instance_signal_emit(inst, "pd,move", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
 	} else {
 		ErrPrint("Invalid PD type\n");
 		ret = LB_STATUS_ERROR_INVALID;
@@ -4669,9 +4665,7 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		 */
 		ret = instance_slave_open_pd(inst, client);
 		if (ret == LB_STATUS_SUCCESS) {
-			ret = instance_signal_emit(inst,
-					"pd,show", util_uri_to_path(instance_id(inst)),
-					0.0, 0.0, 0.0, 0.0, x, y, 0);
+			ret = instance_signal_emit(inst, "pd,show", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
 			if (ret != LB_STATUS_SUCCESS) {
 				int tmp_ret;
 
@@ -4838,9 +4832,7 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 			goto out;
 		}
 
-		ret = instance_signal_emit(inst,
-				"pd,hide", util_uri_to_path(instance_id(inst)),
-				0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0);
+		ret = instance_signal_emit(inst, "pd,hide", instance_id(inst), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0);
 		if (ret < 0)
 			ErrPrint("PD close signal emit failed: %d\n", ret);
 
