@@ -1053,9 +1053,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 				 * In this case, master already loads the PD script.
 				 * So just send the pd,show event to the slave again.
 				 */
-				ret = instance_signal_emit(inst,
-						"pd,show", util_uri_to_path(instance_id(inst)),
-						0.0, 0.0, 0.0, 0.0, x, y, 0);
+				ret = instance_signal_emit(inst, "pd,show", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
 			} else if (pd_type == PD_TYPE_BUFFER && inst->pd.canvas.buffer && inst->pd.is_opened_for_reactivate) {
 				double x, y;
 
@@ -1075,9 +1073,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 				 * \note
 				 * In this case, just send the pd,show event for keeping the compatibility
 				 */
-				ret = instance_signal_emit(inst,
-						"pd,show", util_uri_to_path(instance_id(inst)),
-						0.0, 0.0, 0.0, 0.0, x, y, 0);
+				ret = instance_signal_emit(inst, "pd,show", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
 			}
 
 			/*!
@@ -1384,7 +1380,7 @@ HAPI int instance_state_reset(struct inst_info *inst)
 	}
 
 	if (inst->state == INST_DESTROYED)
-		return LB_STATUS_SUCCESS;
+		goto out;
 
 	lb_type = package_lb_type(inst->info);
 	pd_type = package_pd_type(inst->info);
@@ -1404,6 +1400,7 @@ HAPI int instance_state_reset(struct inst_info *inst)
 		buffer_handler_unload(inst->pd.canvas.buffer);
 	}
 
+out:
 	inst->state = INST_INIT;
 	inst->requested_state = INST_INIT;
 	return LB_STATUS_SUCCESS;

@@ -392,6 +392,7 @@ static Eina_Bool activate_timer_cb(void *data)
 
 	ErrPrint("Slave is not activated in %lf sec (slave: %s)\n", SLAVE_ACTIVATE_TIME, slave_name(slave));
 	slave = slave_deactivated(slave);
+	DbgPrint("Slave: %p\n", slave);
 	return ECORE_CALLBACK_CANCEL;
 }
 

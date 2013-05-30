@@ -354,6 +354,7 @@ static Eina_Bool ping_timeout_cb(void *data)
 	 */
 	DbgPrint("Slave PING TIMEOUT: %s(%d) : %p\n", slave_name(slave), slave_pid(slave), slave);
 	slave = slave_deactivated_by_fault(slave);
+	DbgPrint("Slave: %p\n", slave);
 	return ECORE_CALLBACK_CANCEL;
 }
 
