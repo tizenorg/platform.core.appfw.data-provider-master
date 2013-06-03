@@ -30,6 +30,7 @@ pkg_check_modules(pkg REQUIRED
 	livebox-service
 	notification
 	badge
+	libsmack
 )
 
 SET(PACKAGE "${PROJECT_NAME}")

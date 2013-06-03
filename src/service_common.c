@@ -869,4 +869,9 @@ HAPI int service_common_del_timer(struct service_context *svc_ctx, struct servic
 	return 0;
 }
 
+HAPI int service_common_fd(struct service_context *ctx)
+{
+	return ctx->fd;
+}
+
 /* End of a file */

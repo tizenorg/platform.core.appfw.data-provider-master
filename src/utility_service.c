@@ -23,15 +23,29 @@
 #include <livebox-errno.h>
 #include <packet.h>
 
+#include <sys/smack.h>
+
 #include "service_common.h"
 #include "utility_service.h"
 #include "debug.h"
 #include "util.h"
 #include "conf.h"
 
+#ifndef UTILITY_ADDR
 #define UTILITY_ADDR	"/tmp/.utility.service"
+#endif
+
+#ifndef SVC_PKG
 #define SVC_PKG		"com.samsung.data-provider-slave.icon"
+#endif
+
+#ifndef LAUNCH_TIMEOUT
 #define LAUNCH_TIMEOUT	10.0f
+#endif
+
+#ifndef SMACK_LABEL
+#define SMACK_LABEL	"data-provider-master::utility"
+#endif
 
 static struct info {
 	Eina_List *pending_list;
@@ -281,6 +295,20 @@ int utility_service_init(void)
 		return LB_STATUS_ERROR_FAULT;
 	}
 
+	if (smack_fsetlabel(service_common_fd(s_info.svc_ctx), SMACK_LABEL, SMACK_LABEL_IPOUT) != 0) {
+		ErrPrint("Unable to set SMACK label\n");
+		service_common_destroy(s_info.svc_ctx);
+		s_info.svc_ctx = NULL;
+		return LB_STATUS_ERROR_FAULT;
+	}
+
+	if (smack_fsetlabel(service_common_fd(s_info.svc_ctx), SMACK_LABEL, SMACK_LABEL_IPIN) != 0) {
+		ErrPrint("Unable to set SMACK label\n");
+		service_common_destroy(s_info.svc_ctx);
+		s_info.svc_ctx = NULL;
+		return LB_STATUS_ERROR_FAULT;
+	}
+
 	DbgPrint("Successfully initiated\n");
 	return LB_STATUS_SUCCESS;
 }
@@ -291,6 +319,7 @@ int utility_service_fini(void)
 		return LB_STATUS_ERROR_INVALID;
 
 	service_common_destroy(s_info.svc_ctx);
+	s_info.svc_ctx = NULL;
 	DbgPrint("Successfully Finalized\n");
 	return LB_STATUS_SUCCESS;
 }

@@ -22,6 +22,8 @@
 #include <livebox-errno.h>
 #include <packet.h>
 
+#include <sys/smack.h>
+
 #include <badge.h>
 #include <badge_db.h>
 
@@ -30,7 +32,13 @@
 #include "util.h"
 #include "conf.h"
 
+#ifndef BADGE_ADDR
 #define BADGE_ADDR "/tmp/.badge.service"
+#endif
+
+#ifndef SMACK_LABEL
+#define SMACK_LABEL "data-provider-master::badge"
+#endif
 
 static struct info {
 	Eina_List *context_list;
@@ -373,6 +381,20 @@ HAPI int badge_service_init(void)
 		return LB_STATUS_ERROR_FAULT;
 	}
 
+	if (smack_fsetlabel(service_common_fd(s_info.svc_ctx), SMACK_LABEL, SMACK_LABEL_IPOUT) != 0) {
+		ErrPrint("Unable to set SMACK label\n");
+		service_common_destroy(s_info.svc_ctx);
+		s_info.svc_ctx = NULL;
+		return LB_STATUS_ERROR_FAULT;
+	}
+
+	if (smack_fsetlabel(service_common_fd(s_info.svc_ctx), SMACK_LABEL, SMACK_LABEL_IPIN) != 0) {
+		ErrPrint("Unable to set SMACK label\n");
+		service_common_destroy(s_info.svc_ctx);
+		s_info.svc_ctx = NULL;
+		return LB_STATUS_ERROR_FAULT;
+	}
+
 	DbgPrint("Successfully initiated\n");
 	return LB_STATUS_SUCCESS;
 }
@@ -383,6 +405,7 @@ HAPI int badge_service_fini(void)
 		return LB_STATUS_ERROR_INVALID;
 
 	service_common_destroy(s_info.svc_ctx);
+	s_info.svc_ctx = NULL;
 	DbgPrint("Successfully finalized\n");
 	return LB_STATUS_SUCCESS;
 }

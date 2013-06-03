@@ -21,6 +21,8 @@
 #include <livebox-errno.h>
 #include <packet.h>
 
+#include <sys/smack.h>
+
 #include <notification_ipc.h>
 #include <notification_noti.h>
 #include <notification_error.h>
@@ -36,6 +38,10 @@
 
 #ifndef NOTIFICATION_DEL_PACKET_UNIT
 #define NOTIFICATION_DEL_PACKET_UNIT 10
+#endif
+
+#ifndef SMACK_LABEL
+#define SMACK_LABEL	"data-provider-master::notification"
 #endif
 
 static struct info {
@@ -444,6 +450,21 @@ HAPI int notification_service_init(void)
 		return LB_STATUS_ERROR_FAULT;
 	}
 
+	if (smack_fsetlabel(service_common_fd(s_info.svc_ctx), SMACK_LABEL, SMACK_LABEL_IPOUT) != 0) {
+		ErrPrint("Unable to set SMACK label\n");
+		service_common_destroy(s_info.svc_ctx);
+		s_info.svc_ctx = NULL;
+		return LB_STATUS_ERROR_FAULT;
+	}
+
+	if (smack_fsetlabel(service_common_fd(s_info.svc_ctx), SMACK_LABEL, SMACK_LABEL_IPIN) != 0) {
+		ErrPrint("Unable to set SMACK label\n");
+		service_common_destroy(s_info.svc_ctx);
+		s_info.svc_ctx = NULL;
+		return LB_STATUS_ERROR_FAULT;
+	}
+
+
 	DbgPrint("Successfully initiated\n");
 	return LB_STATUS_SUCCESS;
 }
@@ -454,6 +475,7 @@ HAPI int notification_service_fini(void)
 		return LB_STATUS_ERROR_INVALID;
 
 	service_common_destroy(s_info.svc_ctx);
+	s_info.svc_ctx = NULL;
 	DbgPrint("Successfully Finalized\n");
 	return LB_STATUS_SUCCESS;
 }
