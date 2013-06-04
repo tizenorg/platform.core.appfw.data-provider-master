@@ -80,8 +80,8 @@ static void power_off_cb(keynode_t *node, void *user_data)
 			ErrPrint("stop.provider [%s]\n", strerror(errno));
 
 		vconf_set_bool(VCONFKEY_MASTER_STARTED, 0);
-		exit(0);
-		//ecore_main_loop_quit();
+		//exit(0);
+		ecore_main_loop_quit();
 	} else {
 		ErrPrint("Unknown power state: %d\n", val);
 	}

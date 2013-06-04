@@ -478,6 +478,7 @@ static void *server_main(void *data)
 {
 	struct service_context *svc_ctx = data;
 	fd_set set;
+	fd_set except_set;
 	int ret;
 	int client_fd;
 	struct tcb *tcb;
@@ -488,8 +489,9 @@ static void *server_main(void *data)
 	DbgPrint("Server thread is activated\n");
 	while (1) {
 		fd = update_fdset(svc_ctx, &set);
+		memcpy(&except_set, &set, sizeof(set));
 
-		ret = select(fd, &set, NULL, NULL, NULL);
+		ret = select(fd, &set, NULL, &except_set, NULL);
 		if (ret < 0) {
 			ret = -errno;
 			if (errno == EINTR) {
@@ -503,6 +505,7 @@ static void *server_main(void *data)
 			ret = -ETIMEDOUT;
 			break;
 		}
+		DbgPrint("select ret: %d\n", ret);
 
 		if (FD_ISSET(svc_ctx->fd, &set)) {
 			client_fd = secure_socket_get_connection_handle(svc_ctx->fd);
@@ -523,6 +526,12 @@ static void *server_main(void *data)
 			if (read(svc_ctx->tcb_pipe[PIPE_READ], &tcb, sizeof(tcb)) != sizeof(tcb)) {
 				ErrPrint("Unable to read pipe: %s\n", strerror(errno));
 				ret = -EFAULT;
+				break;
+			}
+
+			if (!tcb) {
+				ErrPrint("Terminate service thread\n");
+				ret = -ECANCELED;
 				break;
 			}
 
@@ -551,17 +560,19 @@ static void *server_main(void *data)
 			svc_ctx->packet_list = eina_list_remove(svc_ctx->packet_list, packet_info);
 			CRITICAL_SECTION_END(&svc_ctx->packet_list_lock);
 
-			/*!
-			 * \CRITICAL
-			 * What happens if the client thread is terminated, so the packet_info->tcb is deleted
-			 * while processing svc_ctx->service_thread_main?
-			 */
-			ret = svc_ctx->service_thread_main(packet_info->tcb, packet_info->packet, svc_ctx->service_thread_data);
-			if (ret < 0)
-				ErrPrint("Service thread returns: %d\n", ret);
+			if (packet_info) {
+				/*!
+				 * \CRITICAL
+				 * What happens if the client thread is terminated, so the packet_info->tcb is deleted
+				 * while processing svc_ctx->service_thread_main?
+				 */
+				ret = svc_ctx->service_thread_main(packet_info->tcb, packet_info->packet, svc_ctx->service_thread_data);
+				if (ret < 0)
+					ErrPrint("Service thread returns: %d\n", ret);
 
-			packet_destroy(packet_info->packet);
-			free(packet_info);
+				packet_destroy(packet_info->packet);
+				free(packet_info);
+			}
 		}
 
 		processing_timer_event(svc_ctx, &set);
@@ -671,6 +682,13 @@ HAPI struct service_context *service_common_create(const char *addr, int (*servi
 		return NULL;
 	}
 
+	/*!
+	 * \note
+	 * To give a chance to run for server thread.
+	 */
+	DbgPrint("Yield\n");
+	pthread_yield();
+
 	return svc_ctx;
 }
 
@@ -680,7 +698,7 @@ HAPI struct service_context *service_common_create(const char *addr, int (*servi
  */
 HAPI int service_common_destroy(struct service_context *svc_ctx)
 {
-	int status;
+	int status = 0;
 	void *ret;
 
 	if (!svc_ctx)
@@ -691,6 +709,9 @@ HAPI int service_common_destroy(struct service_context *svc_ctx)
 	 * Terminate server thread
 	 */
 	secure_socket_destroy_handle(svc_ctx->fd);
+
+	if (write(svc_ctx->evt_pipe[PIPE_WRITE], &status, sizeof(status)) != sizeof(status))
+		ErrPrint("Failed to write: %s\n", strerror(errno));
 
 	status = pthread_join(svc_ctx->server_thid, &ret);
 	if (status != 0)
@@ -839,7 +860,8 @@ HAPI struct service_event_item *service_common_add_timer(struct service_context 
 
 	if (timerfd_settime(item->info.timer.fd, 0, &spec, NULL) < 0) {
 		ErrPrint("Error: %s\n", strerror(errno));
-		close(item->info.timer.fd);
+		if (close(item->info.timer.fd) < 0)
+			ErrPrint("close: %s\n", strerror(errno));
 		free(item);
 		return NULL;
 	}
@@ -864,7 +886,8 @@ HAPI int service_common_del_timer(struct service_context *svc_ctx, struct servic
 
 	svc_ctx->event_list = eina_list_remove(svc_ctx->event_list, item);
 
-	close(item->info.timer.fd);
+	if (close(item->info.timer.fd) < 0)
+		ErrPrint("close: %s\n", strerror(errno));
 	free(item);
 	return 0;
 }

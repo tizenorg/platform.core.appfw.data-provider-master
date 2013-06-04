@@ -62,8 +62,10 @@ static inline void rotate_log(void)
 	if (filename) {
 		snprintf(filename, namelen, "%s/%d_%s.%d", SLAVE_LOG_PATH, s_info.file_id, s_info.filename, getpid());
 
-		if (s_info.fp)
-			fclose(s_info.fp);
+		if (s_info.fp) {
+			if (fclose(s_info.fp) != 0)
+				ErrPrint("fclose: %s\n", strerror(errno));
+		}
 
 		s_info.fp = fopen(filename, "w+");
 		if (!s_info.fp)
@@ -149,7 +151,8 @@ HAPI void critical_log_fini(void)
 	}
 
 	if (s_info.fp) {
-		fclose(s_info.fp);
+		if (fclose(s_info.fp) != 0)
+			ErrPrint("fclose: %s\n", strerror(errno));
 		s_info.fp = NULL;
 	}
 }

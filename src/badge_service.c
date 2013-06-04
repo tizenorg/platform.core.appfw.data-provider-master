@@ -382,17 +382,21 @@ HAPI int badge_service_init(void)
 	}
 
 	if (smack_fsetlabel(service_common_fd(s_info.svc_ctx), SMACK_LABEL, SMACK_LABEL_IPOUT) != 0) {
-		ErrPrint("Unable to set SMACK label\n");
-		service_common_destroy(s_info.svc_ctx);
-		s_info.svc_ctx = NULL;
-		return LB_STATUS_ERROR_FAULT;
+		if (errno != EOPNOTSUPP) {
+			ErrPrint("Unable to set SMACK label(%d)\n", errno);
+			service_common_destroy(s_info.svc_ctx);
+			s_info.svc_ctx = NULL;
+			return LB_STATUS_ERROR_FAULT;
+		}
 	}
 
 	if (smack_fsetlabel(service_common_fd(s_info.svc_ctx), SMACK_LABEL, SMACK_LABEL_IPIN) != 0) {
-		ErrPrint("Unable to set SMACK label\n");
-		service_common_destroy(s_info.svc_ctx);
-		s_info.svc_ctx = NULL;
-		return LB_STATUS_ERROR_FAULT;
+		if (errno != EOPNOTSUPP) {
+			ErrPrint("Unable to set SMACK label(%d)\n", errno);
+			service_common_destroy(s_info.svc_ctx);
+			s_info.svc_ctx = NULL;
+			return LB_STATUS_ERROR_FAULT;
+		}
 	}
 
 	DbgPrint("Successfully initiated\n");

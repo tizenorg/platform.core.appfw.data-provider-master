@@ -209,8 +209,8 @@ static Eina_Bool signal_cb(void *data, Ecore_Fd_Handler *handler)
 			ErrPrint("stop.provider: %s\n", strerror(errno));
 
 		vconf_set_bool(VCONFKEY_MASTER_STARTED, 0);
-		exit(0);
-		//ecore_main_loop_quit();
+		//exit(0);
+		ecore_main_loop_quit();
 	} else {
 		CRITICAL_LOG("Unknown SIG[%d] received\n", fdsi.ssi_signo);
 	}
@@ -309,8 +309,8 @@ int main(int argc, char *argv[])
 
 	app_terminate();
 
-	ecore_evas_shutdown();
 	evas_shutdown();
+	ecore_evas_shutdown();
 
 	ecore_x_shutdown();
 

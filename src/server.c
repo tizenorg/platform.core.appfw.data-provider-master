@@ -29,6 +29,7 @@
 #include <livebox-errno.h>
 #include <livebox-service.h>
 
+#include "critical_log.h"
 #include "conf.h"
 #include "debug.h"
 #include "server.h"
@@ -5258,7 +5259,7 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 
 	DbgPrint("New slave[%s](%d) is arrived\n", slavename, pid);
 
-	slave = slave_find_by_pid(pid);
+	slave = slave_find_by_name(slavename);
 	if (!slave) {
 		if (DEBUG_MODE) {
 			char pkgname[pathconf("/", _PC_PATH_MAX)];
@@ -5294,8 +5295,13 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 			slave_set_pid(slave, pid);
 			DbgPrint("Provider is forcely activated, pkgname(%s), abi(%s), slavename(%s)\n", pkgname, abi, slavename);
 		} else {
-			ErrPrint("Slave[%d] is not exists\n", pid);
+			ErrPrint("Slave[%d, %s] is not exists\n", pid, slavename);
 			goto out;
+		}
+	} else {
+		if (slave_pid(slave) != pid) {
+			CRITICAL_LOG("PID of slave(%s) is updated (%d -> %d)\n", slave_name(slave), slave_pid(slave), pid);
+			slave_set_pid(slave, pid);
 		}
 	}
 

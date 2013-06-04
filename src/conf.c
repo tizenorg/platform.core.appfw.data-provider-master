@@ -662,7 +662,8 @@ HAPI int conf_loader(void)
 		linelen++;
 	 } while (c != EOF);
 
-	fclose(fp);
+	if (fclose(fp) != 0)
+		ErrPrint("fclose: %s\n", strerror(errno));
 	return LB_STATUS_SUCCESS;
 }
 

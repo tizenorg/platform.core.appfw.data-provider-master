@@ -33,6 +33,7 @@
 #include <packet.h>
 #include <livebox-errno.h>
 
+#include "critical_log.h"
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"
@@ -430,9 +431,14 @@ HAPI int slave_activate(struct slave_node *slave)
 		bundle_free(param);
 
 		if (slave->pid < 0) {
-			ErrPrint("Failed to launch a new slave %s (%d)\n", slave_name(slave), slave->pid);
-			slave->pid = (pid_t)-1;
-			return LB_STATUS_ERROR_FAULT;
+			if (slave->pid != -6) {
+				CRITICAL_LOG("Failed to launch a new slave %s (%d)\n", slave_name(slave), slave->pid);
+				slave->pid = (pid_t)-1;
+				return LB_STATUS_ERROR_FAULT;
+			} else {
+				ErrPrint("Failed to launch a new slave because of TIMEOUT. waiting \"hello\"\n");
+				slave->pid = (pid_t)-1;
+			}
 		}
 		DbgPrint("Slave %s is launched with %d as %s\n", slave_pkgname(slave), slave->pid, slave_name(slave));
 
