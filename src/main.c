@@ -211,6 +211,20 @@ static Eina_Bool signal_cb(void *data, Ecore_Fd_Handler *handler)
 		vconf_set_bool(VCONFKEY_MASTER_STARTED, 0);
 		//exit(0);
 		ecore_main_loop_quit();
+	} else if (fdsi.ssi_signo == SIGUSR1) {
+		/*!
+		 * Turn off auto-reactivation
+		 * Terminate all slaves
+		 */
+		CRITICAL_LOG("USRS1, Deactivate ALL\n");
+		slave_deactivate_all(0, 1);
+	} else if (fdsi.ssi_signo == SIGUSR2) {
+		/*!
+		 * Turn on auto-reactivation
+		 * Launch all slaves again
+		 */
+		CRITICAL_LOG("USR2, Activate ALL\n");
+		slave_activate_all();
 	} else {
 		CRITICAL_LOG("Unknown SIG[%d] received\n", fdsi.ssi_signo);
 	}
@@ -256,6 +270,14 @@ int main(int argc, char *argv[])
 	sigemptyset(&mask);
 
 	ret = sigaddset(&mask, SIGTERM);
+	if (ret < 0)
+		CRITICAL_LOG("Failed to do sigemptyset: %s\n", strerror(errno));
+
+	ret = sigaddset(&mask, SIGUSR1);
+	if (ret < 0)
+		CRITICAL_LOG("Failed to do sigemptyset: %s\n", strerror(errno));
+
+	ret = sigaddset(&mask, SIGUSR2);
 	if (ret < 0)
 		CRITICAL_LOG("Failed to do sigemptyset: %s\n", strerror(errno));
 

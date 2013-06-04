@@ -24,6 +24,8 @@
 #include <Eina.h>
 #include <sys/smack.h>
 
+#include <security-server.h>
+
 #include "service_common.h"
 #include "debug.h"
 #include "util.h"

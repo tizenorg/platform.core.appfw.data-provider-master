@@ -35,6 +35,7 @@ BuildRequires: pkgconfig(pkgmgr)
 BuildRequires: pkgconfig(livebox-service)
 BuildRequires: pkgconfig(notification)
 BuildRequires: pkgconfig(badge)
+BuildRequires: pkgconfig(security-server)
 BuildRequires: sec-product-features
 
 %description
