@@ -33,6 +33,7 @@
 #include <packet.h>
 #include <livebox-errno.h>
 
+#include "critical_log.h"
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"
@@ -398,18 +399,25 @@ static Eina_Bool activate_timer_cb(void *data)
 
 HAPI int slave_activate(struct slave_node *slave)
 {
-
 	/*!
 	 * \note
-	 * This check code can replace the slave->state check code
+	 * This check code can be replaced with the slave->state check code
 	 * If the slave data has the PID, it means, it is activated
 	 * Even if it is in the termiating sequence, it will have the PID
 	 * before terminated at last.
 	 * So we can use this simple code for checking the slave's last state.
 	 * about it is alive? or not.
 	 */
-	if (slave_pid(slave) != (pid_t)-1)
+	if (slave_pid(slave) != (pid_t)-1) {
+		if (slave_state(slave) == SLAVE_REQUEST_TO_TERMINATE)
+			slave_set_reactivation(slave, 1);
 		return LB_STATUS_ERROR_ALREADY;
+	} else {
+		if (slave_state(slave) == SLAVE_REQUEST_TO_LAUNCH) {
+			DbgPrint("Slave is already launched: but the AUL is timed out\n");
+			return LB_STATUS_ERROR_ALREADY;
+		}
+	}
 
 	if (DEBUG_MODE) {
 		DbgPrint("Debug Mode enabled. name[%s] secured[%d] abi[%s]\n", slave_name(slave), slave->secured, slave->abi);
@@ -430,9 +438,14 @@ HAPI int slave_activate(struct slave_node *slave)
 		bundle_free(param);
 
 		if (slave->pid < 0) {
-			ErrPrint("Failed to launch a new slave %s (%d)\n", slave_name(slave), slave->pid);
-			slave->pid = (pid_t)-1;
-			return LB_STATUS_ERROR_FAULT;
+			if (slave->pid != -6) {
+				CRITICAL_LOG("Failed to launch a new slave %s (%d)\n", slave_name(slave), slave->pid);
+				slave->pid = (pid_t)-1;
+				return LB_STATUS_ERROR_FAULT;
+			} else {
+				ErrPrint("Failed to launch a new slave because of TIMEOUT. waiting \"hello\"\n");
+				slave->pid = (pid_t)-1;
+			}
 		}
 		DbgPrint("Slave %s is launched with %d as %s\n", slave_pkgname(slave), slave->pid, slave_name(slave));
 
@@ -1300,6 +1313,40 @@ HAPI int slave_network(const struct slave_node *slave)
 HAPI void slave_set_network(struct slave_node *slave, int network)
 {
 	slave->network = network;
+}
+
+HAPI int slave_deactivate_all(int reactivate, int reactivate_instances)
+{
+	Eina_List *l;
+	Eina_List *n;
+	struct slave_node *slave;
+	int cnt = 0;
+
+	EINA_LIST_FOREACH_SAFE(s_info.slave_list, l, n, slave) {
+		slave_set_reactivate_instances(slave, reactivate_instances);
+		slave_set_reactivation(slave, reactivate);
+
+		if (!slave_deactivate(slave))
+			s_info.slave_list = eina_list_remove(s_info.slave_list, slave);
+
+		cnt++;
+	}
+
+	return cnt;
+}
+
+HAPI int slave_activate_all(void)
+{
+	Eina_List *l;
+	struct slave_node *slave;
+	int cnt = 0;
+
+	EINA_LIST_FOREACH(s_info.slave_list, l, slave) {
+		slave_activate(slave);
+		cnt++;
+	}
+
+	return cnt;
 }
 
 /* End of a file */

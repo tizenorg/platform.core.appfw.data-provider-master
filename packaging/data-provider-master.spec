@@ -1,6 +1,6 @@
 Name: data-provider-master
 Summary: Master service provider for liveboxes.
-Version: 0.23.5
+Version: 0.24.1
 Release: 1
 Group: HomeTF/Livebox
 License: Flora License
@@ -14,6 +14,7 @@ BuildRequires: pkgconfig(sqlite3)
 BuildRequires: pkgconfig(db-util)
 BuildRequires: pkgconfig(glib-2.0)
 BuildRequires: pkgconfig(gio-2.0)
+BuildRequires: pkgconfig(libsmack)
 BuildRequires: pkgconfig(bundle)
 BuildRequires: pkgconfig(ecore-x)
 BuildRequires: pkgconfig(ecore)
@@ -34,6 +35,7 @@ BuildRequires: pkgconfig(pkgmgr)
 BuildRequires: pkgconfig(livebox-service)
 BuildRequires: pkgconfig(notification)
 BuildRequires: pkgconfig(badge)
+BuildRequires: pkgconfig(security-server)
 BuildRequires: sec-product-features
 
 %description
