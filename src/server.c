@@ -5260,6 +5260,10 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 	DbgPrint("New slave[%s](%d) is arrived\n", slavename, pid);
 
 	slave = slave_find_by_name(slavename);
+
+	if (!slave) /* Try again to find a slave using pid */
+		slave = slave_find_by_pid(pid);
+
 	if (!slave) {
 		if (DEBUG_MODE) {
 			char pkgname[pathconf("/", _PC_PATH_MAX)];
