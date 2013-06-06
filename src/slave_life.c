@@ -412,11 +412,9 @@ HAPI int slave_activate(struct slave_node *slave)
 		if (slave_state(slave) == SLAVE_REQUEST_TO_TERMINATE)
 			slave_set_reactivation(slave, 1);
 		return LB_STATUS_ERROR_ALREADY;
-	} else {
-		if (slave_state(slave) == SLAVE_REQUEST_TO_LAUNCH) {
-			DbgPrint("Slave is already launched: but the AUL is timed out\n");
-			return LB_STATUS_ERROR_ALREADY;
-		}
+	} else if (slave_state(slave) == SLAVE_REQUEST_TO_LAUNCH) {
+		DbgPrint("Slave is already launched: but the AUL is timed out\n");
+		return LB_STATUS_ERROR_ALREADY;
 	}
 
 	if (DEBUG_MODE) {
@@ -438,12 +436,12 @@ HAPI int slave_activate(struct slave_node *slave)
 		bundle_free(param);
 
 		if (slave->pid < 0) {
+			CRITICAL_LOG("Failed to launch a new slave %s (%d)\n", slave_name(slave), slave->pid);
 			if (slave->pid != -6) {
-				CRITICAL_LOG("Failed to launch a new slave %s (%d)\n", slave_name(slave), slave->pid);
 				slave->pid = (pid_t)-1;
 				return LB_STATUS_ERROR_FAULT;
 			} else {
-				ErrPrint("Failed to launch a new slave because of TIMEOUT. waiting \"hello\"\n");
+				ErrPrint("But waiting \"hello\"\n");
 				slave->pid = (pid_t)-1;
 			}
 		}
