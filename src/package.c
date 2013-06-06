@@ -26,6 +26,7 @@
 #include <packet.h>
 #include <livebox-errno.h>
 
+#include "critical_log.h"
 #include "debug.h"
 #include "util.h"
 #include "parser.h"
@@ -633,11 +634,11 @@ HAPI int package_dump_fault_info(struct pkg_info *info)
 	if (!info->fault_info)
 		return LB_STATUS_ERROR_NOT_EXIST;
 
-	ErrPrint("=============\n");
-	ErrPrint("faulted at %lf\n", info->fault_info->timestamp);
-	ErrPrint("Package: %s\n", info->pkgname);
-	ErrPrint("Function: %s\n", info->fault_info->function);
-	ErrPrint("InstanceID: %s\n", info->fault_info->filename);
+	CRITICAL_LOG("=============\n");
+	CRITICAL_LOG("faulted at %lf\n", info->fault_info->timestamp);
+	CRITICAL_LOG("Package: %s\n", info->pkgname);
+	CRITICAL_LOG("Function: %s\n", info->fault_info->function);
+	CRITICAL_LOG("InstanceID: %s\n", info->fault_info->filename);
 	return LB_STATUS_SUCCESS;
 }
 
