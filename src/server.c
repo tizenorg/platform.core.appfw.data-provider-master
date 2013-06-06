@@ -23,6 +23,7 @@
 #include <Ecore_Evas.h> /* fb.h */
 #include <aul.h>
 #include <Ecore.h>
+#include <ail.h>
 
 #include <packet.h>
 #include <com-core_packet.h>
@@ -642,6 +643,7 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 	int width;
 	int height;
 	char *lb_pkgname;
+	char *mainappid;
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -666,6 +668,15 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
 	}
+
+	mainappid = livebox_service_mainappid(lb_pkgname);
+	if (!package_is_enabled(mainappid)) {
+		DbgFree(mainappid);
+		DbgFree(lb_pkgname);
+		ret = LB_STATUS_ERROR_DISABLED;
+		goto out;
+	}
+	DbgFree(mainappid);
 
 	info = package_find(lb_pkgname);
 	if (!info)

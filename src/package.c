@@ -25,6 +25,7 @@
 
 #include <packet.h>
 #include <livebox-errno.h>
+#include <ail.h>
 
 #include "critical_log.h"
 #include "debug.h"
@@ -1474,6 +1475,26 @@ HAPI const Eina_List *package_list(void)
 HAPI int const package_fault_count(struct pkg_info *info)
 {
 	return info ? info->fault_count : 0;
+}
+
+HAPI int package_is_enabled(const char *appid)
+{
+	ail_appinfo_h ai;
+	bool enabled;
+	int ret;
+
+	ret = ail_get_appinfo(appid, &ai);
+	if (ret != AIL_ERROR_OK) {
+		ErrPrint("Unable to get appinfo: %d\n", ret);
+		return 0;
+	}
+
+	if (ail_appinfo_get_bool(ai, AIL_PROP_X_SLP_ENABLED_BOOL, &enabled) != AIL_ERROR_OK)
+		enabled = false;
+
+	ail_destroy_appinfo(ai);
+
+	return enabled == true;
 }
 
 /* End of a file */
