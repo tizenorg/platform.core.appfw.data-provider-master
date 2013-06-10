@@ -863,7 +863,7 @@ HAPI int script_handler_parse_desc(const char *pkgname, const char *id, const ch
 		return LB_STATUS_ERROR_IO;
 	}
 
-	DbgPrint("Parsing %s\n", descfile);
+	DbgPrint("Start parsing %s\n", descfile);
 
 	state = UNKNOWN;
 	field_idx = 0;

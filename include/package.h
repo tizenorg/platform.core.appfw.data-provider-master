@@ -124,4 +124,6 @@ extern int const package_fault_count(struct pkg_info *info);
 extern int package_init(void);
 extern int package_fini(void);
 
+extern int package_is_enabled(const char *appid);
+
 /* End of a file */
