@@ -25,6 +25,7 @@
 
 #include <sys/smack.h>
 
+#include "critical_log.h"
 #include "service_common.h"
 #include "utility_service.h"
 #include "debug.h"
@@ -45,7 +46,7 @@ static struct info {
 	struct service_context *svc_ctx;
 
 	struct tcb *svc_daemon;
-	pid_t svc_pid;
+	int svc_daemon_is_launched;
 
 	struct service_event_item *launch_timer; 
 } s_info = {
@@ -54,7 +55,7 @@ static struct info {
 	.svc_ctx = NULL, /*!< \WARN: This is only used for MAIN THREAD */
 
 	.svc_daemon = NULL,
-	.svc_pid = -1,
+	.svc_daemon_is_launched = 0,
 
 	.launch_timer = NULL,
 };
@@ -178,6 +179,7 @@ static int launch_timeout_cb(struct service_context *svc_ctx, void *data)
 	}
 
 	s_info.launch_timer = NULL;
+	s_info.svc_daemon_is_launched = 0;
 	return -ECANCELED; /* Delete this timer */
 }
 
@@ -192,7 +194,7 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 
 		if (tcb == s_info.svc_daemon) {
 			s_info.svc_daemon = NULL;
-			s_info.svc_pid = -1;
+			s_info.svc_daemon_is_launched = 0;
 		}
 
 		return 0;
@@ -206,20 +208,29 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 
 	switch (packet_type(packet)) {
 	case PACKET_REQ:
-		if (s_info.svc_pid < 0) {
-			s_info.svc_pid = aul_launch_app(SVC_PKG, NULL);
-			if (s_info.svc_pid > 0) {
+		if (!s_info.svc_daemon_is_launched) {
+			pid_t pid;
+
+			pid = aul_launch_app(SVC_PKG, NULL);
+			if (pid > 0) {
+				s_info.svc_daemon_is_launched = 1;
 				s_info.launch_timer = service_common_add_timer(tcb_svc_ctx(tcb), LAUNCH_TIMEOUT, launch_timeout_cb, NULL);
 				if (!s_info.launch_timer)
 					ErrPrint("Unable to create launch timer\n");
+			} else if (pid == -6) { /* TIMEOUT */
+				s_info.svc_daemon_is_launched = 1;
+				CRITICAL_LOG("SVC launch failed with timeout(-6), But waiting response\n");
+				s_info.launch_timer = service_common_add_timer(tcb_svc_ctx(tcb), LAUNCH_TIMEOUT, launch_timeout_cb, NULL);
+				if (!s_info.launch_timer)
+					ErrPrint("Unable to create launch timer\n");
+			} else {
+				ErrPrint("Failed to launch an app: %s(%d)\n", SVC_PKG, pid);
+				ret = LB_STATUS_ERROR_FAULT;
+				goto reply_out;
 			}
 		}
 
-		if (s_info.svc_pid < 0) {
-			ErrPrint("Failed to launch an app: %s(%d)\n", SVC_PKG, s_info.svc_pid);
-			ret = LB_STATUS_ERROR_FAULT;
-			goto reply_out;
-		} else if (!s_info.svc_daemon) {
+		if (!s_info.svc_daemon) {
 			ret = put_pended_request(tcb, packet);
 			if (ret < 0)
 				goto reply_out;
@@ -234,6 +245,11 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 		break;
 	case PACKET_REQ_NOACK:
 		if (!strcmp(cmd, "service_register")) {
+			if (!s_info.svc_daemon_is_launched) {
+				ErrPrint("Service daemon is not launched. but something tries to register a service\n");
+				return LB_STATUS_ERROR_INVALID;
+			}
+
 			if (s_info.svc_daemon) {
 				ErrPrint("Service daemon is already prepared\n");
 				return LB_STATUS_ERROR_INVALID;
