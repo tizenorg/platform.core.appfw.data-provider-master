@@ -217,7 +217,7 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 				s_info.launch_timer = service_common_add_timer(tcb_svc_ctx(tcb), LAUNCH_TIMEOUT, launch_timeout_cb, NULL);
 				if (!s_info.launch_timer)
 					ErrPrint("Unable to create launch timer\n");
-			} else if (pid == -6) { /* TIMEOUT */
+			} else if (pid == AUL_R_ETIMEOUT || pid == AUL_R_ECOMM) {
 				s_info.svc_daemon_is_launched = 1;
 				CRITICAL_LOG("SVC launch failed with timeout(-6), But waiting response\n");
 				s_info.launch_timer = service_common_add_timer(tcb_svc_ctx(tcb), LAUNCH_TIMEOUT, launch_timeout_cb, NULL);
