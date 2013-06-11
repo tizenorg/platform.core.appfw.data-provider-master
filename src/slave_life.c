@@ -391,9 +391,8 @@ static Eina_Bool activate_timer_cb(void *data)
 			ErrPrint("Terminate failed, pid %d (reason: %d)\n", slave_pid(slave), ret);
 	}
 
-	ErrPrint("Slave is not activated in %lf sec (slave: %s)\n", SLAVE_ACTIVATE_TIME, slave_name(slave));
+	CRITICAL_LOG("Slave is not activated in %lf sec (slave: %s)\n", SLAVE_ACTIVATE_TIME, slave_name(slave));
 	slave = slave_deactivated(slave);
-	DbgPrint("Slave: %p\n", slave);
 	return ECORE_CALLBACK_CANCEL;
 }
 
@@ -421,6 +420,7 @@ HAPI int slave_activate(struct slave_node *slave)
 		DbgPrint("Debug Mode enabled. name[%s] secured[%d] abi[%s]\n", slave_name(slave), slave->secured, slave->abi);
 	} else {
 		bundle *param;
+
 		param = bundle_create();
 		if (!param) {
 			ErrPrint("Failed to create a bundle\n");
@@ -437,7 +437,8 @@ HAPI int slave_activate(struct slave_node *slave)
 
 		if (slave->pid < 0) {
 			CRITICAL_LOG("Failed to launch a new slave %s (%d)\n", slave_name(slave), slave->pid);
-			if (slave->pid != -6) {
+			if (slave->pid != AUL_R_ETIMEOUT && slave->pid != AUL_R_ECOMM) {
+				ErrPrint("failed, because of %d\n", slave->pid);
 				slave->pid = (pid_t)-1;
 				return LB_STATUS_ERROR_FAULT;
 			} else {

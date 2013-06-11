@@ -5406,6 +5406,14 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 		}
 	} else {
 		if (slave_pid(slave) != pid) {
+			if (slave_pid(slave) > 0) {
+				CRITICAL_LOG("Slave(%s) is already assigned to %d\n", slave_name(slave), slave_pid(slave));
+				if (pid > 0) {
+					ret = aul_terminate_pid(pid);
+					CRITICAL_LOG("Terminate %d (ret: %d)\n", pid, ret);
+				}
+				goto out;
+			}
 			CRITICAL_LOG("PID of slave(%s) is updated (%d -> %d)\n", slave_name(slave), slave_pid(slave), pid);
 			slave_set_pid(slave, pid);
 		}
