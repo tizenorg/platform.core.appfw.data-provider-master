@@ -132,8 +132,11 @@ static inline int app_terminate(void)
 {
 	int ret;
 
-	ret = script_fini();
-	DbgPrint("script: %d\n", ret);
+	ret = server_fini();
+	DbgPrint("Finalize server: %d\n", ret);
+
+	ret = dead_fini();
+	DbgPrint("dead signal handler finalized: %d\n", ret);
 
 	ret = utility_service_fini();
 	DbgPrint("utility: %d\n", ret);
@@ -153,23 +156,21 @@ static inline int app_terminate(void)
 	ret = setting_fini();
 	DbgPrint("Finalize setting : %d\n", ret);
 
+	ret = instance_fini();
+	DbgPrint("Finalizing instances: %d\n", ret);
+
+	ret = package_fini();
+	DbgPrint("Finalize package info: %d\n", ret);
+
+	ret = script_fini();
+	DbgPrint("script: %d\n", ret);
+
 	ret = buffer_handler_fini();
 	DbgPrint("buffer handler: %d\n", ret);
 
 	xmonitor_fini();
 
-	instance_fini();
-
-	ret = package_fini();
-	DbgPrint("Finalize package info: %d\n", ret);
-
 	client_fini();
-
-	ret = server_fini();
-	DbgPrint("Finalize dbus: %d\n", ret);
-
-	ret = dead_fini();
-	DbgPrint("dead signal handler finalized: %d\n", ret);
 
 	ret = io_fini();
 	DbgPrint("IO finalized: %d\n", ret);

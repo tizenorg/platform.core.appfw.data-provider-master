@@ -396,6 +396,8 @@ HAPI struct script_info *script_handler_create(struct inst_info *inst, const cha
 HAPI int script_handler_destroy(struct script_info *info)
 {
 	struct block *block;
+	int ret;
+
 	if (!info || !info->port) {
 		ErrPrint("port is not valid\n");
 		return LB_STATUS_ERROR_INVALID;
@@ -406,8 +408,9 @@ HAPI int script_handler_destroy(struct script_info *info)
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	if (info->port->destroy(info->port_data) < 0)
-		ErrPrint("Failed to destroy port, but go ahead\n");
+	ret = info->port->destroy(info->port_data);
+	if (ret < 0)
+		ErrPrint("Failed to destroy port, but go ahead: %d\n", ret);
 
 	fb_destroy(info->fb);
 

@@ -4794,8 +4794,6 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 
 		ret = instance_slave_open_pd(inst, client);
 		if (ret == LB_STATUS_SUCCESS) {
-			Ecore_Timer *timer;
-
 			ret = script_handler_load(instance_pd_script(inst), 1);
 
 			/*!
@@ -4803,6 +4801,8 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 			 * Send the PD created event to the clients,
 			 */
 			if (ret == LB_STATUS_SUCCESS) {
+				Ecore_Timer *timer;
+
 				/*!
 				 * \note
 				 * But the created event has to be send afte return
@@ -4948,14 +4948,12 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 			ErrPrint("PD close request failed: %d\n", ret);
 		} else {
 			if (resize_aborted) {
-				Ecore_Timer *timer;
-
-				timer = ecore_timer_add(DELAY_TIME, lazy_pd_destroyed_cb, instance_ref(inst));
-				if (!timer) {
+				pd_monitor = ecore_timer_add(DELAY_TIME, lazy_pd_destroyed_cb, instance_ref(inst));
+				if (!pd_monitor) {
 					ErrPrint("Failed to create a timer: %s\n", pkgname);
 					(void)instance_unref(inst);
 				} else {
-					(void)instance_set_data(inst, "lazy,pd,close", timer);
+					(void)instance_set_data(inst, "lazy,pd,close", pd_monitor);
 				}
 			} else {
 				pd_monitor = ecore_timer_add(PD_REQUEST_TIMEOUT, pd_close_monitor_cb, instance_ref(inst));
@@ -4995,8 +4993,6 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 		 * Send the destroyed PD event to the client
 		 */
 		if (ret == LB_STATUS_SUCCESS) {
-			Ecore_Timer *timer;
-
 			/*!
 			 * \note
 			 * 13-05-28
@@ -5004,12 +5000,12 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 			 * But I just add it to the tagged-data of the instance.
 			 * Just reserve for future-use.
 			 */
-			timer = ecore_timer_add(DELAY_TIME, lazy_pd_destroyed_cb, instance_ref(inst));
-			if (!timer) {
+			pd_monitor = ecore_timer_add(DELAY_TIME, lazy_pd_destroyed_cb, instance_ref(inst));
+			if (!pd_monitor) {
 				ErrPrint("Failed to create a timer: %s\n", pkgname);
 				(void)instance_unref(inst);
 			} else {
-				(void)instance_set_data(inst, "lazy,pd,close", timer);
+				(void)instance_set_data(inst, "lazy,pd,close", pd_monitor);
 			}
 		}
 	} else {
