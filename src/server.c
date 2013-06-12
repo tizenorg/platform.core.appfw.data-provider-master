@@ -4870,6 +4870,7 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 	int ret;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	Ecore_Timer *pd_monitor;
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -4890,7 +4891,6 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 		goto out;
 
 	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
-		Ecore_Timer *pd_monitor;
 		int resize_aborted = 0;
 
 		pd_monitor = instance_del_data(inst, "pd,open,monitor");
