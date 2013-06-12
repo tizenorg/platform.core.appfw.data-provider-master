@@ -534,7 +534,6 @@ static void *server_main(void *data)
 			ret = -ETIMEDOUT;
 			break;
 		}
-		DbgPrint("select ret: %d\n", ret);
 
 		if (FD_ISSET(svc_ctx->fd, &set)) {
 			client_fd = secure_socket_get_connection_handle(svc_ctx->fd);
