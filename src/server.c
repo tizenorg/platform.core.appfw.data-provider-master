@@ -4573,16 +4573,16 @@ out:
 
 static Eina_Bool lazy_pd_created_cb(void *data)
 {
-	(void)instance_del_data(data, "lazy,pd,open");
-
-	/*!
-	 * After unref instance first,
-	 * if the instance is not destroyed, try to notify the created PD event to the client.
-	 */
-	if (instance_unref(data)) {
-		int ret;
-		ret = instance_client_pd_created(data, LB_STATUS_SUCCESS);
-		DbgPrint("Send PD Create event (%d)\n", ret);
+	if (!!instance_del_data(data, "lazy,pd,open")) {
+		/*!
+		 * After unref instance first,
+		 * if the instance is not destroyed, try to notify the created PD event to the client.
+		 */
+		if (instance_unref(data)) {
+			int ret;
+			ret = instance_client_pd_created(data, LB_STATUS_SUCCESS);
+			DbgPrint("Send PD Create event (%d)\n", ret);
+		}
 	}
 
 	return ECORE_CALLBACK_CANCEL;
@@ -4590,11 +4590,12 @@ static Eina_Bool lazy_pd_created_cb(void *data)
 
 static Eina_Bool lazy_pd_destroyed_cb(void *data)
 {
-	(void)instance_del_data(data, "lazy,pd,close");
-
-	if (instance_unref(data)) {
-		DbgPrint("Send PD Destroy event\n");
-		instance_client_pd_destroyed(data, LB_STATUS_SUCCESS);
+	if (!!instance_del_data(data, "lazy,pd,close")) {
+		if (instance_unref(data)) {
+			int ret;
+			ret = instance_client_pd_destroyed(data, LB_STATUS_SUCCESS);
+			DbgPrint("Send PD Destroy event (%d)\n", ret);
+		}
 	}
 
 	return ECORE_CALLBACK_CANCEL;
@@ -4710,11 +4711,13 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 	if (ret != LB_STATUS_SUCCESS)
 		goto out;
 
-	if (util_free_space(IMAGE_PATH) < MINIMUM_SPACE)
+	if (util_free_space(IMAGE_PATH) < MINIMUM_SPACE) {
 		ret = LB_STATUS_ERROR_NO_SPACE;
-	else if (package_pd_type(instance_package(inst)) == PD_TYPE_BUFFER) {
+	} else if (package_pd_type(instance_package(inst)) == PD_TYPE_BUFFER) {
+		lazy_pd_destroyed_cb(inst);
+		
 		if (instance_get_data(inst, "pd,open,monitor")) {
-			DbgPrint("PD Open request is already processed -------------------------------\n");
+			DbgPrint("PD Open request is already processed\n");
 			ret = LB_STATUS_ERROR_ALREADY;
 			goto out;
 		}
@@ -4771,6 +4774,9 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 	} else if (package_pd_type(instance_package(inst)) == PD_TYPE_SCRIPT) {
 		int ix;
 		int iy;
+
+		lazy_pd_destroyed_cb(inst);
+
 		/*!
 		 * \note
 		 * ret value should be cared but in this case,
@@ -4796,6 +4802,7 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 			 */
 			if (ret == LB_STATUS_SUCCESS) {
 				Ecore_Timer *timer;
+
 				/*!
 				 * \note
 				 * But the created event has to be send afte return
@@ -4863,6 +4870,7 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 	int ret;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	Ecore_Timer *pd_monitor;
 
 	client = client_find_by_pid(pid);
 	if (!client) {
@@ -4883,7 +4891,6 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 		goto out;
 
 	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
-		Ecore_Timer *pd_monitor;
 		int resize_aborted = 0;
 
 		pd_monitor = instance_del_data(inst, "pd,open,monitor");
@@ -4899,6 +4906,13 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 			 * Because they understand that the destroy request is successfully processed.
 			 */
 			ret = LB_STATUS_ERROR_CANCEL;
+			ret = instance_client_pd_created(inst, ret);
+			if (ret < 0)
+				ErrPrint("PD client create event: %d\n", ret);
+
+			ret = instance_client_pd_destroyed(inst, LB_STATUS_SUCCESS);
+			if (ret < 0)
+				ErrPrint("PD client destroy event: %d\n", ret);
 
 			ret = instance_signal_emit(inst, "pd,hide", instance_id(inst), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0);
 			if (ret < 0)
@@ -4907,10 +4921,6 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 			ret = instance_slave_close_pd(inst, client);
 			if (ret < 0)
 				ErrPrint("PD close request failed: %d\n", ret);
-
-			ret = instance_client_pd_created(inst, ret);
-			if (ret < 0)
-				ErrPrint("PD client create event: %d\n", ret);
 
 			ecore_timer_del(pd_monitor);
 			(void)instance_unref(inst);
@@ -4921,7 +4931,11 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 		if (pd_monitor) {
 			ErrPrint("PD Resize request is found. clear it [%s]\n", pkgname);
 			ecore_timer_del(pd_monitor);
-			(void)instance_unref(inst);
+
+			inst = instance_unref(inst);
+			if (!inst)
+				goto out;
+
 			resize_aborted = 1;
 		}
 
@@ -4934,7 +4948,13 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 			ErrPrint("PD close request failed: %d\n", ret);
 		} else {
 			if (resize_aborted) {
-				ret = instance_client_pd_destroyed(inst, LB_STATUS_SUCCESS);
+				pd_monitor = ecore_timer_add(DELAY_TIME, lazy_pd_destroyed_cb, instance_ref(inst));
+				if (!pd_monitor) {
+					ErrPrint("Failed to create a timer: %s\n", pkgname);
+					(void)instance_unref(inst);
+				} else {
+					(void)instance_set_data(inst, "lazy,pd,close", pd_monitor);
+				}
 			} else {
 				pd_monitor = ecore_timer_add(PD_REQUEST_TIMEOUT, pd_close_monitor_cb, instance_ref(inst));
 				if (!pd_monitor) {
@@ -4953,6 +4973,8 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 		 * instance_client_pd_destroyed(inst);
 		 */
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
+		lazy_pd_created_cb(inst);
+
 		ret = script_handler_unload(instance_pd_script(inst), 1);
 		if (ret < 0)
 			ErrPrint("Unable to unload the script: %s, %d\n", pkgname, ret);
@@ -4971,10 +4993,6 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 		 * Send the destroyed PD event to the client
 		 */
 		if (ret == LB_STATUS_SUCCESS) {
-			Ecore_Timer *timer;
-
-			inst = instance_ref(inst);
-
 			/*!
 			 * \note
 			 * 13-05-28
@@ -4982,16 +5000,12 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 			 * But I just add it to the tagged-data of the instance.
 			 * Just reserve for future-use.
 			 */
-			timer = ecore_timer_add(DELAY_TIME, lazy_pd_destroyed_cb, inst);
-			if (!timer) {
+			pd_monitor = ecore_timer_add(DELAY_TIME, lazy_pd_destroyed_cb, instance_ref(inst));
+			if (!pd_monitor) {
 				ErrPrint("Failed to create a timer: %s\n", pkgname);
 				(void)instance_unref(inst);
-				/*!
-				 * How can we handle this?
-				 */
-				ret = LB_STATUS_ERROR_FAULT;
 			} else {
-				(void)instance_set_data(inst, "lazy,pd,close", timer);
+				(void)instance_set_data(inst, "lazy,pd,close", pd_monitor);
 			}
 		}
 	} else {
@@ -5956,7 +5970,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 	}
 
 	if (util_free_space(IMAGE_PATH) < MINIMUM_SPACE) {
-		DbgPrint("No space\n");
+		ErrPrint("Not enough space\n");
 		ret = LB_STATUS_ERROR_NO_SPACE;
 		id = "";
 		goto out;

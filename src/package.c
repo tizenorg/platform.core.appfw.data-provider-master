@@ -281,6 +281,11 @@ static int slave_resumed_cb(struct slave_node *slave, void *data)
 
 static inline void destroy_package(struct pkg_info *info)
 {
+	struct context_info *ctx_info;
+	EINA_LIST_FREE(info->ctx_list, ctx_info) {
+		/* This items will be deleted from group_del_livebox */
+	}
+
 	group_del_livebox(info->pkgname);
 	package_clear_fault(info);
 
@@ -541,6 +546,11 @@ HAPI Eina_List *package_ctx_info(struct pkg_info *pkginfo)
 HAPI void package_add_ctx_info(struct pkg_info *pkginfo, struct context_info *info)
 {
 	pkginfo->ctx_list = eina_list_append(pkginfo->ctx_list, info);
+}
+
+HAPI void package_del_ctx_info(struct pkg_info *pkginfo, struct context_info *info)
+{
+	pkginfo->ctx_list = eina_list_remove(pkginfo->ctx_list, info);
 }
 
 HAPI char *package_lb_pkgname(const char *pkgname)
@@ -1363,11 +1373,28 @@ HAPI int package_init(void)
 
 HAPI int package_fini(void)
 {
+	Eina_List *p_l;
+	Eina_List *p_n;
+	Eina_List *i_l;
+	Eina_List *i_n;
+	struct pkg_info *info;
+	struct inst_info *inst;
+
 	pkgmgr_del_event_callback(PKGMGR_EVENT_INSTALL, install_cb, NULL);
 	pkgmgr_del_event_callback(PKGMGR_EVENT_UNINSTALL, uninstall_cb, NULL);
 	pkgmgr_del_event_callback(PKGMGR_EVENT_UPDATE, update_cb, NULL);
 	pkgmgr_fini();
 	client_global_event_handler_del(CLIENT_GLOBAL_EVENT_CREATE, client_created_cb, NULL);
+
+	EINA_LIST_FOREACH_SAFE(s_info.pkg_list, p_l, p_n, info) {
+		EINA_LIST_FOREACH_SAFE(info->inst_list, i_l, i_n, inst) {
+			instance_state_reset(inst);
+			instance_destroy(inst);
+		}
+
+		package_destroy(info);
+	}
+
 	return 0;
 }
 
