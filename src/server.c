@@ -6343,6 +6343,7 @@ out:
 
 static struct packet *service_update(pid_t pid, int handle, const struct packet *packet)
 {
+	Eina_List *inst_list;
 	struct pkg_info *pkg;
 	struct packet *result;
 	const char *pkgname;
@@ -6377,6 +6378,31 @@ static struct packet *service_update(pid_t pid, int handle, const struct packet 
 		ret = LB_STATUS_ERROR_FAULT;
 		DbgFree(lb_pkgname);
 		goto out;
+	}
+
+	inst_list = package_instance_list(pkg);
+	if (!eina_list_count(inst_list)) {
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+		DbgFree(lb_pkgname);
+		goto out;
+	}
+
+	if (id && strlen(id)) {
+		Eina_List *l;
+		struct inst_info *inst;
+
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+		EINA_LIST_FOREACH(inst_list, l, inst) {
+			if (!strcmp(instance_id(inst), id)) {
+				ret = LB_STATUS_SUCCESS;
+				break;
+			}
+		}
+
+		if (ret == LB_STATUS_ERROR_NOT_EXIST) {
+			DbgFree(lb_pkgname);
+			goto out;
+		}
 	}
 
 	/*!
