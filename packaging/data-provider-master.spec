@@ -1,6 +1,6 @@
 Name: data-provider-master
 Summary: Master service provider for liveboxes.
-Version: 0.24.11
+Version: 0.24.12
 Release: 1
 Group: HomeTF/Livebox
 License: Flora License
@@ -38,6 +38,7 @@ BuildRequires: pkgconfig(badge)
 BuildRequires: pkgconfig(security-server)
 BuildRequires: sec-product-features
 Requires(post): sys-assert
+Requires(post): dbus
 
 %description
 Manage the 2nd stage livebox service provider and communicate with the viewer application.
