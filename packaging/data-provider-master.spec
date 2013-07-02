@@ -52,7 +52,11 @@ Keep trace on the life-cycle of the livebox and status of the service providers,
 %if 0%(test "%{?sec_build_conf_tizen_product_group}" == "baltic" && echo 1)
 cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix} -DPRODUCT=baltic
 %else
-cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix} -DPRODUCT=private
+	%if 0%(test "%{?sec_product_feature_livebox_shm}" == "1" && echo 1)
+		cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix} -DPRODUCT=baltic
+	%else
+		cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix} -DPRODUCT=private
+	%endif
 %endif
 
 CFLAGS="${CFLAGS} -Wall -Winline -Werror" LDFLAGS="${LDFLAGS}" make %{?jobs:-j%jobs}
