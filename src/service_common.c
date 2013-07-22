@@ -296,6 +296,9 @@ static void *client_packet_pump_main(void *data)
 				DbgPrint("Packet received: %d bytes\n", packet_offset);
 				recv_state = RECV_INIT;
 			}
+
+			/* Take a breathe */
+			pthread_yield();
 		}
 	}
 
@@ -601,6 +604,9 @@ static void *server_main(void *data)
 				packet_destroy(packet_info->packet);
 				free(packet_info);
 			}
+
+			/* Take a breathe */
+			pthread_yield();
 		}
 
 		processing_timer_event(svc_ctx, &set);
