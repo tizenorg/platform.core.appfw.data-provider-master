@@ -27,6 +27,7 @@
 
 #include <dlog.h>
 #include <Eina.h>
+#include <com-core.h>
 
 #include "service_common.h"
 #include "util.h"
@@ -35,6 +36,7 @@
 
 #define EVT_CH		'e'
 #define EVT_END_CH	'x'
+#define DEFAULT_TIMEOUT	2.0f
 
 int errno;
 
@@ -825,7 +827,7 @@ HAPI int service_common_unicast_packet(struct tcb *tcb, struct packet *packet)
 	}
 
 	DbgPrint("Unicast packet\n");
-	return secure_socket_send(tcb->fd, (void *)packet_data(packet), packet_size(packet));
+	return com_core_send(tcb->fd, (void *)packet_data(packet), packet_size(packet), DEFAULT_TIMEOUT);
 }
 
 /*!
@@ -853,7 +855,7 @@ HAPI int service_common_multicast_packet(struct tcb *tcb, struct packet *packet,
 			continue;
 		}
 
-		ret = secure_socket_send(target->fd, (void *)packet_data(packet), packet_size(packet));
+		ret = com_core_send(target->fd, (void *)packet_data(packet), packet_size(packet), DEFAULT_TIMEOUT);
 		if (ret < 0)
 			ErrPrint("Failed to send packet: %d\n", ret);
 	}
