@@ -252,9 +252,9 @@ HAPI struct client_node *client_create(pid_t pid, int handle)
 	struct client_node *client;
 	int ret;
 
-	client = client_find_by_pid(pid);
+	client = client_find_by_rpc_handle(handle);
 	if (client) {
-		ErrPrint("Client %d is already exists\n", pid);
+		ErrPrint("Client %d(%d) is already exists\n", pid, handle);
 		return client;
 	}
 
