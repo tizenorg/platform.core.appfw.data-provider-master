@@ -555,32 +555,6 @@ static void *server_main(void *data)
 			}
 		} 
 
-		if (FD_ISSET(svc_ctx->tcb_pipe[PIPE_READ], &set)) {
-			if (read(svc_ctx->tcb_pipe[PIPE_READ], &tcb, sizeof(tcb)) != sizeof(tcb)) {
-				ErrPrint("Unable to read pipe: %s\n", strerror(errno));
-				ret = -EFAULT;
-				break;
-			}
-
-			if (!tcb) {
-				ErrPrint("Terminate service thread\n");
-				ret = -ECANCELED;
-				break;
-			}
-
-			/*!
-			 * \note
-			 * Invoke the service thread main, to notify the termination of a TCB
-			 */
-			ret = svc_ctx->service_thread_main(tcb, NULL, svc_ctx->service_thread_data);
-
-			/*!
-			 * at this time, the client thread can access this tcb.
-			 * how can I protect this TCB from deletion without disturbing the server thread?
-			 */
-			tcb_destroy(svc_ctx, tcb);
-		} 
-
 		if (FD_ISSET(svc_ctx->evt_pipe[PIPE_READ], &set)) {
 			if (read(svc_ctx->evt_pipe[PIPE_READ], &evt_ch, sizeof(evt_ch)) != sizeof(evt_ch)) {
 				ErrPrint("Unable to read pipe: %s\n", strerror(errno));
@@ -612,6 +586,62 @@ static void *server_main(void *data)
 		}
 
 		processing_timer_event(svc_ctx, &set);
+
+		/*!
+		 * \note
+		 * Destroying TCB should be processed at last.
+		 */
+		if (FD_ISSET(svc_ctx->tcb_pipe[PIPE_READ], &set)) {
+			Eina_List *lockfree_packet_list;
+			Eina_List *l;
+			Eina_List *n;
+
+			if (read(svc_ctx->tcb_pipe[PIPE_READ], &tcb, sizeof(tcb)) != sizeof(tcb)) {
+				ErrPrint("Unable to read pipe: %s\n", strerror(errno));
+				ret = -EFAULT;
+				break;
+			}
+
+			if (!tcb) {
+				ErrPrint("Terminate service thread\n");
+				ret = -ECANCELED;
+				break;
+			}
+
+			lockfree_packet_list = NULL;
+			CRITICAL_SECTION_BEGIN(&svc_ctx->packet_list_lock);
+			EINA_LIST_FOREACH_SAFE(svc_ctx->packet_list, l, n, packet_info) {
+				if (packet_info->tcb != tcb)
+					continue;
+
+				svc_ctx->packet_list = eina_list_remove(svc_ctx->packet_list, packet_info);
+				lockfree_packet_list = eina_list_append(lockfree_packet_list, packet_info);
+			}
+			CRITICAL_SECTION_END(&svc_ctx->packet_list_lock);
+
+			EINA_LIST_FREE(lockfree_packet_list, packet_info) {
+				ret = read(svc_ctx->evt_pipe[PIPE_READ], &evt_ch, sizeof(evt_ch));
+				DbgPrint("Flushing filtered pipe: %d (%c)\n", ret, evt_ch);
+				ret = svc_ctx->service_thread_main(packet_info->tcb, packet_info->packet, svc_ctx->service_thread_data);
+				if (ret < 0)
+					ErrPrint("Service thread returns: %d\n", ret);
+				packet_destroy(packet_info->packet);
+				free(packet_info);
+			}
+
+			/*!
+			 * \note
+			 * Invoke the service thread main, to notify the termination of a TCB
+			 */
+			ret = svc_ctx->service_thread_main(tcb, NULL, svc_ctx->service_thread_data);
+
+			/*!
+			 * at this time, the client thread can access this tcb.
+			 * how can I protect this TCB from deletion without disturbing the server thread?
+			 */
+			tcb_destroy(svc_ctx, tcb);
+		} 
+
 		/* If there is no such triggered FD? */
 	}
 
@@ -762,6 +792,19 @@ HAPI int service_common_destroy(struct service_context *svc_ctx)
 	CLOSE_PIPE(svc_ctx->evt_pipe);
 	CLOSE_PIPE(svc_ctx->tcb_pipe);
 	free(svc_ctx);
+	return 0;
+}
+
+HAPI int tcb_is_valid(struct service_context *svc_ctx, struct tcb *tcb)
+{
+	Eina_List *l;
+	struct tcb *tmp;
+
+	EINA_LIST_FOREACH(svc_ctx->tcb_list, l, tmp) {
+		if (tmp == tcb /* && tcb->svc_ctx == svc_ctx */)
+			return 1;
+	}
+
 	return 0;
 }
 

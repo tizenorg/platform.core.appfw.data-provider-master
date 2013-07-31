@@ -6899,7 +6899,7 @@ HAPI int server_init(void)
 	 * remote://:8208
 	 * Skip address to use the NULL.
 	 */
-	s_info.remote_client_fd = com_core_packet_server_init("remote://:8208", s_client_table);
+	s_info.remote_client_fd = com_core_packet_server_init("remote://:"CLIENT_PORT, s_client_table);
 	if (s_info.client_fd < 0)
 		ErrPrint("Failed to create a remote client socket\n");
 
