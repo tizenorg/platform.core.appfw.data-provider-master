@@ -62,10 +62,26 @@ static struct info {
 };
 
 struct request_item {
-	char *filename;
+	enum {
+		REQUEST_TYPE_FILE = 0x00,
+		REQUEST_TYPE_SHM = 0x01,
+		REQUEST_TYPE_PIXMAP = 0x02,
+		REQUEST_TYPE_MAX = 0x02,
+	} type;
+	union {
+		char *filename;
+		int shm;
+		unsigned int pixmap;
+	} data;
 	struct tcb *tcb;
 };
 
+typedef int (*send_data_func_t)(int fd, const struct request_item *item);
+
+/*!
+ * File transfer header.
+ * This must should be shared with client.
+ */
 struct burst_head {
 	off_t size;
 	int flen;
@@ -77,13 +93,171 @@ struct burst_data {
 	char data[];
 };
 
+static inline struct request_item *create_request_item(struct tcb *tcb, int type, void *data)
+{
+	struct request_item *item;
+
+	item = malloc(sizeof(*item));
+	if (!item) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return NULL;
+	}
+
+	switch (type) {
+	case REQUEST_TYPE_FILE:
+		item->data.filename = strdup(data);
+		if (!item->data.filename) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			free(item);
+			return NULL;
+		}
+		break;
+	case REQUEST_TYPE_PIXMAP:
+		item->data.pixmap = (unsigned int)data;
+		break;
+	case REQUEST_TYPE_SHM:
+		item->data.shm = (int)data;
+		break;
+	default:
+		return NULL;
+	}
+
+	item->type = type;
+	item->tcb = tcb;
+	return item;
+}
+
+static inline int destroy_request_item(struct request_item *item)
+{
+	switch (item->type) {
+	case REQUEST_TYPE_FILE:
+		free(item->data.filename);
+		break;
+	case REQUEST_TYPE_SHM:
+	case REQUEST_TYPE_PIXMAP:
+		break;
+	default:
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	free(item);
+	return LB_STATUS_SUCCESS;
+}
+
+static int request_file_handler(struct tcb *tcb, struct packet *packet, struct request_item **item)
+{
+	const char *filename;
+	struct request_item *_item;
+
+	if (packet_get(packet, "s", &filename) != 1) {
+		ErrPrint("Invalid packet\n");
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	_item = create_request_item(tcb, REQUEST_TYPE_FILE, (void *)filename);
+	if (_item) {
+		CRITICAL_SECTION_BEGIN(&s_info.request_list_lock);
+		s_info.request_list = eina_list_append(s_info.request_list, _item);
+		CRITICAL_SECTION_END(&s_info.request_list_lock);
+
+		*item = _item;
+	}
+
+	return _item ? LB_STATUS_SUCCESS : LB_STATUS_ERROR_MEMORY;
+}
+
+static int request_pixmap_handler(struct tcb *tcb, struct packet *packet, struct request_item **item)
+{
+	unsigned int pixmap;
+	struct request_item *_item;
+
+	if (packet_get(packet, "i", &pixmap) != 1) {
+		ErrPrint("Invalid packet\n");
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	if (pixmap == 0) {
+		ErrPrint("pixmap is not valid\n");
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	/*!
+	 * \TODO
+	 * Attach to pixmap and copy its data to the client
+	 */
+	_item = create_request_item(tcb, REQUEST_TYPE_PIXMAP, (void *)pixmap);
+	if (_item) {
+		CRITICAL_SECTION_BEGIN(&s_info.request_list_lock);
+		s_info.request_list = eina_list_append(s_info.request_list, _item);
+		CRITICAL_SECTION_END(&s_info.request_list_lock);
+
+		*item = _item;
+	}
+
+	return _item ? LB_STATUS_SUCCESS : LB_STATUS_ERROR_MEMORY;
+}
+
+static int request_shm_handler(struct tcb *tcb, struct packet *packet, struct request_item **item)
+{
+	int shm;
+	struct request_item *_item;
+
+	if (packet_get(packet, "i", &shm) != 1) {
+		ErrPrint("Invalid packet\n");
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	if (shm < 0) {
+		ErrPrint("shm is not valid: %d\n", shm);
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	/*!
+	 * \TODO
+	 * Attach to SHM and copy its buffer to the client
+	 */
+	_item = create_request_item(tcb, REQUEST_TYPE_SHM, (void *)shm);
+	if (_item) {
+		CRITICAL_SECTION_BEGIN(&s_info.request_list_lock);
+		s_info.request_list = eina_list_append(s_info.request_list, _item);
+		CRITICAL_SECTION_END(&s_info.request_list_lock);
+
+		*item = _item;
+	}
+
+	return _item ? LB_STATUS_SUCCESS : LB_STATUS_ERROR_MEMORY;
+}
+
 /* SERVER THREAD */
 static int service_thread_main(struct tcb *tcb, struct packet *packet, void *data)
 {
 	const char *cmd;
-	struct packet *reply;
+	char ch = PUSH_ITEM;
 	int ret;
+	int i;
 	struct request_item *item;
+	struct packet *reply;
+	struct {
+		const char *cmd;
+		int (*request_handler)(struct tcb *tcb, struct packet *packet, struct request_item **item);
+	} cmd_table[] = {
+		{
+			.cmd = "request,file",
+			.request_handler = request_file_handler,
+		},
+		{
+			.cmd = "request,pixmap",
+			.request_handler = request_pixmap_handler,
+		},
+		{
+			.cmd = "request,shm",
+			.request_handler = request_shm_handler,
+		},
+		{
+			.cmd = NULL,
+			.request_handler = NULL,
+		},
+	};
 
 	if (!packet) {
 		DbgPrint("TCB %p is disconnected\n", tcb);
@@ -98,51 +272,38 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 
 	switch (packet_type(packet)) {
 	case PACKET_REQ:
-		item = NULL;
+		for (i = 0; cmd_table[i].cmd; i++) {
+			/*!
+			 * Protocol sequence
+			 * FILE REQUEST COMMAND (Client -> Server)
+			 * REPLY FOR REQUEST (Client <- Server)
+			 * PUSH FILE (Client <- Server)
+			 *
+			 * Client & Server must has to keep this communication sequence.
+			 */
+			if (strcmp(cmd, cmd_table[i].cmd))
+				continue;
 
-		if (strcmp(cmd, "request,file")) {
-			const char *filename;
-			if (packet_get(packet, "s", &filename) != 1) {
-				ErrPrint("Invalid packet\n");
-				ret = LB_STATUS_ERROR_INVALID;
-			} else {
-				item = malloc(sizeof(*item));
-				if (!item) {
-					ErrPrint("Heap: %s\n", strerror(errno));
-					ret = LB_STATUS_ERROR_MEMORY;
-				} else {
-					item->filename = strdup(filename);
-					if (!item->filename) {
-						ErrPrint("Heap: %s\n", strerror(errno));
-						free(item);
-						ret = LB_STATUS_ERROR_MEMORY;
-					} else {
-						item->tcb = tcb;
+			item = NULL;
+			ret = cmd_table[i].request_handler(tcb, packet, &item);
 
-						CRITICAL_SECTION_BEGIN(&s_info.request_list_lock);
-						s_info.request_list = eina_list_append(s_info.request_list, item);
-						CRITICAL_SECTION_END(&s_info.request_list_lock);
-
-						ret = LB_STATUS_SUCCESS;
-					}
-				}
+			reply = packet_create_reply(packet, "i", ret);
+			if (!reply) {
+				ErrPrint("Failed to create a reply packet\n");
+				break;
 			}
-		} else {
-			ErrPrint("Unknown command\n");
-			ret = LB_STATUS_ERROR_INVALID;
-		}
 
-		reply = packet_create_reply(packet, "i", ret);
-		if (service_common_unicast_packet(tcb, reply) < 0)
-			ErrPrint("Unable to send reply packet\n");
-		packet_destroy(reply);
+			if (service_common_unicast_packet(tcb, reply) < 0)
+				ErrPrint("Unable to send reply packet\n");
 
-		/*!
-		 * \note
-		 * After send the reply packet, file push thread can sending a file
-		 */
-		if (item && ret == LB_STATUS_SUCCESS) {
-			char ch = PUSH_ITEM;
+			packet_destroy(reply);
+
+			/*!
+			 * \note
+			 * After send the reply packet, file push thread can sending a file
+			 */
+			if (ret != LB_STATUS_SUCCESS || !item)
+				break;
 
 			ret = write(s_info.request_pipe[PIPE_WRITE], &ch, sizeof(ch));
 			if (ret < 0) {
@@ -152,11 +313,9 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 				s_info.request_list = eina_list_remove(s_info.request_list, item);
 				CRITICAL_SECTION_END(&s_info.request_list_lock);
 
-				free(item->filename);
-				free(item);
-
+				destroy_request_item(item);
 				/*!
-				 * \note
+				 * \note for the client
 				 * In this case, the client can waiting files forever.
 				 * So the client must has to wait only a few seconds.
 				 * If the client could not get the any data in that time,
@@ -165,14 +324,6 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 			}
 		}
 
-		/*!
-		 * Protocol sequence
-		 * FILE REQUEST COMMAND (Client -> Server)
-		 * REPLY FOR REQUEST (Client <- Server)
-		 * PUSH FILE (Client <- Server)
-		 *
-		 * Client & Server must has to keep this communication sequence.
-		 */
 		break;
 	case PACKET_REQ_NOACK:
 	case PACKET_ACK:
@@ -186,7 +337,7 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 	return LB_STATUS_SUCCESS;
 }
 
-static inline int send_file(int conn_fd, const char *filename)
+static int send_file(int handle, const struct request_item *item)
 {
 	struct burst_head *head;
 	struct burst_data *body;
@@ -197,13 +348,13 @@ static inline int send_file(int conn_fd, const char *filename)
 	int ret = 0;
 
 	/* TODO: push a file to the client */
-	fd = open(filename, O_RDONLY);
+	fd = open(item->data.filename, O_RDONLY);
 	if (fd < 0) {
 		ErrPrint("open: %s\n", strerror(errno));
 		return -EIO;
 	}
 
-	flen = strlen(filename);
+	flen = strlen(item->data.filename);
 	if (flen == 0) {
 		ret = -EINVAL;
 		goto errout;
@@ -228,10 +379,10 @@ static inline int send_file(int conn_fd, const char *filename)
 
 	head->flen = flen;
 	head->size = fsize;
-	strcpy(head->fname, filename);
+	strcpy(head->fname, item->data.filename);
 
 	/* Anytime we can fail to send packet */
-	ret = com_core_send(conn_fd, (void *)head, pktsz, 2.0f);
+	ret = com_core_send(handle, (void *)head, pktsz, 2.0f);
 	free(head);
 	if (ret < 0) {
 		ret = -EFAULT;
@@ -248,7 +399,7 @@ static inline int send_file(int conn_fd, const char *filename)
 		}
 
 		body->size = -1;
-		ret = com_core_send(conn_fd, (void *)body, sizeof(*body), 2.0f);
+		ret = com_core_send(handle, (void *)body, sizeof(*body), 2.0f);
 		free(body);
 
 		if (ret < 0)
@@ -285,7 +436,7 @@ static inline int send_file(int conn_fd, const char *filename)
 		}
 
 		/* Send BODY */
-		ret = com_core_send(conn_fd, (void *)body, pktsz, 2.0f);
+		ret = com_core_send(handle, (void *)body, pktsz, 2.0f);
 		if (ret != pktsz) {
 			ret = -EFAULT;
 			break;
@@ -294,7 +445,7 @@ static inline int send_file(int conn_fd, const char *filename)
 
 	/* Send EOF */
 	body->size = -1;
-	ret = com_core_send(conn_fd, (void *)body, sizeof(*body), 2.0f);
+	ret = com_core_send(handle, (void *)body, sizeof(*body), 2.0f);
 	if (ret < 0)
 		ret = -EFAULT;
 
@@ -307,6 +458,17 @@ errout:
 	return ret;
 }
 
+static int send_shm(int fd, const struct request_item *item)
+{
+	/* How can we get the size of this shm? */
+	return 0;
+}
+
+static int send_pixmap(int fd, const struct request_item *item)
+{
+	return 0;
+}
+
 static void *push_main(void *data)
 {
 	fd_set set;
@@ -314,10 +476,16 @@ static void *push_main(void *data)
 	char ch;
 	struct request_item *item;
 	int conn_fd;
+	send_data_func_t send_data[] = {
+		send_file,
+		send_shm,
+		send_pixmap,
+	};
 
 	while (1) {
 		FD_ZERO(&set);
 		FD_SET(s_info.request_pipe[PIPE_READ], &set);
+
 		ret = select(s_info.request_pipe[PIPE_READ] + 1, &set, NULL, NULL, NULL);
 		if (ret < 0) {
 			ret = -errno;
@@ -360,18 +528,15 @@ static void *push_main(void *data)
 
 		if (!item) {
 			ErrPrint("Request item is not valid\n");
-			ret = -EFAULT;
-			break;
+			continue;
 		}
 
 		/* Validate the TCB? */
 		conn_fd = tcb_is_valid(s_info.svc_ctx, item->tcb);
 		if (conn_fd < 0) {
 			ErrPrint("TCB is not valid\n");
-			ret = -EINVAL;
-			free(item->filename);
-			free(item);
-			break;
+			destroy_request_item(item);
+			continue;
 		}
 
 		/*
@@ -380,10 +545,12 @@ static void *push_main(void *data)
 		 * It can be closed any time.
 		 * Even though we using it.
 		 */
-		(void)send_file(conn_fd, item->filename);
+		if (item->type < REQUEST_TYPE_MAX || item->type >= 0)
+			(void)send_data[item->type](conn_fd, item);
+		else
+			ErrPrint("Invalid type\n");
 
-		free(item->filename);
-		free(item);
+		destroy_request_item(item);
 	}
 
 	return (void *)ret;
@@ -474,8 +641,7 @@ int file_service_fini(void)
 
 	CRITICAL_SECTION_BEGIN(&s_info.request_list_lock);
 	EINA_LIST_FREE(s_info.request_list, item) {
-		free(item->filename);
-		free(item);
+		destroy_request_item(item);
 	}
 	CRITICAL_SECTION_END(&s_info.request_list_lock);
 
