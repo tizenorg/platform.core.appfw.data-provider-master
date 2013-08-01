@@ -97,6 +97,7 @@ ADD_EXECUTABLE(${PROJECT_NAME}
 	src/badge_service.c
 	src/notification_service.c
 	src/utility_service.c
+	src/file_service.c
 	src/service_common.c
 )
 

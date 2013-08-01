@@ -171,7 +171,7 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 			break;
 		}
 
-		if (!tcb_is_valid(s_info.svc_ctx, tcb)) {
+		if (tcb_is_valid(s_info.svc_ctx, tcb) < 0) {
 			ErrPrint("TCB is not valid (already disconnected?)\n");
 			break;
 		}

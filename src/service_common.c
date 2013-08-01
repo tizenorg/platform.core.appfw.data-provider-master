@@ -64,6 +64,7 @@ struct service_context {
 	int fd; /*!< Server socket handle */
 
 	Eina_List *tcb_list; /*!< TCB list, list of every thread for client connections */
+	pthread_mutex_t tcb_list_lock;
 
 	Eina_List *packet_list;
 	pthread_mutex_t packet_list_lock;
@@ -357,7 +358,9 @@ static inline struct tcb *tcb_create(struct service_context *svc_ctx, int fd)
 		return NULL;
 	}
 
+	CRITICAL_SECTION_BEGIN(&svc_ctx->tcb_list_lock);
 	svc_ctx->tcb_list = eina_list_append(svc_ctx->tcb_list, tcb);
+	CRITICAL_SECTION_END(&svc_ctx->tcb_list_lock);
 	return tcb;
 }
 
@@ -407,7 +410,9 @@ static inline void tcb_destroy(struct service_context *svc_ctx, struct tcb *tcb)
 	int status;
 	char ch = EVT_END_CH;
 
+	CRITICAL_SECTION_BEGIN(&svc_ctx->tcb_list_lock);
 	svc_ctx->tcb_list = eina_list_remove(svc_ctx->tcb_list, tcb);
+	CRITICAL_SECTION_END(&svc_ctx->tcb_list_lock);
 	/*!
 	 * ASSERT(tcb->fd >= 0);
 	 * Close the connection, and then collecting the return value of thread
@@ -795,17 +800,26 @@ HAPI int service_common_destroy(struct service_context *svc_ctx)
 	return 0;
 }
 
+/*!
+ * \note
+ * SERVER THREAD or OTHER THREAD (not main)
+ */
 HAPI int tcb_is_valid(struct service_context *svc_ctx, struct tcb *tcb)
 {
 	Eina_List *l;
 	struct tcb *tmp;
+	int ret = 0;
 
+	CRITICAL_SECTION_BEGIN(&svc_ctx->tcb_list_lock);
 	EINA_LIST_FOREACH(svc_ctx->tcb_list, l, tmp) {
-		if (tmp == tcb /* && tcb->svc_ctx == svc_ctx */)
-			return 1;
+		if (tmp == tcb /* && tcb->svc_ctx == svc_ctx */) {
+			ret = tcb->fd;
+			break;
+		}
 	}
+	CRITICAL_SECTION_END(&svc_ctx->tcb_list_lock);
 
-	return 0;
+	return ret;
 }
 
 /*!
@@ -892,6 +906,11 @@ HAPI int service_common_multicast_packet(struct tcb *tcb, struct packet *packet,
 	svc_ctx = tcb->svc_ctx;
 
 	DbgPrint("Multicasting packets\n");
+
+	/*!
+	 * \note
+	 * Does not need to make a critical section from here.
+	 */
 	EINA_LIST_FOREACH(svc_ctx->tcb_list, l, target) {
 		if (target == tcb || target->type != type) {
 			DbgPrint("Skip target: %p(%d) == %p/%d\n", target, target->type, tcb, type);
