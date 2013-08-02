@@ -1421,12 +1421,27 @@ static inline int raw_close_shm(struct buffer *buffer)
 
 static inline struct buffer *raw_open_pixmap(unsigned int pixmap)
 {
-	return NULL;
+	struct buffer *buffer;
+
+	buffer = malloc(sizeof(*buffer) + sizeof(int));
+	if (!buffer) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return NULL;
+	}
+
+	buffer->state = CREATED;
+	buffer->type = BUFFER_TYPE_PIXMAP;
+	buffer->refcnt = 0;
+	buffer->info = NULL;
+	buffer->data = NULL;
+
+	return buffer;
 }
 
 static inline int raw_close_pixmap(struct buffer *buffer)
 {
-	return -ENOSYS;
+	free(buffer);
+	return 0;
 }
 
 HAPI void *buffer_handler_raw_data(struct buffer *buffer)

@@ -36,6 +36,7 @@
 #include "debug.h"
 #include "util.h"
 #include "conf.h"
+#include "buffer_handler.h"
 
 #define FILE_SERVICE_ADDR	"remote://:8209"
 #define FILE_PUSH_ADDR		"remote://:8210"
@@ -147,29 +148,19 @@ static inline int destroy_request_item(struct request_item *item)
 static int request_file_handler(struct tcb *tcb, struct packet *packet, struct request_item **item)
 {
 	const char *filename;
-	struct request_item *_item;
 
 	if (packet_get(packet, "s", &filename) != 1) {
 		ErrPrint("Invalid packet\n");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	_item = create_request_item(tcb, REQUEST_TYPE_FILE, (void *)filename);
-	if (_item) {
-		CRITICAL_SECTION_BEGIN(&s_info.request_list_lock);
-		s_info.request_list = eina_list_append(s_info.request_list, _item);
-		CRITICAL_SECTION_END(&s_info.request_list_lock);
-
-		*item = _item;
-	}
-
-	return _item ? LB_STATUS_SUCCESS : LB_STATUS_ERROR_MEMORY;
+	*item = create_request_item(tcb, REQUEST_TYPE_FILE, (void *)filename);
+	return *item ? LB_STATUS_SUCCESS : LB_STATUS_ERROR_MEMORY;
 }
 
 static int request_pixmap_handler(struct tcb *tcb, struct packet *packet, struct request_item **item)
 {
 	unsigned int pixmap;
-	struct request_item *_item;
 
 	if (packet_get(packet, "i", &pixmap) != 1) {
 		ErrPrint("Invalid packet\n");
@@ -185,22 +176,13 @@ static int request_pixmap_handler(struct tcb *tcb, struct packet *packet, struct
 	 * \TODO
 	 * Attach to pixmap and copy its data to the client
 	 */
-	_item = create_request_item(tcb, REQUEST_TYPE_PIXMAP, (void *)pixmap);
-	if (_item) {
-		CRITICAL_SECTION_BEGIN(&s_info.request_list_lock);
-		s_info.request_list = eina_list_append(s_info.request_list, _item);
-		CRITICAL_SECTION_END(&s_info.request_list_lock);
-
-		*item = _item;
-	}
-
-	return _item ? LB_STATUS_SUCCESS : LB_STATUS_ERROR_MEMORY;
+	*item = create_request_item(tcb, REQUEST_TYPE_PIXMAP, (void *)pixmap);
+	return *item ? LB_STATUS_SUCCESS : LB_STATUS_ERROR_MEMORY;
 }
 
 static int request_shm_handler(struct tcb *tcb, struct packet *packet, struct request_item **item)
 {
 	int shm;
-	struct request_item *_item;
 
 	if (packet_get(packet, "i", &shm) != 1) {
 		ErrPrint("Invalid packet\n");
@@ -216,16 +198,8 @@ static int request_shm_handler(struct tcb *tcb, struct packet *packet, struct re
 	 * \TODO
 	 * Attach to SHM and copy its buffer to the client
 	 */
-	_item = create_request_item(tcb, REQUEST_TYPE_SHM, (void *)shm);
-	if (_item) {
-		CRITICAL_SECTION_BEGIN(&s_info.request_list_lock);
-		s_info.request_list = eina_list_append(s_info.request_list, _item);
-		CRITICAL_SECTION_END(&s_info.request_list_lock);
-
-		*item = _item;
-	}
-
-	return _item ? LB_STATUS_SUCCESS : LB_STATUS_ERROR_MEMORY;
+	*item = create_request_item(tcb, REQUEST_TYPE_SHM, (void *)shm);
+	return *item ? LB_STATUS_SUCCESS : LB_STATUS_ERROR_MEMORY;
 }
 
 /* SERVER THREAD */
@@ -304,6 +278,10 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 			 */
 			if (ret != LB_STATUS_SUCCESS || !item)
 				break;
+
+			CRITICAL_SECTION_BEGIN(&s_info.request_list_lock);
+			s_info.request_list = eina_list_append(s_info.request_list, item);
+			CRITICAL_SECTION_END(&s_info.request_list_lock);
 
 			ret = write(s_info.request_pipe[PIPE_WRITE], &ch, sizeof(ch));
 			if (ret < 0) {
@@ -458,15 +436,78 @@ errout:
 	return ret;
 }
 
-static int send_shm(int fd, const struct request_item *item)
+static int send_buffer(int handle, const struct request_item *item)
 {
-	/* How can we get the size of this shm? */
-	return 0;
-}
+	struct buffer *buffer;
+	struct burst_head *head;
+	struct burst_data *body;
+	char *data;
+	int pktsz;
+	int ret;
+	int size;
+	int offset;
+	int type;
 
-static int send_pixmap(int fd, const struct request_item *item)
-{
-	return 0;
+	if (item->type == REQUEST_TYPE_SHM)
+		type = BUFFER_TYPE_SHM;
+	else
+		type = BUFFER_TYPE_PIXMAP;
+
+	buffer = buffer_handler_raw_open(type, (void *)item->data.shm);
+	if (!buffer)
+		return -EINVAL;
+
+	pktsz = sizeof(*head);
+
+	head = malloc(pktsz);
+	if (!head) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		(void)buffer_handler_raw_close(buffer);
+		return -ENOMEM;
+	}
+
+	size = head->size = buffer_handler_raw_size(buffer);
+	head->flen = 0;
+
+	/* Anytime we can fail to send packet */
+	ret = com_core_send(handle, (void *)head, pktsz, 2.0f);
+	free(head);
+	if (ret < 0) {
+		ret = -EFAULT;
+		goto errout;
+	}
+
+	body = malloc(sizeof(*body) + PKT_CHUNKSZ);
+	if (!body) {
+		ret = -ENOMEM;
+		goto errout;
+	}
+
+	data = (char *)buffer_handler_raw_data(buffer);
+	offset = 0;
+	while (offset < size) {
+		body->size = size - offset;
+
+		if (body->size > PKT_CHUNKSZ)
+			body->size = PKT_CHUNKSZ;
+
+		memcpy(body->data, data, body->size);
+		pktsz = sizeof(*body) + body->size;
+
+		ret = com_core_send(handle, (void *)body, pktsz, 2.0f);
+		if (ret < 0) {
+			ret = -EFAULT;
+			break;
+		}
+
+		offset += body->size;
+	}
+
+	free(body);
+
+errout:
+	(void)buffer_handler_raw_close(buffer);
+	return ret;
 }
 
 static void *push_main(void *data)
@@ -478,8 +519,8 @@ static void *push_main(void *data)
 	int conn_fd;
 	send_data_func_t send_data[] = {
 		send_file,
-		send_shm,
-		send_pixmap,
+		send_buffer,
+		send_buffer,
 	};
 
 	while (1) {
@@ -545,7 +586,7 @@ static void *push_main(void *data)
 		 * It can be closed any time.
 		 * Even though we using it.
 		 */
-		if (item->type < REQUEST_TYPE_MAX || item->type >= 0)
+		if (item->type < REQUEST_TYPE_MAX && item->type >= 0)
 			(void)send_data[item->type](conn_fd, item);
 		else
 			ErrPrint("Invalid type\n");
