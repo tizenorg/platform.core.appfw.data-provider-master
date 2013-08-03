@@ -1423,7 +1423,7 @@ static inline struct buffer *raw_open_pixmap(unsigned int pixmap)
 {
 	struct buffer *buffer;
 
-	buffer = malloc(sizeof(*buffer) + sizeof(int));
+	buffer = calloc(1, sizeof(*buffer) + sizeof(int));
 	if (!buffer) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		return NULL;
@@ -1431,9 +1431,6 @@ static inline struct buffer *raw_open_pixmap(unsigned int pixmap)
 
 	buffer->state = CREATED;
 	buffer->type = BUFFER_TYPE_PIXMAP;
-	buffer->refcnt = 0;
-	buffer->info = NULL;
-	buffer->data = NULL;
 
 	return buffer;
 }
