@@ -50,6 +50,8 @@ ADD_DEFINITIONS("-DCLIENT_SOCKET=\"/opt/usr/share/live_magazine/.client.socket\"
 ADD_DEFINITIONS("-DSLAVE_SOCKET=\"/opt/usr/share/live_magazine/.slave.socket\"")
 ADD_DEFINITIONS("-DSERVICE_SOCKET=\"/opt/usr/share/live_magazine/.service.socket\"")
 
+ADD_DEFINITIONS("-DCLIENT_PORT=\"8208\"")
+
 ADD_DEFINITIONS("-DBADGE_SOCKET=\"/tmp/.badge.service\"")
 ADD_DEFINITIONS("-DSHORTCUT_SOCKET=\"/tmp/.shortcut.service\"")
 ADD_DEFINITIONS("-DNOTIFICATION_SOCKET=\"/tmp/.notification.service\"")
@@ -95,6 +97,7 @@ ADD_EXECUTABLE(${PROJECT_NAME}
 	src/badge_service.c
 	src/notification_service.c
 	src/utility_service.c
+	src/file_service.c
 	src/service_common.c
 )
 

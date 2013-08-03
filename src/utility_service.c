@@ -242,7 +242,7 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 			s_info.svc_daemon_is_launched = 0;
 		}
 
-		return 0;
+		return LB_STATUS_SUCCESS;
 	}
 
 	cmd = packet_command(packet);

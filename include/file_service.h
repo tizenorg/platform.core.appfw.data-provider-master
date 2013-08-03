@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-extern int notification_service_init(void);
-extern int notification_service_fini(void);
+extern int file_service_init(void);
+extern int file_service_fini(void);
 
 /* End of a file */
