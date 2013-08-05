@@ -78,6 +78,7 @@ struct slave_node {
 	Ecore_Timer *ttl_timer; /* Time to live */
 	Ecore_Timer *activate_timer; /* Waiting hello packet for this time */
 	Ecore_Timer *relaunch_timer; /* Try to relaunch service app */
+	int relaunch_count;
 
 	struct timeval activated_at;
 };
@@ -171,6 +172,7 @@ static inline struct slave_node *create_slave_node(const char *name, int is_secu
 	slave->pid = (pid_t)-1;
 	slave->state = SLAVE_TERMINATED;
 	slave->network = network;
+	slave->relaunch_count = SLAVE_RELAUNCH_COUNT;
 
 	xmonitor_add_event_callback(XMONITOR_PAUSED, xmonitor_pause_cb, slave);
 	xmonitor_add_event_callback(XMONITOR_RESUMED, xmonitor_resume_cb, slave);
@@ -432,6 +434,13 @@ static Eina_Bool relaunch_timer_cb(void *data)
 		slave->relaunch_timer = NULL;
 
 		invoke_slave_fault_handler(slave);
+	} else if (!slave->relaunch_count) {
+		ErrPrint("Relaunch count is exhahausted\n");
+		ecore_timer_del(slave->activate_timer);
+		slave->activate_timer = NULL;
+
+		slave->relaunch_timer = NULL;
+		invoke_slave_fault_handler(slave);
 	} else {
 		bundle *param;
 
@@ -445,47 +454,54 @@ static Eina_Bool relaunch_timer_cb(void *data)
 			slave->relaunch_timer = NULL;
 
 			invoke_slave_fault_handler(slave);
-			return ECORE_CALLBACK_CANCEL;
+		} else {
+			bundle_add(param, BUNDLE_SLAVE_NAME, slave_name(slave));
+			bundle_add(param, BUNDLE_SLAVE_SECURED, slave->secured ? "true" : "false");
+			bundle_add(param, BUNDLE_SLAVE_ABI, slave->abi);
+
+			slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
+
+			bundle_free(param);
+
+			switch (slave->pid) {
+			case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
+			case AUL_R_ENOLAUNCHPAD:	/**< no launchpad */
+			case AUL_R_EILLACC:		/**< Illegal Access */
+			case AUL_R_LOCAL:		/**< Launch by himself */
+			case AUL_R_ETIMEOUT:		/**< Timeout */
+			case AUL_R_EINVAL:		/**< Invalid argument */
+			case AUL_R_OK:			/**< General success */
+			case AUL_R_ENOINIT:		/**< AUL handler NOT initialized */
+			case AUL_R_ERROR:		/**< General error */
+				CRITICAL_LOG("Failed to launch a new slave %s (%d)\n", slave_name(slave), slave->pid);
+				slave->pid = (pid_t)-1;
+				ecore_timer_del(slave->activate_timer);
+				slave->activate_timer = NULL;
+
+				slave->relaunch_timer = NULL;
+
+				invoke_slave_fault_handler(slave);
+				/* Waiting app-launch result */
+				break;
+			case AUL_R_ECOMM:		/**< Comunication Error */
+			case AUL_R_ETERMINATING:	/**< application terminating */
+			case AUL_R_ECANCELED:		/**< Operation canceled */
+				slave->relaunch_count--;
+
+				CRITICAL_LOG("Try relaunch again %s (%d), %d\n", slave_name(slave), slave->pid, slave->relaunch_count);
+				slave->pid = (pid_t)-1;
+				ret = ECORE_CALLBACK_RENEW;
+				ecore_timer_reset(slave->activate_timer);
+				/* Try again after a few secs later */
+				break;
+			default:
+				DbgPrint("Slave %s is launched with %d as %s\n", slave_pkgname(slave), slave->pid, slave_name(slave));
+				slave->relaunch_timer = NULL;
+				ecore_timer_reset(slave->activate_timer);
+				break;
+			}
 		}
 
-		bundle_add(param, BUNDLE_SLAVE_NAME, slave_name(slave));
-		bundle_add(param, BUNDLE_SLAVE_SECURED, slave->secured ? "true" : "false");
-		bundle_add(param, BUNDLE_SLAVE_ABI, slave->abi);
-
-		slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
-
-		bundle_free(param);
-
-		switch (slave->pid) {
-		case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
-		case AUL_R_ENOLAUNCHPAD:	/**< no launchpad */
-		case AUL_R_EILLACC:		/**< Illegal Access */
-		case AUL_R_LOCAL:		/**< Launch by himself */
-		case AUL_R_ETIMEOUT:		/**< Timeout */
-		case AUL_R_EINVAL:		/**< Invalid argument */
-		case AUL_R_OK:			/**< General success */
-		case AUL_R_ENOINIT:		/**< AUL handler NOT initialized */
-		case AUL_R_ERROR:		/**< General error */
-			CRITICAL_LOG("Failed to launch a new slave %s (%d)\n", slave_name(slave), slave->pid);
-			slave->pid = (pid_t)-1;
-			slave->relaunch_timer = NULL;
-			/* Waiting app-launch result */
-			break;
-		case AUL_R_ECOMM:		/**< Comunication Error */
-		case AUL_R_ETERMINATING:	/**< application terminating */
-		case AUL_R_ECANCELED:		/**< Operation canceled */
-			CRITICAL_LOG("Try relaunch again %s (%d)\n", slave_name(slave), slave->pid);
-			slave->pid = (pid_t)-1;
-			ret = ECORE_CALLBACK_RENEW;
-			/* Try again after a few secs later */
-			break;
-		default:
-			DbgPrint("Slave %s is launched with %d as %s\n", slave_pkgname(slave), slave->pid, slave_name(slave));
-			slave->relaunch_timer = NULL;
-			break;
-		}
-
-		ecore_timer_reset(slave->activate_timer);
 	}
 
 	return ret;
@@ -516,6 +532,8 @@ HAPI int slave_activate(struct slave_node *slave)
 		DbgPrint("Debug Mode enabled. name[%s] secured[%d] abi[%s]\n", slave_name(slave), slave->secured, slave->abi);
 	} else {
 		bundle *param;
+
+		slave->relaunch_count = SLAVE_RELAUNCH_COUNT;
 
 		param = bundle_create();
 		if (!param) {
@@ -551,7 +569,7 @@ HAPI int slave_activate(struct slave_node *slave)
 			CRITICAL_LOG("Try relaunch this soon %s (%d)\n", slave_name(slave), slave->pid);
 			slave->relaunch_timer = ecore_timer_add(SLAVE_RELAUNCH_TIME, relaunch_timer_cb, slave);
 			if (!slave->relaunch_timer) {
-				ErrPrint("Failed to register a relaunch timer\n");
+				CRITICAL_LOG("Failed to register a relaunch timer (%s)\n", slave_name(slave));
 				slave->pid = (pid_t)-1;
 				return LB_STATUS_ERROR_FAULT;
 			}
