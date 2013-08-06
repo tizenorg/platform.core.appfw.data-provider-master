@@ -120,6 +120,8 @@ static inline struct request_item *create_request_item(struct tcb *tcb, int type
 		item->data.shm = (int)data;
 		break;
 	default:
+		ErrPrint("Invalid type of request\n");
+		free(item);
 		return NULL;
 	}
 
