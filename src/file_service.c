@@ -400,13 +400,9 @@ static int send_file(int handle, const struct request_item *item)
 	while (fsize > 0) {
 		if (fsize > PKT_CHUNKSZ) {
 			body->size = PKT_CHUNKSZ;
-			fsize -= PKT_CHUNKSZ;
 		} else {
 			body->size = fsize;
-			fsize = 0;
 		}
-
-		pktsz = sizeof(*body) + body->size;
 
 		ret = read(fd, body->data, body->size); 
 		if (ret < 0) {
@@ -414,6 +410,10 @@ static int send_file(int handle, const struct request_item *item)
 			ret = -EIO;
 			break;
 		}
+
+		body->size = ret;
+		fsize -= ret;
+		pktsz = sizeof(*body) + body->size;
 
 		/* Send BODY */
 		ret = com_core_send(handle, (void *)body, pktsz, 2.0f);
