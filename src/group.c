@@ -807,6 +807,9 @@ HAPI int group_add_livebox(const char *group, const char *pkgname)
 		ptr++;
 	}
 
+	/* If some cases, the key is not released, try release it, doesn't need to check NULL */
+	DbgFree(key);
+
 	if (state != CLUSTER)
 		return LB_STATUS_ERROR_INVALID;
 
