@@ -99,8 +99,9 @@ static inline struct tcb *get_reply_tcb(double seq)
 	struct tcb *tcb;
 
 	EINA_LIST_FOREACH_SAFE(s_info.context_list, l, n, ctx) {
-		if (ctx->seq != seq)
+		if (ctx->seq != seq) {
 			continue;
+		}
 
 		s_info.context_list = eina_list_remove(s_info.context_list, ctx);
 		tcb = ctx->tcb;
@@ -124,8 +125,9 @@ static inline int flush_pended_request(void)
 		if (ret < 0) {
 			struct packet *reply;
 			reply = packet_create_reply(item->packet, "i", ret);
-			if (service_common_unicast_packet(item->tcb, reply) < 0)
+			if (service_common_unicast_packet(item->tcb, reply) < 0) {
 				ErrPrint("Unable to send packet\n");
+			}
 			packet_destroy(reply);
 		} else {
 			put_reply_tcb(item->tcb, packet_seq(item->packet));
@@ -172,8 +174,9 @@ static int launch_timeout_cb(struct service_context *svc_ctx, void *data)
 			int ret;
 
 			ret = service_common_unicast_packet(item->tcb, reply);
-			if (ret < 0)
+			if (ret < 0) {
 				ErrPrint("Failed to send reply packet: %d\n", ret);
+			}
 
 			packet_destroy(reply);
 		}
@@ -196,14 +199,16 @@ static inline int launch_svc(struct service_context *svc_ctx)
 	if (pid > 0) {
 		s_info.svc_daemon_is_launched = 1;
 		s_info.launch_timer = service_common_add_timer(svc_ctx, LAUNCH_TIMEOUT, launch_timeout_cb, NULL);
-		if (!s_info.launch_timer)
+		if (!s_info.launch_timer) {
 			ErrPrint("Unable to create launch timer\n");
+		}
 	} else if (pid == AUL_R_ETIMEOUT || pid == AUL_R_ECOMM) {
 		s_info.svc_daemon_is_launched = 1;
 		CRITICAL_LOG("SVC launch failed with timeout(%d), But waiting response\n", pid);
 		s_info.launch_timer = service_common_add_timer(svc_ctx, LAUNCH_TIMEOUT, launch_timeout_cb, NULL);
-		if (!s_info.launch_timer)
+		if (!s_info.launch_timer) {
 			ErrPrint("Unable to create launch timer\n");
+		}
 	} else if (pid == AUL_R_ETERMINATING) {
 		/* Need time to launch app again */
 		ErrPrint("Terminating now, try to launch this after few sec later\n");
@@ -255,18 +260,21 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 	case PACKET_REQ:
 		if (!s_info.svc_daemon_is_launched) {
 			ret = launch_svc(tcb_svc_ctx(tcb));
-			if (ret != LB_STATUS_SUCCESS)
+			if (ret != LB_STATUS_SUCCESS) {
 				goto reply_out;
+			}
 		}
 
 		if (!s_info.svc_daemon) {
 			ret = put_pended_request(tcb, packet);
-			if (ret < 0)
+			if (ret < 0) {
 				goto reply_out;
+			}
 		} else {
 			ret = service_common_unicast_packet(s_info.svc_daemon, packet);
-			if (ret <0)
+			if (ret <0) {
 				goto reply_out;
+			}
 
 			put_reply_tcb(tcb, packet_seq(packet));
 		}
@@ -299,8 +307,9 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 			ErrPrint("Unable to find reply tcb\n");
 		} else {
 			ret = service_common_unicast_packet(tcb, packet);
-			if (ret < 0)
+			if (ret < 0) {
 				ErrPrint("Unable to forward the reply packet\n");
+			}
 		}
 		break;
 	default:
@@ -313,8 +322,9 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 reply_out:
 	ErrPrint("Error: %d\n", ret);
 	reply = packet_create_reply(packet, "i", ret);
-	if (service_common_unicast_packet(tcb, reply) < 0)
+	if (service_common_unicast_packet(tcb, reply) < 0) {
 		ErrPrint("Unable to send reply packet\n");
+	}
 	packet_destroy(reply);
 	return ret;
 }
@@ -356,8 +366,9 @@ int utility_service_init(void)
 
 int utility_service_fini(void)
 {
-	if (!s_info.svc_ctx)
+	if (!s_info.svc_ctx) {
 		return LB_STATUS_ERROR_INVALID;
+	}
 
 	service_common_destroy(s_info.svc_ctx);
 	s_info.svc_ctx = NULL;
