@@ -196,31 +196,38 @@ static inline int launch_svc(struct service_context *svc_ctx)
 	int ret = LB_STATUS_SUCCESS;
 
 	pid = aul_launch_app(SVC_PKG, NULL);
-	if (pid > 0) {
-		s_info.svc_daemon_is_launched = 1;
-		s_info.launch_timer = service_common_add_timer(svc_ctx, LAUNCH_TIMEOUT, launch_timeout_cb, NULL);
-		if (!s_info.launch_timer) {
-			ErrPrint("Unable to create launch timer\n");
-		}
-	} else if (pid == AUL_R_ETIMEOUT || pid == AUL_R_ECOMM) {
-		s_info.svc_daemon_is_launched = 1;
-		CRITICAL_LOG("SVC launch failed with timeout(%d), But waiting response\n", pid);
-		s_info.launch_timer = service_common_add_timer(svc_ctx, LAUNCH_TIMEOUT, launch_timeout_cb, NULL);
-		if (!s_info.launch_timer) {
-			ErrPrint("Unable to create launch timer\n");
-		}
-	} else if (pid == AUL_R_ETERMINATING) {
+	switch (pid) {
+	case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
+	case AUL_R_ENOLAUNCHPAD:	/**< no launchpad */
+	case AUL_R_EILLACC:		/**< Illegal Access */
+	case AUL_R_EINVAL:		/**< Invalid argument */
+	case AUL_R_ENOINIT:		/**< AUL handler NOT initialized */
+	case AUL_R_ERROR:		/**< General error */
+		ErrPrint("Failed to launch an app: %s(%d)\n", SVC_PKG, pid);
+		ret = LB_STATUS_ERROR_FAULT;
+		break;
+	case AUL_R_ETIMEOUT:		/**< Timeout */
+	case AUL_R_ECOMM:		/**< Comunication Error */
+	case AUL_R_ETERMINATING:	/**< application terminating */
+	case AUL_R_ECANCELED:		/**< Operation canceled */
 		/* Need time to launch app again */
-		ErrPrint("Terminating now, try to launch this after few sec later\n");
+		ErrPrint("Terminating now, try to launch this after few sec later: %s(%d)\n", SVC_PKG, pid);
 		s_info.svc_daemon_is_launched = 1;
 		s_info.delay_launcher = service_common_add_timer(svc_ctx, LAUNCH_TIMEOUT, lazy_launcher_cb, NULL);
 		if (!s_info.delay_launcher) {
 			ErrPrint("Unable to add delay launcher\n");
 			ret = LB_STATUS_ERROR_FAULT;
 		}
-	} else {
-		ErrPrint("Failed to launch an app: %s(%d)\n", SVC_PKG, pid);
-		ret = LB_STATUS_ERROR_FAULT;
+		break;
+	case AUL_R_LOCAL:		/**< Launch by himself */
+	case AUL_R_OK:			/**< General success */
+	default:
+		DbgPrint("Launched: %s(%d)\n", SVC_PKG, pid);
+		s_info.svc_daemon_is_launched = 1;
+		s_info.launch_timer = service_common_add_timer(svc_ctx, LAUNCH_TIMEOUT, launch_timeout_cb, NULL);
+		if (!s_info.launch_timer) {
+			ErrPrint("Unable to create launch timer\n");
+		}
 	}
 
 	return ret;
