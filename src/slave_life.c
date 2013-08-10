@@ -481,10 +481,7 @@ static Eina_Bool relaunch_timer_cb(void *data)
 			case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
 			case AUL_R_ENOLAUNCHPAD:	/**< no launchpad */
 			case AUL_R_EILLACC:		/**< Illegal Access */
-			case AUL_R_LOCAL:		/**< Launch by himself */
-			case AUL_R_ETIMEOUT:		/**< Timeout */
 			case AUL_R_EINVAL:		/**< Invalid argument */
-			case AUL_R_OK:			/**< General success */
 			case AUL_R_ENOINIT:		/**< AUL handler NOT initialized */
 			case AUL_R_ERROR:		/**< General error */
 				CRITICAL_LOG("Failed to launch a new slave %s (%d)\n", slave_name(slave), slave->pid);
@@ -497,6 +494,7 @@ static Eina_Bool relaunch_timer_cb(void *data)
 				invoke_slave_fault_handler(slave);
 				/* Waiting app-launch result */
 				break;
+			case AUL_R_ETIMEOUT:		/**< Timeout */
 			case AUL_R_ECOMM:		/**< Comunication Error */
 			case AUL_R_ETERMINATING:	/**< application terminating */
 			case AUL_R_ECANCELED:		/**< Operation canceled */
@@ -508,6 +506,8 @@ static Eina_Bool relaunch_timer_cb(void *data)
 				ecore_timer_reset(slave->activate_timer);
 				/* Try again after a few secs later */
 				break;
+			case AUL_R_LOCAL:		/**< Launch by himself */
+			case AUL_R_OK:			/**< General success */
 			default:
 				DbgPrint("Slave %s is launched with %d as %s\n", slave_pkgname(slave), slave->pid, slave_name(slave));
 				slave->relaunch_timer = NULL;
@@ -568,10 +568,7 @@ HAPI int slave_activate(struct slave_node *slave)
 		case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
 		case AUL_R_ENOLAUNCHPAD:	/**< no launchpad */
 		case AUL_R_EILLACC:		/**< Illegal Access */
-		case AUL_R_LOCAL:		/**< Launch by himself */
-		case AUL_R_ETIMEOUT:		/**< Timeout */
 		case AUL_R_EINVAL:		/**< Invalid argument */
-		case AUL_R_OK:			/**< General success */
 		case AUL_R_ENOINIT:		/**< AUL handler NOT initialized */
 		case AUL_R_ERROR:		/**< General error */
 			CRITICAL_LOG("Failed to launch a new slave %s (%d)\n", slave_name(slave), slave->pid);
@@ -581,6 +578,7 @@ HAPI int slave_activate(struct slave_node *slave)
 		case AUL_R_ECOMM:		/**< Comunication Error */
 		case AUL_R_ETERMINATING:	/**< application terminating */
 		case AUL_R_ECANCELED:		/**< Operation canceled */
+		case AUL_R_ETIMEOUT:		/**< Timeout */
 			CRITICAL_LOG("Try relaunch this soon %s (%d)\n", slave_name(slave), slave->pid);
 			slave->relaunch_timer = ecore_timer_add(SLAVE_RELAUNCH_TIME, relaunch_timer_cb, slave);
 			if (!slave->relaunch_timer) {
@@ -590,6 +588,8 @@ HAPI int slave_activate(struct slave_node *slave)
 			}
 			/* Try again after a few secs later */
 			break;
+		case AUL_R_LOCAL:		/**< Launch by himself */
+		case AUL_R_OK:			/**< General success */
 		default:
 			DbgPrint("Slave %s is launched with %d as %s\n", slave_pkgname(slave), slave->pid, slave_name(slave));
 			break;
