@@ -445,7 +445,7 @@ out:
 	sqlite3_finalize(stmt);
 	return ret;
 }
-static inline int db_insert_provider(struct livebox *livebox)
+static int db_insert_provider(struct livebox *livebox)
 {
 	static const char *dml;
 	int ret;
@@ -939,7 +939,7 @@ out:
 	return ret;
 }
 
-static inline int db_get_group_id(const char *cluster, const char *category)
+static int db_get_group_id(const char *cluster, const char *category)
 {
 	static const char *dml = "SELECT id FROM groupinfo WHERE cluster = ? AND category = ?";
 	sqlite3_stmt *stmt;
@@ -1301,7 +1301,7 @@ static inline int db_create_box_size(void)
 	return 0;
 }
 
-static inline int db_insert_box_size(const char *pkgid, int size_type, const char *preview, int touch_effect, int need_frame)
+static int db_insert_box_size(const char *pkgid, int size_type, const char *preview, int touch_effect, int need_frame)
 {
 	static const char *dml;
 	int ret;
@@ -1456,7 +1456,7 @@ static inline void db_create_table(void)
 	commit_transaction();
 }
 
-static inline int db_init(void)
+static int db_init(void)
 {
 	int ret;
 	struct stat stat;
@@ -1506,7 +1506,7 @@ static inline int validate_pkgid(const char *appid, const char *pkgid)
 	return 1 || !strncmp(appid, pkgid, strlen(appid));
 }
 
-static inline int livebox_destroy(struct livebox *livebox)
+static int livebox_destroy(struct livebox *livebox)
 {
 	struct dlist *l;
 	struct dlist *n;
@@ -1741,7 +1741,7 @@ static inline void update_content(struct livebox *livebox, xmlNodePtr node)
 	}
 }
 
-static inline void update_size_info(struct livebox *livebox, int idx, xmlNodePtr node)
+static void update_size_info(struct livebox *livebox, int idx, xmlNodePtr node)
 {
 	if (xmlHasProp(node, (const xmlChar *)"preview")) {
 		livebox->preview[idx] = xmlGetProp(node, (const xmlChar *)"preview");
@@ -2178,7 +2178,7 @@ static inline void update_pd(struct livebox *livebox, xmlNodePtr node)
 	}
 }
 
-static inline int db_insert_livebox(struct livebox *livebox, const char *appid)
+static int db_insert_livebox(struct livebox *livebox, const char *appid)
 {
 	struct dlist *l;
 	struct dlist *il;
@@ -2357,7 +2357,7 @@ errout:
 	return ret;
 }
 
-static inline int do_install(xmlNodePtr node, const char *appid)
+static int do_install(xmlNodePtr node, const char *appid)
 {
 	struct livebox *livebox;
 	xmlChar *pkgid;
