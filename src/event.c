@@ -152,6 +152,11 @@ static inline int processing_input_event(struct input_event *event)
 			} else {
 				ErrPrint("Heap: %s\n", strerror(errno));
 			}
+
+			if (s_info.event_data.device < 0) {
+				s_info.event_data.x = -1;
+				s_info.event_data.y = -1;
+			}
 			break;
 		/*
 		case SYN_DROPPED:
@@ -173,10 +178,11 @@ static inline int processing_input_event(struct input_event *event)
 			s_info.event_data.distance = event->value;
 			break;
 		case ABS_MT_TOOL_X:
+		case ABS_MT_TOOL_Y:
+			break;
 		case ABS_MT_POSITION_X:
 			s_info.event_data.x = event->value;
 			break;
-		case ABS_MT_TOOL_Y:
 		case ABS_MT_POSITION_Y:
 			s_info.event_data.y = event->value;
 			break;
