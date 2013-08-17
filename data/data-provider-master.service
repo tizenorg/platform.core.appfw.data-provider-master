@@ -16,7 +16,7 @@
 
 [Unit]
 Description=Data Provider daemon
-After=tizen-runtime.target
+After=tizen-runtime.target eas-engine.service
 Requires=tizen-runtime.target
 
 [Service]
