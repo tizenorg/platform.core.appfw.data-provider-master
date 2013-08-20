@@ -1,6 +1,6 @@
 Name: data-provider-master
 Summary: Master service provider for liveboxes.
-Version: 0.25.6
+Version: 0.25.7
 Release: 1
 Group: HomeTF/Livebox
 License: Flora License
@@ -49,17 +49,21 @@ Keep trace on the life-cycle of the livebox and status of the service providers,
 %setup -q
 
 %build
+export ENGINEER=false
 %if 0%{?tizen_build_binary_release_type_eng}
 export CFLAGS="${CFLAGS} -DTIZEN_ENGINEER_MODE"
 export CXXFLAGS="${CXXFLAGS} -DTIZEN_ENGINEER_MODE"
 export FFLAGS="${FFLAGS} -DTIZEN_ENGINEER_MODE"
+export ENGINEER=true
 %endif
 
 %if 0%{?sec_product_feature_livebox_shm}
-	cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix} -DPRODUCT=baltic
+export LIVEBOX_SHM=baltic
 %else
-	cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix} -DPRODUCT=private
+export LIVEBOX_SHM=private
 %endif
+
+cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix} -DPRODUCT=${LIVEBOX_SHM} -DENGINEER_BINARY=${ENGINEER}
 
 CFLAGS="${CFLAGS} -Wall -Winline -Werror" LDFLAGS="${LDFLAGS}" make %{?jobs:-j%jobs}
 
@@ -71,6 +75,7 @@ mkdir -p %{buildroot}/opt/usr/share/live_magazine
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/log
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/reader
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/always
+mkdir -p %{buildroot}/opt/usr/devel/usr/bin
 mkdir -p %{buildroot}/opt/dbspace
 #mkdir -p %{buildroot}/%{_sysconfdir}/rc.d/rc3.d
 mkdir -p %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants
@@ -122,13 +127,13 @@ echo "%{_sysconfdir}/init.d/data-provider-master start"
 %{_sysconfdir}/rc.d/init.d/data-provider-master
 #%{_sysconfdir}/rc.d/rc3.d/S99data-provider-master
 %{_bindir}/data-provider-master
-%{_bindir}/liveinfo
 %{_prefix}/etc/package-manager/parserlib/*
 %{_datarootdir}/data-provider-master/*
 %{_libdir}/systemd/system/multi-user.target.wants/data-provider-master.service
 %{_libdir}/systemd/system/data-provider-master.service
 %{_datarootdir}/license/*
 /opt/usr/share/live_magazine/*
+/opt/usr/devel/usr/bin/*
 /opt/dbspace/.livebox.db
 /opt/dbspace/.livebox.db-journal
 
