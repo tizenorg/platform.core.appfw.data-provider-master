@@ -133,7 +133,9 @@ echo "%{_sysconfdir}/init.d/data-provider-master start"
 %{_libdir}/systemd/system/data-provider-master.service
 %{_datarootdir}/license/*
 /opt/usr/share/live_magazine/*
+%if 0%{?tizen_build_binary_release_type_eng}
 /opt/usr/devel/usr/bin/*
+%endif
 /opt/dbspace/.livebox.db
 /opt/dbspace/.livebox.db-journal
 
