@@ -56,6 +56,38 @@ struct badge_service {
 };
 
 /*!
+ * FUNCTIONS to check smack permission
+ */
+static int _is_valid_permission(int fd, struct badge_service *service)
+{
+	int ret;
+
+	if (service->rule != NULL && service->access != NULL) {
+		ret = security_server_check_privilege_by_sockfd(fd, service->rule, service->access);
+		if (ret == SECURITY_SERVER_API_ERROR_ACCESS_DENIED) {
+			ErrPrint("SMACK:Access denied\n");
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
+static int _is_manager_permission(int fd)
+{
+	int ret;
+
+	ret = security_server_check_privilege_by_sockfd(fd,
+			"data-provider-master::badge.manager", "w");
+	if (ret == SECURITY_SERVER_API_ERROR_ACCESS_DENIED) {
+		ErrPrint("SMACK:not a manager\n");
+		return 0;
+	}
+
+	return 1;
+}
+
+/*!
  * FUNCTIONS to handle badge
  */
 static inline char *get_string(char *string)
@@ -134,7 +166,11 @@ static void _handler_delete_badge(struct tcb *tcb, struct packet *packet, void *
 		caller = get_string(caller);
 
 		if (pkgname != NULL && caller != NULL) {
-			ret = badge_db_delete(pkgname, caller);
+			if (_is_manager_permission(tcb_fd(tcb)) == 1) {
+				ret = badge_db_delete(pkgname, pkgname);
+			} else {
+				ret = badge_db_delete(pkgname, caller);
+			}
 		} else {
 			ret = BADGE_ERROR_INVALID_DATA;
 		}
@@ -296,21 +332,6 @@ static void _handler_access_control_error(struct tcb *tcb, struct packet *packet
 	} else {
 		ErrPrint("Failed to create a reply packet");
 	}
-}
-
-static int _is_valid_permission(int fd, struct badge_service *service)
-{
-	int ret;
-
-	if (service->rule != NULL && service->access != NULL) {
-		ret = security_server_check_privilege_by_sockfd(fd, service->rule, service->access);
-		if (ret == SECURITY_SERVER_API_ERROR_ACCESS_DENIED) {
-			ErrPrint("SMACK:Access denied\n");
-			return 0;
-		}
-	}
-
-	return 1;
 }
 
 /*!
