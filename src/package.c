@@ -1280,13 +1280,6 @@ static inline void reload_package_info(struct pkg_info *info)
 	struct inst_info *inst;
 
 	DbgPrint("Already exists, try to update it\n");
-	/*!
-	 * \note
-	 * Without "is_uninstalled", the package will be kept
-	 */
-	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
-		instance_destroy(inst, INSTANCE_DESTROY_PKGMGR);
-	}
 
 	group_del_livebox(info->pkgname);
 	package_clear_fault(info);
@@ -1296,6 +1289,14 @@ static inline void reload_package_info(struct pkg_info *info)
 	 * Nested DB I/O
 	 */
 	io_load_package_db(info);
+
+	/*!
+	 * \note
+	 * Without "is_uninstalled", the package will be kept
+	 */
+	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
+		instance_reload(inst, INSTANCE_DESTROY_PKGMGR);
+	}
 }
 
 static int io_install_cb(const char *pkgname, int prime, void *data)
