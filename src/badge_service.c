@@ -26,6 +26,7 @@
 
 #include <badge.h>
 #include <badge_db.h>
+#include <badge_setting.h>
 #include <security-server.h>
 
 #include "service_common.h"
@@ -297,6 +298,97 @@ static void _handler_set_display_option(struct tcb *tcb, struct packet *packet, 
 	}
 }
 
+static void _handler_set_setting_property(struct tcb *tcb, struct packet *packet, void *data)
+{
+	int ret = 0, ret_p = 0;
+	int is_display = 0;
+	struct packet *packet_reply = NULL;
+	struct packet *packet_service = NULL;
+	char *pkgname = NULL;
+	char *property = NULL;
+	char *value = NULL;
+
+	if (packet_get(packet, "sss", &pkgname, &property, &value) == 3) {
+		pkgname = get_string(pkgname);
+		property = get_string(property);
+		value = get_string(value);
+
+		if (pkgname != NULL && property != NULL && value != NULL) {
+			ret = badge_setting_db_set(pkgname, property, value);
+		} else {
+			ret = BADGE_ERROR_INVALID_DATA;
+		}
+
+		packet_reply = packet_create_reply(packet, "ii", ret, ret);
+		if (packet_reply) {
+			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0) {
+				ErrPrint("failed to send reply packet:%d\n", ret_p);
+			}
+			packet_destroy(packet_reply);
+		} else {
+			ErrPrint("failed to create a reply packet\n");
+		}
+
+		if (ret == BADGE_ERROR_NONE) {
+			if (strcmp(property, "OPT_BADGE") == 0) {
+				if (strcmp(value, "ON") == 0) {
+					is_display = 1;
+				} else {
+					is_display = 0;
+				}
+
+				packet_service = packet_create("set_disp_option", "isi", ret, pkgname, is_display);
+				if (packet_service != NULL) {
+					if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0) {
+						ErrPrint("Failed to send a muticast packet:%d", ret_p);
+					}
+					packet_destroy(packet_service);
+				} else {
+					ErrPrint("Failed to create a multicast packet");
+				}
+			}
+		} else {
+			ErrPrint("failed to set noti property:%d\n", ret);
+		}
+	} else {
+		ErrPrint("Failed to get data from the packet");
+	}
+}
+
+static void _handler_get_setting_property(struct tcb *tcb, struct packet *packet, void *data)
+{
+	int ret = 0, ret_p = 0;
+	struct packet *packet_reply = NULL;
+	char *pkgname = NULL;
+	char *property = NULL;
+	char *value = NULL;
+
+	if (packet_get(packet, "sss", &pkgname, &property) == 2) {
+		pkgname = get_string(pkgname);
+		property = get_string(property);
+
+		if (pkgname != NULL && property != NULL) {
+			ret = badge_setting_db_get(pkgname, property, &value);
+		} else {
+			ret = BADGE_ERROR_INVALID_DATA;
+		}
+
+		packet_reply = packet_create_reply(packet, "is", ret, value);
+		if (packet_reply) {
+			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0) {
+				ErrPrint("failed to send reply packet:%d\n", ret_p);
+			}
+			packet_destroy(packet_reply);
+		} else {
+			ErrPrint("failed to create a reply packet\n");
+		}
+
+		if (value != NULL) {
+			DbgFree(value);
+		}
+	}
+}
+
 static void _handler_service_register(struct tcb *tcb, struct packet *packet, void *data)
 {
 	int ret = 0;
@@ -365,6 +457,18 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 			.handler = _handler_set_display_option,
 			.rule = "data-provider-master::badge.client",
 			.access = "w",
+		},
+		{
+			.cmd = "set_noti_property",
+			.handler = _handler_set_setting_property,
+			.rule = "data-provider-master::badge.client",
+			.access = "w",
+		},
+		{
+			.cmd = "get_noti_property",
+			.handler = _handler_get_setting_property,
+			.rule = "data-provider-master::badge.client",
+			.access = "r",
 		},
 		{
 			.cmd = "service_register",
