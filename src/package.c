@@ -509,17 +509,17 @@ HAPI struct pkg_info *package_create(const char *pkgid, const char *lbid)
 		return NULL;
 	}
 
-	pkginfo->lbid = io_livebox_pkgname(pkgid);
+	pkginfo->lbid = io_livebox_pkgname(lbid);
 	if (!pkginfo->lbid) {
 		ErrPrint("Failed to get pkgname, fallback to fs checker\n");
-		if (util_validate_livebox_package(pkgid) < 0) {
-			ErrPrint("Invalid package name: %s\n", pkgid);
+		if (util_validate_livebox_package(lbid) < 0) {
+			ErrPrint("Invalid package name: %s\n", lbid);
 			DbgFree(pkginfo->pkgid);
 			DbgFree(pkginfo);
 			return NULL;
 		}
 
-		pkginfo->lbid = strdup(pkgid);
+		pkginfo->lbid = strdup(lbid);
 		if (!pkginfo->lbid) {
 			ErrPrint("Heap: %s\n", strerror(errno));
 			DbgFree(pkginfo->pkgid);
