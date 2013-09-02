@@ -1328,6 +1328,11 @@ static int install_cb(const char *pkgname, enum pkgmgr_status status, double val
 	}
 
 	ret = io_update_livebox_package(pkgname, io_install_cb, NULL);
+	if (ret < 0) {
+		ErrPrint("update livebox: %d\n", ret);
+	}
+
+	DbgPrint("Install livebox: %s, %d\n", pkgname, ret);
 	return 0;
 }
 
@@ -1367,6 +1372,7 @@ static int update_cb(const char *pkgname, enum pkgmgr_status status, double valu
 		return 0;
 	}
 
+	DbgPrint("Update package: %s\n", pkgname);
 	ret = io_update_livebox_package(pkgname, io_update_cb, NULL);
 	return 0;
 }

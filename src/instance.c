@@ -857,16 +857,12 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 		 * The instance_reload will care this.
 		 * And it will be called from the slave activate callback.
 		 */
-		inst->changing_state = 0;
-		instance_unref(inst);
-		return;
+		goto out;
 	}
 
 	if (packet_get(packet, "i", &ret) != 1) {
 		ErrPrint("Invalid argument\n");
-		inst->changing_state = 0;
-		instance_unref(inst);
-		return;
+		goto out;
 	}
 
 	if (inst->state == INST_DESTROYED) {
@@ -875,9 +871,7 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 		 * Already destroyed.
 		 * Do nothing at here anymore.
 		 */
-		inst->changing_state = 0;
-		instance_unref(inst);
-		return;
+		goto out;
 	}
 
 	switch (ret) {
@@ -934,6 +928,7 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 		break;
 	}
 
+out:
 	inst->changing_state = 0;
 	instance_unref(inst);
 }
