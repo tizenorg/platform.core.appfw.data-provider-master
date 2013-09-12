@@ -167,6 +167,10 @@ extern int conf_loader(void);
 #define VCONFKEY_MASTER_STARTED	"memory/data-provider-master/started"
 #endif
 
+#if !defined(VCONFKEY_MASTER_RESTART_COUNT)
+#define VCONFKEY_MASTER_RESTART_COUNT	"memory/private/data-provider-master/restart_count"
+#endif
+
 #define USE_XMONITOR		g_conf.use_xmonitor
 
 #define HAPI __attribute__((visibility("hidden")))

@@ -244,6 +244,7 @@ static Eina_Bool signal_cb(void *data, Ecore_Fd_Handler *handler)
 int main(int argc, char *argv[])
 {
 	int ret;
+	int restart_count = 0;
 	sigset_t mask;
 	Ecore_Fd_Handler *signal_handler = NULL;
 
@@ -339,6 +340,10 @@ int main(int argc, char *argv[])
 	conf_loader();
 
 	app_create();
+
+	vconf_get_int(VCONFKEY_MASTER_RESTART_COUNT, &restart_count);
+	restart_count++;
+	vconf_set_int(VCONFKEY_MASTER_RESTART_COUNT, restart_count);
 
 	vconf_set_bool(VCONFKEY_MASTER_STARTED, 1);
 	ecore_main_loop_begin();
