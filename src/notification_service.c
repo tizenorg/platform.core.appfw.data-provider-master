@@ -24,6 +24,7 @@
 #include <sys/smack.h>
 #include <security-server.h>
 
+#include <vconf.h>
 #include <notification_ipc.h>
 #include <notification_noti.h>
 #include <notification_error.h>
@@ -98,6 +99,40 @@ static inline struct packet *create_packet_from_deleted_list(int op_num, int *li
 		get_priv_id(op_num, list, start_index + 8),
 		get_priv_id(op_num, list, start_index + 9)
 		);
+}
+
+static void _notification_data_init(void)
+{
+	int property = 0;
+	int priv_id = 0;
+	char *noti_pkgname = NULL;
+	notification_h noti = NULL;
+	notification_list_h noti_list = NULL;
+	notification_list_h noti_list_head = NULL;
+	notification_type_e noti_type = NOTIFICATION_TYPE_NONE;
+
+	notification_get_list(NOTIFICATION_TYPE_NONE, -1, &noti_list);
+	noti_list_head = noti_list;
+
+	while (noti_list != NULL) {
+		noti = notification_list_get_data(noti_list);
+		if (noti) {
+			notification_get_id(noti, NULL, &priv_id);
+			notification_get_pkgname(noti, &noti_pkgname);
+			notification_get_property(noti, &property);
+			notification_get_type(noti, &noti_type);
+
+			if (noti_type == NOTIFICATION_TYPE_ONGOING
+					|| property & NOTIFICATION_PROP_VOLATILE_DISPLAY) {
+				notification_noti_delete_by_priv_id(noti_pkgname, priv_id);
+			}
+		}
+		noti_list = notification_list_get_next(noti_list);
+	}
+
+	if (noti_list_head != NULL) {
+		notification_free_list(noti_list_head);
+	}
 }
 
 /*!
@@ -395,6 +430,16 @@ static void _handler_get_noti_property(struct tcb *tcb, struct packet *packet, v
 	}
 }
 
+static void _notification_init(void) {
+	int ret = -1;
+	int restart_count = 0;
+
+	ret = vconf_get_int(VCONFKEY_MASTER_RESTART_COUNT, &restart_count);
+	if (ret == 0 && restart_count <= 1) {
+		_notification_data_init();
+	}
+}
+
 static void _handler_service_register(struct tcb *tcb, struct packet *packet, void *data)
 {
 	int ret = 0;
@@ -613,6 +658,8 @@ HAPI int notification_service_init(void)
 		ErrPrint("Already initialized\n");
 		return LB_STATUS_ERROR_ALREADY;
 	}
+
+	_notification_init();
 
 	s_info.svc_ctx = service_common_create(NOTIFICATION_SOCKET, service_thread_main, NULL);
 	if (!s_info.svc_ctx) {
