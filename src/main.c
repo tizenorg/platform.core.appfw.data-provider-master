@@ -248,6 +248,9 @@ int main(int argc, char *argv[])
 	sigset_t mask;
 	Ecore_Fd_Handler *signal_handler = NULL;
 
+	conf_init();
+	conf_loader();
+
 	/*!
 	 * \note
 	 * Clear old contents files before start the master provider.
@@ -337,7 +340,11 @@ int main(int argc, char *argv[])
 
 	g_type_init();
 
-	conf_loader();
+	/*!
+ 	 * \note
+	 * conf_update_size requires ecore_x_init.
+	 */
+	conf_update_size();
 
 	app_create();
 
@@ -368,6 +375,8 @@ int main(int argc, char *argv[])
 		fclose(__file_log_fp);
 	}
 #endif
+
+	conf_reset();
 	return 0;
 }
 
