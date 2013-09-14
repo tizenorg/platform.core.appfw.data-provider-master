@@ -95,6 +95,9 @@ struct conf {
 extern struct conf g_conf;
 
 extern int conf_loader(void);
+extern void conf_update_size(void);
+extern void conf_reset(void);
+extern void conf_init(void);
 
 #define BASE_W			g_conf.base_width
 #define BASE_H			g_conf.base_height
