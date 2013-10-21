@@ -1,10 +1,11 @@
 Name: data-provider-master
-Summary: Master service provider for liveboxes.
-Version: 0.25.16
+Summary: Master service provider for liveboxes
+Version: 0.25.18
 Release: 1
 Group: HomeTF/Livebox
 License: Flora License
 Source0: %{name}-%{version}.tar.gz
+Source1001: %{name}.manifest
 BuildRequires: cmake, gettext-tools, smack, coreutils
 BuildRequires: pkgconfig(ail)
 BuildRequires: pkgconfig(dlog)
@@ -47,6 +48,7 @@ Keep trace on the life-cycle of the livebox and status of the service providers,
 
 %prep
 %setup -q
+cp %{SOURCE1001} .
 
 %build
 export ENGINEER=false
@@ -63,7 +65,7 @@ export LIVEBOX_SHM=baltic
 export LIVEBOX_SHM=private
 %endif
 
-cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix} -DPRODUCT=${LIVEBOX_SHM} -DENGINEER_BINARY=${ENGINEER}
+%cmake . -DPRODUCT=${LIVEBOX_SHM} -DENGINEER_BINARY=${ENGINEER}
 
 CFLAGS="${CFLAGS} -Wall -Winline -Werror" LDFLAGS="${LDFLAGS}" make %{?jobs:-j%jobs}
 
@@ -123,7 +125,7 @@ echo "Successfully installed. Please start a daemon again manually"
 echo "%{_sysconfdir}/init.d/data-provider-master start"
 
 %files -n data-provider-master
-%manifest data-provider-master.manifest
+%manifest %{name}.manifest
 %defattr(-,root,root,-)
 %{_sysconfdir}/rc.d/init.d/data-provider-master
 #%{_sysconfdir}/rc.d/rc3.d/S99data-provider-master
