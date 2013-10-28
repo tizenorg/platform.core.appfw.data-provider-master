@@ -409,6 +409,7 @@ static void render_post_cb(void *data, Evas *e, void *event_info)
 
 	if (instance_state(inst) != INST_ACTIVATED) {
 		ErrPrint("Render post invoked but instance is not activated\n");
+		PERF_MARK(__func__);
 		return;
 	}
 
@@ -416,7 +417,6 @@ static void render_post_cb(void *data, Evas *e, void *event_info)
 	if (info && script_handler_evas(info) == e) {
 		fb_sync(script_handler_fb(info));
 		instance_lb_updated_by_instance(inst, NULL);
-
 		PERF_MARK("lb,update");
 		return;
 	}
@@ -430,6 +430,7 @@ static void render_post_cb(void *data, Evas *e, void *event_info)
 	}
 
 	ErrPrint("Failed to sync\n");
+	PERF_MARK(__func__);
 	return;
 }
 
@@ -680,17 +681,20 @@ static int update_script_color(struct inst_info *inst, struct block *block, int 
 
 	if (!block || !block->part || !block->data) {
 		ErrPrint("Block or part or data is not valid\n");
+		PERF_MARK("color");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
 	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
+		PERF_MARK("color");
 		return LB_STATUS_ERROR_FAULT;
 	}
 
 	if (!info->port) {
 		ErrPrint("info->port is NIL (%d, %s)\n", is_pd, instance_id(inst));
+		PERF_MARK("color");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
@@ -714,17 +718,20 @@ static int update_script_text(struct inst_info *inst, struct block *block, int i
 
 	if (!block || !block->part || !block->data) {
 		ErrPrint("Block or part or data is not valid\n");
+		PERF_MARK("text");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
 	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
+		PERF_MARK("text");
 		return LB_STATUS_ERROR_FAULT;
 	}
 
 	if (!info->port) {
 		ErrPrint("info->port is NIL\n");
+		PERF_MARK("text");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
@@ -748,17 +755,20 @@ static int update_script_image(struct inst_info *inst, struct block *block, int 
 
 	if (!block || !block->part) {
 		ErrPrint("Block or part is not valid\n");
+		PERF_MARK("image");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
 	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
+		PERF_MARK("image");
 		return LB_STATUS_ERROR_FAULT;
 	}
 
 	if (!info->port) {
 		ErrPrint("info->port is NIL\n");
+		PERF_MARK("image");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
@@ -781,17 +791,20 @@ static int update_access(struct inst_info *inst, struct block *block, int is_pd)
 
 	if (!block || !block->part) {
 		ErrPrint("Block or block->part is NIL\n");
+		PERF_MARK("access");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
 	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
+		PERF_MARK("access");
 		return LB_STATUS_ERROR_FAULT;
 	}
 
 	if (!info->port) {
 		ErrPrint("info->port is NIL\n");
+		PERF_MARK("access");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
@@ -814,17 +827,20 @@ static int operate_access(struct inst_info *inst, struct block *block, int is_pd
 
 	if (!block || !block->part) {
 		ErrPrint("Block or block->part is NIL\n");
+		PERF_MARK("operate_access");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
 	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
+		PERF_MARK("operate_access");
 		return LB_STATUS_ERROR_FAULT;
 	}
 
 	if (!info->port) {
 		ErrPrint("info->port is NIL\n");
+		PERF_MARK("operate_access");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
@@ -847,17 +863,20 @@ static int update_script_script(struct inst_info *inst, struct block *block, int
 
 	if (!block || !block->part) {
 		ErrPrint("Block or part is NIL\n");
+		PERF_MARK("script");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
 	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
+		PERF_MARK("script");
 		return LB_STATUS_ERROR_FAULT;
 	}
 
 	if (!info->port) {
 		ErrPrint("info->port is NIL\n");
+		PERF_MARK("script");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
@@ -881,17 +900,20 @@ static int update_script_signal(struct inst_info *inst, struct block *block, int
 
 	if (!block) {
 		ErrPrint("block is NIL\n");
+		PERF_MARK("signal");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
 	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
+		PERF_MARK("signal");
 		return LB_STATUS_ERROR_FAULT;
 	}
 
 	if (!info->port) {
 		ErrPrint("info->port is NIL\n");
+		PERF_MARK("signal");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
@@ -915,22 +937,26 @@ static int update_script_drag(struct inst_info *inst, struct block *block, int i
 
 	if (!block || !block->data || !block->part) {
 		ErrPrint("block or block->data or block->part is NIL\n");
+		PERF_MARK("drag");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
 	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
+		PERF_MARK("drag");
 		return LB_STATUS_ERROR_FAULT;
 	}
 
 	if (sscanf(block->data, "%lfx%lf", &dx, &dy) != 2) {
 		ErrPrint("Invalid format of data (DRAG data [%s])\n", block->data);
+		PERF_MARK("drag");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
 	if (!info->port) {
 		ErrPrint("info->port is NIL\n");
+		PERF_MARK("drag");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
@@ -951,6 +977,7 @@ HAPI int script_handler_resize(struct script_info *info, int w, int h)
 	if (!info) {
 	//|| (info->w == w && info->h == h)) {
 		ErrPrint("info[%p] resize is ignored\n", info);
+		PERF_MARK("resize");
 		return LB_STATUS_SUCCESS;
 	}
 
@@ -989,17 +1016,20 @@ static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 
 	if (!block || !block->part || !block->data) {
 		ErrPrint("block or block->part or block->data is NIL\n");
+		PERF_MARK("info");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
 	info = is_pd ? instance_pd_script(inst) : instance_lb_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
+		PERF_MARK("info");
 		return LB_STATUS_ERROR_FAULT;
 	}
 
 	if (!info->port) {
 		ErrPrint("info->port is NIL\n");
+		PERF_MARK("info");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
@@ -1008,6 +1038,7 @@ static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 
 		if (sscanf(block->data, "%dx%d", &w, &h) != 2) {
 			ErrPrint("Invalid format for SIZE(%s)\n", block->data);
+			PERF_MARK("info");
 			return LB_STATUS_ERROR_INVALID;
 		}
 
@@ -1038,8 +1069,6 @@ static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 
 static inline void consuming_parsed_block(struct inst_info *inst, int is_pd, struct block *block)
 {
-	//PERF_INIT();
-	//PERF_BEGIN();
 	struct script_info *info;
 	typedef int (*update_function_t)(struct inst_info *inst, struct block *block, int is_pd);
 	update_function_t updators[] = {
@@ -1064,6 +1093,8 @@ static inline void consuming_parsed_block(struct inst_info *inst, int is_pd, str
 	if (script_handler_is_loaded(info)) {
 		if (block->type >= 0 || block->type < TYPE_MAX) {
 			(void)updators[block->type](inst, block, is_pd);
+		} else {
+			ErrPrint("Block type[%d] is not valid\n", block->type);
 		}
 	} else {
 		info->cached_blocks = eina_list_append(info->cached_blocks, block);
@@ -1072,7 +1103,6 @@ static inline void consuming_parsed_block(struct inst_info *inst, int is_pd, str
 	}
 
 free_out:
-	//PERF_MARK(type_list[block->type]);
 	delete_block(block);
 }
 
@@ -1496,11 +1526,16 @@ HAPI int script_handler_parse_desc(struct inst_info *inst, const char *filename,
 			free(block);
 		}
 
+		PERF_MARK("parser");
 		return LB_STATUS_ERROR_FAULT;
 	}
 
+	block = eina_list_data_get(eina_list_last(block_list));
 	if (block) {
 		block->filebuf = filebuf;
+	} else {
+		ErrPrint("Last block is not exists (There is no parsed block)\n");
+		free(filebuf);
 	}
 
 	PERF_MARK("parser");
