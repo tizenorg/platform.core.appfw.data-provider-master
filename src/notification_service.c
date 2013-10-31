@@ -28,6 +28,7 @@
 #include <notification_ipc.h>
 #include <notification_noti.h>
 #include <notification_error.h>
+#include <notification_setting_service.h>
 
 #include "service_common.h"
 #include "debug.h"
