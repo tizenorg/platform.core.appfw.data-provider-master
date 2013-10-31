@@ -29,6 +29,7 @@ pkg_check_modules(pkg REQUIRED
 	pkgmgr
 	livebox-service
 	notification
+	notification-service
 	badge
 	libsmack
 	shortcut
