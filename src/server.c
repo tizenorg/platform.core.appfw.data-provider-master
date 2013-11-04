@@ -4726,7 +4726,6 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 
 		pd_monitor = instance_del_data(inst, "pd,open,monitor");
 		if (pd_monitor) {
-			
 			ErrPrint("PD Open request is found. cancel it [%s]\n", pkgname);
 
 			slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_open_buffer_cb, inst);

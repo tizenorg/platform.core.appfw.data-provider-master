@@ -42,6 +42,15 @@
  * \note
  * DB Table schema
  *
+ * version
+ * +---------+
+ * | version |
+ * +---------+
+ * |   -     |
+ * +---------+
+ * CREATE TABLE version ( version INTEGER )
+ * 
+ *
  * pkgmap
  * +-------+-------+-------+-------+
  * | appid | pkgid | uiapp | prime |
@@ -278,6 +287,137 @@ static inline int commit_transaction(void)
 
 	sqlite3_finalize(stmt);
 	return EXIT_SUCCESS;
+}
+
+static void db_create_version(void)
+{
+	static const char *ddl = "CREATE TABLE version (version INTEGER)";
+	char *err;
+
+	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
+		ErrPrint("Failed to execute the DDL (%s)\n", err);
+		return;
+	}
+
+	if (sqlite3_changes(s_info.handle) == 0) {
+		ErrPrint("No changes to DB\n");
+	}
+}
+
+static int set_version(int version)
+{
+	static const char *dml = "INSERT INTO version (version) VALUES (?)";
+	sqlite3_stmt *stmt;
+	int ret;
+
+	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		ErrPrint("Failed to prepare the initial DML(%s)\n", sqlite3_errmsg(s_info.handle));
+		return -EIO;
+	}
+
+	if (sqlite3_bind_int(stmt, 1, version) != SQLITE_OK) {
+		ErrPrint("Failed to bind a id(%s)\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_step(stmt);
+	if (ret != SQLITE_DONE) {
+		ErrPrint("Failed to execute the DML for version: %d\n", ret);
+		ret = -EIO;
+	} else {
+		ret = 0;
+	}
+
+out:
+	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+	sqlite3_finalize(stmt);
+	return ret;
+}
+
+static int update_version(int version)
+{
+	static const char *dml = "UPDATE version SET version = ?";
+	sqlite3_stmt *stmt;
+	int ret;
+
+	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		ErrPrint("Failed to prepare the initial DML(%s)\n", sqlite3_errmsg(s_info.handle));
+		return -EIO;
+	}
+
+	if (sqlite3_bind_int(stmt, 1, version) != SQLITE_OK) {
+		ErrPrint("Failed to bind a version: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_step(stmt);
+	if (ret != SQLITE_DONE) {
+		ErrPrint("Failed to execute DML: %d\n", ret);
+		ret = -EIO;
+	} else {
+		ret = 0;
+	}
+
+out:
+	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+	sqlite3_finalize(stmt);
+	return ret;
+}
+
+static int get_version(void)
+{
+	static const char *dml = "SELECT version FROM version";
+	sqlite3_stmt *stmt;
+	int ret;
+
+	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		return -ENOSYS;
+	}
+
+	if (sqlite3_step(stmt) != SQLITE_ROW) {
+		ret = -ENOENT;
+	} else {
+		ret = sqlite3_column_int(stmt, 0);
+	}
+
+	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+	sqlite3_finalize(stmt);
+	return ret;
+}
+
+static void do_upgrade_db_schema(void)
+{
+	int version;
+
+	version = get_version();
+
+	switch (version) {
+	case -ENOSYS:
+		db_create_version();
+		/* Need to create version table */
+	case -ENOENT:
+		if (set_version(1) < 0) {
+			ErrPrint("Failed to set version\n");
+		}
+		/* Need to set version */
+	case 1:
+		break;
+	default:
+		/* Need to update version */
+		DbgPrint("Old version: %d\n", version);
+		if (update_version(1) < 0) {
+			ErrPrint("Failed to update version\n");
+		}
+		break;
+	}
 }
 
 static inline int db_create_pkgmap(void)
@@ -2709,6 +2849,8 @@ int PKGMGR_PARSER_PLUGIN_PRE_INSTALL(const char *appid)
 		}
 	}
 
+	do_upgrade_db_schema();
+
 	begin_transaction();
 	cnt = pkglist_get_via_callback(appid, clear_all_pkg, NULL);
 	commit_transaction();
@@ -2719,6 +2861,7 @@ int PKGMGR_PARSER_PLUGIN_PRE_INSTALL(const char *appid)
 
 int PKGMGR_PARSER_PLUGIN_POST_INSTALL(const char *appid)
 {
+	db_fini();
 	return 0;
 }
 
@@ -2728,10 +2871,8 @@ int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *appid)
 	int ret;
 
 	if (!s_info.handle) {
-		if (db_init() < 0) {
-			ErrPrint("Failed to init DB\n");
-			return -EIO;
-		}
+		ErrPrint("Failed to init DB\n");
+		return -EIO;
 	}
 
 	node = xmlDocGetRootElement(docPtr);
@@ -2762,6 +2903,8 @@ int PKGMGR_PARSER_PLUGIN_PRE_UPGRADE(const char *appid)
 		}
 	}
 
+	do_upgrade_db_schema();
+
 	begin_transaction();
 	cnt = pkglist_get_via_callback(appid, clear_all_pkg, NULL);
 	commit_transaction();
@@ -2772,6 +2915,7 @@ int PKGMGR_PARSER_PLUGIN_PRE_UPGRADE(const char *appid)
 
 int PKGMGR_PARSER_PLUGIN_POST_UPGRADE(const char *appid)
 {
+	db_fini();
 	return 0;
 }
 
@@ -2781,10 +2925,8 @@ int PKGMGR_PARSER_PLUGIN_UPGRADE(xmlDocPtr docPtr, const char *appid)
 	int ret;
 
 	if (!s_info.handle) {
-		if (db_init() < 0) {
-			ErrPrint("Failed to init DB\n");
-			return -EIO;
-		}
+		ErrPrint("Failed to init DB\n");
+		return -EIO;
 	}
 
 	node = xmlDocGetRootElement(docPtr);
@@ -2805,6 +2947,14 @@ int PKGMGR_PARSER_PLUGIN_UPGRADE(xmlDocPtr docPtr, const char *appid)
 
 int PKGMGR_PARSER_PLUGIN_PRE_UNINSTALL(const char *appid)
 {
+	if (!s_info.handle) {
+		if (db_init() < 0) {
+			ErrPrint("Failed to init DB\n");
+			return -EIO;
+		}
+	}
+
+	do_upgrade_db_schema();
 	return 0;
 }
 
@@ -2813,10 +2963,7 @@ int PKGMGR_PARSER_PLUGIN_POST_UNINSTALL(const char *appid)
 	int cnt;
 
 	if (!s_info.handle) {
-		if (db_init() < 0) {
-			ErrPrint("Failed to init DB\n");
-			return -EIO;
-		}
+		return -EIO;
 	}
 
 	begin_transaction();
@@ -2824,11 +2971,15 @@ int PKGMGR_PARSER_PLUGIN_POST_UNINSTALL(const char *appid)
 	commit_transaction();
 
 	DbgPrint("Package %s is deleted: %d\n", appid, cnt);
+	db_fini();
 	return 0;
 }
 
 int PKGMGR_PARSER_PLUGIN_UNINSTALL(xmlDocPtr docPtr, const char *appid)
 {
+	if (!s_info.handle) {
+		return -EIO;
+	}
 	/* Doesn't need to do anything from here, we already dealt it with this */
 	return 0;
 }
