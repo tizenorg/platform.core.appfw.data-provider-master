@@ -1,6 +1,6 @@
 Name: data-provider-master
 Summary: Master service provider for liveboxes
-Version: 0.25.22
+Version: 0.25.23
 Release: 1
 Group: HomeTF/Livebox
 License: Flora
@@ -22,7 +22,6 @@ BuildRequires: pkgconfig(ecore)
 BuildRequires: pkgconfig(evas)
 BuildRequires: pkgconfig(ecore-evas)
 BuildRequires: pkgconfig(com-core)
-BuildRequires: pkgconfig(heynoti)
 BuildRequires: pkgconfig(libxml-2.0)
 BuildRequires: pkgconfig(x11)
 BuildRequires: pkgconfig(libdri2)
