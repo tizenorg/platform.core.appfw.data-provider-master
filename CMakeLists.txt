@@ -17,7 +17,6 @@ pkg_check_modules(pkg REQUIRED
 	evas
 	ecore-evas
 	com-core
-	heynoti
 	x11
 	libdri2
 	libdrm
