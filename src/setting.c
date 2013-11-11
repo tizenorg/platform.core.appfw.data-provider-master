@@ -198,7 +198,15 @@ static void ail_info_cb(keynode_t *node, void *user_data)
 		inst_list = NULL;
 		pkgname = livebox_service_mainappid(package_name(info));
 		if (!pkgname) {
-			continue;
+			/*!
+			 * Even if we failed to get package name,
+			 * Try to use the ordinal package name first.
+			 */
+			pkgname = strdup(package_name(info));
+			DbgPrint("Try to use the pkgname: %s\n", pkgname);
+			if (!pkgname) {
+				continue;
+			}
 		}
 
 		if (strcmp(appid, pkgname)) {
