@@ -682,7 +682,7 @@ static Eina_Bool update_timer_cb(void *data)
 {
 	struct inst_info *inst = (struct inst_info *)data;
 
-	slave_rpc_request_update(package_name(inst->info), inst->id, inst->cluster, inst->category);
+	slave_rpc_request_update(package_name(inst->info), inst->id, inst->cluster, inst->category, NULL);
 	return ECORE_CALLBACK_RENEW;
 }
 

@@ -5026,7 +5026,7 @@ static inline int update_pkg_cb(struct category *category, const char *pkgname)
 	}
 
 	DbgPrint("Send refresh request: %s (%s/%s)\n", pkgname, c_name, s_name);
-	slave_rpc_request_update(pkgname, "", c_name, s_name);
+	slave_rpc_request_update(pkgname, "", c_name, s_name, NULL);
 
 	/* Just try to create a new package */
 	if (util_free_space(IMAGE_PATH) > MINIMUM_SPACE) {
@@ -5079,7 +5079,7 @@ static struct packet *client_update(pid_t pid, int handle, const struct packet *
 		/* PERMISSIONS */
 		ErrPrint("Insufficient permissions [%s] - %d\n", pkgname, pid);
 	} else {
-		slave_rpc_request_update(pkgname, id, instance_cluster(inst), instance_category(inst));
+		slave_rpc_request_update(pkgname, id, instance_cluster(inst), instance_category(inst), NULL);
 	}
 
 out:
@@ -6247,11 +6247,12 @@ static struct packet *service_update(pid_t pid, int handle, const struct packet 
 	const char *id;
 	const char *cluster;
 	const char *category;
+	const char *content;
 	char *lbid;
 	int ret;
 
-	ret = packet_get(packet, "ssss", &pkgname, &id, &cluster, &category);
-	if (ret != 4) {
+	ret = packet_get(packet, "sssss", &pkgname, &id, &cluster, &category, &content);
+	if (ret != 5) {
 		ErrPrint("Invalid Packet\n");
 		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
@@ -6306,7 +6307,7 @@ static struct packet *service_update(pid_t pid, int handle, const struct packet 
 	 * \TODO
 	 * Validate the update requstor.
 	 */
-	slave_rpc_request_update(lbid, id, cluster, category);
+	slave_rpc_request_update(lbid, id, cluster, category, content);
 	DbgFree(lbid);
 	ret = LB_STATUS_SUCCESS;
 
