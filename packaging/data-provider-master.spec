@@ -37,6 +37,7 @@ BuildRequires: pkgconfig(notification)
 BuildRequires: pkgconfig(notification-service)
 BuildRequires: pkgconfig(badge)
 BuildRequires: pkgconfig(shortcut)
+BuildRequires: pkgconfig(storage)
 BuildRequires: pkgconfig(security-server)
 BuildRequires: sec-product-features
 Requires(post): sys-assert

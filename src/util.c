@@ -29,6 +29,7 @@
 #include <Eina.h>
 #include <Ecore.h>
 #include <livebox-errno.h>
+#include <storage.h>
 
 #include "util.h"
 #include "debug.h"
@@ -200,24 +201,27 @@ HAPI const char *util_basename(const char *name)
 }
 
 /*!
- * Return size of stroage in MegaBytes unit.
+ * Return size of stroage in Bytes unit.
  */
 HAPI unsigned long long util_free_space(const char *path)
 {
-	struct statfs st;
 	unsigned long long space;
+	struct statvfs s;
+	int r;
 
-	if (statfs(path, &st) < 0) {
-		ErrPrint("statvfs: %s\n", strerror(errno));
-		return 0lu;
+	r = storage_get_internal_memory_size(&s);
+	if (r < 0) {
+		ErrPrint("storage_get_internal_memory_size returns %d\n", r);
+		return 0llu;
 	}
 
-	space = (unsigned long long)st.f_bsize * (unsigned long long)st.f_bavail;
-	DbgPrint("Available size: %llu, f_bsize: %lu, f_bavail: %lu\n", space, st.f_bsize, st.f_bavail);
-	/*!
-	 * \note
-	 * Must have to check the overflow
-	 */
+	if (s.f_bsize < 0 || s.f_bavail < 0) {
+		ErrPrint("Block size: %d, Available: %d\n", s.f_bsize, s.f_bavail);
+		return 0llu;
+	}
+
+	space = (unsigned long long)s.f_bsize * (unsigned long long)s.f_bavail;
+	DbgPrint("Available free space: %llu\n", space);
 	return space;
 }
 
@@ -234,7 +238,6 @@ static inline char *extend_heap(char *buffer, int *sz, int incsz)
 
 	return tmp;
 }
-
 
 HAPI char *util_replace_string(const char *src, const char *pattern, const char *replace)
 {
@@ -341,7 +344,6 @@ HAPI char *util_replace_string(const char *src, const char *pattern, const char 
 
 	return ret;
 }
-
 
 HAPI const char *util_uri_to_path(const char *uri)
 {
