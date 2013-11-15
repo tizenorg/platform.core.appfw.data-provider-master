@@ -917,7 +917,7 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		ret = LB_STATUS_ERROR_FAULT;
 	} else if (package_is_fault(info)) {
 		ret = LB_STATUS_ERROR_FAULT;
-	} else if (util_free_space(IMAGE_PATH) < MINIMUM_SPACE) {
+	} else if (util_free_space(IMAGE_PATH) <= MINIMUM_SPACE) {
 		ErrPrint("Not enough space\n");
 		ret = LB_STATUS_ERROR_NO_SPACE;
 	} else {
