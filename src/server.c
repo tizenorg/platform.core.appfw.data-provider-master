@@ -4328,6 +4328,10 @@ static Eina_Bool lazy_pd_destroyed_cb(void *inst)
 
 	if (instance_unref(inst)) {
 		int ret;
+		
+		/*!
+		 * If the instance is not deleted, we should send pd-destroy event from here.
+		 */
 		ret = instance_client_pd_destroyed(inst, LB_STATUS_SUCCESS);
 		if (ret < 0) {
 			ErrPrint("Failed sending PD Destroy event (%d)\n", ret);
