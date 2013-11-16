@@ -533,11 +533,18 @@ static int send_pd_destroyed_to_client(struct inst_info *inst, int status)
 {
 	struct packet *packet;
 
+	if (!inst->pd.need_to_send_close_event) {
+		ErrPrint("PD is not created\n");
+		return LB_STATUS_ERROR_INVALID;
+	}
+
 	packet = packet_create_noack("pd_destroyed", "ssi", package_name(inst->info), inst->id, status);
 	if (!packet) {
 		ErrPrint("Failed to create a packet\n");
 		return LB_STATUS_ERROR_FAULT;
 	}
+
+	inst->pd.need_to_send_close_event = 0;
 
 	return CLIENT_SEND_EVENT(inst, packet);
 }
@@ -618,6 +625,8 @@ static inline void destroy_instance(struct inst_info *inst)
 	struct event_item *item;
 	struct tag_item *tag_item;
 
+	(void)send_pd_destroyed_to_client(inst, LB_STATUS_SUCCESS);
+
 	invoke_delete_callbacks(inst);
 
 	pkg = inst->info;
@@ -627,10 +636,6 @@ static inline void destroy_instance(struct inst_info *inst)
 	slave = package_slave(inst->info);
 
 	DbgPrint("Instance is destroyed (%p), slave(%p)\n", inst, slave);
-
-	if (inst->pd.need_to_send_close_event) {
-		send_pd_destroyed_to_client(inst, 0);
-	}
 
 	if (lb_type == LB_TYPE_SCRIPT) {
 		script_handler_unload(inst->lb.canvas.script, 0);
@@ -3057,13 +3062,6 @@ HAPI int instance_client_pd_created(struct inst_info *inst, int status)
 
 HAPI int instance_client_pd_destroyed(struct inst_info *inst, int status)
 {
-	if (!inst->pd.need_to_send_close_event) {
-		ErrPrint("PD is not created\n");
-		return LB_STATUS_ERROR_INVALID;
-	}
-
-	inst->pd.need_to_send_close_event = 0;
-
 	return send_pd_destroyed_to_client(inst, status);
 }
 
