@@ -638,19 +638,27 @@ static inline void destroy_instance(struct inst_info *inst)
 	DbgPrint("Instance is destroyed (%p), slave(%p)\n", inst, slave);
 
 	if (lb_type == LB_TYPE_SCRIPT) {
-		script_handler_unload(inst->lb.canvas.script, 0);
-		script_handler_destroy(inst->lb.canvas.script);
+		(void)script_handler_unload(inst->lb.canvas.script, 0);
+		if (script_handler_destroy(inst->lb.canvas.script) == LB_STATUS_SUCCESS) {
+			inst->lb.canvas.script = NULL;
+		}
 	} else if (lb_type == LB_TYPE_BUFFER) {
-		buffer_handler_unload(inst->lb.canvas.buffer);
-		buffer_handler_destroy(inst->lb.canvas.buffer);
+		(void)buffer_handler_unload(inst->lb.canvas.buffer);
+		if (buffer_handler_destroy(inst->lb.canvas.buffer) == LB_STATUS_SUCCESS) {
+			inst->lb.canvas.buffer = NULL;
+		}
 	}
 
 	if (pd_type == PD_TYPE_SCRIPT) {
-		script_handler_unload(inst->pd.canvas.script, 1);
-		script_handler_destroy(inst->pd.canvas.script);
+		(void)script_handler_unload(inst->pd.canvas.script, 1);
+		if (script_handler_destroy(inst->pd.canvas.script) == LB_STATUS_SUCCESS) {
+			inst->pd.canvas.script = NULL;
+		}
 	} else if (pd_type == PD_TYPE_BUFFER) {
-		buffer_handler_unload(inst->pd.canvas.buffer);
-		buffer_handler_destroy(inst->pd.canvas.buffer);
+		(void)buffer_handler_unload(inst->pd.canvas.buffer);
+		if (buffer_handler_destroy(inst->pd.canvas.buffer) == LB_STATUS_SUCCESS) {
+			inst->pd.canvas.buffer = NULL;
+		}
 	}
 
 	if (inst->client) {

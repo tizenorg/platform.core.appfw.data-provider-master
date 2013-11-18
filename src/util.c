@@ -24,12 +24,12 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include <ctype.h>
+#include <sys/statvfs.h>
 
 #include <dlog.h>
 #include <Eina.h>
 #include <Ecore.h>
 #include <livebox-errno.h>
-#include <storage.h>
 
 #include "util.h"
 #include "debug.h"
@@ -205,23 +205,21 @@ HAPI const char *util_basename(const char *name)
  */
 HAPI unsigned long long util_free_space(const char *path)
 {
+	struct statvfs st;
 	unsigned long long space;
-	struct statvfs s;
-	int r;
 
-	r = storage_get_internal_memory_size(&s);
-	if (r < 0) {
-		ErrPrint("storage_get_internal_memory_size returns %d\n", r);
-		return 0llu;
+	if (statvfs(path, &st) < 0) {
+		ErrPrint("statvfs: %s\n", strerror(errno));
+		return 0lu;
 	}
 
-	if (s.f_bsize < 0 || s.f_bavail < 0) {
-		ErrPrint("Block size: %d, Available: %d\n", s.f_bsize, s.f_bavail);
-		return 0llu;
-	}
+	space = (unsigned long long)st.f_bsize * (unsigned long long)st.f_bavail;
+	DbgPrint("Available size: %llu, f_bsize: %lu, f_bavail: %lu\n", space, st.f_bsize, st.f_bavail);
+	/*!
+	 * \note
+	 * Must have to check the overflow
+	 */
 
-	space = (unsigned long long)s.f_bsize * (unsigned long long)s.f_bavail;
-	DbgPrint("Available free space: %llu\n", space);
 	return space;
 }
 
