@@ -543,12 +543,12 @@ HAPI int script_handler_unload(struct script_info *info, int is_pd)
 
 	info->loaded--;
 	if (info->loaded > 0) {
-		return LB_STATUS_SUCCESS;
+		return LB_STATUS_ERROR_BUSY;
 	}
 
 	if (info->loaded < 0) {
 		info->loaded = 0;
-		return LB_STATUS_SUCCESS;
+		return LB_STATUS_ERROR_ALREADY;
 	}
 
 	e = script_handler_evas(info);
@@ -632,7 +632,7 @@ HAPI int script_handler_destroy(struct script_info *info)
 
 	if (info->loaded != 0) {
 		ErrPrint("Script handler is not unloaded\n");
-		return LB_STATUS_ERROR_INVALID;
+		return LB_STATUS_ERROR_BUSY;
 	}
 
 	ret = info->port->destroy(info->port_data);
@@ -645,6 +645,7 @@ HAPI int script_handler_destroy(struct script_info *info)
 	EINA_LIST_FREE(info->cached_blocks, block) {
 		delete_block(block);
 	}
+
 	DbgFree(info);
 	return LB_STATUS_SUCCESS;
 }
