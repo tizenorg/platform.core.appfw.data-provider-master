@@ -32,7 +32,6 @@ pkg_check_modules(pkg REQUIRED
 	badge
 	libsmack
 	shortcut
-	storage
 )
 
 SET(PACKAGE "${PROJECT_NAME}")
