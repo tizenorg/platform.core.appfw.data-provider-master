@@ -189,7 +189,7 @@ static Eina_Bool command_consumer_cb(void *data)
 		info = package_find(command->pkgname);
 		if (info && package_is_fault(info)) {
 			ErrPrint("info: %p (%s) is fault package\n", info, command->pkgname);
-			goto errout;
+			// goto errout;
 		}
 	}
 
