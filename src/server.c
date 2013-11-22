@@ -705,7 +705,7 @@ static Eina_Bool lazy_delete_cb(void *data)
 	 * So check it again
 	 */
 	if (instance_has_client(item->inst, item->client)) {
-		(void)instance_unicast_deleted_event(item->inst, item->client);
+		(void)instance_unicast_deleted_event(item->inst, item->client, LB_STATUS_SUCCESS);
 		(void)instance_del_client(item->inst, item->client);
 	}
 

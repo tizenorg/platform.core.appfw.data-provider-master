@@ -1523,7 +1523,7 @@ HAPI int package_alter_instances_to_client(struct client_node *client, enum alte
 					break;
 				case ALTER_DESTROY:
 					if (instance_has_client(inst, client)) {
-						instance_unicast_deleted_event(inst, client);
+						instance_unicast_deleted_event(inst, client, LB_STATUS_SUCCESS);
 						instance_del_client(inst, client);
 					}
 					break;

@@ -479,7 +479,7 @@ static int instance_broadcast_created_event(struct inst_info *inst)
 	return CLIENT_SEND_EVENT(inst, packet);
 }
 
-HAPI int instance_unicast_deleted_event(struct inst_info *inst, struct client_node *client)
+HAPI int instance_unicast_deleted_event(struct inst_info *inst, struct client_node *client, int reason)
 {
 	struct packet *packet;
 
@@ -490,7 +490,7 @@ HAPI int instance_unicast_deleted_event(struct inst_info *inst, struct client_no
 		}
 	}
 
-	packet = packet_create_noack("deleted", "ssd", package_name(inst->info), inst->id, inst->timestamp);
+	packet = packet_create_noack("deleted", "ssdi", package_name(inst->info), inst->id, inst->timestamp, reason);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return LB_STATUS_ERROR_FAULT;
@@ -499,7 +499,7 @@ HAPI int instance_unicast_deleted_event(struct inst_info *inst, struct client_no
 	return client_rpc_async_request(client, packet);
 }
 
-static int instance_broadcast_deleted_event(struct inst_info *inst)
+static int instance_broadcast_deleted_event(struct inst_info *inst, int reason)
 {
 	struct packet *packet;
 	struct client_node *client;
@@ -507,7 +507,7 @@ static int instance_broadcast_deleted_event(struct inst_info *inst)
 	Eina_List *n;
 	int ret;
 
-	packet = packet_create_noack("deleted", "ssd", package_name(inst->info), inst->id, inst->timestamp);
+	packet = packet_create_noack("deleted", "ssdi", package_name(inst->info), inst->id, inst->timestamp, reason);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return LB_STATUS_ERROR_FAULT;
@@ -859,7 +859,6 @@ HAPI struct inst_info *instance_unref(struct inst_info *inst)
 static void deactivate_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	struct inst_info *inst = data;
-	struct pkg_info *info;
 	int ret;
 
 	/*!
@@ -903,8 +902,7 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 			instance_reactivate(inst);
 			break;
 		case INST_DESTROYED:
-			info = inst->info;
-			instance_broadcast_deleted_event(inst);
+			instance_broadcast_deleted_event(inst, ret);
 			instance_state_reset(inst);
 			instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
 		default:
@@ -938,8 +936,7 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 		 * This is not possible, slave will always return LB_STATUS_ERROR_NOT_EXIST, LB_STATUS_ERROR_INVALID, or 0.
 		 * but care this exceptional case.
 		 */
-		info = inst->info;
-		instance_broadcast_deleted_event(inst);
+		instance_broadcast_deleted_event(inst, ret);
 		instance_state_reset(inst);
 		instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
 		break;
@@ -953,7 +950,6 @@ out:
 static void reactivate_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	struct inst_info *inst = data;
-	struct pkg_info *info;
 	enum lb_type lb_type;
 	enum pd_type pd_type;
 	int ret;
@@ -1019,9 +1015,8 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 			break;
 		case INST_ACTIVATED:
 			inst->is_pinned_up = is_pinned_up;
-			info = inst->info;
-			lb_type = package_lb_type(info);
-			pd_type = package_pd_type(info);
+			lb_type = package_lb_type(inst->info);
+			pd_type = package_pd_type(inst->info);
 
 			/*!
 			 * \note
@@ -1101,8 +1096,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 		}
 		break;
 	default:
-		info = inst->info;
-		instance_broadcast_deleted_event(inst);
+		instance_broadcast_deleted_event(inst, ret);
 		instance_state_reset(inst);
 		instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
 		break;
@@ -1174,7 +1168,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 
 		switch (inst->requested_state) {
 		case INST_DESTROYED:
-			instance_unicast_deleted_event(inst, NULL);
+			instance_unicast_deleted_event(inst, NULL, ret);
 			instance_state_reset(inst);
 			instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
 			break;
@@ -1228,7 +1222,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 		}
 		break;
 	default:
-		instance_unicast_deleted_event(inst, NULL);
+		instance_unicast_deleted_event(inst, NULL, ret);
 		instance_state_reset(inst);
 		instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
 		break;
@@ -2684,7 +2678,7 @@ HAPI int instance_destroyed(struct inst_info *inst)
 		 * So send deleted event to only it.
 		 */
 		DbgPrint("Send deleted event - unicast - %p\n", inst->client);
-		instance_unicast_deleted_event(inst, NULL);
+		instance_unicast_deleted_event(inst, NULL, LB_STATUS_SUCCESS);
 		instance_state_reset(inst);
 		instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
 		break;
@@ -2692,7 +2686,7 @@ HAPI int instance_destroyed(struct inst_info *inst)
 	case INST_REQUEST_TO_DESTROY:
 	case INST_ACTIVATED:
 		DbgPrint("Send deleted event - multicast\n");
-		instance_broadcast_deleted_event(inst);
+		instance_broadcast_deleted_event(inst, LB_STATUS_SUCCESS);
 		instance_state_reset(inst);
 		instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
 	case INST_DESTROYED:
@@ -2745,7 +2739,7 @@ HAPI int instance_recover_state(struct inst_info *inst)
 			instance_state_reset(inst);
 			if (instance_activate(inst) < 0) {
 				DbgPrint("Failed to reactivate the instance\n");
-				instance_broadcast_deleted_event(inst);
+				instance_broadcast_deleted_event(inst, LB_STATUS_SUCCESS);
 				instance_state_reset(inst);
 				instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
 			} else {
