@@ -1,6 +1,6 @@
 Name: data-provider-master
 Summary: Master service provider for liveboxes
-Version: 0.25.28
+Version: 0.25.29
 Release: 1
 Group: HomeTF/Livebox
 License: Flora
@@ -83,7 +83,6 @@ mkdir -p %{buildroot}/opt/dbspace
 mkdir -p %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants
 touch %{buildroot}/opt/dbspace/.livebox.db
 touch %{buildroot}/opt/dbspace/.livebox.db-journal
-#ln -sf %{_sysconfdir}/rc.d/init.d/data-provider-master %{buildroot}/%{_sysconfdir}/rc.d/rc3.d/S99data-provider-master
 ln -sf ../data-provider-master.service %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants/data-provider-master.service
 if [ ! -s %{buildroot}/opt/dbspace/.livebox.db ]; then
 echo "LiveBox DB file is not exists, initiate it"
@@ -128,8 +127,6 @@ echo "%{_sysconfdir}/init.d/data-provider-master start"
 %files -n data-provider-master
 %manifest %{name}.manifest
 %defattr(-,root,root,-)
-%{_sysconfdir}/rc.d/init.d/data-provider-master
-#%{_sysconfdir}/rc.d/rc3.d/S99data-provider-master
 %{_bindir}/data-provider-master
 %{_prefix}/etc/package-manager/parserlib/*
 %{_datarootdir}/data-provider-master/*
