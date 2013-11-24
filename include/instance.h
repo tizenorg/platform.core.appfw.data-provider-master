@@ -198,7 +198,7 @@ extern const enum instance_state const instance_state(const struct inst_info *in
  * event
  */
 extern int instance_unicast_created_event(struct inst_info *inst, struct client_node *client);
-extern int instance_unicast_deleted_event(struct inst_info *inst, struct client_node *client);
+extern int instance_unicast_deleted_event(struct inst_info *inst, struct client_node *client, int reason);
 
 extern int instance_create_lb_buffer(struct inst_info *inst);
 extern int instance_create_pd_buffer(struct inst_info *inst);
