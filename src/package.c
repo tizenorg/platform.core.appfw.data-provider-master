@@ -184,7 +184,7 @@ static int slave_fault_cb(struct slave_node *slave, void *data)
 	DbgPrint("Slave critical fault - package: %s (by slave fault %s\n", package_name(info), slave_name(slave));
 	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
 		DbgPrint("Destroy instance %p\n", inst);
-		instance_destroyed(inst);
+		instance_destroyed(inst, LB_STATUS_ERROR_FAULT);
 	}
 
 	return 0;
@@ -200,7 +200,7 @@ static int slave_deactivated_cb(struct slave_node *slave, void *data)
 
 	if (info->fault_info) {
 		EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
-			instance_destroyed(inst);
+			instance_destroyed(inst, LB_STATUS_ERROR_FAULT);
 		}
 	} else {
 		EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {

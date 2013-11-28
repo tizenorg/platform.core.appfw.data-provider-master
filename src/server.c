@@ -5815,7 +5815,7 @@ static struct packet *slave_deleted(pid_t pid, int handle, const struct packet *
 
 	ret = validate_request(pkgname, id, &inst, NULL);
 	if (ret == LB_STATUS_SUCCESS) {
-		ret = instance_destroyed(inst);
+		ret = instance_destroyed(inst, LB_STATUS_SUCCESS);
 	}
 
 out:

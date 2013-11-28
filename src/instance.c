@@ -2666,7 +2666,7 @@ HAPI const enum instance_state const instance_state(const struct inst_info *inst
 	return inst->state;
 }
 
-HAPI int instance_destroyed(struct inst_info *inst)
+HAPI int instance_destroyed(struct inst_info *inst, int reason)
 {
 	switch (inst->state) {
 	case INST_INIT:
@@ -2678,7 +2678,7 @@ HAPI int instance_destroyed(struct inst_info *inst)
 		 * So send deleted event to only it.
 		 */
 		DbgPrint("Send deleted event - unicast - %p\n", inst->client);
-		instance_unicast_deleted_event(inst, NULL, LB_STATUS_SUCCESS);
+		instance_unicast_deleted_event(inst, NULL, reason);
 		instance_state_reset(inst);
 		instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
 		break;
@@ -2686,7 +2686,7 @@ HAPI int instance_destroyed(struct inst_info *inst)
 	case INST_REQUEST_TO_DESTROY:
 	case INST_ACTIVATED:
 		DbgPrint("Send deleted event - multicast\n");
-		instance_broadcast_deleted_event(inst, LB_STATUS_SUCCESS);
+		instance_broadcast_deleted_event(inst, reason);
 		instance_state_reset(inst);
 		instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
 	case INST_DESTROYED:
@@ -2739,7 +2739,7 @@ HAPI int instance_recover_state(struct inst_info *inst)
 			instance_state_reset(inst);
 			if (instance_activate(inst) < 0) {
 				DbgPrint("Failed to reactivate the instance\n");
-				instance_broadcast_deleted_event(inst, LB_STATUS_SUCCESS);
+				instance_broadcast_deleted_event(inst, LB_STATUS_ERROR_FAULT);
 				instance_state_reset(inst);
 				instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
 			} else {
