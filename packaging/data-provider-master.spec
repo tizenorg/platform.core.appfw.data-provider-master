@@ -51,6 +51,12 @@ Keep trace on the life-cycle of the livebox and status of the service providers,
 cp %{SOURCE1001} .
 
 %build
+%if 0%{?sec_build_binary_debug_enable}
+export CFLAGS="$CFLAGS -DTIZEN_DEBUG_ENABLE"
+export CXXFLAGS="$CXXFLAGS -DTIZEN_DEBUG_ENABLE"
+export FFLAGS="$FFLAGS -DTIZEN_DEBUG_ENABLE"
+%endif
+
 export ENGINEER=false
 %if 0%{?tizen_build_binary_release_type_eng}
 export CFLAGS="${CFLAGS} -DTIZEN_ENGINEER_MODE"
