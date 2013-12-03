@@ -29,6 +29,7 @@
 #include <dlog.h>
 #include <Eina.h>
 #include <com-core.h>
+#include <livebox-errno.h>
 
 #include "service_common.h"
 #include "util.h"
@@ -56,6 +57,12 @@ struct service_event_item {
 	void *cbdata;
 };
 
+struct tcb_event_cbdata {
+	struct tcb *tcb;
+	void (*cb)(struct service_context *svc_ctx, struct tcb *tcb, void *data);
+	void *data;
+};
+
 /*!
  * \note
  * Server information and global (only in this file-scope) variables are defined
@@ -76,6 +83,9 @@ struct service_context {
 	void *service_thread_data;
 
 	Eina_List *event_list;
+
+	Eina_List *tcb_create_cb_list;
+	Eina_List *tcb_destroy_cb_list;
 };
 
 struct packet_info {
@@ -332,10 +342,84 @@ static void *client_packet_pump_main(void *data)
  * \note
  * SERVER THREAD
  */
+HAPI int service_register_tcb_callback(struct service_context *svc_ctx, struct tcb *tcb, enum tcb_event_type event, void (*cb)(struct service_context *svc_ctx, struct tcb *tcb, void *data), void *data)
+{
+	struct tcb_event_cbdata *cbdata;
+
+	cbdata = malloc(sizeof(*cbdata));
+	if (!cbdata) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return LB_STATUS_ERROR_MEMORY;
+	}
+
+	cbdata->tcb = tcb;
+	cbdata->cb = cb;
+	cbdata->data = data;
+
+	switch (event) {
+	case TCB_EVENT_CREATE:
+		if (tcb) {
+			DbgPrint("To catch the create event of TCB does not requires \"tcb\" handle\n");
+		}
+		svc_ctx->tcb_create_cb_list = eina_list_append(svc_ctx->tcb_create_cb_list, cbdata);
+		break;
+	case TCB_EVENT_DESTROY:
+		svc_ctx->tcb_destroy_cb_list = eina_list_append(svc_ctx->tcb_destroy_cb_list, cbdata);
+		break;
+	default:
+		DbgFree(cbdata);
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	return LB_STATUS_SUCCESS;
+}
+
+/*!
+ * \note
+ * SERVER THREAD
+ */
+HAPI int service_unregister_tcb_callback(struct service_context *svc_ctx, struct tcb *tcb, enum tcb_event_type event, void (*cb)(struct service_context *svc_ctx, struct tcb *tcb, void *data), void *data)
+{
+	struct tcb_event_cbdata *cbdata;
+	Eina_List *l;
+
+	switch (event) {
+	case TCB_EVENT_CREATE:
+		EINA_LIST_FOREACH(svc_ctx->tcb_create_cb_list, l, cbdata) {
+			if (cbdata->tcb == tcb && cbdata->cb == cb && cbdata->data == data) {
+				svc_ctx->tcb_create_cb_list = eina_list_remove(svc_ctx->tcb_create_cb_list, cbdata);
+				DbgFree(cbdata);
+				return LB_STATUS_SUCCESS;
+			}
+		}
+		break;
+	case TCB_EVENT_DESTROY:
+		EINA_LIST_FOREACH(svc_ctx->tcb_destroy_cb_list, l, cbdata) {
+			if (cbdata->tcb == tcb && cbdata->cb == cb && cbdata->data == data) {
+				svc_ctx->tcb_destroy_cb_list = eina_list_remove(svc_ctx->tcb_destroy_cb_list, cbdata);
+				DbgFree(cbdata);
+				return LB_STATUS_SUCCESS;
+			}
+		}
+		break;
+	default:
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	return LB_STATUS_ERROR_NOT_EXIST;
+}
+
+/*!
+ * \note
+ * SERVER THREAD
+ */
 static inline struct tcb *tcb_create(struct service_context *svc_ctx, int fd)
 {
 	struct tcb *tcb;
 	int status;
+	struct tcb_event_cbdata *cbdata;
+	Eina_List *l;
+	Eina_List *n;
 
 	tcb = malloc(sizeof(*tcb));
 	if (!tcb) {
@@ -365,6 +449,19 @@ static inline struct tcb *tcb_create(struct service_context *svc_ctx, int fd)
 	CRITICAL_SECTION_BEGIN(&svc_ctx->tcb_list_lock);
 	svc_ctx->tcb_list = eina_list_append(svc_ctx->tcb_list, tcb);
 	CRITICAL_SECTION_END(&svc_ctx->tcb_list_lock);
+
+	EINA_LIST_FOREACH_SAFE(svc_ctx->tcb_create_cb_list, l, n, cbdata) {
+		if (!cbdata->cb) {
+			/* ASSERT */
+			ErrPrint("invalid CB\n");
+			svc_ctx->tcb_create_cb_list = eina_list_remove(svc_ctx->tcb_create_cb_list, cbdata);
+			DbgFree(cbdata);
+			continue;
+		}
+
+		cbdata->cb(svc_ctx, tcb, cbdata->data);
+	}
+
 	return tcb;
 }
 
@@ -415,6 +512,30 @@ static inline void tcb_destroy(struct service_context *svc_ctx, struct tcb *tcb)
 	void *ret;
 	int status;
 	char ch = EVT_END_CH;
+	struct tcb_event_cbdata *cbdata;
+	Eina_List *l;
+	Eina_List *n;
+
+	EINA_LIST_FOREACH_SAFE(svc_ctx->tcb_destroy_cb_list, l, n, cbdata) {
+		if (!cbdata->cb) {
+			/* ASSERT */
+			ErrPrint("invalid CB\n");
+			svc_ctx->tcb_destroy_cb_list = eina_list_remove(svc_ctx->tcb_destroy_cb_list, cbdata);
+			DbgFree(cbdata);
+			continue;
+		}
+
+		if (cbdata->tcb != tcb) {
+			continue;
+		}
+
+		cbdata->cb(svc_ctx, tcb, cbdata->data);
+
+		if (eina_list_data_find(svc_ctx->tcb_destroy_cb_list, cbdata)) {
+			svc_ctx->tcb_destroy_cb_list = eina_list_remove(svc_ctx->tcb_destroy_cb_list, cbdata);
+			DbgFree(cbdata);
+		}
+	}
 
 	CRITICAL_SECTION_BEGIN(&svc_ctx->tcb_list_lock);
 	svc_ctx->tcb_list = eina_list_remove(svc_ctx->tcb_list, tcb);
@@ -843,7 +964,7 @@ HAPI int tcb_is_valid(struct service_context *svc_ctx, struct tcb *tcb)
 {
 	Eina_List *l;
 	struct tcb *tmp;
-	int ret = 0;
+	int ret = -ENOENT;
 
 	CRITICAL_SECTION_BEGIN(&svc_ctx->tcb_list_lock);
 	EINA_LIST_FOREACH(svc_ctx->tcb_list, l, tmp) {

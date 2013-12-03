@@ -96,6 +96,7 @@ static int put_reply_tcb(struct tcb *tcb, double seq)
 	ctx->seq = seq;
 
 	s_info.context_list = eina_list_append(s_info.context_list, ctx);
+
 	return LB_STATUS_SUCCESS;
 }
 
@@ -129,14 +130,21 @@ static inline int flush_pended_request(void)
 	int ret;
 
 	EINA_LIST_FREE(s_info.pending_list, item) {
-		ret = service_common_unicast_packet(s_info.svc_daemon, item->packet);
+		if (tcb_is_valid(s_info.svc_ctx, s_info.svc_daemon) >= 0) {
+			ret = service_common_unicast_packet(s_info.svc_daemon, item->packet);
+		} else {
+			ret = -EFAULT;
+		}
+
 		if (ret < 0) {
-			struct packet *reply;
-			reply = packet_create_reply(item->packet, "i", ret);
-			if (service_common_unicast_packet(item->tcb, reply) < 0) {
-				ErrPrint("Unable to send packet\n");
+			if (tcb_is_valid(s_info.svc_ctx, item->tcb) >= 0) {
+				struct packet *reply;
+				reply = packet_create_reply(item->packet, "i", ret);
+				if (service_common_unicast_packet(item->tcb, reply) < 0) {
+					ErrPrint("Unable to send packet\n");
+				}
+				packet_destroy(reply);
 			}
-			packet_destroy(reply);
 		} else {
 			put_reply_tcb(item->tcb, packet_seq(item->packet));
 		}
@@ -175,18 +183,22 @@ static int launch_timeout_cb(struct service_context *svc_ctx, void *data)
 	struct packet *reply;
 
 	EINA_LIST_FREE(s_info.pending_list, item) {
-		reply = packet_create_reply(item->packet, "i", -EFAULT);
-		if (!reply) {
-			ErrPrint("Unable to create a packet\n");
-		} else {
-			int ret;
+		if (tcb_is_valid(s_info.svc_ctx, item->tcb) >= 0) {
+			reply = packet_create_reply(item->packet, "i", -EFAULT);
+			if (!reply) {
+				ErrPrint("Unable to create a packet\n");
+			} else {
+				int ret;
 
-			ret = service_common_unicast_packet(item->tcb, reply);
-			if (ret < 0) {
-				ErrPrint("Failed to send reply packet: %d\n", ret);
+				ret = service_common_unicast_packet(item->tcb, reply);
+				if (ret < 0) {
+					ErrPrint("Failed to send reply packet: %d\n", ret);
+				}
+
+				packet_destroy(reply);
 			}
-
-			packet_destroy(reply);
+		} else {
+			ErrPrint("TCB is already terminated\n");
 		}
 
 		packet_unref(item->packet);
@@ -306,7 +318,7 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 			if (ret < 0) {
 				goto reply_out;
 			}
-		} else {
+		} else if (tcb_is_valid(s_info.svc_ctx, s_info.svc_daemon) >= 0) { 
 			ret = service_common_unicast_packet(s_info.svc_daemon, packet);
 			if (ret <0) {
 				goto reply_out;
@@ -358,11 +370,17 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 		tcb = get_reply_tcb(packet_seq(packet));
 		if (!tcb) {
 			ErrPrint("Unable to find reply tcb\n");
-		} else {
-			ret = service_common_unicast_packet(tcb, packet);
-			if (ret < 0) {
-				ErrPrint("Unable to forward the reply packet\n");
-			}
+			break;
+		}
+
+		if (tcb_is_valid(s_info.svc_ctx, tcb) < 0) {
+			ErrPrint("TCB is not valid\n");
+			break;
+		}
+
+		ret = service_common_unicast_packet(tcb, packet);
+		if (ret < 0) {
+			ErrPrint("Unable to forward the reply packet\n");
 		}
 		break;
 	default:

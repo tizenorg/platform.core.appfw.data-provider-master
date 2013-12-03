@@ -131,8 +131,14 @@ static inline void invoke_deactivated_cb(struct client_node *client)
 	Eina_List *n;
 	int ret;
 
-	client_ref(client); /*!< Prevent from client deletion in the callbacks */
 	EINA_LIST_FOREACH_SAFE(client->event_deactivate_list, l, n, item) {
+		if (!item->cb) {
+			ErrPrint("Callback is NULL\n");
+			client->event_deactivate_list = eina_list_remove(client->event_deactivate_list, item);
+			DbgFree(item);
+			continue;
+		}
+
 		ret = item->cb(client, item->data);
 		if (ret < 0) {
 			if (eina_list_data_find(client->event_deactivate_list, item)) {
@@ -141,7 +147,6 @@ static inline void invoke_deactivated_cb(struct client_node *client)
 			}
 		}
 	}
-	client_unref(client);
 }
 
 static inline void invoke_activated_cb(struct client_node *client)
@@ -169,6 +174,14 @@ static inline void destroy_client_data(struct client_node *client)
 	struct event_item *event;
 	struct data_item *data;
 	struct subscribe_item *item;
+	Ecore_Timer *timer;
+
+	timer = client_del_data(client, "create,timer");
+	if (timer) {
+		ecore_timer_del(timer);
+	}
+
+	DbgPrint("Destroy client: %p\n", client);
 
 	invoke_global_destroyed_cb(client);
 	client_rpc_fini(client); /*!< Finalize the RPC after invoke destroy callbacks */
@@ -231,6 +244,8 @@ static inline struct client_node *create_client_data(pid_t pid)
 
 static Eina_Bool created_cb(void *data)
 {
+	(void)client_del_data(data, "create,timer");
+
 	invoke_global_created_cb(data);
 	invoke_activated_cb(data);
 	/*!
@@ -272,16 +287,21 @@ HAPI struct client_node *client_create(pid_t pid, int handle)
 		client = client_unref(client);
 		ErrPrint("Failed to initialize the RPC for %d, Destroy client data %p(has to be 0x0)\n", pid, client);
 	} else {
+		Ecore_Timer *create_timer;
 		/*!
 		 * \note
 		 * To save the time to send reply packet to the client.
 		 */
-		if (ecore_timer_add(DELAY_TIME, created_cb, client_ref(client)) == NULL) {
+		create_timer = ecore_timer_add(DELAY_TIME, created_cb, client_ref(client));
+		if (create_timer == NULL) {
 			ErrPrint("Failed to add a timer for client created event\n");
 			client = client_unref(client); /* Decrease refcnt for argument */
 			client = client_unref(client); /* Destroy client object */
 			return NULL;
 		}
+
+		ret = client_set_data(client, "create,timer", create_timer);
+		DbgPrint("Set data: %d\n", ret);
 	}
 
 	return client;

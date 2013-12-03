@@ -4069,7 +4069,6 @@ static struct packet *client_lb_release_pixmap(pid_t pid, int handle, const stru
 	const char *pkgname;
 	const char *id;
 	struct client_node *client;
-	struct inst_info *inst;
 	int pixmap;
 	void *buf_ptr;
 	int ret;
@@ -4086,7 +4085,7 @@ static struct packet *client_lb_release_pixmap(pid_t pid, int handle, const stru
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pkgname, id, NULL, NULL);
 	if (ret != LB_STATUS_SUCCESS) {
 		goto out;
 	}
@@ -4178,10 +4177,13 @@ static struct packet *client_pd_acquire_pixmap(pid_t pid, int handle, const stru
 
 	ret = client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, release_pixmap_cb, buf_ptr);
 	if (ret < 0) {
+		ErrPrint("Failed to add a new client deactivate callback\n");
 		buffer_handler_pixmap_unref(buf_ptr);
+	} else {
+		pixmap = buffer_handler_pixmap(buffer);
+		ret = LB_STATUS_SUCCESS;
 	}
 
-	pixmap = buffer_handler_pixmap(buffer);
 out:
 	result = packet_create_reply(packet, "ii", pixmap, ret);
 	if (!result) {

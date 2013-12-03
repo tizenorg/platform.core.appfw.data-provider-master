@@ -19,6 +19,11 @@ enum tcb_type {
 	TCB_CLIENT_TYPE_UNKNOWN = 0xff
 };
 
+enum tcb_event_type {
+	TCB_EVENT_CREATE = 0x01,
+	TCB_EVENT_DESTROY = 0x02
+};
+
 struct tcb;
 struct service_context;
 struct service_event_item;
@@ -40,5 +45,8 @@ extern int service_common_update_timer(struct service_event_item *item, double t
 extern int service_common_del_timer(struct service_context *svc_ctx, struct service_event_item *item);
 
 extern int service_common_fd(struct service_context *ctx);
+
+extern int service_register_tcb_callback(struct service_context *svc_ctx, struct tcb *tcb, enum tcb_event_type event, void (*cb)(struct service_context *svc_ctx, struct tcb *tcb, void *data), void *data);
+extern int service_unregister_tcb_callback(struct service_context *svc_ctx, struct tcb *tcb, enum tcb_event_type event, void (*cb)(struct service_context *svc_ctx, struct tcb *tcb, void *data), void *data);
 
 /* End of a file */
