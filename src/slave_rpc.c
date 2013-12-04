@@ -640,7 +640,7 @@ HAPI int slave_rpc_ping_thaw(struct slave_node *slave)
 	return LB_STATUS_SUCCESS;
 }
 
-HAPI void slave_rpc_request_update(const char *pkgname, const char *id, const char *cluster, const char *category, const char *content)
+HAPI void slave_rpc_request_update(const char *pkgname, const char *id, const char *cluster, const char *category, const char *content, int force)
 {
 	struct slave_node *slave;
 	struct pkg_info *info;
@@ -658,7 +658,7 @@ HAPI void slave_rpc_request_update(const char *pkgname, const char *id, const ch
 		return;
 	}
 
-	packet = packet_create_noack("update_content", "sssss", pkgname, id, cluster, category, content);
+	packet = packet_create_noack("update_content", "sssssi", pkgname, id, cluster, category, content, force);
 	if (!packet) {
 		ErrPrint("Failed to create a new param\n");
 		return;

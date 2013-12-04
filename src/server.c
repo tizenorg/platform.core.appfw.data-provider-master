@@ -5018,7 +5018,7 @@ out:
 	return result;
 }
 
-static inline int update_pkg_cb(struct category *category, const char *pkgname)
+static inline int update_pkg_cb(struct category *category, const char *pkgname, int force)
 {
 	const char *c_name;
 	const char *s_name;
@@ -5032,7 +5032,7 @@ static inline int update_pkg_cb(struct category *category, const char *pkgname)
 	}
 
 	DbgPrint("Send refresh request: %s (%s/%s)\n", pkgname, c_name, s_name);
-	slave_rpc_request_update(pkgname, "", c_name, s_name, NULL);
+	slave_rpc_request_update(pkgname, "", c_name, s_name, NULL, force);
 
 	/* Just try to create a new package */
 	if (util_free_space(IMAGE_PATH) > MINIMUM_SPACE) {
@@ -5062,6 +5062,7 @@ static struct packet *client_update(pid_t pid, int handle, const struct packet *
 	struct client_node *client;
 	const char *pkgname;
 	const char *id;
+	int force;
 	int ret;
 
 	client = client_find_by_rpc_handle(handle);
@@ -5070,8 +5071,8 @@ static struct packet *client_update(pid_t pid, int handle, const struct packet *
 		goto out;
 	}
 
-	ret = packet_get(packet, "ss", &pkgname, &id);
-	if (ret != 2) {
+	ret = packet_get(packet, "ssi", &pkgname, &id, &force);
+	if (ret != 3) {
 		ErrPrint("Invalid argument\n");
 		goto out;
 	}
@@ -5085,7 +5086,7 @@ static struct packet *client_update(pid_t pid, int handle, const struct packet *
 		/* PERMISSIONS */
 		ErrPrint("Insufficient permissions [%s] - %d\n", pkgname, pid);
 	} else {
-		slave_rpc_request_update(pkgname, id, instance_cluster(inst), instance_category(inst), NULL);
+		slave_rpc_request_update(pkgname, id, instance_cluster(inst), instance_category(inst), NULL, force);
 	}
 
 out:
@@ -5104,6 +5105,7 @@ static struct packet *client_refresh_group(pid_t pid, int handle, const struct p
 	struct context_info *info;
 	Eina_List *info_list;
 	Eina_List *l;
+	int force;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -5111,8 +5113,8 @@ static struct packet *client_refresh_group(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
-	ret = packet_get(packet, "ss", &cluster_id, &category_id);
-	if (ret != 2) {
+	ret = packet_get(packet, "ssi", &cluster_id, &category_id, &force);
+	if (ret != 3) {
 		ErrPrint("Invalid parameter\n");
 		goto out;
 	}
@@ -5138,7 +5140,7 @@ static struct packet *client_refresh_group(pid_t pid, int handle, const struct p
 
 	info_list = group_context_info_list(category);
 	EINA_LIST_FOREACH(info_list, l, info) {
-		update_pkg_cb(category, group_pkgname_from_context_info(info));
+		update_pkg_cb(category, group_pkgname_from_context_info(info), force);
 	}
 
 out:
@@ -6254,11 +6256,12 @@ static struct packet *service_update(pid_t pid, int handle, const struct packet 
 	const char *cluster;
 	const char *category;
 	const char *content;
+	int force;
 	char *lbid;
 	int ret;
 
-	ret = packet_get(packet, "sssss", &pkgname, &id, &cluster, &category, &content);
-	if (ret != 5) {
+	ret = packet_get(packet, "sssssi", &pkgname, &id, &cluster, &category, &content, &force);
+	if (ret != 6) {
 		ErrPrint("Invalid Packet\n");
 		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
@@ -6313,7 +6316,7 @@ static struct packet *service_update(pid_t pid, int handle, const struct packet 
 	 * \TODO
 	 * Validate the update requstor.
 	 */
-	slave_rpc_request_update(lbid, id, cluster, category, content);
+	slave_rpc_request_update(lbid, id, cluster, category, content, force);
 	DbgFree(lbid);
 	ret = LB_STATUS_SUCCESS;
 
