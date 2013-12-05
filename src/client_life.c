@@ -39,11 +39,19 @@ static struct {
 	Eina_List *client_list;
 	int nr_of_paused_clients;
 
+	enum global_event_process {
+		GLOBAL_EVENT_PROCESS_IDLE = 0x00,
+		GLOBAL_EVENT_PROCESS_CREATE = 0x01,
+		GLOBAL_EVENT_PROCESS_DESTROY = 0x02
+	} in_event_process;
+
 	Eina_List *create_event_list;
 	Eina_List *destroy_event_list;
+
 } s_info = {
 	.client_list = NULL,
 	.nr_of_paused_clients = 0,
+	.in_event_process = GLOBAL_EVENT_PROCESS_IDLE,
 	.create_event_list = NULL,
 	.destroy_event_list = NULL,
 };
@@ -53,19 +61,21 @@ struct subscribe_item {
 	char *category;
 };
 
-struct global_event_handler {
+struct global_event_item {
 	void *cbdata;
 	int (*cb)(struct client_node *client, void *data);
-};
-
-struct data_item {
-	char *tag;
-	void *data;
+	int deleted;
 };
 
 struct event_item {
 	void *data;
 	int (*cb)(struct client_node *, void *);
+	int deleted;
+};
+
+struct data_item {
+	char *tag;
+	void *data;
 };
 
 struct client_node {
@@ -74,8 +84,14 @@ struct client_node {
 
 	int paused;
 
+	enum client_event_process {
+		CLIENT_EVENT_PROCESS_IDLE = 0x00,
+		CLIENT_EVENT_PROCESS_DEACTIVATE = 0x01,
+		CLIENT_EVENT_PROCESS_ACTIVATE = 0x02
+	} in_event_process;
 	Eina_List *event_deactivate_list;
 	Eina_List *event_activate_list;
+
 	Eina_List *data_list;
 	Eina_List *subscribe_list;
 
@@ -86,42 +102,49 @@ static inline void invoke_global_destroyed_cb(struct client_node *client)
 {
 	Eina_List *l;
 	Eina_List *n;
-	struct global_event_handler *item;
+	struct global_event_item *item;
 
+	s_info.in_event_process |= GLOBAL_EVENT_PROCESS_DESTROY;
 	EINA_LIST_FOREACH_SAFE(s_info.destroy_event_list, l, n, item) {
-		if (!item->cb) {
-			ErrPrint("Callback function is not valid\n");
-			continue;
-		}
-
-		if (item->cb(client, item->cbdata) < 0) {
-			if (eina_list_data_find(s_info.destroy_event_list, item)) {
-				s_info.destroy_event_list = eina_list_remove(s_info.destroy_event_list, item);
-				DbgFree(item);
-			}
+		/*!
+		 * The first,
+		 * item->deleted will be checked, so if it is deleted, remove item from the list
+		 * The second, if the first routine takes false path,
+		 * item->cb will be called, if it returns negative value, remove item from the list
+		 * The third, if the second routine takes false path,
+		 * Check the item->deleted again, so if it is turnned on, remove item from the list
+		 */
+		if (item->deleted || item->cb(client, item->cbdata) < 0 || item->deleted) {
+			s_info.destroy_event_list = eina_list_remove(s_info.destroy_event_list, item);
+			DbgFree(item);
 		}
 	}
+	s_info.in_event_process &= ~GLOBAL_EVENT_PROCESS_DESTROY;
 }
 
 static inline void invoke_global_created_cb(struct client_node *client)
 {
 	Eina_List *l;
 	Eina_List *n;
-	struct global_event_handler *item;
+	struct global_event_item *item;
 
+	s_info.in_event_process |= GLOBAL_EVENT_PROCESS_CREATE;
 	EINA_LIST_FOREACH_SAFE(s_info.create_event_list, l, n, item) {
-		if (!item->cb) {
-			ErrPrint("Callback function is not valid\n");
-			continue;
-		}
+		/*!
+		 * The first,
+		 * item->deleted will be checked, so if it is deleted, remove item from the list
+		 * The second, if the first routine takes false path,
+		 * item->cb will be called, if it returns negative value, remove item from the list
+		 * The third, if the second routine takes false path,
+		 * Check the item->deleted again, so if it is turnned on, remove item from the list
+		 */
 
-		if (item->cb(client, item->cbdata) < 0) {
-			if (eina_list_data_find(s_info.create_event_list, item)) {
-				s_info.create_event_list = eina_list_remove(s_info.create_event_list, item);
-				DbgFree(item);
-			}
+		if (item->deleted || item->cb(client, item->cbdata) < 0 || item->deleted) {
+			s_info.create_event_list = eina_list_remove(s_info.create_event_list, item);
+			DbgFree(item);
 		}
 	}
+	s_info.in_event_process &= ~GLOBAL_EVENT_PROCESS_CREATE;
 }
 
 static inline void invoke_deactivated_cb(struct client_node *client)
@@ -129,24 +152,24 @@ static inline void invoke_deactivated_cb(struct client_node *client)
 	struct event_item *item;
 	Eina_List *l;
 	Eina_List *n;
-	int ret;
 
+	client->in_event_process |= CLIENT_EVENT_PROCESS_DEACTIVATE;
 	EINA_LIST_FOREACH_SAFE(client->event_deactivate_list, l, n, item) {
-		if (!item->cb) {
-			ErrPrint("Callback is NULL\n");
+		/*!
+		 * The first,
+		 * item->deleted will be checked, so if it is deleted, remove item from the list
+		 * The second, if the first routine takes false path,
+		 * item->cb will be called, if it returns negative value, remove item from the list
+		 * The third, if the second routine takes false path,
+		 * Check the item->deleted again, so if it is turnned on, remove item from the list
+		 */
+
+		if (item->deleted || item->cb(client, item->data) < 0 || item->deleted) {
 			client->event_deactivate_list = eina_list_remove(client->event_deactivate_list, item);
 			DbgFree(item);
-			continue;
-		}
-
-		ret = item->cb(client, item->data);
-		if (ret < 0) {
-			if (eina_list_data_find(client->event_deactivate_list, item)) {
-				client->event_deactivate_list = eina_list_remove(client->event_deactivate_list, item);
-				DbgFree(item);
-			}
 		}
 	}
+	client->in_event_process &= ~CLIENT_EVENT_PROCESS_DEACTIVATE;
 }
 
 static inline void invoke_activated_cb(struct client_node *client)
@@ -154,19 +177,24 @@ static inline void invoke_activated_cb(struct client_node *client)
 	struct event_item *item;
 	Eina_List *l;
 	Eina_List *n;
-	int ret;
 
-	client_ref(client); /*!< Prevent from client deletion in the callbacks */
+	client->in_event_process |= CLIENT_EVENT_PROCESS_ACTIVATE;
 	EINA_LIST_FOREACH_SAFE(client->event_activate_list, l, n, item) {
-		ret = item->cb(client, item->data);
-		if (ret < 0) {
-			if (eina_list_data_find(client->event_activate_list, item)) {
-				client->event_activate_list = eina_list_remove(client->event_activate_list, item);
-				DbgFree(item);
-			}
+		/*!
+		 * The first,
+		 * item->deleted will be checked, so if it is deleted, remove item from the list
+		 * The second, if the first routine takes false path,
+		 * item->cb will be called, if it returns negative value, remove item from the list
+		 * The third, if the second routine takes false path,
+		 * Check the item->deleted again, so if it is turnned on, remove item from the list
+		 */
+
+		if (item->deleted || item->cb(client, item->data) < 0 || item->deleted) {
+			client->event_activate_list = eina_list_remove(client->event_activate_list, item);
+			DbgFree(item);
 		}
 	}
-	client_unref(client);
+	client->in_event_process &= ~CLIENT_EVENT_PROCESS_ACTIVATE;
 }
 
 static inline void destroy_client_data(struct client_node *client)
@@ -443,7 +471,7 @@ HAPI int client_event_callback_add(struct client_node *client, enum client_event
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	item = calloc(1, sizeof(*item));
+	item = malloc(sizeof(*item));
 	if (!item) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		return LB_STATUS_ERROR_MEMORY;
@@ -451,6 +479,7 @@ HAPI int client_event_callback_add(struct client_node *client, enum client_event
 
 	item->cb = cb;
 	item->data = data;
+	item->deleted = 0;
 
 	/*!
 	 * \note
@@ -500,8 +529,12 @@ HAPI int client_event_callback_del(struct client_node *client, enum client_event
 	case CLIENT_EVENT_DEACTIVATE:
 		EINA_LIST_FOREACH_SAFE(client->event_deactivate_list, l, n, item) {
 			if (item->cb == cb && item->data == data) {
-				client->event_deactivate_list = eina_list_remove(client->event_deactivate_list, item);
-				DbgFree(item);
+				if (client->in_event_process & CLIENT_EVENT_PROCESS_DEACTIVATE) {
+					item->deleted = 1;
+				} else {
+					client->event_deactivate_list = eina_list_remove(client->event_deactivate_list, item);
+					DbgFree(item);
+				}
 				return LB_STATUS_SUCCESS;
 			}
 		}
@@ -510,8 +543,12 @@ HAPI int client_event_callback_del(struct client_node *client, enum client_event
 	case CLIENT_EVENT_ACTIVATE:
 		EINA_LIST_FOREACH_SAFE(client->event_activate_list, l, n, item) {
 			if (item->cb == cb && item->data == data) {
-				client->event_activate_list = eina_list_remove(client->event_activate_list, item);
-				DbgFree(item);
+				if (client->in_event_process & CLIENT_EVENT_PROCESS_ACTIVATE) {
+					item->deleted = 1;
+				} else {
+					client->event_activate_list = eina_list_remove(client->event_activate_list, item);
+					DbgFree(item);
+				}
 				return LB_STATUS_SUCCESS;
 			}
 		}
@@ -609,7 +646,7 @@ HAPI int client_init(void)
 
 HAPI void client_fini(void)
 {
-	struct global_event_handler *handler;
+	struct global_event_item *handler;
 	struct client_node *client;
 	Eina_List *l;
 	Eina_List *n;
@@ -629,7 +666,7 @@ HAPI void client_fini(void)
 
 HAPI int client_global_event_handler_add(enum client_global_event event_type, int (*cb)(struct client_node *client, void *data), void *data)
 {
-	struct global_event_handler *handler;
+	struct global_event_item *handler;
 
 	handler = malloc(sizeof(*handler));
 	if (!handler) {
@@ -639,6 +676,7 @@ HAPI int client_global_event_handler_add(enum client_global_event event_type, in
 
 	handler->cbdata = data;
 	handler->cb = cb;
+	handler->deleted = 0;
 
 	switch (event_type) {
 	case CLIENT_GLOBAL_EVENT_CREATE:
@@ -659,23 +697,31 @@ HAPI int client_global_event_handler_del(enum client_global_event event_type, in
 {
 	Eina_List *l;
 	Eina_List *n;
-	struct global_event_handler *handler;
+	struct global_event_item *item;
 
 	switch (event_type) {
 	case CLIENT_GLOBAL_EVENT_CREATE:
-		EINA_LIST_FOREACH_SAFE(s_info.create_event_list, l, n, handler) {
-			if (handler->cb == cb && handler->cbdata == data) {
-				s_info.create_event_list = eina_list_remove(s_info.create_event_list, handler);
-				DbgFree(handler);
+		EINA_LIST_FOREACH_SAFE(s_info.create_event_list, l, n, item) {
+			if (item->cb == cb && item->cbdata == data) {
+				if (s_info.in_event_process & GLOBAL_EVENT_PROCESS_CREATE) {
+					item->deleted = 1;
+				} else {
+					s_info.create_event_list = eina_list_remove(s_info.create_event_list, item);
+					DbgFree(item);
+				}
 				return LB_STATUS_SUCCESS;
 			}
 		}
 		break;
 	case CLIENT_GLOBAL_EVENT_DESTROY:
-		EINA_LIST_FOREACH_SAFE(s_info.destroy_event_list, l, n, handler) {
-			if (handler->cb == cb && handler->cbdata == data) {
-				s_info.destroy_event_list = eina_list_remove(s_info.destroy_event_list, handler);
-				DbgFree(handler);
+		EINA_LIST_FOREACH_SAFE(s_info.destroy_event_list, l, n, item) {
+			if (item->cb == cb && item->cbdata == data) {
+				if (s_info.in_event_process & GLOBAL_EVENT_PROCESS_DESTROY) {
+					item->deleted = 1;
+				} else {
+					s_info.destroy_event_list = eina_list_remove(s_info.destroy_event_list, item);
+					DbgFree(item);
+				}
 				return LB_STATUS_SUCCESS;
 			}
 		}

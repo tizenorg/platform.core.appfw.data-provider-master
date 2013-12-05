@@ -81,6 +81,7 @@ struct period_cbdata {
 struct event_item {
 	int (*event_cb)(struct inst_info *inst, void *data);
 	void *data;
+	int deleted;
 };
 
 struct tag_item {
@@ -147,6 +148,10 @@ struct inst_info {
 
 	Ecore_Timer *update_timer; /*!< Only used for secured livebox */
 
+	enum event_process {
+		INST_EVENT_PROCESS_IDLE = 0x00,
+		INST_EVENT_PROCESS_DELETE = 0x01
+	} in_event_process;
 	Eina_List *delete_event_list;
 
 	Eina_List *data_list;
@@ -555,14 +560,14 @@ static inline void invoke_delete_callbacks(struct inst_info *inst)
 	Eina_List *n;
 	struct event_item *item;
 
+	inst->in_event_process |= INST_EVENT_PROCESS_DELETE;
 	EINA_LIST_FOREACH_SAFE(inst->delete_event_list, l, n, item) {
-		if (item->event_cb(inst, item->data) < 0) {
-			if (eina_list_data_find(inst->delete_event_list, item)) {
-				inst->delete_event_list = eina_list_remove(inst->delete_event_list, item);
-				DbgFree(item);
-			}
+		if (item->deleted || item->event_cb(inst, item->data) < 0 || item->deleted) {
+			inst->delete_event_list = eina_list_remove(inst->delete_event_list, item);
+			DbgFree(item);
 		}
 	}
+	inst->in_event_process &= ~INST_EVENT_PROCESS_DELETE;
 }
 
 HAPI int instance_event_callback_add(struct inst_info *inst, enum instance_event type, int (*event_cb)(struct inst_info *inst, void *data), void *data)
@@ -583,6 +588,7 @@ HAPI int instance_event_callback_add(struct inst_info *inst, enum instance_event
 
 		item->event_cb = event_cb;
 		item->data = data;
+		item->deleted = 0;
 
 		inst->delete_event_list = eina_list_append(inst->delete_event_list, item);
 		break;
@@ -603,8 +609,12 @@ HAPI int instance_event_callback_del(struct inst_info *inst, enum instance_event
 	case INSTANCE_EVENT_DESTROY:
 		EINA_LIST_FOREACH_SAFE(inst->delete_event_list, l, n, item) {
 			if (item->event_cb == event_cb) {
-				inst->delete_event_list = eina_list_remove(inst->delete_event_list, item);
-				DbgFree(item);
+				if (inst->in_event_process & INST_EVENT_PROCESS_DELETE) {
+					item->deleted = 1;
+				} else {
+					inst->delete_event_list = eina_list_remove(inst->delete_event_list, item);
+					DbgFree(item);
+				}
 				return LB_STATUS_SUCCESS;
 			}
 		}
