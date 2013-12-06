@@ -193,6 +193,62 @@ out:
 	return ret;
 }
 
+static int forward_pd_key_packet(const struct pkg_info *pkg, struct inst_info *inst, const char *command, double timestamp, unsigned int keycode)
+{
+	int ret;
+	struct buffer_info *buffer;
+	struct slave_node *slave;
+	struct packet *p;
+
+	buffer = instance_lb_buffer(inst);
+	if (!buffer) {
+		ErrPrint("Instance[%s] has no buffer\n", instance_id(inst));
+		ret = LB_STATUS_ERROR_FAULT;
+		goto out;
+	}
+
+	slave = package_slave(pkg);
+	if (!slave) {
+		ErrPrint("Package[%s] has no slave\n", package_name(pkg));
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	p = packet_create_noack(command, "ssdi", package_name(pkg), instance_id(inst), timestamp, keycode);
+	ret = slave_rpc_request_only(slave, package_name(pkg), p, 0);
+
+out:
+	return ret;
+}
+
+static int forward_lb_key_packet(const struct pkg_info *pkg, struct inst_info *inst, const char *command, double timestamp, unsigned int keycode)
+{
+	int ret;
+	struct buffer_info *buffer;
+	struct slave_node *slave;
+	struct packet *p;
+
+	buffer = instance_lb_buffer(inst);
+	if (!buffer) {
+		ErrPrint("Instance[%s] has no buffer\n", instance_id(inst));
+		ret = LB_STATUS_ERROR_FAULT;
+		goto out;
+	}
+
+	slave = package_slave(pkg);
+	if (!slave) {
+		ErrPrint("Package[%s] has no slave\n", package_name(pkg));
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	p = packet_create_noack(command, "ssdi", package_name(pkg), instance_id(inst), timestamp, keycode);
+	ret = slave_rpc_request_only(slave, package_name(pkg), p, 0);
+
+out:
+	return ret;
+}
+
 static Eina_Bool lazy_key_status_cb(void *data)
 {
 	struct event_cbdata *cbdata = data;
@@ -3213,7 +3269,7 @@ static struct packet *client_pd_key_focus_in(pid_t pid, int handle, const struct
 	}
 
 	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
-		ret = forward_pd_event_packet(pkg, inst, packet);
+		ret = forward_pd_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -3297,7 +3353,7 @@ static struct packet *client_pd_key_focus_out(pid_t pid, int handle, const struc
 	}
 
 	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
-		ret = forward_pd_event_packet(pkg, inst, packet);
+		ret = forward_pd_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -3381,7 +3437,7 @@ static struct packet *client_pd_key_down(pid_t pid, int handle, const struct pac
 	}
 
 	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
-		ret = forward_pd_event_packet(pkg, inst, packet);
+		ret = forward_pd_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -3523,7 +3579,7 @@ static struct packet *client_pd_key_up(pid_t pid, int handle, const struct packe
 	}
 
 	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
-		ret = forward_pd_event_packet(pkg, inst, packet);
+		ret = forward_pd_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -4494,7 +4550,7 @@ static struct packet *client_lb_key_down(pid_t pid, int handle, const struct pac
 	}
 
 	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
-		ret = forward_lb_event_packet(pkg, inst, packet);
+		ret = forward_lb_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -4578,7 +4634,7 @@ static struct packet *client_lb_key_focus_in(pid_t pid, int handle, const struct
 	}
 
 	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
-		ret = forward_lb_event_packet(pkg, inst, packet);
+		ret = forward_lb_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -4662,7 +4718,7 @@ static struct packet *client_lb_key_focus_out(pid_t pid, int handle, const struc
 	}
 
 	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
-		ret = forward_lb_event_packet(pkg, inst, packet);
+		ret = forward_lb_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
@@ -4746,7 +4802,7 @@ static struct packet *client_lb_key_up(pid_t pid, int handle, const struct packe
 	}
 
 	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
-		ret = forward_lb_event_packet(pkg, inst, packet);
+		ret = forward_lb_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 		Evas *e;
