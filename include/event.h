@@ -17,6 +17,7 @@
 struct event_data {
 	int x;
 	int y;
+	unsigned int keycode;
 	int device;
 	int slot;
 	struct {

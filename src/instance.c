@@ -599,7 +599,7 @@ HAPI int instance_event_callback_add(struct inst_info *inst, enum instance_event
 	return LB_STATUS_SUCCESS;
 }
 
-HAPI int instance_event_callback_del(struct inst_info *inst, enum instance_event type, int (*event_cb)(struct inst_info *inst, void *data))
+HAPI int instance_event_callback_del(struct inst_info *inst, enum instance_event type, int (*event_cb)(struct inst_info *inst, void *data), void *data)
 {
 	Eina_List *l;
 	Eina_List *n;
@@ -608,7 +608,7 @@ HAPI int instance_event_callback_del(struct inst_info *inst, enum instance_event
 	switch (type) {
 	case INSTANCE_EVENT_DESTROY:
 		EINA_LIST_FOREACH_SAFE(inst->delete_event_list, l, n, item) {
-			if (item->event_cb == event_cb) {
+			if (item->event_cb == event_cb && item->data == data) {
 				if (inst->in_event_process & INST_EVENT_PROCESS_DELETE) {
 					item->deleted = 1;
 				} else {
@@ -2853,6 +2853,19 @@ HAPI int instance_need_slave(struct inst_info *inst)
 
 HAPI int instance_forward_packet(struct inst_info *inst, struct packet *packet)
 {
+	return CLIENT_SEND_EVENT(inst, packet);
+}
+
+HAPI int instance_send_key_status(struct inst_info *inst, int status)
+{
+	struct packet *packet;
+
+	packet = packet_create_noack("key_status", "ssi", package_name(inst->info), inst->id, status);
+	if (!packet) {
+		ErrPrint("Failed to build a packet\n");
+		return LB_STATUS_ERROR_FAULT;
+	}
+
 	return CLIENT_SEND_EVENT(inst, packet);
 }
 
