@@ -6461,6 +6461,40 @@ out:
 	return NULL;
 }
 
+static struct packet *slave_close_pd(pid_t pid, int handle, const struct packet *packet)
+{
+	struct slave_node *slave;
+	struct inst_info *inst;
+	const char *pkgname;
+	const char *id;
+	int status;
+	int ret;
+
+	slave = slave_find_by_pid(pid);
+	if (!slave) {
+		ErrPrint("Slave %d is not exists\n", pid);
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssi", &pkgname, &id, &status);
+	if (ret != 3) {
+		ErrPrint("Invalid parameters\n");
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, NULL);
+	if (ret == LB_STATUS_SUCCESS) {
+		if (instance_state(inst) == INST_DESTROYED) {
+			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
+		} else {
+			(void)instance_forward_packet(inst, packet_ref((struct packet *)packet));
+		}
+	}
+
+out:
+	return NULL;
+}
+
 static struct packet *slave_pd_update_end(pid_t pid, int handle, const struct packet *packet)
 {
 	struct slave_node *slave;
@@ -8008,6 +8042,10 @@ static struct method s_slave_table[] = {
 	{
 		.cmd = "key_status",
 		.handler = slave_key_status,
+	},
+	{
+		.cmd = "close_pd",
+		.handler = slave_close_pd,
 	},
 
 	{
