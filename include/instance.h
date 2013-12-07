@@ -228,6 +228,7 @@ extern int instance_client_pd_destroyed(struct inst_info *inst, int status);
 extern int instance_client_pd_created(struct inst_info *inst, int status);
 
 extern int instance_send_access_status(struct inst_info *inst, int status);
+extern int instance_send_key_status(struct inst_info *inst, int status);
 extern int instance_forward_packet(struct inst_info *inst, struct packet *packet);
 
 extern struct client_node *instance_pd_owner(struct inst_info *inst);
@@ -244,7 +245,7 @@ extern int instance_init(void);
 extern int instance_fini(void);
 
 extern int instance_event_callback_add(struct inst_info *inst, enum instance_event type, int (*event_cb)(struct inst_info *inst, void *data), void *data);
-extern int instance_event_callback_del(struct inst_info *inst, enum instance_event type, int (*event_cb)(struct inst_info *inst, void *data));
+extern int instance_event_callback_del(struct inst_info *inst, enum instance_event type, int (*event_cb)(struct inst_info *inst, void *data), void *data);
 
 /*!
  */

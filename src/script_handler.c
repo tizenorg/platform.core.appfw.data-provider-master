@@ -100,7 +100,7 @@ struct script_port {
 	int (*update_drag)(void *handle, Evas *e, const char *id, const char *part, double x, double y);
 	int (*update_size)(void *handle, Evas *e, const char *id, int w, int h);
 	int (*update_category)(void *handle, Evas *e, const char *id, const char *category);
-	int (*feed_event)(void *handle, Evas *e, int event_type, int x, int y, int down, double timestamp);
+	int (*feed_event)(void *handle, Evas *e, int event_type, int x, int y, int down, unsigned int keycode, double timestamp);
 
 	void *(*create)(const char *file, const char *option);
 	int (*destroy)(void *handle);
@@ -161,6 +161,8 @@ struct script_info {
 	int x;
 	int y;
 	int down;
+
+	unsigned int keycode;
 
 	struct script_port *port;
 	void *port_data;
@@ -701,6 +703,7 @@ static int update_script_color(struct inst_info *inst, struct block *block, int 
 
 	e = script_handler_evas(info);
 	if (e) {
+		DbgPrint("[%s] %s (%s)\n", block->id, block->part, block->data);
 		info->port->update_color(info->port_data, e, block->id, block->part, block->data);
 	} else {
 		ErrPrint("Evas(nil) id[%s] part[%s] data[%s]\n", block->id, block->part, block->data);
@@ -738,6 +741,7 @@ static int update_script_text(struct inst_info *inst, struct block *block, int i
 
 	e = script_handler_evas(info);
 	if (e) {
+		DbgPrint("[%s] %s (%s)\n", block->id, block->part, block->data);
 		info->port->update_text(info->port_data, e, block->id, block->part, block->data);
 	} else {
 		ErrPrint("Evas(nil) id[%s] part[%s] data[%s]\n", block->id, block->part, block->data);
@@ -775,6 +779,7 @@ static int update_script_image(struct inst_info *inst, struct block *block, int 
 
 	e = script_handler_evas(info);
 	if (e) {
+		DbgPrint("[%s] %s (%s)\n", block->id, block->part, block->data);
 		info->port->update_image(info->port_data, e, block->id, block->part, block->data, block->option);
 	} else {
 		ErrPrint("Evas: (nil) id[%s] part[%s] data[%s]\n", block->id, block->part, block->data);
@@ -883,6 +888,7 @@ static int update_script_script(struct inst_info *inst, struct block *block, int
 
 	e = script_handler_evas(info);
 	if (e) {
+		DbgPrint("[%s] %s (%s)\n", block->id, block->part, block->data);
 		info->port->update_script(info->port_data, e, block->id, block->target, block->part, block->data, block->option);
 	} else {
 		ErrPrint("Evas: (nil) id[%s] part[%s] data[%s] option[%s]\n",
@@ -920,6 +926,7 @@ static int update_script_signal(struct inst_info *inst, struct block *block, int
 
 	e = script_handler_evas(info);
 	if (e) {
+		DbgPrint("[%s] %s (%s)\n", block->id, block->part, block->data);
 		info->port->update_signal(info->port_data, e, block->id, block->part, block->data);
 	} else {
 		ErrPrint("Evas(nil) id[%s] part[%s] data[%s]\n", block->id, block->part, block->data);
@@ -1153,6 +1160,17 @@ HAPI int script_handler_update_pointer(struct script_info *info, int x, int y, i
 	return LB_STATUS_SUCCESS;
 }
 
+HAPI int script_handler_update_keycode(struct script_info *info, unsigned int keycode)
+{
+	if (!info) {
+		return LB_STATUS_SUCCESS;
+	}
+
+	info->keycode = keycode;
+
+	return LB_STATUS_SUCCESS;
+}
+
 HAPI int script_handler_feed_event(struct script_info *info, int event, double timestamp)
 {
 	Evas *e;
@@ -1168,7 +1186,7 @@ HAPI int script_handler_feed_event(struct script_info *info, int event, double t
 		return LB_STATUS_ERROR_FAULT;
 	}
 
-	return info->port->feed_event(info->port_data, e, event, info->x, info->y, info->down, timestamp);
+	return info->port->feed_event(info->port_data, e, event, info->x, info->y, info->down, info->keycode, timestamp);
 }
 
 static inline char *load_file(const char *filename)

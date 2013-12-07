@@ -18,6 +18,7 @@
 		</provide>
 		<request>
 			<smack request="sys-assert::core" type="rwxat" />
+			<smack request="security-server::api-privilege-by-pid" type="w" />
 			<!--
 			<smack request="notification::db" type="rw" />
 			<smack request="badge::db" type="rw" />

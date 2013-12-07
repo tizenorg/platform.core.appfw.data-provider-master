@@ -71,6 +71,7 @@ static struct info {
 		.y = -1,
 		.device = -1,
 		.slot = -1,
+		.keycode = 0,
 	},
 
 	.event_listener_list = NULL,
@@ -178,6 +179,8 @@ static inline int processing_input_event(struct input_event *event)
 		}
 		break;
 	case EV_KEY:
+		DbgPrint("EV_KEY: 0x%X\n", event->value);
+		s_info.event_data.keycode = event->value;
 		break;
 	case EV_REL:
 		break;
