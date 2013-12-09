@@ -21,6 +21,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/signalfd.h>
+#include <sys/mount.h>
+#include <sys/smack.h>
 
 #include <Ecore.h>
 #include <Ecore_X.h>
@@ -259,6 +261,51 @@ int main(int argc, char *argv[])
 	(void)util_unlink_files(READER_PATH);
 	(void)util_unlink_files(IMAGE_PATH);
 	(void)util_unlink_files(SLAVE_LOG_PATH);
+
+	if (util_free_space(IMAGE_PATH) < MINIMUM_SPACE) {
+		ErrPrint("Space is not enough, use the shmfs temporarly, Update limited minimum space: %llu\n", MINIMUM_SPACE);
+		if (mount("tmpfs", IMAGE_PATH, "tmpfs", MS_NOSUID, "rw,size=5M") < 0) {
+			ErrPrint("Failed to mount: %s\n", strerror(errno));
+		} else {
+			MINIMUM_SPACE = 5 << 20;
+
+			if (smack_setlabel(IMAGE_PATH, "data-provider-master::share", SMACK_LABEL_TRANSMUTE) != 0) {
+				ErrPrint("Failed to set SMACK for %s\n", IMAGE_PATH);
+			} else {
+				DbgPrint("[%s] is successfully created\n", IMAGE_PATH);
+			}
+
+			if (mkdir(ALWAYS_PATH, 0755) < 0) {
+				ErrPrint("mkdir: %s\n", strerror(errno));
+			} else {
+				if (smack_setlabel(ALWAYS_PATH, "data-provider-master::share", SMACK_LABEL_TRANSMUTE) != 0) {
+					ErrPrint("Failed to set SMACK for %s\n", ALWAYS_PATH);
+				} else {
+					DbgPrint("[%s] is successfully created\n", ALWAYS_PATH);
+				}
+			}
+
+			if (mkdir(READER_PATH, 0755) < 0) {
+				ErrPrint("mkdir: %s\n", strerror(errno));
+			} else {
+				if (smack_setlabel(READER_PATH, "data-provider-master::share", SMACK_LABEL_TRANSMUTE) != 0) {
+					ErrPrint("Failed to set SMACK for %s\n", READER_PATH);
+				} else {
+					DbgPrint("[%s] is successfully created\n", READER_PATH);
+				}
+			}
+
+			if (mkdir(SLAVE_LOG_PATH, 0755) < 0) {
+				ErrPrint("mkdir: %s\n", strerror(errno));
+			} else {
+				if (smack_setlabel(SLAVE_LOG_PATH, "data-provider-master::share", SMACK_LABEL_TRANSMUTE) != 0) {
+					ErrPrint("Failed to set SMACK for %s\n", SLAVE_LOG_PATH);
+				} else {
+					DbgPrint("[%s] is successfully created\n", SLAVE_LOG_PATH);
+				}
+			}
+		}
+	}
 
 	/*!
 	 * How could we care this return values?
