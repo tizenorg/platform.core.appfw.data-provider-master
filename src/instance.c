@@ -1142,6 +1142,8 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 		goto out;
 	}
 
+	DbgPrint("[%s] returns %d (state: 0x%X)\n", inst->id, ret, inst->state);
+
 	if (inst->state == INST_DESTROYED) {
 		/*!
 		 * \note

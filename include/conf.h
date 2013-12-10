@@ -90,6 +90,8 @@ struct conf {
 	double scale_height_factor;
 
 	double pd_request_timeout;
+
+	char *emergency_disk;
 };
 
 extern struct conf g_conf;
@@ -105,6 +107,7 @@ extern void conf_init(void);
 #define CR 13
 #define LF 10
 
+#define EMERGENCY_DISK		g_conf.emergency_disk
 #define SCALE_WIDTH_FACTOR	g_conf.scale_width_factor
 #define SCALE_HEIGHT_FACTOR	g_conf.scale_height_factor
 
