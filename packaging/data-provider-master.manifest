@@ -58,10 +58,6 @@
 		<filesystem path="/opt/dbspace/.livebox.db" label="data-provider-master::db" />
 		<filesystem path="/opt/dbspace/.livebox.db-journal" label="data-provider-master::db" />
 
-		<!-- Init script -->
-		<filesystem path="/etc/rc.d/init.d/data-provider-master" label="_" exec_label="none" />
-		<filesystem path="/etc/rc.d/rc3.d/S99data-provider-master" label="_" exec_label="none" />
-
 		<filesystem path="/usr/lib/systemd/system/data-provider-master.service" label="_" />
 		<filesystem path="/usr/lib/systemd/system/multi-user.target.wants/data-provider-master.service" label="_" />
 

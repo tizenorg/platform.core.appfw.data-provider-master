@@ -24,6 +24,7 @@
 #include "util.h"
 #include "debug.h"
 
+static const char *CONF_DEFAULT_EMERGENCY_DISK = "source=tmpfs;type=tmpfs;option=size=6M";
 static const char *CONF_DEFAULT_PATH_CONF = "/opt/usr/live/%s/etc/%s.conf";
 static const char *CONF_DEFAULT_PATH_IMAGE = "/opt/usr/share/live_magazine/";
 static const char *CONF_DEFAULT_PATH_LOG = "/opt/usr/share/live_magazine/log";
@@ -85,6 +86,14 @@ HAPI void conf_update_size(void)
 static void use_xmonitor(char *buffer)
 {
 	g_conf.use_xmonitor = !strcasecmp(buffer, "true");
+}
+
+static void emergency_disk_handler(char *buffer)
+{
+	g_conf.emergency_disk = strdup(buffer);
+	if (!g_conf.emergency_disk) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+	}
 }
 
 static void use_sw_backend_handler(char *buffer)
@@ -388,6 +397,7 @@ HAPI void conf_init(void)
 	g_conf.path.db = (char *)CONF_DEFAULT_PATH_DB;
 	g_conf.path.input = (char *)CONF_DEFAULT_PATH_INPUT;
 	g_conf.provider_method = (char *)CONF_DEFAULT_PROVIDER_METHOD;
+	g_conf.emergency_disk = (char *)CONF_DEFAULT_EMERGENCY_DISK;
 }
 
 HAPI int conf_loader(void)
@@ -524,6 +534,10 @@ HAPI int conf_loader(void)
 		{
 			.name = "use_sw_backend",
 			.handler = use_sw_backend_handler,
+		},
+		{
+			.name = "emergency_disk",
+			.handler = emergency_disk_handler,
 		},
 		{
 			.name = "use_xmonitor",
@@ -868,6 +882,11 @@ HAPI void conf_reset(void)
 	if (g_conf.provider_method != CONF_DEFAULT_PROVIDER_METHOD) {
 		DbgFree(g_conf.provider_method);
 		g_conf.provider_method = (char *)CONF_DEFAULT_PROVIDER_METHOD;
+	}
+
+	if (g_conf.emergency_disk != CONF_DEFAULT_EMERGENCY_DISK) {
+		DbgFree(g_conf.emergency_disk);
+		g_conf.emergency_disk = (char *)CONF_DEFAULT_EMERGENCY_DISK;
 	}
 }
 

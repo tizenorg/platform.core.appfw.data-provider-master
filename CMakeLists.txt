@@ -60,6 +60,7 @@ ADD_DEFINITIONS("-DUTILITY_SMACK_LABEL=\"data-provider-master::utility\"")
 ADD_DEFINITIONS("-DSHORTCUT_SMACK_LABEL=\"data-provider-master::shortcut\"")
 ADD_DEFINITIONS("-DNOTIFICATION_SMACK_LABEL=\"data-provider-master::notification\"")
 ADD_DEFINITIONS("-DBADGE_SMACK_LABEL=\"data-provider-master::badge\"")
+ADD_DEFINITIONS("-DDATA_SHARE_LABEL=\"data-provider-master::share\"")
 
 ADD_DEFINITIONS("-DDEFAULT_MASTER_CONF=\"/usr/share/data-provider-master/conf.ini\"")
 

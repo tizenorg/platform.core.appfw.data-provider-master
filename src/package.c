@@ -1140,15 +1140,15 @@ HAPI int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 			DbgPrint("Slave %s is used for %s\n", slave_name(info->slave), info->lbid);
 		}
 
-		slave_ref(info->slave);
+		(void)slave_ref(info->slave);
 		slave_load_package(info->slave);
-		slave_event_callback_add(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
-		slave_event_callback_add(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
-		slave_event_callback_add(info->slave, SLAVE_EVENT_FAULT, slave_fault_cb, info);
+		(void)slave_event_callback_add(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
+		(void)slave_event_callback_add(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
+		(void)slave_event_callback_add(info->slave, SLAVE_EVENT_FAULT, slave_fault_cb, info);
 
 		if (info->secured) {
-			slave_event_callback_add(info->slave, SLAVE_EVENT_PAUSE, slave_paused_cb, info);
-			slave_event_callback_add(info->slave, SLAVE_EVENT_RESUME, slave_resumed_cb, info);
+			(void)slave_event_callback_add(info->slave, SLAVE_EVENT_PAUSE, slave_paused_cb, info);
+			(void)slave_event_callback_add(info->slave, SLAVE_EVENT_RESUME, slave_resumed_cb, info);
 
 			/*!
 			 * \note
@@ -1158,8 +1158,8 @@ HAPI int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 			 *
 			 * This callback will freeze the timer only if a slave doesn't running.
 			 */
-			xmonitor_add_event_callback(XMONITOR_PAUSED, xmonitor_paused_cb, info);
-			xmonitor_add_event_callback(XMONITOR_RESUMED, xmonitor_resumed_cb, info);
+			(void)xmonitor_add_event_callback(XMONITOR_PAUSED, xmonitor_paused_cb, info);
+			(void)xmonitor_add_event_callback(XMONITOR_RESUMED, xmonitor_resumed_cb, info);
 		}
 	}
 
