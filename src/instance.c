@@ -338,26 +338,22 @@ static void update_mode_cb(struct slave_node *slave, const struct packet *packet
 
 	if (!packet) {
 		ErrPrint("Invalid packet\n");
-		instance_send_update_mode_event(cbdata->inst, cbdata->active_update, LB_STATUS_ERROR_FAULT);
-		instance_unref(cbdata->inst);
-		DbgFree(cbdata);
-		return;
+		ret = LB_STATUS_ERROR_FAULT;
+		goto out;
 	}
 
 	if (packet_get(packet, "i", &ret) != 1) {
 		ErrPrint("Invalid parameters\n");
-		instance_send_update_mode_event(cbdata->inst, cbdata->active_update, LB_STATUS_ERROR_INVALID);
-		instance_unref(cbdata->inst);
-		DbgFree(cbdata);
-		return;
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
 	}
 
 	if (ret == LB_STATUS_SUCCESS) {
 		cbdata->inst->active_update = cbdata->active_update;
 	}
 
+out:
 	instance_send_update_mode_event(cbdata->inst, cbdata->active_update, ret);
-
 	instance_unref(cbdata->inst);
 	DbgFree(cbdata);
 }
@@ -799,14 +795,7 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 		return NULL;
 	}
 
-	if (client) {
-		inst->client = client_ref(client);
-		client_event_callback_add(inst->client, CLIENT_EVENT_DEACTIVATE, client_deactivated_cb, inst);
-	}
-
 	if (fork_package(inst, pkgname) < 0) {
-		client_event_callback_del(inst->client, CLIENT_EVENT_DEACTIVATE, client_deactivated_cb, inst);
-		client_unref(inst->client);
 		DbgFree(inst->title);
 		DbgFree(inst->category);
 		DbgFree(inst->cluster);
@@ -815,12 +804,18 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 		return NULL;
 	}
 
+	if (client) {
+		inst->client = client_ref(client);
+		if (client_event_callback_add(inst->client, CLIENT_EVENT_DEACTIVATE, client_deactivated_cb, inst) < 0) {
+			ErrPrint("Failed to add client event callback: %s\n", inst->id);
+		}
+	}
+
 	inst->state = INST_INIT;
 	inst->requested_state = INST_INIT;
 	instance_ref(inst);
 
 	if (package_add_instance(inst->info, inst) < 0) {
-		instance_state_reset(inst);
 		instance_destroy(inst, INSTANCE_DESTROY_FAULT);
 		return NULL;
 	}
@@ -890,6 +885,8 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 		ErrPrint("Invalid argument\n");
 		goto out;
 	}
+
+	DbgPrint("[%s] %d (0x%X)\n", inst->id, ret, inst->state);
 
 	if (inst->state == INST_DESTROYED) {
 		/*!
@@ -1300,7 +1297,7 @@ HAPI int instance_destroy(struct inst_info *inst, enum instance_destroy_type typ
 	case INST_INIT:
 		inst->state = INST_DESTROYED;
 		inst->requested_state = INST_DESTROYED;
-		instance_unref(inst);
+		(void)instance_unref(inst);
 		return LB_STATUS_SUCCESS;
 	case INST_DESTROYED:
 		inst->requested_state = INST_DESTROYED;
