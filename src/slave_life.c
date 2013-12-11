@@ -132,7 +132,7 @@ static Eina_Bool slave_ttl_cb(void *data)
 	slave_set_reactivation(slave, 0);
 	slave_set_reactivate_instances(slave, 1);
 
-	slave = slave_deactivate(slave);
+	slave = slave_deactivate(slave, 1);
 	if (!slave) {
 		DbgPrint("Slave is deleted\n");
 	}
@@ -745,6 +745,11 @@ static Eina_Bool terminate_timer_cb(void *data)
 	struct slave_node *slave = data;
 	int ret;
 
+	/*!
+	 * \todo
+	 * check the return value of the aul_terminate_pid
+	 */
+	slave->state = SLAVE_REQUEST_TO_TERMINATE;
 	slave->terminate_timer = NULL;
 
 	DbgPrint("Terminate slave: %d (%s)\n", slave_pid(slave), slave_name(slave));
@@ -757,7 +762,7 @@ static Eina_Bool terminate_timer_cb(void *data)
 	return ECORE_CALLBACK_CANCEL;
 }
 
-HAPI struct slave_node *slave_deactivate(struct slave_node *slave)
+HAPI struct slave_node *slave_deactivate(struct slave_node *slave, int direct)
 {
 	int ret;
 
@@ -774,16 +779,10 @@ HAPI struct slave_node *slave_deactivate(struct slave_node *slave)
 		return slave;
 	}
 
-	/*!
-	 * \todo
-	 * check the return value of the aul_terminate_pid
-	 */
-	slave->state = SLAVE_REQUEST_TO_TERMINATE;
-
 	if (slave_pid(slave) > 0) {
 		if (slave->terminate_timer) {
 			ErrPrint("Terminate timer is already fired (%d)\n", slave->pid);
-		} else {
+		} else if (!direct) {
 			DbgPrint("Fire the terminate timer: %d\n", slave->pid);
 			slave->terminate_timer = ecore_timer_add(SLAVE_ACTIVATE_TIME, terminate_timer_cb, slave);
 			if (!slave->terminate_timer) {
@@ -795,11 +794,30 @@ HAPI struct slave_node *slave_deactivate(struct slave_node *slave)
 				 */
 				ErrPrint("Failed to add a new timer for terminating\n");
 				DbgPrint("Terminate slave: %d (%s)\n", slave_pid(slave), slave_name(slave));
+				/*!
+				 * \todo
+				 * check the return value of the aul_terminate_pid
+				 */
+				slave->state = SLAVE_REQUEST_TO_TERMINATE;
+
 				ret = aul_terminate_pid(slave->pid);
 				if (ret < 0) {
 					ErrPrint("Terminate slave(%s) failed. pid %d (%d)\n", slave_name(slave), slave_pid(slave), ret);
 					slave = slave_deactivated(slave);
 				}
+			}
+		} else {
+			/*!
+			 * \todo
+			 * check the return value of the aul_terminate_pid
+			 */
+			slave->state = SLAVE_REQUEST_TO_TERMINATE;
+
+			DbgPrint("Terminate slave: %d (%s)\n", slave_pid(slave), slave_name(slave));
+			ret = aul_terminate_pid(slave->pid);
+			if (ret < 0) {
+				ErrPrint("Terminate slave(%s) failed. pid %d (%d)\n", slave_name(slave), slave_pid(slave), ret);
+				slave = slave_deactivated(slave);
 			}
 		}
 	}
@@ -1328,7 +1346,7 @@ HAPI struct slave_node *slave_unload_instance(struct slave_node *slave)
 		slave_set_reactivation(slave, 0);
 		slave_set_reactivate_instances(slave, 0);
 
-		slave = slave_deactivate(slave);
+		slave = slave_deactivate(slave, 0);
 	}
 
 	return slave;
@@ -1612,7 +1630,7 @@ HAPI int slave_deactivate_all(int reactivate, int reactivate_instances)
 		slave_set_reactivate_instances(slave, reactivate_instances);
 		slave_set_reactivation(slave, reactivate);
 
-		if (!slave_deactivate(slave)) {
+		if (!slave_deactivate(slave, 0)) {
 			s_info.slave_list = eina_list_remove(s_info.slave_list, slave);
 		}
 
