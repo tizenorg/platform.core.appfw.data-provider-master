@@ -84,9 +84,10 @@ struct slave_node {
 
 	Eina_List *data_list;
 
-	Ecore_Timer *ttl_timer; /* Time to live */
-	Ecore_Timer *activate_timer; /* Waiting hello packet for this time */
-	Ecore_Timer *relaunch_timer; /* Try to relaunch service app */
+	Ecore_Timer *ttl_timer; /*!< Time to live */
+	Ecore_Timer *activate_timer; /*!< Waiting hello packet for this time */
+	Ecore_Timer *relaunch_timer; /*!< Try to relaunch service app */
+	Ecore_Timer *terminate_timer; /*!< Waiting this timer before terminate the service provider */
 	int relaunch_count;
 
 #if defined(_USE_ECORE_TIME_GET)
@@ -542,7 +543,11 @@ HAPI int slave_activate(struct slave_node *slave)
 	 * about it is alive? or not.
 	 */
 	if (slave_pid(slave) != (pid_t)-1) {
-		if (slave_state(slave) == SLAVE_REQUEST_TO_TERMINATE) {
+		if (slave->terminate_timer) {
+			DbgPrint("Clear terminate timer. to reuse (%d)\n", slave->pid);
+			ecore_timer_del(slave->terminate_timer);
+			slave->terminate_timer = NULL;
+		} else if (slave_state(slave) == SLAVE_REQUEST_TO_TERMINATE) {
 			slave_set_reactivation(slave, 1);
 		}
 		return LB_STATUS_ERROR_ALREADY;
@@ -735,6 +740,23 @@ static inline int invoke_deactivate_cb(struct slave_node *slave)
 	return reactivate;
 }
 
+static Eina_Bool terminate_timer_cb(void *data)
+{
+	struct slave_node *slave = data;
+	int ret;
+
+	slave->terminate_timer = NULL;
+
+	DbgPrint("Terminate slave: %d (%s)\n", slave_pid(slave), slave_name(slave));
+	ret = aul_terminate_pid(slave->pid);
+	if (ret < 0) {
+		ErrPrint("Terminate slave(%s) failed. pid %d (%d)\n", slave_name(slave), slave_pid(slave), ret);
+		slave = slave_deactivated(slave);
+	}
+
+	return ECORE_CALLBACK_CANCEL;
+}
+
 HAPI struct slave_node *slave_deactivate(struct slave_node *slave)
 {
 	int ret;
@@ -759,11 +781,26 @@ HAPI struct slave_node *slave_deactivate(struct slave_node *slave)
 	slave->state = SLAVE_REQUEST_TO_TERMINATE;
 
 	if (slave_pid(slave) > 0) {
-		DbgPrint("Terminate slave: %d (%s)\n", slave_pid(slave), slave_name(slave));
-		ret = aul_terminate_pid(slave->pid);
-		if (ret < 0) {
-			ErrPrint("Terminate slave(%s) failed. pid %d (%d)\n", slave_name(slave), slave_pid(slave), ret);
-			slave = slave_deactivated(slave);
+		if (slave->terminate_timer) {
+			ErrPrint("Terminate timer is already fired (%d)\n", slave->pid);
+		} else {
+			DbgPrint("Fire the terminate timer: %d\n", slave->pid);
+			slave->terminate_timer = ecore_timer_add(SLAVE_ACTIVATE_TIME, terminate_timer_cb, slave);
+			if (!slave->terminate_timer) {
+				/*!
+				 * \note
+				 * Normally, Call the terminate_timer_cb directly from here
+				 * But in this case. if the aul_terminate_pid failed, Call the slave_deactivated function directly.
+				 * Then the "slave" pointer can be changed. To trace it, Copy the body of terminate_timer_cb to here.
+				 */
+				ErrPrint("Failed to add a new timer for terminating\n");
+				DbgPrint("Terminate slave: %d (%s)\n", slave_pid(slave), slave_name(slave));
+				ret = aul_terminate_pid(slave->pid);
+				if (ret < 0) {
+					ErrPrint("Terminate slave(%s) failed. pid %d (%d)\n", slave_name(slave), slave_pid(slave), ret);
+					slave = slave_deactivated(slave);
+				}
+			}
 		}
 	}
 
@@ -790,6 +827,11 @@ HAPI struct slave_node *slave_deactivated(struct slave_node *slave)
 	if (slave->relaunch_timer) {
 		ecore_timer_del(slave->relaunch_timer);
 		slave->relaunch_timer = NULL;
+	}
+
+	if (slave->terminate_timer) {
+		ecore_timer_del(slave->terminate_timer);
+		slave->terminate_timer = NULL;
 	}
 
 	reactivate = invoke_deactivate_cb(slave);
