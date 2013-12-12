@@ -2719,6 +2719,11 @@ HAPI int instance_recover_state(struct inst_info *inst)
 		return LB_STATUS_SUCCESS;
 	}
 
+	if (package_is_fault(inst->info)) {
+		ErrPrint("Package is faulted(%s), Delete it\n", inst->id);
+		inst->requested_state = INST_DESTROYED;
+	}
+
 	switch (inst->state) {
 	case INST_ACTIVATED:
 	case INST_REQUEST_TO_REACTIVATE:
@@ -2759,7 +2764,6 @@ HAPI int instance_recover_state(struct inst_info *inst)
 			DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
 			instance_state_reset(inst);
 			instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
-			ret = 1;
 			break;
 		default:
 			break;

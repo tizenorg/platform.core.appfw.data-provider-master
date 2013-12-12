@@ -972,6 +972,7 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 	const char *pkgname;
 	const char *id;
 	struct inst_info *inst;
+	const struct pkg_info *pkg;
 	int ret;
 
 	client = client_find_by_rpc_handle(handle);
@@ -993,8 +994,14 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 	 * Trust the package name which are sent by the client.
 	 * The package has to be a livebox package name.
 	 */
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pkgname, id, &inst, &pkg);
 	if (ret != LB_STATUS_SUCCESS) {
+		goto out;
+	}
+
+	if (package_is_fault(pkg)) {
+		DbgPrint("Faulted package. will be deleted soon: %s\n", id);
+		ret = LB_STATUS_ERROR_FAULT;
 		goto out;
 	}
 
