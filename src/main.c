@@ -69,8 +69,8 @@ static inline int app_create(void)
 {
 	int ret;
 
-	if (access(SLAVE_LOG_PATH, R_OK|W_OK) != 0) {
-		if (mkdir(SLAVE_LOG_PATH, 755) < 0) {
+	if (access(SLAVE_LOG_PATH, R_OK | W_OK) != 0) {
+		if (mkdir(SLAVE_LOG_PATH, 0755) < 0) {
 			ErrPrint("Failed to create %s (%s)\n", SLAVE_LOG_PATH, strerror(errno));
 		}
 	}
