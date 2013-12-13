@@ -21,8 +21,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/signalfd.h>
-#include <sys/mount.h>
-#include <sys/smack.h>
 #include <ctype.h>
 
 #include <Ecore.h>
@@ -244,213 +242,6 @@ static Eina_Bool signal_cb(void *data, Ecore_Fd_Handler *handler)
 	return ECORE_CALLBACK_RENEW;
 }
 
-static void prepare_emergency_disk(void)
-{
-	char *buf;
-	char *source = NULL;
-	char *type = NULL;
-	char *option = NULL;
-	char *ptr;
-	char *rollback_ptr;
-	int tag_idx;
-	int idx;
-	int len;
-	int ret;
-	static const char *tag[] = {
-		"source",
-		"type",
-		"option",
-		NULL,
-	};
-	enum tag_type {
-		TAG_SOURCE,
-		TAG_TYPE,
-		TAG_OPTION,
-		TAG_ERROR
-	};
-
-	buf = strdup(EMERGENCY_DISK);
-	if (!buf) {
-		ErrPrint("Failed to prepare emergency disk info\n");
-		return;
-	}
-
-	rollback_ptr = ptr = buf;
-	idx = 0;
-	tag_idx = 0;
-	len = strlen(ptr);
-
-	while (tag[tag_idx] != NULL && ptr != (buf + len)) {
-		if (tag[tag_idx][idx] == '\0') {
-			if (*ptr == '=' || isblank(*ptr)) {
-				switch (tag_idx) {
-				case TAG_SOURCE:
-					if (source) {
-						ErrPrint("source[%s] is overrided\n", source);
-					}
-
-					while ((*ptr != '\0' && *ptr != ';') && (*ptr == '=' || isblank(*ptr))) {
-						ptr++;
-					}
-
-					source = ptr;
-					while (*ptr != '\0' && *ptr != ';') {
-						ptr++;
-					}
-
-					if (*source == '\0') {
-						type = NULL;
-					}
-
-					*ptr = '\0';
-					rollback_ptr = ptr + 1;
-					idx = 0;
-					break;
-				case TAG_TYPE:
-					if (type) {
-						ErrPrint("type[%s] is overrided\n", type);
-					}
-
-					while ((*ptr != '\0' && *ptr != ';') && (*ptr == '=' || isblank(*ptr))) {
-						ptr++;
-					}
-
-					type = ptr;
-					while (*ptr != '\0' && *ptr != ';') {
-						ptr++;
-					}
-
-					if (*type == '\0') {
-						type = NULL;
-					}
-
-					*ptr = '\0';
-					rollback_ptr = ptr + 1;
-					idx = 0;
-					break;
-				case TAG_OPTION:
-					if (option) {
-						ErrPrint("option[%s] is overrided\n", option);
-					}
-
-					while ((*ptr != '\0' && *ptr != ';') && (*ptr == '=' || isblank(*ptr))) {
-						ptr++;
-					}
-
-					option = ptr;
-					while (*ptr != '\0' && *ptr != ';') {
-						ptr++;
-					}
-
-					if (*option == '\0') {
-						option = NULL;
-					}
-
-					*ptr = '\0';
-					rollback_ptr = ptr + 1;
-					idx = 0;
-					break;
-				default:
-					break;
-				}
-			} else {
-				ptr = rollback_ptr;
-				tag_idx++;
-				idx = 0;
-			}
-		} else if (tag[tag_idx][idx] != *ptr) {
-			ptr = rollback_ptr;
-			tag_idx++;
-			idx = 0;
-		} else {
-			ptr++;
-			idx++;
-		} // tag
-	}
-
-	DbgPrint("source[%s] type[%s] option[%s]\n", source, type, option);
-
-	ret = umount(IMAGE_PATH);
-	DbgPrint("Try to unmount[%s] %d\n", IMAGE_PATH, ret);
-	ret = mount(source, IMAGE_PATH, type, MS_NOSUID | MS_NOEXEC, option);
-	DbgFree(buf);
-	if (ret < 0) {
-		ErrPrint("Failed to mount: %s\n", strerror(errno));
-	} else {
-		MINIMUM_SPACE = 0;
-
-		ErrPrint("Disk space is not enough, use the tmpfs. Currently required minimum space is %lu bytes\n", MINIMUM_SPACE);
-		if (chmod(IMAGE_PATH, 0750) < 0) {
-			ErrPrint("chmod: %s\n", strerror(errno));
-		}
-		if (chown(IMAGE_PATH, 5000, 5000) < 0) {
-			ErrPrint("chown: %s\n", strerror(errno));
-		}
-
-		ret = smack_setlabel(IMAGE_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
-		if (ret != 0) {
-			ErrPrint("Failed to set SMACK for %s (%d)\n", IMAGE_PATH, ret);
-		} else {
-			ret = smack_setlabel(IMAGE_PATH, "1", SMACK_LABEL_TRANSMUTE);
-			DbgPrint("[%s] is successfully created (t: %d)\n", IMAGE_PATH, ret);
-		}
-
-		if (mkdir(ALWAYS_PATH, 0755) < 0) {
-			ErrPrint("mkdir: %s\n", strerror(errno));
-		} else {
-			if (chmod(ALWAYS_PATH, 0750) < 0) {
-				ErrPrint("chmod: %s\n", strerror(errno));
-			}
-			if (chown(ALWAYS_PATH, 5000, 5000) < 0) {
-				ErrPrint("chown: %s\n", strerror(errno));
-			}
-			ret = smack_setlabel(ALWAYS_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
-			if (ret != 0) {
-				ErrPrint("Failed to set SMACK for %s (%d)\n", ALWAYS_PATH, ret);
-			} else {
-				ret = smack_setlabel(ALWAYS_PATH, "1", SMACK_LABEL_TRANSMUTE);
-				DbgPrint("[%s] is successfully created (t: %d)\n", ALWAYS_PATH, ret);
-			}
-		}
-
-		if (mkdir(READER_PATH, 0755) < 0) {
-			ErrPrint("mkdir: %s\n", strerror(errno));
-		} else {
-			if (chmod(READER_PATH, 0750) < 0) {
-				ErrPrint("chmod: %s\n", strerror(errno));
-			}
-			if (chown(READER_PATH, 5000, 5000) < 0) {
-				ErrPrint("chown: %s\n", strerror(errno));
-			}
-			ret = smack_setlabel(READER_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
-			if (ret != 0) {
-				ErrPrint("Failed to set SMACK for %s (%d)\n", READER_PATH, ret);
-			} else {
-				ret = smack_setlabel(READER_PATH, "1", SMACK_LABEL_TRANSMUTE);
-				DbgPrint("[%s] is successfully created (t: %d)\n", READER_PATH, ret);
-			}
-		}
-
-		if (mkdir(SLAVE_LOG_PATH, 0755) < 0) {
-			ErrPrint("mkdir: %s\n", strerror(errno));
-		} else {
-			if (chmod(SLAVE_LOG_PATH, 0750) < 0) {
-				ErrPrint("chmod: %s\n", strerror(errno));
-			}
-			if (chown(SLAVE_LOG_PATH, 5000, 5000) < 0) {
-				ErrPrint("chown: %s\n", strerror(errno));
-			}
-			ret = smack_setlabel(SLAVE_LOG_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
-			if (ret != 0) {
-				ErrPrint("Failed to set SMACK for %s (%d)\n", SLAVE_LOG_PATH, ret);
-			} else {
-				ret = smack_setlabel(SLAVE_LOG_PATH, "1", SMACK_LABEL_TRANSMUTE);
-				DbgPrint("[%s] is successfully created (t: %d)\n", SLAVE_LOG_PATH, ret);
-			}
-		}
-	}
-}
-
 int main(int argc, char *argv[])
 {
 	int ret;
@@ -471,8 +262,11 @@ int main(int argc, char *argv[])
 	(void)util_unlink_files(SLAVE_LOG_PATH);
 
 	if (util_free_space(IMAGE_PATH) < MINIMUM_SPACE) {
-		prepare_emergency_disk();
+		util_remove_emergency_disk();
+		util_prepare_emergency_disk();
 	}
+
+	util_setup_log_disk();
 
 	/*!
 	 * How could we care this return values?

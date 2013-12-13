@@ -5991,9 +5991,8 @@ static inline int update_pkg_cb(struct category *category, const char *pkgname, 
 		if (!inst) {
 			ErrPrint("Failed to create a new instance\n");
 		}
-	} else {
-		ErrPrint("Not enough space\n");
 	}
+
 	return EXIT_SUCCESS;
 }
 
