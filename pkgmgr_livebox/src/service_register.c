@@ -35,6 +35,7 @@
 #if !defined(FLOG)
 #define DbgPrint(format, arg...)	SECURE_LOGD("[[32m%s/%s[0m:%d] " format, basename(__FILE__), __func__, __LINE__, ##arg)
 #define ErrPrint(format, arg...)	SECURE_LOGE("[[32m%s/%s[0m:%d] " format, basename(__FILE__), __func__, __LINE__, ##arg)
+#define ErrPrintWithConsole(format, arg...)	do { fprintf(stderr, "[%s/%s:%d] " format, basename(__FILE__), __func__, __LINE__, ##arg); SECURE_LOGE("[[32m%s/%s[0m:%d] " format, basename(__FILE__), __func__, __LINE__, ##arg); } while (0)
 #endif
 /* End of a file */
 
@@ -2797,6 +2798,8 @@ static void clear_all_pkg(const char *appid, const char *pkgid, int prime, void 
 {
 	int ret;
 
+	ErrPrintWithConsole("Remove old package info: appid(%s), pkgid(%s)\n", appid, pkgid);
+
 	ret = db_remove_box_size((char *)pkgid);
 	if (ret < 0) {
 		ErrPrint("Remove box size: %d\n", ret);
@@ -2844,7 +2847,7 @@ int PKGMGR_PARSER_PLUGIN_PRE_INSTALL(const char *appid)
 
 	if (!s_info.handle) {
 		if (db_init() < 0) {
-			ErrPrint("Failed to init DB\n");
+			ErrPrintWithConsole("Failed to init DB\n");
 			return -EIO;
 		}
 	}
@@ -2871,13 +2874,13 @@ int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *appid)
 	int ret;
 
 	if (!s_info.handle) {
-		ErrPrint("Failed to init DB\n");
+		ErrPrintWithConsole("Failed to init DB\n");
 		return -EIO;
 	}
 
 	node = xmlDocGetRootElement(docPtr);
 	if (!node) {
-		ErrPrint("Invalid document\n");
+		ErrPrintWithConsole("Invalid document\n");
 		return -EINVAL;
 	}
 
