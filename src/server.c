@@ -974,6 +974,7 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
 	int ret;
+	int type;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -982,12 +983,20 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 		goto out;
 	}
 
-	ret = packet_get(packet, "ss", &pkgname, &id);
-	if (ret != 2) {
+	ret = packet_get(packet, "ssi", &pkgname, &id, &type);
+	if (ret != 3) {
 		ErrPrint("Parameter is not matched\n");
 		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
 	}
+	/*!
+	 * \note
+	 * Below two types must has to be sync'd with livebox-viewer
+	 *
+	 * LB_DELETE_PERMANENTLY = 0x01,
+	 * LB_DELETE_TEMPORARY = 0x02,
+	 *
+	 */
 
 	/*!
 	 * \NOTE:
@@ -1041,7 +1050,16 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 			ret = LB_STATUS_ERROR_PERMISSION;
 		}
 	} else {
-		ret = instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
+		switch (type) {
+		case LB_DELETE_PERMANENTLY:
+			ret = instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
+			break;
+		case LB_DELETE_TEMPORARY:
+			ret = instance_destroy(inst, INSTANCE_DESTROY_TEMPORARY);
+			break;
+		default:
+			break;
+		}
 	}
 
 out:
@@ -5973,9 +5991,8 @@ static inline int update_pkg_cb(struct category *category, const char *pkgname, 
 		if (!inst) {
 			ErrPrint("Failed to create a new instance\n");
 		}
-	} else {
-		ErrPrint("Not enough space\n");
 	}
+
 	return EXIT_SUCCESS;
 }
 

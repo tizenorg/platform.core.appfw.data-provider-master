@@ -1,6 +1,6 @@
 Name: data-provider-master
 Summary: Master service provider for liveboxes
-Version: 0.28.2
+Version: 0.29.1
 Release: 1
 Group: HomeTF/Livebox
 License: Flora
@@ -140,6 +140,7 @@ echo "%{_sysconfdir}/init.d/data-provider-master start"
 %{_libdir}/systemd/system/data-provider-master.service
 %{_datarootdir}/license/*
 /opt/usr/share/live_magazine/*
+/opt/etc/dump.d/module.d/dump_livebox.sh
 %if 0%{?tizen_build_binary_release_type_eng}
 /opt/usr/devel/usr/bin/*
 %endif

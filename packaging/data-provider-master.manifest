@@ -63,5 +63,8 @@
 
 		<!-- Package manager plugin -->
 		<filesystem path="/usr/etc/package-manager/parserlib/liblivebox.so" label="_" />
+
+		<!-- Logdump script -->
+		<filesystem path="/opt/etc/dump.d/module.d/dump_livebox.sh" label="_" exec_label="_" />
 	</assign>
 </manifest>
