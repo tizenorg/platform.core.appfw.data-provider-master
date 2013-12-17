@@ -795,20 +795,21 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 		return NULL;
 	}
 
+	if (client) {
+		inst->client = client_ref(client);
+		if (client_event_callback_add(inst->client, CLIENT_EVENT_DEACTIVATE, client_deactivated_cb, inst) < 0) {
+			ErrPrint("Failed to add client event callback: %s\n", inst->id);
+		}
+	}
+
 	if (fork_package(inst, pkgname) < 0) {
+		(void)client_unref(inst->client);
 		DbgFree(inst->title);
 		DbgFree(inst->category);
 		DbgFree(inst->cluster);
 		DbgFree(inst->content);
 		DbgFree(inst);
 		return NULL;
-	}
-
-	if (client) {
-		inst->client = client_ref(client);
-		if (client_event_callback_add(inst->client, CLIENT_EVENT_DEACTIVATE, client_deactivated_cb, inst) < 0) {
-			ErrPrint("Failed to add client event callback: %s\n", inst->id);
-		}
 	}
 
 	inst->state = INST_INIT;
