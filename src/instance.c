@@ -109,6 +109,9 @@ struct inst_info {
 	int scroll_locked; /*!< Scroller which is in viewer is locked. */
 	int active_update; /*!< Viewer will reload the buffer by itself, so the provider doesn't need to send the updated event */
 
+	char *icon;
+	char *name;
+
 	enum livebox_visible_state visible;
 
 	struct {
@@ -685,6 +688,8 @@ static inline void destroy_instance(struct inst_info *inst)
 	EINA_LIST_FREE(inst->delete_event_list, item) {
 		DbgFree(item);
 	}
+	DbgFree(inst->icon);
+	DbgFree(inst->name);
 	DbgFree(inst->category);
 	DbgFree(inst->cluster);
 	DbgFree(inst->content);
@@ -1761,6 +1766,8 @@ HAPI void instance_lb_updated_by_instance(struct inst_info *inst, const char *sa
 	enum lb_type lb_type;
 	const char *title;
 	const char *content;
+	const char *icon;
+	const char *name;
 
 	if (inst->client && inst->visible != LB_SHOW) {
 		if (inst->visible == LB_HIDE) {
@@ -1791,9 +1798,21 @@ HAPI void instance_lb_updated_by_instance(struct inst_info *inst, const char *sa
 		title = "";
 	}
 
-	packet = packet_create_noack("lb_updated", "sssiidsss",
+	if (inst->icon) {
+		icon = inst->icon;
+	} else {
+		icon = "";
+	}
+
+	if (inst->name) {
+		name = inst->name;
+	} else {
+		name = "";
+	}
+
+	packet = packet_create_noack("lb_updated", "sssiidsssss",
 			package_name(inst->info), inst->id, id,
-			inst->lb.width, inst->lb.height, inst->lb.priority, content, title, safe_file);
+			inst->lb.width, inst->lb.height, inst->lb.priority, content, title, safe_file, icon, name);
 	if (!packet) {
 		ErrPrint("Failed to create param (%s - %s)\n", package_name(inst->info), inst->id);
 		return;
@@ -1962,6 +1981,36 @@ HAPI void instance_set_lb_info(struct inst_info *inst, double priority, const ch
 
 	if (priority >= 0.0f && priority <= 1.0f) {
 		inst->lb.priority = priority;
+	}
+}
+
+HAPI void instance_set_alt_info(struct inst_info *inst, const char *icon, const char *name)
+{
+	char *_icon = NULL;
+	char *_name = NULL;
+
+	if (icon && strlen(icon)) {
+		_icon = strdup(icon);
+		if (!_icon) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+		}
+	}
+
+	if (name && strlen(name)) {
+		_name = strdup(name);
+		if (!_name) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+		}
+	}
+
+	if (_icon) {
+		DbgFree(inst->icon);
+		inst->icon = _icon;
+	}
+
+	if (_name) {
+		DbgFree(inst->name);
+		inst->name = _name;
 	}
 }
 

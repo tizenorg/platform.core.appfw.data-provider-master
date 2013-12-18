@@ -155,6 +155,7 @@ extern int instance_need_slave(struct inst_info *inst);
 extern void instance_set_lb_info(struct inst_info *inst, double priority, const char *content, const char *title);
 extern void instance_set_lb_size(struct inst_info *inst, int w, int h);
 extern void instance_set_pd_size(struct inst_info *inst, int w, int h);
+extern void instance_set_alt_info(struct inst_info *inst, const char *icon, const char *name);
 
 extern int instance_set_pinup(struct inst_info *inst, int pinup);
 extern int instance_resize(struct inst_info *inst, int w, int h);
