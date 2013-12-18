@@ -6658,6 +6658,8 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 	const char *id;
 	const char *content_info;
 	const char *title;
+	const char *icon;
+	const char *name;
 	int w;
 	int h;
 	double priority;
@@ -6670,11 +6672,11 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssiidsss", &pkgname, &id,
+	ret = packet_get(packet, "ssiidsssss", &pkgname, &id,
 						&w, &h, &priority,
 						&content_info, &title,
-						&safe_filename);
-	if (ret != 8) {
+						&safe_filename, &icon, &name);
+	if (ret != 10) {
 		ErrPrint("Parameter is not matched\n");
 		goto out;
 	}
@@ -6687,6 +6689,7 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 		}
 
 		instance_set_lb_info(inst, priority, content_info, title);
+		instance_set_alt_info(inst, icon, name);
 
 		switch (package_lb_type(instance_package(inst))) {
 		case LB_TYPE_SCRIPT:
