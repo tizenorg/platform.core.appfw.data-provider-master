@@ -282,10 +282,9 @@ static int slave_resumed_cb(struct slave_node *slave, void *data)
 
 static inline void destroy_package(struct pkg_info *info)
 {
-	struct context_info *ctx_info;
-	EINA_LIST_FREE(info->ctx_list, ctx_info) {
-		/* This items will be deleted from group_del_livebox */
-	}
+	eina_list_free(info->ctx_list);
+	/* This items will be deleted from group_del_livebox */
+	info->ctx_list = NULL;
 
 	group_del_livebox(info->lbid);
 	package_clear_fault(info);
