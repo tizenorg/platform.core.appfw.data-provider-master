@@ -2744,7 +2744,7 @@ errout:
 	return ret;
 }
 
-static inline int pkglist_get_via_callback(const char *appid, void (*cb)(const char *appid, const char *pkgid, int prime, void *data), void *data)
+static int pkglist_get_via_callback(const char *appid, void (*cb)(const char *appid, const char *pkgid, int prime, void *data), void *data)
 {
 	const char *dml = "SELECT pkgid, prime FROM pkgmap WHERE appid = ?";
 	int ret;
