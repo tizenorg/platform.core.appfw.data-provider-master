@@ -83,7 +83,7 @@ struct deleted_item {
 	struct inst_info *inst;
 };
 
-static inline int forward_lb_event_packet(const struct pkg_info *pkg, struct inst_info *inst, const struct packet *packet)
+static int forward_lb_event_packet(const struct pkg_info *pkg, struct inst_info *inst, const struct packet *packet)
 {
 	struct buffer_info *buffer;
 	struct slave_node *slave;
@@ -110,7 +110,7 @@ out:
 	return ret;
 }
 
-static inline int forward_pd_event_packet(const struct pkg_info *pkg, struct inst_info *inst, const struct packet *packet)
+static int forward_pd_event_packet(const struct pkg_info *pkg, struct inst_info *inst, const struct packet *packet)
 {
 	struct buffer_info *buffer;
 	struct slave_node *slave;
@@ -137,7 +137,7 @@ out:
 	return ret;
 }
 
-static inline int forward_pd_access_packet(const struct pkg_info *pkg, struct inst_info *inst, const char *command, double timestamp, int x, int y)
+static int forward_pd_access_packet(const struct pkg_info *pkg, struct inst_info *inst, const char *command, double timestamp, int x, int y)
 {
 	int ret;
 	struct buffer_info *buffer;
@@ -781,7 +781,7 @@ out:
 	return result;
 }
 
-static inline int validate_request(const char *pkgname, const char *id, struct inst_info **out_inst, const struct pkg_info **out_pkg)
+static int validate_request(const char *pkgname, const char *id, struct inst_info **out_inst, const struct pkg_info **out_pkg)
 {
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
@@ -909,7 +909,7 @@ static struct packet *client_text_signal(pid_t pid, int handle, const struct pac
 	double sy;
 	double ex;
 	double ey;
-	struct inst_info *inst;
+	struct inst_info *inst = NULL;
 	int ret;
 
 	client = client_find_by_rpc_handle(handle);
@@ -1079,7 +1079,7 @@ static struct packet *client_resize(pid_t pid, int handle, const struct packet *
 	const char *id;
 	int w;
 	int h;
-	struct inst_info *inst;
+	struct inst_info *inst = NULL;
 	int ret;
 
 	client = client_find_by_rpc_handle(handle);
@@ -1273,7 +1273,7 @@ static struct packet *client_set_period(pid_t pid, int handle, const struct pack
 	const char *id;
 	double period;
 	int ret;
-	struct inst_info *inst;
+	struct inst_info *inst = NULL;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -1324,7 +1324,7 @@ static struct packet *client_change_group(pid_t pid, int handle, const struct pa
 	const char *id;
 	const char *cluster;
 	const char *category;
-	struct inst_info *inst;
+	struct inst_info *inst = NULL;
 	int ret;
 
 	client = client_find_by_rpc_handle(handle);
@@ -2432,8 +2432,8 @@ static struct packet *client_pd_access_action_up(pid_t pid, int handle, const st
 	double timestamp;
 	int x;
 	int y;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2518,8 +2518,8 @@ static struct packet *client_pd_access_action_down(pid_t pid, int handle, const 
 	double timestamp;
 	int x;
 	int y;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2604,8 +2604,8 @@ static struct packet *client_pd_access_scroll_down(pid_t pid, int handle, const 
 	double timestamp;
 	int x;
 	int y;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2690,8 +2690,8 @@ static struct packet *client_pd_access_scroll_move(pid_t pid, int handle, const 
 	double timestamp;
 	int x;
 	int y;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2776,8 +2776,8 @@ static struct packet *client_pd_access_scroll_up(pid_t pid, int handle, const st
 	double timestamp;
 	int x;
 	int y;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2860,8 +2860,8 @@ static struct packet *client_pd_access_unhighlight(pid_t pid, int handle, const 
 	const char *id;
 	int x;
 	int y;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 	int ret;
 	double timestamp;
 
@@ -2947,8 +2947,8 @@ static struct packet *client_pd_access_hl(pid_t pid, int handle, const struct pa
 	double timestamp;
 	int x;
 	int y;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -3033,8 +3033,8 @@ static struct packet *client_pd_access_hl_prev(pid_t pid, int handle, const stru
 	double timestamp;
 	int x;
 	int y;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -3119,8 +3119,8 @@ static struct packet *client_pd_access_hl_next(pid_t pid, int handle, const stru
 	double timestamp;
 	int x;
 	int y;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -3210,8 +3210,8 @@ static struct packet *client_pd_access_activate(pid_t pid, int handle, const str
 	double timestamp;
 	int x;
 	int y;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -3694,8 +3694,8 @@ static struct packet *client_lb_access_hl(pid_t pid, int handle, const struct pa
 	double timestamp;
 	int x;
 	int y;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -3866,8 +3866,8 @@ static struct packet *client_lb_access_hl_next(pid_t pid, int handle, const stru
 	double timestamp;
 	int x;
 	int y;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -3950,8 +3950,8 @@ static struct packet *client_lb_access_action_up(pid_t pid, int handle, const st
 	const char *id;
 	int ret;
 	double timestamp;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 	int x;
 	int y;
 
@@ -4136,8 +4136,8 @@ static struct packet *client_lb_access_unhighlight(pid_t pid, int handle, const 
 	double timestamp;
 	int x;
 	int y;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -4220,8 +4220,8 @@ static struct packet *client_lb_access_scroll_down(pid_t pid, int handle, const 
 	const char *id;
 	int ret;
 	double timestamp;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 	int x;
 	int y;
 
@@ -4312,8 +4312,8 @@ static struct packet *client_lb_access_scroll_move(pid_t pid, int handle, const 
 	const char *id;
 	int ret;
 	double timestamp;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 	int x;
 	int y;
 
@@ -4498,8 +4498,8 @@ static struct packet *client_lb_access_activate(pid_t pid, int handle, const str
 	double timestamp;
 	int x;
 	int y;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -5409,8 +5409,8 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 	const char *pkgname;
 	const char *id;
 	int ret;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 	Ecore_Timer *pd_monitor;
 	double x;
 	double y;
@@ -5628,8 +5628,8 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 	const char *pkgname;
 	const char *id;
 	int ret;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 	Ecore_Timer *pd_monitor;
 	struct slave_node *slave;
 
@@ -6851,8 +6851,8 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 	int pixel_size;
 	struct packet *result;
 	struct slave_node *slave;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 	int ret;
 
 	slave = slave_find_by_pid(pid);
@@ -7000,8 +7000,8 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 	const char *id;
 	int w;
 	int h;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
 	int ret;
 
 	slave = slave_find_by_pid(pid);
