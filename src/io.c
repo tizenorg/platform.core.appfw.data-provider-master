@@ -48,12 +48,12 @@ static struct {
 	.handle = NULL,
 };
 
-static inline int load_abi_table(void)
+static int load_abi_table(void)
 {
 	FILE *fp;
 	int ch;
-	int idx;
-	int tag_id;
+	int idx = 0;
+	int tag_id = 0;
 	enum {
 		INIT = 0x0,
 		GROUP = 0x1,
@@ -68,7 +68,7 @@ static inline int load_abi_table(void)
 		"package",
 		NULL,
 	};
-	const char *ptr;
+	const char *ptr = NULL;
 
 	char group[MAX_ABI + 1];
 	char pkgname[MAX_PKGNAME + 1];

@@ -560,7 +560,7 @@ static void send_inst_list(const char *pkgname)
 	s_info.age++;
 }
 
-static inline void help(void)
+static void help(void)
 {
 	printf("liveinfo - Livebox utility\n");
 	printf("------------------------------ [Option] ------------------------------\n");
