@@ -231,7 +231,7 @@ static int viewer_deactivated_cb(struct client_node *client, void *data)
 	return -1; /*!< Remove this callback from the cb list */
 }
 
-static inline int pause_livebox(struct inst_info *inst)
+static int pause_livebox(struct inst_info *inst)
 {
 	struct packet *packet;
 
@@ -245,7 +245,7 @@ static inline int pause_livebox(struct inst_info *inst)
 }
 
 /*! \TODO Wake up the freeze'd timer */
-static inline int resume_livebox(struct inst_info *inst)
+static int resume_livebox(struct inst_info *inst)
 {
 	struct packet *packet;
 

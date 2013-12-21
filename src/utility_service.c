@@ -211,7 +211,7 @@ static int launch_timeout_cb(struct service_context *svc_ctx, void *data)
 	return -ECANCELED; /* Delete this timer */
 }
 
-static inline int launch_svc(struct service_context *svc_ctx)
+static int launch_svc(struct service_context *svc_ctx)
 {
 	pid_t pid;
 	int ret = LB_STATUS_SUCCESS;
