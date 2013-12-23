@@ -85,6 +85,7 @@ struct conf {
 	int overwrite_content;
 	int com_core_thread;
 	int use_xmonitor;
+	int premultiplied;
 
 	double scale_width_factor;
 	double scale_height_factor;
@@ -161,6 +162,8 @@ extern void conf_init(void);
 
 #define SLAVE_MAX_LOAD		g_conf.slave_max_load
 #define DEFAULT_PING_TIME	g_conf.ping_time
+#define PREMULTIPLIED_COLOR	g_conf.premultiplied
+
 #define PAUSED_FILE		"/tmp/.live.paused"
 
 #define MAX_ABI		256
