@@ -87,6 +87,8 @@ struct buffer_info
 {
 	void *buffer;
 	char *id;
+	char *lock;
+	int lock_fd;
 
 	enum buffer_type type;
 
@@ -111,6 +113,116 @@ static struct {
 	.fd = -1,
 	.pixmap_list = NULL,
 };
+
+static int destroy_lock_file(struct buffer_info *info)
+{
+	if (!info->inst) {
+		return -EINVAL;
+	}
+
+	if (!info->lock) {
+		return -EINVAL;
+	}
+
+	if (close(info->lock_fd) < 0) {
+		ErrPrint("close: %s\n", strerror(errno));
+	}
+	info->lock_fd = -1;
+
+	if (unlink(info->lock) < 0) {
+		ErrPrint("unlink: %s\n", strerror(errno));
+	}
+
+	DbgFree(info->lock);
+	info->lock = NULL;
+	return 0;
+}
+
+static int create_lock_file(struct buffer_info *info)
+{
+	const char *id;
+	int len;
+	char *file;
+
+	if (!info->inst) {
+		return -EINVAL;
+	}
+
+	id = instance_id(info->inst);
+	if (!id) {
+		return -EINVAL;
+	}
+
+	len = strlen(id);
+	file = malloc(len + 20);
+	if (!file) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return -ENOMEM;
+	}
+
+	snprintf(file, len + 20, "%s.%s.lck", util_uri_to_path(id), instance_pd_buffer(info->inst) == info ? "pd" : "lb");
+	info->lock_fd = open(file, O_WRONLY|O_CREAT, 0644);
+	if (info->lock_fd < 0) {
+		ErrPrint("open: %s\n", strerror(errno));
+		DbgFree(file);
+		return -EIO;
+	}
+
+	info->lock = file;
+	return 0;
+}
+
+static int do_buffer_lock(struct buffer_info *buffer)
+{
+	struct flock flock;
+	int ret;
+
+	if (buffer->lock_fd < 0) {
+		return 0;
+	}
+
+	flock.l_type = F_WRLCK;
+	flock.l_whence = SEEK_SET;
+	flock.l_start = 0;
+	flock.l_len = 0;
+	flock.l_pid = getpid();
+
+	do {
+		ret = fcntl(buffer->lock_fd, F_SETLKW, &flock);
+		if (ret < 0) {
+			ret = errno;
+			ErrPrint("fcntl: %s\n", strerror(errno));
+		}
+	} while (ret == EINTR);
+
+	return 0;
+}
+
+static int do_buffer_unlock(struct buffer_info *buffer)
+{
+	struct flock flock;
+	int ret;
+
+	if (buffer->lock_fd < 0) {
+		return 0;
+	}
+
+	flock.l_type = F_UNLCK;
+	flock.l_whence = SEEK_SET;
+	flock.l_start = 0;
+	flock.l_len = 0;
+	flock.l_pid = getpid();
+
+	do {
+		ret = fcntl(buffer->lock_fd, F_SETLKW, &flock);
+		if (ret < 0) {
+			ret = errno;
+			ErrPrint("fcntl: %s\n", strerror(errno));
+		}
+	} while (ret == EINTR);
+
+	return 0;
+}
 
 HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buffer_type type, int w, int h, int pixel_size)
 {
@@ -153,6 +265,8 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buff
 		return NULL;
 	}
 
+	info->lock = NULL;
+	info->lock_fd = -1;
 	info->w = w;
 	info->h = h;
 	info->pixel_size = pixel_size;
@@ -615,9 +729,11 @@ HAPI int buffer_handler_load(struct buffer_info *info)
 	switch (info->type) {
 	case BUFFER_TYPE_FILE:
 		ret = load_file_buffer(info);
+		(void)create_lock_file(info);
 		break;
 	case BUFFER_TYPE_SHM:
 		ret = load_shm_buffer(info);
+		(void)create_lock_file(info);
 		break;
 	case BUFFER_TYPE_PIXMAP:
 		ret = load_pixmap_buffer(info);
@@ -749,9 +865,11 @@ HAPI int buffer_handler_unload(struct buffer_info *info)
 
 	switch (info->type) {
 	case BUFFER_TYPE_FILE:
+		(void)destroy_lock_file(info);
 		ret = unload_file_buffer(info);
 		break;
 	case BUFFER_TYPE_SHM:
+		(void)destroy_lock_file(info);
 		ret = unload_shm_buffer(info);
 		break;
 	case BUFFER_TYPE_PIXMAP:
@@ -787,6 +905,12 @@ HAPI int buffer_handler_destroy(struct buffer_info *info)
 	}
 
 	buffer_handler_unload(info);
+	if (info->lock) {
+		if (unlink(info->lock) < 0) {
+			ErrPrint("Remove lock: %s (%s)\n", info->lock, strerror(errno));
+		}
+	}
+
 	DbgFree(info->id);
 	DbgFree(info);
 	return LB_STATUS_SUCCESS;
@@ -1283,9 +1407,11 @@ HAPI void buffer_handler_flush(struct buffer_info *info)
 		}
 
 		size = info->w * info->h * info->pixel_size;
+		do_buffer_lock(info);
 		if (write(fd, info->buffer, size) != size) {
 			ErrPrint("Write is not completed: %s\n", strerror(errno));
 		}
+		do_buffer_unlock(info);
 
 		if (close(fd) < 0) {
 			ErrPrint("close: %s\n", strerror(errno));
@@ -1566,6 +1692,32 @@ HAPI int buffer_handler_raw_close(struct buffer *buffer)
 	}
 
 	return ret;
+}
+
+HAPI int buffer_handler_lock(struct buffer_info *buffer)
+{
+	if (buffer->type == BUFFER_TYPE_PIXMAP) {
+		return 0;
+	}
+
+	if (buffer->type == BUFFER_TYPE_FILE) {
+		return 0;
+	}
+
+	return do_buffer_lock(buffer);
+}
+
+HAPI int buffer_handler_unlock(struct buffer_info *buffer)
+{
+	if (buffer->type == BUFFER_TYPE_PIXMAP) {
+		return 0;
+	}
+
+	if (buffer->type == BUFFER_TYPE_FILE) {
+		return 0;
+	}
+
+	return do_buffer_unlock(buffer);
 }
 
 /* End of a file */

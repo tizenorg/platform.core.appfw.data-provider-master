@@ -69,6 +69,7 @@ static const int CONF_DEFAULT_DEBUG_MODE = 0;
 static const int CONF_DEFAULT_OVERWRITE_CONTENT = 0;
 static const int CONF_DEFAULT_COM_CORE_THREAD = 1;
 static const int CONF_DEFAULT_USE_XMONITOR = 0;
+static const int CONF_DEFAULT_PREMULTIPLIED = 1;
 static const double CONF_DEFAULT_SCALE_WIDTH_FACTOR = 1.0f;
 static const double CONF_DEFAULT_SCALE_HEIGHT_FACTOR = 1.0f;
 static const double CONF_DEFAULT_PD_REQUEST_TIMEOUT = 5.0f;
@@ -340,6 +341,15 @@ static void slave_max_loader(char *buffer)
 	}
 }
 
+static void premultiplied_handler(char *buffer)
+{
+	if (sscanf(buffer, "%d", &g_conf.premultiplied) != 1) {
+		ErrPrint("Failed to parse the premultiplied color\n");
+	}
+
+	DbgPrint("Premultiplied: %d\n", g_conf.premultiplied);
+}
+
 static void pd_request_timeout_handler(char *buffer)
 {
 	if (sscanf(buffer, "%lf", &g_conf.pd_request_timeout) != 1) {
@@ -375,6 +385,7 @@ HAPI void conf_init(void)
 	g_conf.scale_width_factor = CONF_DEFAULT_SCALE_WIDTH_FACTOR;
 	g_conf.scale_height_factor = CONF_DEFAULT_SCALE_HEIGHT_FACTOR;
 	g_conf.pd_request_timeout = CONF_DEFAULT_PD_REQUEST_TIMEOUT;
+	g_conf.premultiplied = CONF_DEFAULT_PREMULTIPLIED;
 	g_conf.default_conf.script = (char *)CONF_DEFAULT_SCRIPT_TYPE;
 	g_conf.default_conf.abi = (char *)CONF_DEFAULT_ABI;
 	g_conf.default_conf.pd_group = (char *)CONF_DEFAULT_PD_GROUP;
@@ -566,6 +577,10 @@ HAPI int conf_loader(void)
 		{
 			.name = "pd_request_timeout",
 			.handler = pd_request_timeout_handler,
+		},
+		{
+			.name = "premultiplied",
+			.handler = premultiplied_handler,
 		},
 		{
 			.name = NULL,
@@ -773,6 +788,7 @@ HAPI void conf_reset(void)
 	g_conf.scale_width_factor = CONF_DEFAULT_SCALE_WIDTH_FACTOR;
 	g_conf.scale_height_factor = CONF_DEFAULT_SCALE_HEIGHT_FACTOR;
 	g_conf.pd_request_timeout = CONF_DEFAULT_PD_REQUEST_TIMEOUT;
+	g_conf.premultiplied = CONF_DEFAULT_PREMULTIPLIED;
 
 	if (g_conf.default_conf.script != CONF_DEFAULT_SCRIPT_TYPE) {
 		DbgFree(g_conf.default_conf.script);

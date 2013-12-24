@@ -168,4 +168,8 @@ extern void *buffer_handler_raw_data(struct buffer *buffer);
 
 extern int buffer_handler_raw_size(struct buffer *buffer);
 
+extern int buffer_handler_lock(struct buffer_info *buffer);
+
+extern int buffer_handler_unlock(struct buffer_info *buffer);
+
 /* End of a file */

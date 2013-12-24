@@ -99,34 +99,45 @@ HAPI struct fb_info *fb_create(struct inst_info *inst, int w, int h, enum buffer
 static void sw_render_pre_cb(void *data, Evas *e, void *event_info)
 {
 	struct fb_info *info = data;
-	int w;
-	int h;
 
-	buffer_handler_get_size(info->buffer, &w, &h);
-	evas_damage_rectangle_add(e, 0, 0, w, h);
+	buffer_handler_lock(info->buffer);
+
+	if (PREMULTIPLIED_COLOR) {
+		int w;
+		int h;
+
+		buffer_handler_get_size(info->buffer, &w, &h);
+		evas_damage_rectangle_add(e, 0, 0, w, h);
+	}
 }
 
 static void sw_render_post_cb(void *data, Evas *e, void *event_info)
 {
-        void *canvas;
-        Ecore_Evas *internal_ee;
-	int x, y, w, h;
+	struct fb_info *info = data;
 
-        internal_ee = ecore_evas_ecore_evas_get(e);
-        if (!internal_ee) {
-		ErrPrint("Failed to get ecore evas\n");
-                return;
-        }
+	if (PREMULTIPLIED_COLOR) {
+		void *canvas;
+		Ecore_Evas *internal_ee;
+		int x, y, w, h;
 
-        // Get a pointer of a buffer of the virtual canvas
-        canvas = (void*)ecore_evas_buffer_pixels_get(internal_ee);
-        if (!canvas) {
-		ErrPrint("Failed to get pixel canvas\n");
-                return;
-        }
+		internal_ee = ecore_evas_ecore_evas_get(e);
+		if (!internal_ee) {
+			ErrPrint("Failed to get ecore evas\n");
+			return;
+		}
 
-	ecore_evas_geometry_get(internal_ee, &x, &y, &w, &h);
-	evas_data_argb_unpremul(canvas, w * h);
+		// Get a pointer of a buffer of the virtual canvas
+		canvas = (void*)ecore_evas_buffer_pixels_get(internal_ee);
+		if (!canvas) {
+			ErrPrint("Failed to get pixel canvas\n");
+			return;
+		}
+
+		ecore_evas_geometry_get(internal_ee, &x, &y, &w, &h);
+		evas_data_argb_unpremul(canvas, w * h);
+	}
+
+	buffer_handler_unlock(info->buffer);
 }
 
 static void render_pre_cb(void *data, Evas *e, void *event_info)
@@ -201,12 +212,15 @@ HAPI int fb_destroy_buffer(struct fb_info *info)
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	if (buffer_handler_type(info->buffer) == BUFFER_TYPE_PIXMAP) {
-		Evas *e;
-		e = ecore_evas_get(info->ee);
-		if (e) {
-			evas_event_callback_del(e, EVAS_CALLBACK_RENDER_POST, render_post_cb);
-			evas_event_callback_del(e, EVAS_CALLBACK_RENDER_PRE, render_pre_cb);
+	Evas *e;
+	e = ecore_evas_get(info->ee);
+	if (e) {
+		if (buffer_handler_type(info->buffer) == BUFFER_TYPE_PIXMAP) {
+				evas_event_callback_del(e, EVAS_CALLBACK_RENDER_POST, render_post_cb);
+				evas_event_callback_del(e, EVAS_CALLBACK_RENDER_PRE, render_pre_cb);
+		} else {
+				evas_event_callback_del(e, EVAS_CALLBACK_RENDER_POST, sw_render_post_cb);
+				evas_event_callback_del(e, EVAS_CALLBACK_RENDER_PRE, sw_render_pre_cb);
 		}
 	}
 
