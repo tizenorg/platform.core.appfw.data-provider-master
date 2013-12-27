@@ -495,7 +495,7 @@ static int activate_thread(void)
 		ErrPrint("Error: %s\n", strerror(errno));
 	}
 
-	status = pipe2(s_info.evt_pipe, O_NONBLOCK | O_CLOEXEC);
+	status = pipe2(s_info.evt_pipe, O_CLOEXEC);
 	if (status < 0) {
 		ErrPrint("Unable to prepare evt pipe: %s\n", strerror(errno));
 		if (close(s_info.handle) < 0) {
@@ -505,7 +505,7 @@ static int activate_thread(void)
 		return LB_STATUS_ERROR_FAULT;
 	}
 
-	status = pipe2(s_info.tcb_pipe, O_NONBLOCK | O_CLOEXEC);
+	status = pipe2(s_info.tcb_pipe, O_CLOEXEC);
 	if (status < 0) {
 		ErrPrint("Unable to prepare tcb pipe: %s\n", strerror(errno));
 		if (close(s_info.handle) < 0) {
