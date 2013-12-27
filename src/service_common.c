@@ -427,7 +427,7 @@ static inline struct tcb *tcb_create(struct service_context *svc_ctx, int fd)
 		return NULL;
 	}
 
-	if (pipe2(tcb->ctrl_pipe, O_NONBLOCK | O_CLOEXEC) < 0) {
+	if (pipe2(tcb->ctrl_pipe, O_CLOEXEC) < 0) {
 		ErrPrint("pipe2: %s\n", strerror(errno));
 		DbgFree(tcb);
 		return NULL;
@@ -866,14 +866,14 @@ HAPI struct service_context *service_common_create(const char *addr, int (*servi
 		ErrPrint("fcntl: %s\n", strerror(errno));
 	}
 
-	if (pipe2(svc_ctx->evt_pipe, O_NONBLOCK | O_CLOEXEC) < 0) {
+	if (pipe2(svc_ctx->evt_pipe, O_CLOEXEC) < 0) {
 		ErrPrint("pipe: %d\n", strerror(errno));
 		secure_socket_destroy_handle(svc_ctx->fd);
 		DbgFree(svc_ctx);
 		return NULL;
 	}
 
-	if (pipe2(svc_ctx->tcb_pipe, O_NONBLOCK | O_CLOEXEC) < 0) {
+	if (pipe2(svc_ctx->tcb_pipe, O_CLOEXEC) < 0) {
 		ErrPrint("pipe: %s\n", strerror(errno));
 		CLOSE_PIPE(svc_ctx->evt_pipe);
 		secure_socket_destroy_handle(svc_ctx->fd);

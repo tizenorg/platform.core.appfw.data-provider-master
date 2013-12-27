@@ -618,7 +618,7 @@ int file_service_init(void)
 		return LB_STATUS_ERROR_ALREADY;
 	}
 
-	if (pipe2(s_info.request_pipe, O_NONBLOCK | O_CLOEXEC) < 0) {
+	if (pipe2(s_info.request_pipe, O_CLOEXEC) < 0) {
 		ErrPrint("pipe: %s\n", strerror(errno));
 		return LB_STATUS_ERROR_FAULT;
 	}
