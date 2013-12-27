@@ -1581,9 +1581,11 @@ HAPI int script_handler_parse_desc(struct inst_info *inst, const char *filename,
 		}
 	}
 #else
+	ErrPrint("Begin: Set content for EDJE object\n");
 	EINA_LIST_FREE(block_list, block) {
 		consuming_parsed_block(inst, is_pd, block);
 	}
+	ErrPrint("End: Set content for EDJE object\n");
 
 	/*!
 	 * Doesn't need to force to render the contents.
