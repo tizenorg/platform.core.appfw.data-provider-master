@@ -26,7 +26,7 @@
 
 #include <badge.h>
 #include <badge_db.h>
-#include <badge_setting.h>
+#include <badge_setting_service.h>
 #include <security-server.h>
 
 #include "service_common.h"

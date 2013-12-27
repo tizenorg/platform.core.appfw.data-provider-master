@@ -30,6 +30,7 @@ pkg_check_modules(pkg REQUIRED
 	notification
 	notification-service
 	badge
+	badge-service
 	libsmack
 	shortcut
 )
