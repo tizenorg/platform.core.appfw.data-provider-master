@@ -24,6 +24,7 @@
 #include "util.h"
 #include "debug.h"
 
+static const char *CONF_DEFAULT_SERVICES = "[livebox],[shortcut],[notification],[badge],[utility],[file]";
 static const char *CONF_DEFAULT_EMERGENCY_DISK = "source=tmpfs;type=tmpfs;option=size=6M";
 static const char *CONF_DEFAULT_PATH_CONF = "/opt/usr/live/%s/etc/%s.conf";
 static const char *CONF_DEFAULT_PATH_IMAGE = "/opt/usr/share/live_magazine/";
@@ -34,7 +35,7 @@ static const char *CONF_DEFAULT_PATH_SCRIPT = "/opt/usr/live/%s/res/script/%s.ed
 static const char *CONF_DEFAULT_PATH_ROOT = "/opt/usr/live/";
 static const char *CONF_DEFAULT_PATH_SCRIPT_PORT = "/usr/share/data-provider-master/plugin-script/";
 static const char *CONF_DEFAULT_PATH_DB = "/opt/dbspace/.livebox.db";
-static const char *CONF_DEFAULT_PATH_INPUT = "/dev/input/event1";
+static const char *CONF_DEFAULT_PATH_INPUT = "/dev/input/event2";
 static const char *CONF_DEFAULT_SCRIPT_TYPE = "edje";
 static const char *CONF_DEFAULT_ABI = "c";
 static const char *CONF_DEFAULT_PD_GROUP = "disclosure";
@@ -93,6 +94,14 @@ static void emergency_disk_handler(char *buffer)
 {
 	g_conf.emergency_disk = strdup(buffer);
 	if (!g_conf.emergency_disk) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+	}
+}
+
+static void services_handler(char *buffer)
+{
+	g_conf.services = strdup(buffer);
+	if (!g_conf.services) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 	}
 }
@@ -409,6 +418,7 @@ HAPI void conf_init(void)
 	g_conf.path.input = (char *)CONF_DEFAULT_PATH_INPUT;
 	g_conf.provider_method = (char *)CONF_DEFAULT_PROVIDER_METHOD;
 	g_conf.emergency_disk = (char *)CONF_DEFAULT_EMERGENCY_DISK;
+	g_conf.services = (char *)CONF_DEFAULT_SERVICES;
 }
 
 HAPI int conf_loader(void)
@@ -549,6 +559,10 @@ HAPI int conf_loader(void)
 		{
 			.name = "emergency_disk",
 			.handler = emergency_disk_handler,
+		},
+		{
+			.name = "services",
+			.handler = services_handler,
 		},
 		{
 			.name = "use_xmonitor",
@@ -903,6 +917,11 @@ HAPI void conf_reset(void)
 	if (g_conf.emergency_disk != CONF_DEFAULT_EMERGENCY_DISK) {
 		DbgFree(g_conf.emergency_disk);
 		g_conf.emergency_disk = (char *)CONF_DEFAULT_EMERGENCY_DISK;
+	}
+
+	if (g_conf.services != CONF_DEFAULT_SERVICES) {
+		DbgFree(g_conf.services);
+		g_conf.services = (char *)CONF_DEFAULT_SERVICES;
 	}
 }
 
