@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <sys/time.h>
 #include <string.h>
@@ -716,6 +718,11 @@ HAPI void util_setup_log_disk(void)
 			DbgPrint("[%s] is successfully created (t: %d)\n", SLAVE_LOG_PATH, ret);
 		}
 	}
+}
+
+HAPI int util_service_is_enabled(const char *tag)
+{
+	return !!strcasestr(SERVICES, tag);
 }
 
 /* End of a file */

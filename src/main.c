@@ -122,13 +122,27 @@ static inline int app_create(void)
 
 	event_init();
 
-	shortcut_service_init();
-	notification_service_init();
-	badge_service_init();
-	utility_service_init();
+	if (util_service_is_enabled(SERVICE_SHORTCUT)) {
+		shortcut_service_init();
+	}
+
+	if (util_service_is_enabled(SERVICE_NOTIFICATION)) {
+		notification_service_init();
+	}
+
+	if (util_service_is_enabled(SERVICE_BADGE)) {
+		badge_service_init();
+	}
+
+	if (util_service_is_enabled(SERVICE_UTILITY)) {
+		utility_service_init();
+	}
+
 	script_init();
 
-	file_service_init();
+	if (util_service_is_enabled(SERVICE_FILE)) {
+		file_service_init();
+	}
 
 	return 0;
 }
@@ -137,8 +151,10 @@ static inline int app_terminate(void)
 {
 	int ret;
 
-	ret = file_service_fini();
-	DbgPrint("Finalize the file service: %d\n", ret);
+	if (util_service_is_enabled(SERVICE_FILE)) {
+		ret = file_service_fini();
+		DbgPrint("Finalize the file service: %d\n", ret);
+	}
 
 	ret = server_fini();
 	DbgPrint("Finalize server: %d\n", ret);
@@ -146,17 +162,25 @@ static inline int app_terminate(void)
 	ret = dead_fini();
 	DbgPrint("dead signal handler finalized: %d\n", ret);
 
-	ret = utility_service_fini();
-	DbgPrint("utility: %d\n", ret);
+	if (util_service_is_enabled(SERVICE_UTILITY)) {
+		ret = utility_service_fini();
+		DbgPrint("utility: %d\n", ret);
+	}
 
-	ret = badge_service_fini();
-	DbgPrint("badge: %d\n", ret);
+	if (util_service_is_enabled(SERVICE_BADGE)) {
+		ret = badge_service_fini();
+		DbgPrint("badge: %d\n", ret);
+	}
 
-	ret = notification_service_fini();
-	DbgPrint("noti: %d\n", ret);
+	if (util_service_is_enabled(SERVICE_NOTIFICATION)) {
+		ret = notification_service_fini();
+		DbgPrint("noti: %d\n", ret);
+	}
 
-	ret = shortcut_service_fini();
-	DbgPrint("shortcut: %d\n", ret);
+	if (util_service_is_enabled(SERVICE_SHORTCUT)) {
+		ret = shortcut_service_fini();
+		DbgPrint("shortcut: %d\n", ret);
+	}
 
 	ret = event_fini();
 	DbgPrint("event: %d\n", ret);

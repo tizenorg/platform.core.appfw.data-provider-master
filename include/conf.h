@@ -93,6 +93,7 @@ struct conf {
 	double pd_request_timeout;
 
 	char *emergency_disk;
+	char *services;
 };
 
 extern struct conf g_conf;
@@ -163,6 +164,14 @@ extern void conf_init(void);
 #define SLAVE_MAX_LOAD		g_conf.slave_max_load
 #define DEFAULT_PING_TIME	g_conf.ping_time
 #define PREMULTIPLIED_COLOR	g_conf.premultiplied
+#define SERVICES		g_conf.services
+
+#define SERVICE_LIVEBOX		"[livebox]"
+#define SERVICE_NOTIFICATION	"[notification]"
+#define SERVICE_BADGE		"[badge]"
+#define SERVICE_SHORTCUT	"[shortcut]"
+#define SERVICE_UTILITY		"[utility]"
+#define SERVICE_FILE		"[file]"
 
 #define PAUSED_FILE		"/tmp/.live.paused"
 
