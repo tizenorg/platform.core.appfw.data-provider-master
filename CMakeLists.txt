@@ -14,8 +14,6 @@ pkg_check_modules(pkg REQUIRED
 	bundle
 	ecore-x
 	ecore
-	evas
-	ecore-evas
 	com-core
 	x11
 	libdri2
