@@ -21,7 +21,6 @@
 
 #include <dlog.h>
 #include <Eina.h>
-#include <Ecore_Evas.h>
 
 #include <packet.h>
 #include <livebox-errno.h>

@@ -24,7 +24,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <Evas.h>
 #include <Ecore_X.h>
 #include <Ecore.h>
 

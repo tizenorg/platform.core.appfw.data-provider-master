@@ -98,6 +98,7 @@ struct buffer_info
 	int is_loaded;
 
 	struct inst_info *inst;
+	void *data;
 };
 
 static struct {
@@ -117,11 +118,11 @@ static struct {
 static int destroy_lock_file(struct buffer_info *info)
 {
 	if (!info->inst) {
-		return -EINVAL;
+		return LB_STATUS_ERROR_INVALID;
 	}
 
 	if (!info->lock) {
-		return -EINVAL;
+		return LB_STATUS_ERROR_INVALID;
 	}
 
 	if (close(info->lock_fd) < 0) {
@@ -135,7 +136,7 @@ static int destroy_lock_file(struct buffer_info *info)
 
 	DbgFree(info->lock);
 	info->lock = NULL;
-	return 0;
+	return LB_STATUS_SUCCESS;
 }
 
 static int create_lock_file(struct buffer_info *info)
@@ -145,19 +146,19 @@ static int create_lock_file(struct buffer_info *info)
 	char *file;
 
 	if (!info->inst) {
-		return -EINVAL;
+		return LB_STATUS_ERROR_INVALID;
 	}
 
 	id = instance_id(info->inst);
 	if (!id) {
-		return -EINVAL;
+		return LB_STATUS_ERROR_INVALID;
 	}
 
 	len = strlen(id);
 	file = malloc(len + 20);
 	if (!file) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return -ENOMEM;
+		return LB_STATUS_ERROR_MEMORY;
 	}
 
 	snprintf(file, len + 20, "%s.%s.lck", util_uri_to_path(id), instance_pd_buffer(info->inst) == info ? "pd" : "lb");
@@ -165,11 +166,11 @@ static int create_lock_file(struct buffer_info *info)
 	if (info->lock_fd < 0) {
 		ErrPrint("open: %s\n", strerror(errno));
 		DbgFree(file);
-		return -EIO;
+		return LB_STATUS_ERROR_IO;
 	}
 
 	info->lock = file;
-	return 0;
+	return LB_STATUS_SUCCESS;
 }
 
 static int do_buffer_lock(struct buffer_info *buffer)
@@ -178,7 +179,7 @@ static int do_buffer_lock(struct buffer_info *buffer)
 	int ret;
 
 	if (buffer->lock_fd < 0) {
-		return 0;
+		return LB_STATUS_SUCCESS;
 	}
 
 	flock.l_type = F_WRLCK;
@@ -195,7 +196,7 @@ static int do_buffer_lock(struct buffer_info *buffer)
 		}
 	} while (ret == EINTR);
 
-	return 0;
+	return LB_STATUS_SUCCESS;
 }
 
 static int do_buffer_unlock(struct buffer_info *buffer)
@@ -204,7 +205,7 @@ static int do_buffer_unlock(struct buffer_info *buffer)
 	int ret;
 
 	if (buffer->lock_fd < 0) {
-		return 0;
+		return LB_STATUS_SUCCESS;
 	}
 
 	flock.l_type = F_UNLCK;
@@ -221,61 +222,7 @@ static int do_buffer_unlock(struct buffer_info *buffer)
 		}
 	} while (ret == EINTR);
 
-	return 0;
-}
-
-HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buffer_type type, int w, int h, int pixel_size)
-{
-	struct buffer_info *info;
-
-	info = malloc(sizeof(*info));
-	if (!info) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		return NULL;
-	}
-
-	switch (type) {
-	case BUFFER_TYPE_SHM:
-		info->id = strdup(SCHEMA_SHM "-1");
-		if (!info->id) {
-			ErrPrint("Heap: %s\n", strerror(errno));
-			DbgFree(info);
-			return NULL;
-		}
-		break;
-	case BUFFER_TYPE_FILE:
-		info->id = strdup(SCHEMA_FILE "/tmp/.live.undefined");
-		if (!info->id) {
-			ErrPrint("Heap: %s\n", strerror(errno));
-			DbgFree(info);
-			return NULL;
-		}
-		break;
-	case BUFFER_TYPE_PIXMAP:
-		info->id = strdup(SCHEMA_PIXMAP "0");
-		if (!info->id) {
-			ErrPrint("Heap: %s\n", strerror(errno));
-			DbgFree(info);
-			return NULL;
-		}
-		break;
-	default:
-		ErrPrint("Invalid type\n");
-		DbgFree(info);
-		return NULL;
-	}
-
-	info->lock = NULL;
-	info->lock_fd = -1;
-	info->w = w;
-	info->h = h;
-	info->pixel_size = pixel_size;
-	info->type = type;
-	info->is_loaded = 0;
-	info->inst = inst;
-	info->buffer = NULL;
-
-	return info;
+	return LB_STATUS_SUCCESS;
 }
 
 static inline struct buffer *create_pixmap(struct buffer_info *info)
@@ -712,7 +659,7 @@ static inline int load_pixmap_buffer(struct buffer_info *info)
 	return LB_STATUS_SUCCESS;
 }
 
-HAPI int buffer_handler_load(struct buffer_info *info)
+EAPI int buffer_handler_load(struct buffer_info *info)
 {
 	int ret;
 
@@ -849,7 +796,7 @@ static inline int unload_pixmap_buffer(struct buffer_info *info)
 	return LB_STATUS_SUCCESS;
 }
 
-HAPI int buffer_handler_unload(struct buffer_info *info)
+EAPI int buffer_handler_unload(struct buffer_info *info)
 {
 	int ret;
 
@@ -888,45 +835,17 @@ HAPI int buffer_handler_unload(struct buffer_info *info)
 	return ret;
 }
 
-HAPI int buffer_handler_destroy(struct buffer_info *info)
-{
-	Eina_List *l;
-	struct buffer *buffer;
-
-	if (!info) {
-		DbgPrint("Buffer is not created yet. info is NIL\n");
-		return LB_STATUS_SUCCESS;
-	}
-
-	EINA_LIST_FOREACH(s_info.pixmap_list, l, buffer) {
-		if (buffer->info == info) {
-			buffer->info = NULL;
-		}
-	}
-
-	buffer_handler_unload(info);
-	if (info->lock) {
-		if (unlink(info->lock) < 0) {
-			ErrPrint("Remove lock: %s (%s)\n", info->lock, strerror(errno));
-		}
-	}
-
-	DbgFree(info->id);
-	DbgFree(info);
-	return LB_STATUS_SUCCESS;
-}
-
-HAPI const char *buffer_handler_id(const struct buffer_info *info)
+EAPI const char *buffer_handler_id(const struct buffer_info *info)
 {
 	return info ? info->id : "";
 }
 
-HAPI enum buffer_type buffer_handler_type(const struct buffer_info *info)
+EAPI enum buffer_type buffer_handler_type(const struct buffer_info *info)
 {
 	return info ? info->type : BUFFER_TYPE_ERROR;
 }
 
-HAPI void *buffer_handler_fb(struct buffer_info *info)
+EAPI void *buffer_handler_fb(struct buffer_info *info)
 {
 	struct buffer *buffer;
 
@@ -955,7 +874,7 @@ HAPI void *buffer_handler_fb(struct buffer_info *info)
 	return buffer->data;
 }
 
-HAPI int buffer_handler_pixmap(const struct buffer_info *info)
+EAPI int buffer_handler_pixmap(const struct buffer_info *info)
 {
 	struct buffer *buf;
 	struct gem_data *gem;
@@ -980,7 +899,7 @@ HAPI int buffer_handler_pixmap(const struct buffer_info *info)
 	return gem->pixmap;
 }
 
-HAPI void *buffer_handler_pixmap_acquire_buffer(struct buffer_info *info)
+EAPI void *buffer_handler_pixmap_acquire_buffer(struct buffer_info *info)
 {
 	struct buffer *buffer;
 
@@ -997,7 +916,7 @@ HAPI void *buffer_handler_pixmap_acquire_buffer(struct buffer_info *info)
 	return acquire_gem(buffer);
 }
 
-HAPI void *buffer_handler_pixmap_buffer(struct buffer_info *info)
+EAPI void *buffer_handler_pixmap_buffer(struct buffer_info *info)
 {
 	struct buffer *buffer;
 	struct gem_data *gem;
@@ -1023,7 +942,7 @@ HAPI void *buffer_handler_pixmap_buffer(struct buffer_info *info)
 /*!
  * \return "buffer" object (Not the buffer_info)
  */
-HAPI void *buffer_handler_pixmap_ref(struct buffer_info *info)
+EAPI void *buffer_handler_pixmap_ref(struct buffer_info *info)
 {
 	struct buffer *buffer;
 
@@ -1084,7 +1003,7 @@ HAPI void *buffer_handler_pixmap_ref(struct buffer_info *info)
 /*!
  * \return "buffer"
  */
-HAPI void *buffer_handler_pixmap_find(int pixmap)
+EAPI void *buffer_handler_pixmap_find(int pixmap)
 {
 	struct buffer *buffer;
 	struct gem_data *gem;
@@ -1111,7 +1030,7 @@ HAPI void *buffer_handler_pixmap_find(int pixmap)
 	return NULL;
 }
 
-HAPI int buffer_handler_pixmap_release_buffer(void *canvas)
+EAPI int buffer_handler_pixmap_release_buffer(void *canvas)
 {
 	struct buffer *buffer;
 	struct gem_data *gem;
@@ -1152,7 +1071,7 @@ HAPI int buffer_handler_pixmap_release_buffer(void *canvas)
  * \return Return NULL if the buffer is in still uses.
  * 	   Return buffer_ptr if it needs to destroy
  */
-HAPI int buffer_handler_pixmap_unref(void *buffer_ptr)
+EAPI int buffer_handler_pixmap_unref(void *buffer_ptr)
 {
 	struct buffer *buffer = buffer_ptr;
 	struct buffer_info *info;
@@ -1181,12 +1100,12 @@ HAPI int buffer_handler_pixmap_unref(void *buffer_ptr)
 	return LB_STATUS_SUCCESS;
 }
 
-HAPI int buffer_handler_is_loaded(const struct buffer_info *info)
+EAPI int buffer_handler_is_loaded(const struct buffer_info *info)
 {
 	return info ? info->is_loaded : 0;
 }
 
-HAPI void buffer_handler_update_size(struct buffer_info *info, int w, int h)
+EAPI void buffer_handler_update_size(struct buffer_info *info, int w, int h)
 {
 	if (!info) {
 		return;
@@ -1196,7 +1115,7 @@ HAPI void buffer_handler_update_size(struct buffer_info *info, int w, int h)
 	info->h = h;
 }
 
-HAPI int buffer_handler_resize(struct buffer_info *info, int w, int h)
+EAPI int buffer_handler_resize(struct buffer_info *info, int w, int h)
 {
 	int ret;
 
@@ -1230,7 +1149,7 @@ HAPI int buffer_handler_resize(struct buffer_info *info, int w, int h)
 	return LB_STATUS_SUCCESS;
 }
 
-HAPI int buffer_handler_get_size(struct buffer_info *info, int *w, int *h)
+EAPI int buffer_handler_get_size(struct buffer_info *info, int *w, int *h)
 {
 	if (!info) {
 		return LB_STATUS_ERROR_INVALID;
@@ -1246,7 +1165,7 @@ HAPI int buffer_handler_get_size(struct buffer_info *info, int *w, int *h)
 	return LB_STATUS_SUCCESS;
 }
 
-HAPI struct inst_info *buffer_handler_instance(struct buffer_info *info)
+EAPI struct inst_info *buffer_handler_instance(struct buffer_info *info)
 {
 	return info->inst;
 }
@@ -1364,7 +1283,7 @@ static inline int sync_for_pixmap(struct buffer *buffer)
 	return LB_STATUS_SUCCESS;
 }
 
-HAPI void buffer_handler_flush(struct buffer_info *info)
+EAPI void buffer_handler_flush(struct buffer_info *info)
 {
 	int fd;
 	int size;
@@ -1421,7 +1340,7 @@ HAPI void buffer_handler_flush(struct buffer_info *info)
 	}
 }
 
-HAPI int buffer_handler_init(void)
+EAPI int buffer_handler_init(void)
 {
 	int dri2Major, dri2Minor;
 	char *driverName, *deviceName;
@@ -1493,7 +1412,7 @@ HAPI int buffer_handler_init(void)
 	return LB_STATUS_SUCCESS;
 }
 
-HAPI int buffer_handler_fini(void)
+EAPI int buffer_handler_fini(void)
 {
 	if (s_info.fd >= 0) {
 		if (close(s_info.fd) < 0) {
@@ -1632,7 +1551,7 @@ static inline int raw_close_pixmap(struct buffer *buffer)
 	return 0;
 }
 
-HAPI void *buffer_handler_raw_data(struct buffer *buffer)
+EAPI void *buffer_handler_raw_data(struct buffer *buffer)
 {
 	if (!buffer || buffer->state != CREATED) {
 		return NULL;
@@ -1641,16 +1560,16 @@ HAPI void *buffer_handler_raw_data(struct buffer *buffer)
 	return buffer->data;
 }
 
-HAPI int buffer_handler_raw_size(struct buffer *buffer)
+EAPI int buffer_handler_raw_size(struct buffer *buffer)
 {
 	if (!buffer || buffer->state != CREATED) {
-		return -EINVAL;
+		return LB_STATUS_ERROR_INVALID;
 	}
 
 	return (int)buffer->info;
 }
 
-HAPI struct buffer *buffer_handler_raw_open(enum buffer_type buffer_type, void *resource)
+EAPI struct buffer *buffer_handler_raw_open(enum buffer_type buffer_type, void *resource)
 {
 	struct buffer *handle;
 
@@ -1672,7 +1591,7 @@ HAPI struct buffer *buffer_handler_raw_open(enum buffer_type buffer_type, void *
 	return handle;
 }
 
-HAPI int buffer_handler_raw_close(struct buffer *buffer)
+EAPI int buffer_handler_raw_close(struct buffer *buffer)
 {
 	int ret;
 
@@ -1687,37 +1606,147 @@ HAPI int buffer_handler_raw_close(struct buffer *buffer)
 		ret = raw_close_pixmap(buffer);
 		break;
 	default:
-		ret = -EINVAL;
+		ret = LB_STATUS_ERROR_INVALID;
 		break;
 	}
 
 	return ret;
 }
 
-HAPI int buffer_handler_lock(struct buffer_info *buffer)
+EAPI int buffer_handler_lock(struct buffer_info *buffer)
 {
 	if (buffer->type == BUFFER_TYPE_PIXMAP) {
-		return 0;
+		return LB_STATUS_SUCCESS;
 	}
 
 	if (buffer->type == BUFFER_TYPE_FILE) {
-		return 0;
+		return LB_STATUS_SUCCESS;
 	}
 
 	return do_buffer_lock(buffer);
 }
 
-HAPI int buffer_handler_unlock(struct buffer_info *buffer)
+EAPI int buffer_handler_unlock(struct buffer_info *buffer)
 {
 	if (buffer->type == BUFFER_TYPE_PIXMAP) {
-		return 0;
+		return LB_STATUS_SUCCESS;
 	}
 
 	if (buffer->type == BUFFER_TYPE_FILE) {
-		return 0;
+		return LB_STATUS_SUCCESS;
 	}
 
 	return do_buffer_unlock(buffer);
+}
+
+/*!
+ * \note
+ * Only can be used by master.
+ * Plugin cannot access the user data
+ */
+
+HAPI int buffer_handler_set_data(struct buffer_info *buffer, void *data)
+{
+	if (!buffer) {
+		ErrPrint("Invalid handle\n");
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	buffer->data = data;
+	return LB_STATUS_SUCCESS;
+}
+
+HAPI void *buffer_handler_data(struct buffer_info *buffer)
+{
+	if (!buffer) {
+		ErrPrint("Invalid handle\n");
+		return NULL;
+	}
+
+	return buffer->data;
+}
+
+HAPI int buffer_handler_destroy(struct buffer_info *info)
+{
+	Eina_List *l;
+	struct buffer *buffer;
+
+	if (!info) {
+		DbgPrint("Buffer is not created yet. info is NIL\n");
+		return LB_STATUS_SUCCESS;
+	}
+
+	EINA_LIST_FOREACH(s_info.pixmap_list, l, buffer) {
+		if (buffer->info == info) {
+			buffer->info = NULL;
+		}
+	}
+
+	buffer_handler_unload(info);
+	if (info->lock) {
+		if (unlink(info->lock) < 0) {
+			ErrPrint("Remove lock: %s (%s)\n", info->lock, strerror(errno));
+		}
+	}
+
+	DbgFree(info->id);
+	DbgFree(info);
+	return LB_STATUS_SUCCESS;
+}
+
+HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buffer_type type, int w, int h, int pixel_size)
+{
+	struct buffer_info *info;
+
+	info = malloc(sizeof(*info));
+	if (!info) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return NULL;
+	}
+
+	switch (type) {
+	case BUFFER_TYPE_SHM:
+		info->id = strdup(SCHEMA_SHM "-1");
+		if (!info->id) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			DbgFree(info);
+			return NULL;
+		}
+		break;
+	case BUFFER_TYPE_FILE:
+		info->id = strdup(SCHEMA_FILE "/tmp/.live.undefined");
+		if (!info->id) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			DbgFree(info);
+			return NULL;
+		}
+		break;
+	case BUFFER_TYPE_PIXMAP:
+		info->id = strdup(SCHEMA_PIXMAP "0");
+		if (!info->id) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			DbgFree(info);
+			return NULL;
+		}
+		break;
+	default:
+		ErrPrint("Invalid type\n");
+		DbgFree(info);
+		return NULL;
+	}
+
+	info->lock = NULL;
+	info->lock_fd = -1;
+	info->w = w;
+	info->h = h;
+	info->pixel_size = pixel_size;
+	info->type = type;
+	info->is_loaded = 0;
+	info->inst = inst;
+	info->buffer = NULL;
+	info->data = NULL;
+
+	return info;
 }
 
 /* End of a file */

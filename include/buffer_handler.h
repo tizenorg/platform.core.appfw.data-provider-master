@@ -18,7 +18,7 @@ struct buffer_info;
 struct inst_info;
 struct buffer;
 
-enum buffer_type { /*!< Must have to be sync with libprovider, liblivebox-viewer */
+enum buffer_type { /*!< Must have to be sync with libprovider, liblivebox-viewer, liblivebox-edje */
 	BUFFER_TYPE_FILE,
 	BUFFER_TYPE_SHM,
 	BUFFER_TYPE_PIXMAP,
@@ -146,30 +146,187 @@ extern int buffer_handler_init(void);
 
 /*!
  * \brief
+ * \details
+ * \remarks
  * \return int
+ * \retval
+ * \pre
+ * \post
+ * \sa
  */
 extern int buffer_handler_fini(void);
 
+/*!
+ * \brief
+ * \details
+ * \remarks
+ * \param[in] info
+ * \return void *
+ * \retval NULL
+ * \retval address
+ * \pre
+ * \post
+ * \sa
+ */
 extern void *buffer_handler_pixmap_ref(struct buffer_info *info);
 
+/*!
+ * \brief
+ * \details
+ * \remarks
+ * \param[in] buffer_ptr
+ * \return int
+ * \retval 
+ * \pre
+ * \post
+ * \sa
+ */
 extern int buffer_handler_pixmap_unref(void *buffer_ptr);
 
+/*!
+ * \brief
+ * \details
+ * \remarks
+ * \param[in] pixmap
+ * \return void *
+ * \retval
+ * \pre
+ * \post
+ * \sa
+ */
 extern void *buffer_handler_pixmap_find(int pixmap);
 
+/*!
+ * \brief
+ * \details
+ * \remarks
+ * \param[in] info
+ * \return void *
+ * \retval
+ * \pre
+ * \post
+ * \sa
+ */
 extern void *buffer_handler_pixmap_buffer(struct buffer_info *info);
 
+/*!
+ * \brief
+ * \details
+ * \remarks
+ * \param[in] info
+ * \return struct inst_info *
+ * \retval
+ * \pre
+ * \post
+ * \sa
+ */
 extern struct inst_info *buffer_handler_instance(struct buffer_info *info);
 
-extern struct buffer *buffer_handler_raw_open(enum buffer_type, void *resource);
+/*!
+ * \brief
+ * \details
+ * \remarks
+ * \param[in] type
+ * \param[in] resource
+ * \return struct buffer *
+ * \retval NULL
+ * \retval address
+ * \pre
+ * \post
+ * \sa
+ */
+extern struct buffer *buffer_handler_raw_open(enum buffer_type type, void *resource);
 
+/*!
+ * \brief
+ * \details
+ * \remarks
+ * \param[in] buffer
+ * \return int
+ * \retval
+ * \pre
+ * \post
+ * \sa
+ */
 extern int buffer_handler_raw_close(struct buffer *buffer);
 
+/*!
+ * \brief
+ * \details
+ * \remarks
+ * \param[in] buffer
+ * \return void *
+ * \retval NULL
+ * \pre
+ * \post
+ * \sa
+ */
 extern void *buffer_handler_raw_data(struct buffer *buffer);
 
+/*!
+ * \brief
+ * \details
+ * \remarks
+ * \param[in] buffer
+ * \return int
+ * \retval
+ * \pre
+ * \post
+ * \sa
+ */
 extern int buffer_handler_raw_size(struct buffer *buffer);
 
+/*!
+ * \brief
+ * \details
+ * \remarks
+ * \param[in] buffer
+ * \return int
+ * \retval
+ * \pre
+ * \post
+ * \sa
+ */
 extern int buffer_handler_lock(struct buffer_info *buffer);
 
+/*!
+ * \brief
+ * \details
+ * \remarks
+ * \param[in] buffer
+ * \return int
+ * \retval
+ * \pre
+ * \post
+ * \sa
+ */
 extern int buffer_handler_unlock(struct buffer_info *buffer);
 
+/*!
+ * \brief
+ * \details
+ * \remarks
+ * \param[in] buffer
+ * \param[in] data
+ * \return int
+ * \retval
+ * \pre
+ * \post
+ * \sa
+ */
+extern int buffer_handler_set_data(struct buffer_info *buffer, void *data);
+
+/*!
+ * \brief
+ * \details
+ * \remarks
+ * \param[in] buffer
+ * \return void *
+ * \retval NULL
+ * \retval address
+ * \pre
+ * \post
+ * \sa
+ */
+extern void *buffer_handler_data(struct buffer_info *buffer);
 /* End of a file */

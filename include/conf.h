@@ -192,5 +192,8 @@ extern void conf_init(void);
 #define USE_XMONITOR		g_conf.use_xmonitor
 
 #define HAPI __attribute__((visibility("hidden")))
+/*!
+ * EAPI is defined from eina.h
+ */
 
 /* End of a file */

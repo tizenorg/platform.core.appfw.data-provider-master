@@ -27,9 +27,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include <Ecore_Evas.h>
 #include <Ecore.h>
-#include <Evas.h>
 #include <Eina.h>
 
 #include <dlog.h>
@@ -43,7 +41,6 @@
 #include "instance.h"
 #include "buffer_handler.h"
 #include "script_handler.h"
-#include "fb.h"
 #include "debug.h"
 #include "conf.h"
 #include "util.h"
@@ -90,25 +87,25 @@ struct script_port {
 	void *handle;
 
 	const char *(*magic_id)(void);
-	int (*update_color)(void *handle, Evas *e, const char *id, const char *part, const char *rgba);
-	int (*update_text)(void *handle, Evas *e, const char *id, const char *part, const char *text);
-	int (*update_image)(void *handle, Evas *e, const char *id, const char *part, const char *path, const char *option);
-	int (*update_access)(void *handle, Evas *e, const char *id, const char *part, const char *text, const char *option);
-	int (*operate_access)(void *handle, Evas *e, const char *id, const char *part, const char *operation, const char *option);
-	int (*update_script)(void *handle, Evas *e, const char *src_id, const char *target_id, const char *part, const char *path, const char *option);
-	int (*update_signal)(void *handle, Evas *e, const char *id, const char *part, const char *signal);
-	int (*update_drag)(void *handle, Evas *e, const char *id, const char *part, double x, double y);
-	int (*update_size)(void *handle, Evas *e, const char *id, int w, int h);
-	int (*update_category)(void *handle, Evas *e, const char *id, const char *category);
-	int (*feed_event)(void *handle, Evas *e, int event_type, int x, int y, int down, unsigned int keycode, double timestamp);
+	int (*update_color)(void *handle, const char *id, const char *part, const char *rgba);
+	int (*update_text)(void *handle, const char *id, const char *part, const char *text);
+	int (*update_image)(void *handle, const char *id, const char *part, const char *path, const char *option);
+	int (*update_access)(void *handle, const char *id, const char *part, const char *text, const char *option);
+	int (*operate_access)(void *handle, const char *id, const char *part, const char *operation, const char *option);
+	int (*update_script)(void *handle, const char *src_id, const char *target_id, const char *part, const char *path, const char *option);
+	int (*update_signal)(void *handle, const char *id, const char *part, const char *signal);
+	int (*update_drag)(void *handle, const char *id, const char *part, double x, double y);
+	int (*update_size)(void *handle, const char *id, int w, int h);
+	int (*update_category)(void *handle, const char *id, const char *category);
+	int (*feed_event)(void *handle, int event_type, int x, int y, int down, unsigned int keycode, double timestamp);
 
-	void *(*create)(const char *file, const char *option);
+	void *(*create)(void *buffer_info, const char *file, const char *option);
 	int (*destroy)(void *handle);
 
-	int (*load)(void *handle, Evas *e, int w, int h);
-	int (*unload)(void *handle, Evas *e);
+	int (*load)(void *handle, int (*render_pre)(void *buffer_info, void *data), int (*render_post)(void *buffer_info, void *data), void *data);
+	int (*unload)(void *handle);
 
-	int (*init)(double scale);
+	int (*init)(double scale, int premultiplied);
 	int (*fini)(void);
 };
 
@@ -150,9 +147,7 @@ struct block {
 };
 
 struct script_info {
-	Ecore_Evas *ee;
-	struct fb_info *fb;
-	struct inst_info *inst;
+	struct buffer_info *buffer_handle; 
 	int loaded;
 
 	int w;
@@ -317,7 +312,7 @@ static int load_all_ports(void)
 			goto errout;
 		}
 
-		if (item->init(SCALE_WIDTH_FACTOR) < 0) {
+		if (item->init(SCALE_WIDTH_FACTOR, PREMULTIPLIED_COLOR) < 0) {
 			ErrPrint("Failed to initialize script engine\n");
 			goto errout;
 		}
@@ -372,89 +367,74 @@ static inline void delete_block(struct block *block)
 	DbgFree(block);
 }
 
-static void render_pre_cb(void *data, Evas *e, void *event_info)
-{
-	PERF_INIT();
-	PERF_BEGIN();
-	struct inst_info *inst = data;
-	struct script_info *info;
-
-	if (instance_state(inst) != INST_ACTIVATED) {
-		ErrPrint("Render pre invoked but instance is not activated\n");
-		goto out;
-	}
-
-	info = instance_lb_script(inst);
-	if (info && script_handler_evas(info) == e) {
-		goto out;
-	}
-
-	info = instance_pd_script(inst);
-	if (info && script_handler_evas(info) == e) {
-		goto out;
-	}
-
-	ErrPrint("Failed to do sync\n");
-out:
-	PERF_MARK("render,pre");
-	return;
-}
-
-static void render_post_cb(void *data, Evas *e, void *event_info)
+static int render_post_cb(void *_buffer_handle, void *data)
 {
 	PERF_INIT();
 	PERF_BEGIN();
 	struct inst_info *inst;
+	struct buffer_info *buffer_handle = _buffer_handle;
 	struct script_info *info;
 
-	inst = data;
+	inst = buffer_handler_instance(buffer_handle);
+	if (!inst) {
+		goto out;
+	}
 
 	if (instance_state(inst) != INST_ACTIVATED) {
 		ErrPrint("Render post invoked but instance is not activated\n");
 		PERF_MARK(__func__);
-		return;
+		return LB_STATUS_ERROR_INVALID;
 	}
 
 	info = instance_lb_script(inst);
-	if (info && script_handler_evas(info) == e) {
-		fb_sync(script_handler_fb(info));
+	if (info && info == data) {
+		buffer_handler_flush(buffer_handle);
 		instance_lb_updated_by_instance(inst, NULL);
 		PERF_MARK("lb,update");
-		return;
+		return LB_STATUS_SUCCESS;
 	}
 
 	info = instance_pd_script(inst);
-	if (info && script_handler_evas(info) == e) {
-		fb_sync(script_handler_fb(info));
+	if (info && info == data) {
+		buffer_handler_flush(buffer_handle);
 		instance_pd_updated_by_instance(inst, NULL);
 		PERF_MARK("pd,update");
-		return;
+		return LB_STATUS_SUCCESS;
 	}
 
+out:
 	ErrPrint("Failed to sync\n");
 	PERF_MARK(__func__);
-	return;
+	return LB_STATUS_ERROR_FAULT;
 }
 
 /*!
  * \NOTE
  * Exported API
  */
-int script_signal_emit(Evas *e, const char *part, const char *signal, double sx, double sy, double ex, double ey)
+EAPI int script_signal_emit(void *buffer_handle, const char *part, const char *signal, double sx, double sy, double ex, double ey)
 {
-	Ecore_Evas *ee;
 	struct script_info *info;
+	struct inst_info *inst;
+	int w;
+	int h;
+	double fx;
+	double fy;
 
-	ee = ecore_evas_ecore_evas_get(e);
-	if (!ee) {
-		ErrPrint("Evas has no Ecore_Evas\n");
+	if (!buffer_handle) {
+		ErrPrint("Invalid handle\n");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	info = ecore_evas_data_get(ee, "script,info");
+	info = buffer_handler_data(buffer_handle);
 	if (!info) {
-		ErrPrint("ecore_evas doesn't carry info data\n");
+		ErrPrint("Invalid handle\n");
 		return LB_STATUS_ERROR_INVALID;
+	}
+
+	inst = buffer_handler_instance(buffer_handle);
+	if (!inst) {
+		return LB_STATUS_ERROR_FAULT;
 	}
 
 	if (!signal || strlen(signal) == 0) {
@@ -465,22 +445,35 @@ int script_signal_emit(Evas *e, const char *part, const char *signal, double sx,
 		part = "";
 	}
 
-	return instance_signal_emit(info->inst, signal, part, sx, sy, ex, ey, (double)info->x / (double)info->w, (double)info->y / (double)info->h, info->down);
+	buffer_handler_get_size(buffer_handle, &w, &h);
+
+	fx = (double)info->x / (double)w;
+	fy = (double)info->y / (double)h;
+
+	return instance_signal_emit(inst, signal, part, sx, sy, ex, ey, fx, fy, info->down);
 }
 
 static inline void flushing_cached_block(struct script_info *info)
 {
 	struct block *block;
+	struct inst_info *inst;
+	int is_pd;
+
+	inst = buffer_handler_instance(info->buffer_handle);
+	if (!inst) {
+		ErrPrint("Instance is not valid\n");
+	}
+
+	is_pd = instance_pd_script(inst) == info;
 
 	EINA_LIST_FREE(info->cached_blocks, block) {
-		consuming_parsed_block(info->inst, (instance_pd_script(info->inst) == info), block);
+		consuming_parsed_block(inst, is_pd, block);
 	}
 }
 
 HAPI int script_handler_load(struct script_info *info, int is_pd)
 {
-	int ret;
-	Evas *e;
+	struct inst_info *inst;
 
 	if (!info || !info->port) {
 		ErrPrint("Script handler is not created\n");
@@ -492,53 +485,25 @@ HAPI int script_handler_load(struct script_info *info, int is_pd)
 		return LB_STATUS_SUCCESS;
 	}
 
-	ret = fb_create_buffer(info->fb);
-	if (ret < 0) {
-		return ret;
-	}
-
-	info->ee = fb_canvas(info->fb);
-	if (!info->ee) {
-		ErrPrint("Failed to get canvas\n");
-		fb_destroy_buffer(info->fb);
+	if (info->port->load(info->port_data, NULL, render_post_cb, info) < 0) {
+		ErrPrint("Unable to load the script\n");
 		return LB_STATUS_ERROR_FAULT;
 	}
 
-	ecore_evas_data_set(info->ee, "script,info", info);
+	info->loaded = 1;
+	flushing_cached_block(info);
 
-	e = script_handler_evas(info);
-	if (e) {
-		evas_event_callback_add(e, EVAS_CALLBACK_RENDER_PRE, render_pre_cb, info->inst);
-		evas_event_callback_add(e, EVAS_CALLBACK_RENDER_POST, render_post_cb, info->inst);
-		if (info->port->load(info->port_data, e, info->w, info->h) < 0) {
-			ErrPrint("Failed to add new script object\n");
-			evas_event_callback_del(e, EVAS_CALLBACK_RENDER_POST, render_post_cb);
-			evas_event_callback_del(e, EVAS_CALLBACK_RENDER_PRE, render_pre_cb);
-			fb_destroy_buffer(info->fb);
-			return LB_STATUS_ERROR_FAULT;
-		}
-		info->loaded = 1;
-		flushing_cached_block(info);
-		script_signal_emit(e, instance_id(info->inst),
+	inst = buffer_handler_instance(info->buffer_handle);
+	if (inst) {
+		script_signal_emit(info->buffer_handle, instance_id(inst),
 				is_pd ? "pd,show" : "lb,show", 0.0f, 0.0f, 0.0f, 0.0f);
-	} else {
-		ErrPrint("Evas: (nil) %dx%d\n", info->w, info->h);
 	}
-
-	ecore_evas_manual_render_set(info->ee, EINA_FALSE);
-	ecore_evas_resize(info->ee, info->w, info->h);
-	ecore_evas_show(info->ee);
-	ecore_evas_activate(info->ee);
-	fb_sync(info->fb);
-
+	buffer_handler_flush(info->buffer_handle);
 	return LB_STATUS_SUCCESS;
 }
 
 HAPI int script_handler_unload(struct script_info *info, int is_pd)
 {
-	Ecore_Evas *ee;
-	Evas *e;
-
 	if (!info || !info->port) {
 		return LB_STATUS_ERROR_INVALID;
 	}
@@ -553,25 +518,10 @@ HAPI int script_handler_unload(struct script_info *info, int is_pd)
 		return LB_STATUS_ERROR_ALREADY;
 	}
 
-	e = script_handler_evas(info);
-	if (e) {
-		script_signal_emit(e, instance_id(info->inst),
-				is_pd ? "pd,hide" : "lb,hide", 0.0f, 0.0f, 0.0f, 0.0f);
-		if (info->port->unload(info->port_data, e) < 0) {
-			ErrPrint("Failed to unload script object. but go ahead\n");
-		}
-		evas_event_callback_del(e, EVAS_CALLBACK_RENDER_POST, render_post_cb);
-		evas_event_callback_del(e, EVAS_CALLBACK_RENDER_PRE, render_pre_cb);
-	} else {
-		ErrPrint("Evas(nil): Unload script\n");
+	if (info->port->unload(info->port_data) < 0) {
+		ErrPrint("Failed to unload script object. but go ahead\n");
 	}
 
-	ee = fb_canvas(info->fb);
-	if (ee) {
-		ecore_evas_data_set(ee, "script,info", NULL);
-	}
-
-	fb_destroy_buffer(info->fb);
 	return LB_STATUS_SUCCESS;
 }
 
@@ -591,30 +541,28 @@ HAPI struct script_info *script_handler_create(struct inst_info *inst, const cha
 		return NULL;
 	}
 
-	info->fb = fb_create(inst, w, h, s_info.env_buf_type);
-	if (!info->fb) {
-		ErrPrint("Failed to create a FB (%dx%d)\n", w, h);
+	info->buffer_handle = buffer_handler_create(inst, s_info.env_buf_type, w, h, sizeof(int));
+	if (!info->buffer_handle) {
+		/* buffer_handler_create will prints some log */
 		DbgFree(info);
 		return NULL;
 	}
 
-	info->inst = inst;
+	(void)buffer_handler_set_data(info->buffer_handle, info);
+
 	info->port = find_port(package_script(instance_package(inst)));
 	if (!info->port) {
 		ErrPrint("Failed to find a proper port for [%s]%s\n",
 					instance_package(inst), package_script(instance_package(inst)));
-		fb_destroy(info->fb);
+		buffer_handler_destroy(info->buffer_handle);
 		DbgFree(info);
 		return NULL;
 	}
 
-	info->w = w;
-	info->h = h;
-
-	info->port_data = info->port->create(file, option);
+	info->port_data = info->port->create(info->buffer_handle, file, option);
 	if (!info->port_data) {
 		ErrPrint("Failed to create a port (%s - %s)\n", file, option);
-		fb_destroy(info->fb);
+		buffer_handler_destroy(info->buffer_handle);
 		DbgFree(info);
 		return NULL;
 	}
@@ -642,7 +590,7 @@ HAPI int script_handler_destroy(struct script_info *info)
 		ErrPrint("Failed to destroy port, but go ahead: %d\n", ret);
 	}
 
-	fb_destroy(info->fb);
+	(void)buffer_handler_destroy(info->buffer_handle);
 
 	EINA_LIST_FREE(info->cached_blocks, block) {
 		delete_block(block);
@@ -657,22 +605,13 @@ HAPI int script_handler_is_loaded(struct script_info *info)
 	return info ? info->loaded > 0 : 0;
 }
 
-HAPI struct fb_info *script_handler_fb(struct script_info *info)
-{
-	return info ? info->fb : NULL;
-}
-
-HAPI void *script_handler_evas(struct script_info *info)
+HAPI struct buffer_info *script_handler_buffer_info(struct script_info *info)
 {
 	if (!info) {
 		return NULL;
 	}
 
-	if (!info->ee) {
-		return NULL;
-	}
-
-	return ecore_evas_get(info->ee);
+	return info->buffer_handle;
 }
 
 static int update_script_color(struct inst_info *inst, struct block *block, int is_pd)
@@ -680,7 +619,7 @@ static int update_script_color(struct inst_info *inst, struct block *block, int 
 	PERF_INIT();
 	PERF_BEGIN();
 	struct script_info *info;
-	Evas *e;
+	int ret;
 
 	if (!block || !block->part || !block->data) {
 		ErrPrint("Block or part or data is not valid\n");
@@ -701,16 +640,9 @@ static int update_script_color(struct inst_info *inst, struct block *block, int 
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	e = script_handler_evas(info);
-	if (e) {
-		DbgPrint("[%s] %s (%s)\n", block->id, block->part, block->data);
-		info->port->update_color(info->port_data, e, block->id, block->part, block->data);
-	} else {
-		ErrPrint("Evas(nil) id[%s] part[%s] data[%s]\n", block->id, block->part, block->data);
-	}
+	ret = info->port->update_color(info->port_data, block->id, block->part, block->data);
 	PERF_MARK("color");
-
-	return LB_STATUS_SUCCESS;
+	return ret;
 }
 
 static int update_script_text(struct inst_info *inst, struct block *block, int is_pd)
@@ -718,7 +650,7 @@ static int update_script_text(struct inst_info *inst, struct block *block, int i
 	PERF_INIT();
 	PERF_BEGIN();
 	struct script_info *info;
-	Evas *e;
+	int ret;
 
 	if (!block || !block->part || !block->data) {
 		ErrPrint("Block or part or data is not valid\n");
@@ -739,16 +671,11 @@ static int update_script_text(struct inst_info *inst, struct block *block, int i
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	e = script_handler_evas(info);
-	if (e) {
-		DbgPrint("[%s] %s (%s)\n", block->id, block->part, block->data);
-		info->port->update_text(info->port_data, e, block->id, block->part, block->data);
-	} else {
-		ErrPrint("Evas(nil) id[%s] part[%s] data[%s]\n", block->id, block->part, block->data);
-	}
-
+	DbgPrint("[%s] %s (%s)\n", block->id, block->part, block->data);
+	ret = info->port->update_text(info->port_data, block->id, block->part, block->data);
+	
 	PERF_MARK("text");
-	return LB_STATUS_SUCCESS;
+	return ret;
 }
 
 static int update_script_image(struct inst_info *inst, struct block *block, int is_pd)
@@ -756,7 +683,7 @@ static int update_script_image(struct inst_info *inst, struct block *block, int 
 	PERF_INIT();
 	PERF_BEGIN();
 	struct script_info *info;
-	Evas *e;
+	int ret;
 
 	if (!block || !block->part) {
 		ErrPrint("Block or part is not valid\n");
@@ -777,15 +704,10 @@ static int update_script_image(struct inst_info *inst, struct block *block, int 
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	e = script_handler_evas(info);
-	if (e) {
-		DbgPrint("[%s] %s (%s)\n", block->id, block->part, block->data);
-		info->port->update_image(info->port_data, e, block->id, block->part, block->data, block->option);
-	} else {
-		ErrPrint("Evas: (nil) id[%s] part[%s] data[%s]\n", block->id, block->part, block->data);
-	}
+	DbgPrint("[%s] %s (%s)\n", block->id, block->part, block->data);
+	ret = info->port->update_image(info->port_data, block->id, block->part, block->data, block->option);
 	PERF_MARK("image");
-	return LB_STATUS_SUCCESS;
+	return ret;
 }
 
 static int update_access(struct inst_info *inst, struct block *block, int is_pd)
@@ -793,7 +715,7 @@ static int update_access(struct inst_info *inst, struct block *block, int is_pd)
 	PERF_INIT();
 	PERF_BEGIN();
 	struct script_info *info;
-	Evas *e;
+	int ret;
 
 	if (!block || !block->part) {
 		ErrPrint("Block or block->part is NIL\n");
@@ -814,14 +736,9 @@ static int update_access(struct inst_info *inst, struct block *block, int is_pd)
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	e = script_handler_evas(info);
-	if (e) {
-		info->port->update_access(info->port_data, e, block->id, block->part, block->data, block->option);
-	} else {
-		ErrPrint("Evas: (nil) id[%s] part[%s] data[%s]\n", block->id, block->part, block->data);
-	}
+	ret = info->port->update_access(info->port_data, block->id, block->part, block->data, block->option);
 	PERF_MARK("access");
-	return LB_STATUS_SUCCESS;
+	return ret;
 }
 
 static int operate_access(struct inst_info *inst, struct block *block, int is_pd)
@@ -829,7 +746,7 @@ static int operate_access(struct inst_info *inst, struct block *block, int is_pd
 	PERF_INIT();
 	PERF_BEGIN();
 	struct script_info *info;
-	Evas *e;
+	int ret;
 
 	if (!block || !block->part) {
 		ErrPrint("Block or block->part is NIL\n");
@@ -850,14 +767,9 @@ static int operate_access(struct inst_info *inst, struct block *block, int is_pd
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	e = script_handler_evas(info);
-	if (e) {
-		info->port->operate_access(info->port_data, e, block->id, block->part, block->data, block->option);
-	} else {
-		ErrPrint("Evas: (nil) id[%s] part[%s] data[%s]\n", block->id, block->part, block->data);
-	}
+	ret = info->port->operate_access(info->port_data, block->id, block->part, block->data, block->option);
 	PERF_MARK("operate_access");
-	return LB_STATUS_SUCCESS;
+	return ret;
 }
 
 static int update_script_script(struct inst_info *inst, struct block *block, int is_pd)
@@ -865,7 +777,7 @@ static int update_script_script(struct inst_info *inst, struct block *block, int
 	PERF_INIT();
 	PERF_BEGIN();
 	struct script_info *info;
-	Evas *e;
+	int ret;
 
 	if (!block || !block->part) {
 		ErrPrint("Block or part is NIL\n");
@@ -886,16 +798,9 @@ static int update_script_script(struct inst_info *inst, struct block *block, int
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	e = script_handler_evas(info);
-	if (e) {
-		DbgPrint("[%s] %s (%s)\n", block->id, block->part, block->data);
-		info->port->update_script(info->port_data, e, block->id, block->target, block->part, block->data, block->option);
-	} else {
-		ErrPrint("Evas: (nil) id[%s] part[%s] data[%s] option[%s]\n",
-						block->id, block->part, block->data, block->option);
-	}
+	ret = info->port->update_script(info->port_data, block->id, block->target, block->part, block->data, block->option);
 	PERF_MARK("script");
-	return LB_STATUS_SUCCESS;
+	return ret;
 }
 
 static int update_script_signal(struct inst_info *inst, struct block *block, int is_pd)
@@ -903,7 +808,7 @@ static int update_script_signal(struct inst_info *inst, struct block *block, int
 	PERF_INIT();
 	PERF_BEGIN();
 	struct script_info *info;
-	Evas *e;
+	int ret;
 
 	if (!block) {
 		ErrPrint("block is NIL\n");
@@ -924,15 +829,9 @@ static int update_script_signal(struct inst_info *inst, struct block *block, int
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	e = script_handler_evas(info);
-	if (e) {
-		DbgPrint("[%s] %s (%s)\n", block->id, block->part, block->data);
-		info->port->update_signal(info->port_data, e, block->id, block->part, block->data);
-	} else {
-		ErrPrint("Evas(nil) id[%s] part[%s] data[%s]\n", block->id, block->part, block->data);
-	}
+	ret = info->port->update_signal(info->port_data, block->id, block->part, block->data);
 	PERF_MARK("signal");
-	return LB_STATUS_SUCCESS;
+	return ret;
 }
 
 static int update_script_drag(struct inst_info *inst, struct block *block, int is_pd)
@@ -941,7 +840,7 @@ static int update_script_drag(struct inst_info *inst, struct block *block, int i
 	PERF_BEGIN();
 	struct script_info *info;
 	double dx, dy;
-	Evas *e;
+	int ret;
 
 	if (!block || !block->data || !block->part) {
 		ErrPrint("block or block->data or block->part is NIL\n");
@@ -968,52 +867,56 @@ static int update_script_drag(struct inst_info *inst, struct block *block, int i
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	e = script_handler_evas(info);
-	if (e) {
-		info->port->update_drag(info->port_data, e, block->id, block->part, dx, dy);
-	} else {
-		ErrPrint("Evas(nil) id[%s] part[%s] %lfx%lf\n", block->id, block->part, dx, dy);
-	}
+	ret = info->port->update_drag(info->port_data, block->id, block->part, dx, dy);
 	PERF_MARK("drag");
-	return LB_STATUS_SUCCESS;
+	return ret;
 }
 
 HAPI int script_handler_resize(struct script_info *info, int w, int h)
 {
 	PERF_INIT();
 	PERF_BEGIN();
+	struct inst_info *inst;
+
 	if (!info) {
-	//|| (info->w == w && info->h == h)) {
 		ErrPrint("info[%p] resize is ignored\n", info);
 		PERF_MARK("resize");
 		return LB_STATUS_SUCCESS;
 	}
 
-	fb_resize(script_handler_fb(info), w, h);
-
-	if (info->port->update_size) {
-		Evas *e;
-		e = script_handler_evas(info);
-		if (e) {
-			info->port->update_size(info->port_data, e, NULL , w, h);
-		} else {
-			ErrPrint("Evas(nil) resize to %dx%d\n", w, h);
-		}
+	inst = buffer_handler_instance(info->buffer_handle);
+	if (!inst) {
+		ErrPrint("Instance is not valid\n");
+		PERF_MARK("resize");
+		return LB_STATUS_ERROR_INVALID;
 	}
 
-	if (instance_lb_script(info->inst) == info) {
-		instance_set_lb_size(info->inst, w, h);
-	} else if (instance_pd_script(info->inst) == info) {
-		instance_set_pd_size(info->inst, w, h);
+	buffer_handler_update_size(info->buffer_handle, w, h);
+
+	if (info->port->update_size) {
+		(void)info->port->update_size(info->port_data, NULL, w, h);
+	}
+
+	if (instance_lb_script(inst) == info) {
+		instance_set_lb_size(inst, w, h);
+	} else if (instance_pd_script(inst) == info) {
+		instance_set_pd_size(inst, w, h);
 	} else {
 		ErrPrint("Script is not known\n");
 	}
 
-	info->w = w;
-	info->h = h;
 	PERF_MARK("resize");
-
 	return LB_STATUS_SUCCESS;
+}
+
+HAPI const char *script_handler_buffer_id(struct script_info *info)
+{
+	if (!info || !info->buffer_handle) {
+		ErrPrint("Invalid info\n");
+		return "";
+	}
+
+	return buffer_handler_id(info->buffer_handle);
 }
 
 static int update_info(struct inst_info *inst, struct block *block, int is_pd)
@@ -1042,7 +945,7 @@ static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 	}
 
 	if (!strcasecmp(block->part, INFO_SIZE)) {
-		Evas_Coord w, h;
+		int w, h;
 
 		if (sscanf(block->data, "%dx%d", &w, &h) != 2) {
 			ErrPrint("Invalid format for SIZE(%s)\n", block->data);
@@ -1053,22 +956,10 @@ static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 		if (!block->id) {
 			script_handler_resize(info, w, h);
 		} else {
-			Evas *e;
-			e = script_handler_evas(info);
-			if (e) {
-				info->port->update_size(info->port_data, e, block->id, w, h);
-			} else {
-				ErrPrint("Evas(nil): id[%s] %dx%d\n", block->id, w, h);
-			}
+			(void)info->port->update_size(info->port_data, block->id, w, h);
 		}
 	} else if (!strcasecmp(block->part, INFO_CATEGORY)) {
-		Evas *e;
-		e = script_handler_evas(info);
-		if (e) {
-			info->port->update_category(info->port_data, e, block->id, block->data);
-		} else {
-			ErrPrint("Evas(nil): id[%s] data[%s]\n", block->id, block->data);
-		}
+		(void)info->port->update_category(info->port_data, block->id, block->data);
 	}
 	PERF_MARK("info");
 
@@ -1173,20 +1064,15 @@ HAPI int script_handler_update_keycode(struct script_info *info, unsigned int ke
 
 HAPI int script_handler_feed_event(struct script_info *info, int event, double timestamp)
 {
-	Evas *e;
+	int ret;
 
 	if (!info->port) {
 		ErrPrint("info->port is NIL\n");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	e = script_handler_evas(info);
-	if (!e) {
-		ErrPrint("Evas is not exists\n");
-		return LB_STATUS_ERROR_FAULT;
-	}
-
-	return info->port->feed_event(info->port_data, e, event, info->x, info->y, info->down, info->keycode, timestamp);
+	ret = info->port->feed_event(info->port_data, event, info->x, info->y, info->down, info->keycode, timestamp);
+	return ret;
 }
 
 static inline char *load_file(const char *filename)
