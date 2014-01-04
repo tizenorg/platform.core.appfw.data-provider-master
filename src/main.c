@@ -25,8 +25,6 @@
 
 #include <Ecore.h>
 #include <Ecore_X.h>
-#include <Evas.h>
-#include <Ecore_Evas.h>
 #include <glib.h>
 #include <glib-object.h>
 #include <aul.h>
@@ -353,23 +351,6 @@ int main(int argc, char *argv[])
 
 	ecore_app_args_set(argc, (const char **)argv);
 
-	if (evas_init() <= 0) {
-		CRITICAL_LOG("Failed to init evas return count is below than 0\n");
-		ecore_x_shutdown();
-		ecore_shutdown();
-		critical_log_fini();
-		return -EFAULT;
-	}
-
-	if (ecore_evas_init() <= 0) {
-		CRITICAL_LOG("Failed to init ecore_evas\n");
-		evas_shutdown();
-		ecore_x_shutdown();
-		ecore_shutdown();
-		critical_log_fini();
-		return -EFAULT;
-	}
-
 #if (GLIB_MAJOR_VERSION <= 2 && GLIB_MINOR_VERSION < 36)
 	g_type_init();
 #endif
@@ -391,9 +372,6 @@ int main(int argc, char *argv[])
 	vconf_set_bool(VCONFKEY_MASTER_STARTED, 0);
 
 	app_terminate();
-
-	evas_shutdown();
-	ecore_evas_shutdown();
 
 	ecore_x_shutdown();
 

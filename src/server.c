@@ -19,8 +19,6 @@
 #include <errno.h>
 
 #include <dlog.h>
-#include <Evas.h>
-#include <Ecore_Evas.h> /* fb.h */
 #include <aul.h>
 #include <Ecore.h>
 #include <ail.h>
@@ -44,7 +42,6 @@
 #include "buffer_handler.h"
 #include "util.h"
 #include "fault_manager.h"
-#include "fb.h" /* fb_type */
 #include "group.h"
 #include "xmonitor.h"
 #include "abi.h"
@@ -457,7 +454,6 @@ static int key_event_lb_consume_cb(enum event_state state, struct event_data *ev
 	struct inst_info *inst = data;
 	const struct pkg_info *pkg;
 	double timestamp;
-	Evas *e;
 
 	pkg = instance_package(inst);
 	if (!pkg) {
@@ -466,12 +462,6 @@ static int key_event_lb_consume_cb(enum event_state state, struct event_data *ev
 
 	script = instance_lb_script(inst);
 	if (!script) {
-		return LB_STATUS_ERROR_FAULT;
-	}
-
-	e = script_handler_evas(script);
-	if (!e) {
-		ErrPrint("Script has no evas\n");
 		return LB_STATUS_ERROR_FAULT;
 	}
 
@@ -504,7 +494,6 @@ static int mouse_event_lb_consume_cb(enum event_state state, struct event_data *
 	struct inst_info *inst = data;
 	const struct pkg_info *pkg;
 	double timestamp;
-	Evas *e;
 
 	pkg = instance_package(inst);
 	if (!pkg) {
@@ -513,12 +502,6 @@ static int mouse_event_lb_consume_cb(enum event_state state, struct event_data *
 
 	script = instance_lb_script(inst);
 	if (!script) {
-		return LB_STATUS_ERROR_FAULT;
-	}
-
-	e = script_handler_evas(script);
-	if (!e) {
-		ErrPrint("Script has no evas\n");
 		return LB_STATUS_ERROR_FAULT;
 	}
 
@@ -630,7 +613,6 @@ static int key_event_pd_consume_cb(enum event_state state, struct event_data *ev
 	struct inst_info *inst = data;
 	const struct pkg_info *pkg;
 	double timestamp;
-	Evas *e;
 
 	pkg = instance_package(inst);
 	if (!pkg) {
@@ -639,12 +621,6 @@ static int key_event_pd_consume_cb(enum event_state state, struct event_data *ev
 
 	script = instance_pd_script(inst);
 	if (!script) {
-		return LB_STATUS_ERROR_FAULT;
-	}
-
-	e = script_handler_evas(script);
-	if (!e) {
-		ErrPrint("Script has no evas\n");
 		return LB_STATUS_ERROR_FAULT;
 	}
 
@@ -677,7 +653,6 @@ static int mouse_event_pd_consume_cb(enum event_state state, struct event_data *
 	struct inst_info *inst = data;
 	const struct pkg_info *pkg;
 	double timestamp;
-	Evas *e;
 
 	pkg = instance_package(inst);
 	if (!pkg) {
@@ -686,12 +661,6 @@ static int mouse_event_pd_consume_cb(enum event_state state, struct event_data *
 
 	script = instance_pd_script(inst);
 	if (!script) {
-		return LB_STATUS_ERROR_FAULT;
-	}
-
-	e = script_handler_evas(script);
-	if (!e) {
-		ErrPrint("Script has no evas\n");
 		return LB_STATUS_ERROR_FAULT;
 	}
 
@@ -1403,17 +1372,9 @@ static struct packet *client_pd_mouse_enter(pid_t pid, int handle, const struct 
 		ret = forward_pd_event_packet(pkg, inst, packet);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_pd_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -1466,17 +1427,9 @@ static struct packet *client_pd_mouse_leave(pid_t pid, int handle, const struct 
 		ret = forward_pd_event_packet(pkg, inst, packet);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_pd_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -1529,17 +1482,9 @@ static struct packet *client_pd_mouse_down(pid_t pid, int handle, const struct p
 		ret = forward_pd_event_packet(pkg, inst, packet);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_pd_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -1592,17 +1537,9 @@ static struct packet *client_pd_mouse_up(pid_t pid, int handle, const struct pac
 		ret = forward_pd_event_packet(pkg, inst, packet);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_pd_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -1655,17 +1592,9 @@ static struct packet *client_pd_mouse_move(pid_t pid, int handle, const struct p
 		ret = forward_pd_event_packet(pkg, inst, packet);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_pd_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -1718,17 +1647,9 @@ static struct packet *client_lb_mouse_move(pid_t pid, int handle, const struct p
 		ret = forward_lb_event_packet(pkg, inst, packet);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_lb_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -2205,17 +2126,9 @@ static struct packet *client_lb_mouse_enter(pid_t pid, int handle, const struct 
 		ret = forward_lb_event_packet(pkg, inst, packet);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_lb_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -2268,17 +2181,9 @@ static struct packet *client_lb_mouse_leave(pid_t pid, int handle, const struct 
 		ret = forward_lb_event_packet(pkg, inst, packet);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_lb_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -2331,17 +2236,9 @@ static struct packet *client_lb_mouse_down(pid_t pid, int handle, const struct p
 		ret = forward_lb_event_packet(pkg, inst, packet);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_lb_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -2394,17 +2291,9 @@ static struct packet *client_lb_mouse_up(pid_t pid, int handle, const struct pac
 		ret = forward_lb_event_packet(pkg, inst, packet);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_lb_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -2458,17 +2347,9 @@ static struct packet *client_pd_access_action_up(pid_t pid, int handle, const st
 		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_pd_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -2544,17 +2425,9 @@ static struct packet *client_pd_access_action_down(pid_t pid, int handle, const 
 		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_pd_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -2630,17 +2503,9 @@ static struct packet *client_pd_access_scroll_down(pid_t pid, int handle, const 
 		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_pd_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -2716,17 +2581,9 @@ static struct packet *client_pd_access_scroll_move(pid_t pid, int handle, const 
 		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_pd_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -2802,17 +2659,9 @@ static struct packet *client_pd_access_scroll_up(pid_t pid, int handle, const st
 		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_pd_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -2888,17 +2737,9 @@ static struct packet *client_pd_access_unhighlight(pid_t pid, int handle, const 
 		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_pd_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -2973,17 +2814,9 @@ static struct packet *client_pd_access_hl(pid_t pid, int handle, const struct pa
 		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_pd_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -3059,17 +2892,9 @@ static struct packet *client_pd_access_hl_prev(pid_t pid, int handle, const stru
 		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_pd_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -3145,18 +2970,10 @@ static struct packet *client_pd_access_hl_next(pid_t pid, int handle, const stru
 		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_pd_script(inst);
 		if (!script) {
 			ErrPrint("Script is not created yet\n");
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -3236,17 +3053,9 @@ static struct packet *client_pd_access_activate(pid_t pid, int handle, const str
 		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_pd_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -3321,17 +3130,9 @@ static struct packet *client_pd_key_focus_in(pid_t pid, int handle, const struct
 		ret = forward_pd_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_pd_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -3406,17 +3207,9 @@ static struct packet *client_pd_key_focus_out(pid_t pid, int handle, const struc
 		ret = forward_pd_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_pd_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -3491,17 +3284,9 @@ static struct packet *client_pd_key_down(pid_t pid, int handle, const struct pac
 		ret = forward_pd_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_pd_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -3634,17 +3419,9 @@ static struct packet *client_pd_key_up(pid_t pid, int handle, const struct packe
 		ret = forward_pd_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_pd_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -3720,17 +3497,9 @@ static struct packet *client_lb_access_hl(pid_t pid, int handle, const struct pa
 		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_lb_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -3806,17 +3575,9 @@ static struct packet *client_lb_access_hl_prev(pid_t pid, int handle, const stru
 		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_lb_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -3892,17 +3653,9 @@ static struct packet *client_lb_access_hl_next(pid_t pid, int handle, const stru
 		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_lb_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -3983,18 +3736,10 @@ static struct packet *client_lb_access_action_up(pid_t pid, int handle, const st
 		 */
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_lb_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -4075,18 +3820,10 @@ static struct packet *client_lb_access_action_down(pid_t pid, int handle, const 
 		 */
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_lb_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -4162,17 +3899,9 @@ static struct packet *client_lb_access_unhighlight(pid_t pid, int handle, const 
 		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_lb_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -4253,18 +3982,10 @@ static struct packet *client_lb_access_scroll_down(pid_t pid, int handle, const 
 		 */
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_lb_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -4345,18 +4066,10 @@ static struct packet *client_lb_access_scroll_move(pid_t pid, int handle, const 
 		 */
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_lb_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -4437,18 +4150,10 @@ static struct packet *client_lb_access_scroll_up(pid_t pid, int handle, const st
 		 */
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_lb_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -4524,18 +4229,10 @@ static struct packet *client_lb_access_activate(pid_t pid, int handle, const str
 		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_lb_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -4610,17 +4307,9 @@ static struct packet *client_lb_key_down(pid_t pid, int handle, const struct pac
 		ret = forward_lb_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_lb_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -4695,17 +4384,9 @@ static struct packet *client_lb_key_focus_in(pid_t pid, int handle, const struct
 		ret = forward_lb_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_lb_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -4780,17 +4461,9 @@ static struct packet *client_lb_key_focus_out(pid_t pid, int handle, const struc
 		ret = forward_lb_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_lb_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -4865,17 +4538,9 @@ static struct packet *client_lb_key_up(pid_t pid, int handle, const struct packe
 		ret = forward_lb_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
-		Evas *e;
 
 		script = instance_lb_script(inst);
 		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		e = script_handler_evas(script);
-		if (!e) {
-			ErrPrint("Script has no evas\n");
 			ret = LB_STATUS_ERROR_FAULT;
 			goto out;
 		}
@@ -4956,7 +4621,6 @@ static struct packet *client_lb_acquire_pixmap(pid_t pid, int handle, const stru
 	buffer = instance_lb_buffer(inst);
 	if (!buffer) {
 		struct script_info *script_info;
-		struct fb_info *fb_info;
 
 		script_info = instance_lb_script(inst);
 		if (!script_info) {
@@ -4965,14 +4629,7 @@ static struct packet *client_lb_acquire_pixmap(pid_t pid, int handle, const stru
 			goto out;
 		}
 
-		fb_info = script_handler_fb(script_info);
-		if (!fb_info) {
-			ErrPrint("Unable to get fb_info: %s\n", id);
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		buffer = fb_buffer_info(fb_info);
+		buffer = script_handler_buffer_info(script_info);
 		if (!buffer) {
 			ErrPrint("Unable to get buffer_info: %s\n", id);
 			ret = LB_STATUS_ERROR_FAULT;
@@ -5085,7 +4742,6 @@ static struct packet *client_pd_acquire_pixmap(pid_t pid, int handle, const stru
 	buffer = instance_pd_buffer(inst);
 	if (!buffer) {
 		struct script_info *script_info;
-		struct fb_info *fb_info;
 
 		script_info = instance_pd_script(inst);
 		if (!script_info) {
@@ -5094,14 +4750,7 @@ static struct packet *client_pd_acquire_pixmap(pid_t pid, int handle, const stru
 			goto out;
 		}
 
-		fb_info = script_handler_fb(script_info);
-		if (!fb_info) {
-			ErrPrint("Unable to get fb_info: %s\n", id);
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		buffer = fb_buffer_info(fb_info);
+		buffer = script_handler_buffer_info(script_info);
 		if (!buffer) {
 			ErrPrint("Unable to get buffer_info: %s\n", id);
 			ret = LB_STATUS_ERROR_FAULT;

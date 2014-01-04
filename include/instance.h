@@ -19,7 +19,7 @@
  * An instance has three states.
  * ACTIVATED, DEACTIVATED, DESTROYED
  *
- * When the master is launched and someone requiers to create this instance,
+ * When the master is launched and someone requires to create this instance,
  * The master just allocate a heap for new instance.
  * We defined this as "DEACTIVATED" state.
  *

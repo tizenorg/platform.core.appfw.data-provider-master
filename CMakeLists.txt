@@ -81,7 +81,6 @@ ADD_EXECUTABLE(${PROJECT_NAME}
 	src/conf.c
 	src/dead_monitor.c
 	src/group.c
-	src/fb.c
 	src/script_handler.c
 	src/buffer_handler.c
 	src/io.c

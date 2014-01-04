@@ -19,7 +19,6 @@
 #include <errno.h>
 
 #include <dlog.h>
-#include <Ecore_Evas.h>
 #include <Eina.h>
 #include <gio/gio.h>
 #include <Ecore.h>
@@ -40,7 +39,6 @@
 #include "package.h"
 #include "script_handler.h"
 #include "buffer_handler.h"
-#include "fb.h"
 #include "setting.h"
 
 int errno;
@@ -319,7 +317,7 @@ static inline void instance_send_resized_event(struct inst_info *inst, int is_pd
 
 	lb_type = package_lb_type(inst->info);
 	if (lb_type == LB_TYPE_SCRIPT) {
-		id = fb_id(script_handler_fb(inst->lb.canvas.script));
+		id = script_handler_buffer_id(inst->lb.canvas.script);
 	} else if (lb_type == LB_TYPE_BUFFER) {
 		id = buffer_handler_id(inst->lb.canvas.buffer);
 	} else {
@@ -380,7 +378,7 @@ HAPI int instance_unicast_created_event(struct inst_info *inst, struct client_no
 	pd_type = package_pd_type(inst->info);
 
 	if (lb_type == LB_TYPE_SCRIPT) {
-		lb_file = fb_id(script_handler_fb(inst->lb.canvas.script));
+		lb_file = script_handler_buffer_id(inst->lb.canvas.script);
 	} else if (lb_type == LB_TYPE_BUFFER) {
 		lb_file = buffer_handler_id(inst->lb.canvas.buffer);
 	} else {
@@ -388,7 +386,7 @@ HAPI int instance_unicast_created_event(struct inst_info *inst, struct client_no
 	}
 
 	if (pd_type == PD_TYPE_SCRIPT) {
-		pd_file = fb_id(script_handler_fb(inst->pd.canvas.script));
+		pd_file = script_handler_buffer_id(inst->pd.canvas.script);
 	} else if (pd_type == PD_TYPE_BUFFER) {
 		pd_file = buffer_handler_id(inst->pd.canvas.buffer);
 	} else {
@@ -441,7 +439,7 @@ static int instance_broadcast_created_event(struct inst_info *inst)
 	pd_type = package_pd_type(inst->info);
 
 	if (lb_type == LB_TYPE_SCRIPT) {
-		lb_file = fb_id(script_handler_fb(inst->lb.canvas.script));
+		lb_file = script_handler_buffer_id(inst->lb.canvas.script);
 	} else if (lb_type == LB_TYPE_BUFFER) {
 		lb_file = buffer_handler_id(inst->lb.canvas.buffer);
 	} else {
@@ -449,7 +447,7 @@ static int instance_broadcast_created_event(struct inst_info *inst)
 	}
 
 	if (pd_type == PD_TYPE_SCRIPT) {
-		pd_file = fb_id(script_handler_fb(inst->pd.canvas.script));
+		pd_file = script_handler_buffer_id(inst->pd.canvas.script);
 	} else if (pd_type == PD_TYPE_BUFFER) {
 		pd_file = buffer_handler_id(inst->pd.canvas.buffer);
 	} else {
@@ -1632,7 +1630,7 @@ HAPI int instance_lb_update_begin(struct inst_info *inst, double priority, const
 			ErrPrint("Script is null [%s]\n", inst->id);
 			return LB_STATUS_ERROR_INVALID;
 		}
-		fbfile = fb_id(script_handler_fb(inst->lb.canvas.script));
+		fbfile = script_handler_buffer_id(inst->lb.canvas.script);
 		break;
 	default:
 		ErrPrint("Invalid request[%s]\n", inst->id);
@@ -1707,7 +1705,7 @@ HAPI int instance_pd_update_begin(struct inst_info *inst)
 			ErrPrint("Script is null [%s]\n", inst->id);
 			return LB_STATUS_ERROR_INVALID;
 		}
-		fbfile = fb_id(script_handler_fb(inst->pd.canvas.script));
+		fbfile = script_handler_buffer_id(inst->pd.canvas.script);
 		break;
 	default:
 		ErrPrint("Invalid request[%s]\n", inst->id);
@@ -1779,7 +1777,7 @@ HAPI void instance_lb_updated_by_instance(struct inst_info *inst, const char *sa
 
 	lb_type = package_lb_type(inst->info);
 	if (lb_type == LB_TYPE_SCRIPT) {
-		id = fb_id(script_handler_fb(inst->lb.canvas.script));
+		id = script_handler_buffer_id(inst->lb.canvas.script);
 	} else if (lb_type == LB_TYPE_BUFFER) {
 		id = buffer_handler_id(inst->lb.canvas.buffer);
 	} else {
@@ -1875,7 +1873,7 @@ HAPI void instance_pd_updated_by_instance(struct inst_info *inst, const char *de
 
 	switch (package_pd_type(inst->info)) {
 	case PD_TYPE_SCRIPT:
-		id = fb_id(script_handler_fb(inst->pd.canvas.script));
+		id = script_handler_buffer_id(inst->pd.canvas.script);
 		break;
 	case PD_TYPE_BUFFER:
 		id = buffer_handler_id(inst->pd.canvas.buffer);
@@ -3104,7 +3102,7 @@ HAPI int instance_client_pd_created(struct inst_info *inst, int status)
 
 	switch (package_pd_type(inst->info)) {
 	case PD_TYPE_SCRIPT:
-		buf_id = fb_id(script_handler_fb(inst->pd.canvas.script));
+		buf_id = script_handler_buffer_id(inst->pd.canvas.script);
 		break;
 	case PD_TYPE_BUFFER:
 		buf_id = buffer_handler_id(inst->pd.canvas.buffer);
