@@ -1340,7 +1340,7 @@ EAPI void buffer_handler_flush(struct buffer_info *info)
 	}
 }
 
-EAPI int buffer_handler_init(void)
+HAPI int buffer_handler_init(void)
 {
 	int dri2Major, dri2Minor;
 	char *driverName, *deviceName;
@@ -1412,7 +1412,7 @@ EAPI int buffer_handler_init(void)
 	return LB_STATUS_SUCCESS;
 }
 
-EAPI int buffer_handler_fini(void)
+HAPI int buffer_handler_fini(void)
 {
 	if (s_info.fd >= 0) {
 		if (close(s_info.fd) < 0) {
