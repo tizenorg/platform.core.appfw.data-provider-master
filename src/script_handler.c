@@ -872,6 +872,29 @@ static int update_script_drag(struct inst_info *inst, struct block *block, int i
 	return ret;
 }
 
+static void update_size_for_script(struct script_info *info, struct inst_info *inst, int w, int h)
+{
+	/*!
+	 * \note
+	 * After update the buffer size,
+	 * If it required to be unload and load.
+	 * New size of buffer will be allocated
+	 */
+	buffer_handler_update_size(info->buffer_handle, w, h);
+
+	if (info->port->update_size) {
+		(void)info->port->update_size(info->port_data, NULL, w, h);
+	}
+
+	if (instance_lb_script(inst) == info) {
+		instance_set_lb_size(inst, w, h);
+	} else if (instance_pd_script(inst) == info) {
+		instance_set_pd_size(inst, w, h);
+	} else {
+		ErrPrint("Unknown script\n");
+	}
+}
+
 HAPI int script_handler_resize(struct script_info *info, int w, int h)
 {
 	PERF_INIT();
@@ -891,19 +914,7 @@ HAPI int script_handler_resize(struct script_info *info, int w, int h)
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	buffer_handler_update_size(info->buffer_handle, w, h);
-
-	if (info->port->update_size) {
-		(void)info->port->update_size(info->port_data, NULL, w, h);
-	}
-
-	if (instance_lb_script(inst) == info) {
-		instance_set_lb_size(inst, w, h);
-	} else if (instance_pd_script(inst) == info) {
-		instance_set_pd_size(inst, w, h);
-	} else {
-		ErrPrint("Script is not known\n");
-	}
+	update_size_for_script(info, inst, w, h);
 
 	PERF_MARK("resize");
 	return LB_STATUS_SUCCESS;
@@ -954,7 +965,7 @@ static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 		}
 
 		if (!block->id) {
-			script_handler_resize(info, w, h);
+			update_size_for_script(info, inst, w, h);
 		} else {
 			(void)info->port->update_size(info->port_data, block->id, w, h);
 		}
