@@ -47,7 +47,6 @@
 
 #define INFO_SIZE "size"
 #define INFO_CATEGORY "category"
-#define ADDEND 256
 
 static const char *type_list[] = {
 	"access",

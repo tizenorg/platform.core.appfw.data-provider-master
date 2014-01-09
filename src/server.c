@@ -6773,7 +6773,7 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 		Ecore_Timer *pd_monitor;
 
 		pd_monitor = instance_del_data(inst, "pd,close,monitor");
-		if (!pd_monitor) {
+		if (!pd_monitor && !package_is_fault(pkg)) {
 			ErrPrint("Slave requests to release a buffer\n");
 			/*!
 			 * \note
@@ -6818,15 +6818,24 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 				}
 			}
 		} else {
-			slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_close_buffer_cb, inst);
+			if (pd_monitor) {
+				/*!
+				 * \note
+				 * If the instance has pd_monitor, the pd close requested from client via client_destroy_pd.
+				 */
+				slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_close_buffer_cb, inst);
+				ecore_timer_del(pd_monitor);
 
-			ecore_timer_del(pd_monitor);
-			inst = instance_unref(inst);
-			if (!inst) {
-				ErrPrint("Instance is released: %s\n", pkgname);
-				ret = LB_STATUS_ERROR_FAULT;
-				goto out;
-			}
+				inst = instance_unref(inst);
+				if (!inst) {
+					ErrPrint("Instance is released: %s\n", pkgname);
+					ret = LB_STATUS_ERROR_FAULT;
+					goto out;
+				}
+			} /* else {
+				\note
+				This case means that the package is faulted so the service provider tries to release the buffer
+			*/
 
 			info = instance_pd_buffer(inst);
 			ret = buffer_handler_unload(info);
