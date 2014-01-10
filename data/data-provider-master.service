@@ -27,6 +27,7 @@ Type=simple
 ExecStart=/usr/bin/data-provider-master
 RestartSec=1
 Restart=always
+MemoryLimit=50M
 
 [Install]
 WantedBy=multi-user.target
