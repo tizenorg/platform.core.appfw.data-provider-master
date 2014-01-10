@@ -52,6 +52,7 @@
 #include "client_life.h"
 #include "client_rpc.h"
 #include "buffer_handler.h"
+#include "script_handler.h" // Reverse dependency. must has to be broken
 
 struct buffer {
 	enum {
@@ -144,6 +145,7 @@ static int create_lock_file(struct buffer_info *info)
 	const char *id;
 	int len;
 	char *file;
+	char target[3] = "pd";
 
 	if (!info->inst) {
 		return LB_STATUS_ERROR_INVALID;
@@ -161,7 +163,13 @@ static int create_lock_file(struct buffer_info *info)
 		return LB_STATUS_ERROR_MEMORY;
 	}
 
-	snprintf(file, len + 20, "%s.%s.lck", util_uri_to_path(id), instance_pd_buffer(info->inst) == info ? "pd" : "lb");
+	if (script_handler_buffer_info(instance_pd_script(info->inst)) != info && instance_pd_buffer(info->inst) != info) {
+		target[0] = 'l';
+		target[1] = 'b';
+		/* target[2] = '\0'; // We already have this ;) */
+	}
+
+	snprintf(file, len + 20, "%s.%s.lck", util_uri_to_path(id), target);
 	info->lock_fd = open(file, O_WRONLY|O_CREAT, 0644);
 	if (info->lock_fd < 0) {
 		ErrPrint("open: %s\n", strerror(errno));
