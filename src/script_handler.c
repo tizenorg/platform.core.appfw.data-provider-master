@@ -503,6 +503,8 @@ HAPI int script_handler_load(struct script_info *info, int is_pd)
 
 HAPI int script_handler_unload(struct script_info *info, int is_pd)
 {
+	struct inst_info *inst;
+
 	if (!info || !info->port) {
 		return LB_STATUS_ERROR_INVALID;
 	}
@@ -515,6 +517,12 @@ HAPI int script_handler_unload(struct script_info *info, int is_pd)
 	if (info->loaded < 0) {
 		info->loaded = 0;
 		return LB_STATUS_ERROR_ALREADY;
+	}
+
+	inst = buffer_handler_instance(info->buffer_handle);
+	if (inst) {
+		script_signal_emit(info->buffer_handle, instance_id(inst),
+				is_pd ? "pd,hide" : "lb,hide", 0.0f, 0.0f, 0.0f, 0.0f);
 	}
 
 	if (info->port->unload(info->port_data) < 0) {
