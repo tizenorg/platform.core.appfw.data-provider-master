@@ -226,6 +226,11 @@ extern void instance_pd_updated(const char *pkgname, const char *id, const char 
 extern void instance_lb_updated_by_instance(struct inst_info *inst, const char *safe_file);
 extern void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfile);
 
+/*!
+ * \note
+ * if the status is LB_STATUS_ERROR_FAULT (slave is faulted)
+ * even though the PD is not created, this will forcely send the PD_DESTROYED event to the client.
+ */
 extern int instance_client_pd_destroyed(struct inst_info *inst, int status);
 extern int instance_client_pd_created(struct inst_info *inst, int status);
 

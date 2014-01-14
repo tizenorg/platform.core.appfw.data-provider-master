@@ -461,6 +461,10 @@ static inline void flushing_cached_block(struct script_info *info)
 	inst = buffer_handler_instance(info->buffer_handle);
 	if (!inst) {
 		ErrPrint("Instance is not valid\n");
+		EINA_LIST_FREE(info->cached_blocks, block) {
+			delete_block(block);
+		}
+		return;
 	}
 
 	is_pd = instance_pd_script(inst) == info;

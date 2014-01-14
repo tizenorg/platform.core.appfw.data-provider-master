@@ -1691,12 +1691,6 @@ HAPI int buffer_handler_destroy(struct buffer_info *info)
 	}
 
 	buffer_handler_unload(info);
-	if (info->lock) {
-		if (unlink(info->lock) < 0) {
-			ErrPrint("Remove lock: %s (%s)\n", info->lock, strerror(errno));
-		}
-	}
-
 	DbgFree(info->id);
 	DbgFree(info);
 	return LB_STATUS_SUCCESS;
