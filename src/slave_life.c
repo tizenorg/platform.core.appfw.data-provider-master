@@ -375,12 +375,14 @@ static inline void invoke_fault_cb(struct slave_node *slave)
 	Eina_List *n;
 	struct event *event;
 
+	slave->in_event_process |= SLAVE_EVENT_PROCESS_FAULT;
 	EINA_LIST_FOREACH_SAFE(slave->event_fault_list, l, n, event) {
 		if (event->deleted || event->evt_cb(event->slave, event->cbdata) < 0 || event->deleted) {
 			slave->event_fault_list = eina_list_remove(slave->event_fault_list, event);
 			DbgFree(event);
 		}
 	}
+	slave->in_event_process &= ~SLAVE_EVENT_PROCESS_FAULT;
 }
 
 static inline void invoke_activate_cb(struct slave_node *slave)
@@ -529,7 +531,6 @@ static Eina_Bool relaunch_timer_cb(void *data)
 
 	return ret;
 }
-
 
 HAPI int slave_activate(struct slave_node *slave)
 {

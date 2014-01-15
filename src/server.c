@@ -49,6 +49,13 @@
 #include "io.h"
 #include "event.h"
 
+#define PD_OPEN_MONITOR_TAG "pd,open,monitor"
+#define PD_RESIZE_MONITOR_TAG "pd,resize,monitor"
+#define PD_CLOSE_MONITOR_TAG "pd,close,monitor"
+
+#define LAZY_PD_OPEN_TAG "lazy,pd,open"
+#define LAZY_PD_CLOSE_TAG "lazy,pd,close"
+
 static struct info {
 	int info_fd;
 	int client_fd;
@@ -288,7 +295,7 @@ static int slave_fault_open_script_cb(struct slave_node *slave, void *data)
 	(void)instance_slave_close_pd(data, instance_pd_owner(data));
 	(void)instance_client_pd_created(data, LB_STATUS_ERROR_FAULT);
 
-	timer = instance_del_data(data, "lazy,pd,open");
+	timer = instance_del_data(data, LAZY_PD_OPEN_TAG);
 	if (timer) {
 		ecore_timer_del(timer);
 	}
@@ -305,7 +312,7 @@ static int slave_fault_open_buffer_cb(struct slave_node *slave, void *data)
 	(void)instance_slave_close_pd(data, instance_pd_owner(data));
 	(void)instance_client_pd_created(data, LB_STATUS_ERROR_FAULT);
 
-	timer = instance_del_data(data, "pd,open,monitor");
+	timer = instance_del_data(data, PD_OPEN_MONITOR_TAG);
 	if (timer) {
 		ecore_timer_del(timer);
 	}
@@ -321,7 +328,7 @@ static int slave_fault_close_script_cb(struct slave_node *slave, void *data)
 
 	(void)instance_client_pd_destroyed(data, LB_STATUS_ERROR_FAULT);
 
-	timer = instance_del_data(data, "lazy,pd,close");
+	timer = instance_del_data(data, LAZY_PD_CLOSE_TAG);
 	if (timer) {
 		ecore_timer_del(timer);
 	}
@@ -337,9 +344,9 @@ static int slave_fault_close_buffer_cb(struct slave_node *slave, void *data)
 
 	(void)instance_client_pd_destroyed(data, LB_STATUS_ERROR_FAULT);
 
-	timer = instance_del_data(data, "lazy,pd,close");
+	timer = instance_del_data(data, LAZY_PD_CLOSE_TAG);
 	if (!timer) {
-		timer = instance_del_data(data, "pd,close,monitor");
+		timer = instance_del_data(data, PD_CLOSE_MONITOR_TAG);
 	}
 
 	if (timer) {
@@ -358,7 +365,7 @@ static int slave_fault_resize_buffer_cb(struct slave_node *slave, void *data)
 	(void)instance_slave_close_pd(data, instance_pd_owner(data));
 	(void)instance_client_pd_destroyed(data, LB_STATUS_ERROR_FAULT);
 
-	timer = instance_del_data(data, "pd,resize,monitor");
+	timer = instance_del_data(data, PD_RESIZE_MONITOR_TAG);
 	if (timer) {
 		ecore_timer_del(timer);
 	}
@@ -757,7 +764,7 @@ static int validate_request(const char *pkgname, const char *id, struct inst_inf
 
 	inst = package_find_instance_by_id(pkgname, id);
 	if (!inst) {
-		ErrPrint("Instance is not exists\n");
+		ErrPrint("Instance is not exists (%s)\n", id);
 		return LB_STATUS_ERROR_NOT_EXIST;
 	}
 
@@ -4734,7 +4741,7 @@ static struct packet *client_pd_acquire_pixmap(pid_t pid, int handle, const stru
 		goto out;
 	}
 
-	if (instance_get_data(inst, "pd,resize,monitor")) {
+	if (instance_get_data(inst, PD_RESIZE_MONITOR_TAG)) {
 		ret = LB_STATUS_ERROR_BUSY;
 		goto out;
 	}
@@ -4868,7 +4875,7 @@ static Eina_Bool lazy_pd_created_cb(void *inst)
 {
 	struct pkg_info *pkg;
 
-	if (!instance_del_data(inst, "lazy,pd,open")) {
+	if (!instance_del_data(inst, LAZY_PD_OPEN_TAG)) {
 		ErrPrint("lazy,pd,open is already deleted.\n");
 		return ECORE_CALLBACK_CANCEL;
 	}
@@ -4901,7 +4908,7 @@ static Eina_Bool lazy_pd_destroyed_cb(void *inst)
 	struct pkg_info *pkg;
 	struct slave_node *slave;
 
-	if (!instance_del_data(inst, "lazy,pd,close")) {
+	if (!instance_del_data(inst, LAZY_PD_CLOSE_TAG)) {
 		ErrPrint("lazy,pd,close is already deleted.\n");
 		return ECORE_CALLBACK_CANCEL;
 	}
@@ -4911,9 +4918,11 @@ static Eina_Bool lazy_pd_destroyed_cb(void *inst)
 		slave = package_slave(pkg);
 		if (slave) {
 			if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
-				slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_close_script_cb, inst);
+				DbgPrint("Delete script type close callback\n");
+				(void)slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_close_script_cb, inst);
 			} else if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
-				slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_close_buffer_cb, inst);
+				DbgPrint("Delete buffer type close callback\n");
+				(void)slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_close_buffer_cb, inst);
 			}
 		}
 	}
@@ -5001,7 +5010,7 @@ static Eina_Bool pd_open_monitor_cb(void *inst)
 
 	ret = instance_slave_close_pd(inst, instance_pd_owner(inst));
 	ret = instance_client_pd_created(inst, LB_STATUS_ERROR_TIMEOUT);
-	(void)instance_del_data(inst, "pd,open,monitor");
+	(void)instance_del_data(inst, PD_OPEN_MONITOR_TAG);
 	(void)instance_unref(inst);
 	ErrPrint("PD Open request is timed-out (%lf), ret: %d\n", PD_REQUEST_TIMEOUT, ret);
 	return ECORE_CALLBACK_CANCEL;
@@ -5023,7 +5032,7 @@ static Eina_Bool pd_close_monitor_cb(void *inst)
 	}
 
 	ret = instance_client_pd_destroyed(inst, LB_STATUS_ERROR_TIMEOUT);
-	(void)instance_del_data(inst, "pd,close,monitor");
+	(void)instance_del_data(inst, PD_CLOSE_MONITOR_TAG);
 	(void)instance_unref(inst);
 	ErrPrint("PD Close request is not processed in %lf seconds (%d)\n", PD_REQUEST_TIMEOUT, ret);
 	return ECORE_CALLBACK_CANCEL;
@@ -5045,7 +5054,7 @@ static Eina_Bool pd_resize_monitor_cb(void *inst)
 
 	ret = instance_slave_close_pd(inst, instance_pd_owner(inst));
 	ret = instance_client_pd_destroyed(inst, LB_STATUS_ERROR_TIMEOUT);
-	(void)instance_del_data(inst, "pd,resize,monitor");
+	(void)instance_del_data(inst, PD_RESIZE_MONITOR_TAG);
 	(void)instance_unref(inst);
 	ErrPrint("PD Resize request is not processed in %lf seconds (%d)\n", PD_REQUEST_TIMEOUT, ret);
 	return ECORE_CALLBACK_CANCEL;
@@ -5089,26 +5098,26 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		ErrPrint("PD is already owned\n");
 		ret = LB_STATUS_ERROR_ALREADY;
 	} else if (package_pd_type(instance_package(inst)) == PD_TYPE_BUFFER) {
-		pd_monitor = instance_get_data(inst, "lazy,pd,close");
+		pd_monitor = instance_get_data(inst, LAZY_PD_CLOSE_TAG);
 		if (pd_monitor) {
 			ecore_timer_del(pd_monitor);
 			/* This timer attribute will be deleted */
 			lazy_pd_destroyed_cb(inst);
 		}
 		
-		if (instance_get_data(inst, "pd,open,monitor")) {
+		if (instance_get_data(inst, PD_OPEN_MONITOR_TAG)) {
 			DbgPrint("PD Open request is already processed\n");
 			ret = LB_STATUS_ERROR_ALREADY;
 			goto out;
 		}
 
-		if (instance_get_data(inst, "pd,close,monitor")) {
+		if (instance_get_data(inst, PD_CLOSE_MONITOR_TAG)) {
 			DbgPrint("PD Close request is already in process\n");
 			ret = LB_STATUS_ERROR_BUSY;
 			goto out;
 		}
 
-		if (instance_get_data(inst, "pd,resize,monitor")) {
+		if (instance_get_data(inst, PD_RESIZE_MONITOR_TAG)) {
 			DbgPrint("PD resize request is already in process\n");
 			ret = LB_STATUS_ERROR_BUSY;
 			goto out;
@@ -5136,7 +5145,7 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 				} else {
 					struct slave_node *slave;
 
-					(void)instance_set_data(inst, "pd,open,monitor", pd_monitor);
+					(void)instance_set_data(inst, PD_OPEN_MONITOR_TAG, pd_monitor);
 
 					slave = package_slave(pkg);
 					if (!slave) {
@@ -5165,7 +5174,7 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		int ix;
 		int iy;
 
-		pd_monitor = instance_get_data(inst, "lazy,pd,close");
+		pd_monitor = instance_get_data(inst, LAZY_PD_CLOSE_TAG);
 		if (pd_monitor) {
 			ecore_timer_del(pd_monitor);
 			/* lazy,pd,close will be deleted */
@@ -5236,7 +5245,7 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 				} else {
 					struct slave_node *slave;
 
-					(void)instance_set_data(inst, "lazy,pd,open", pd_monitor);
+					(void)instance_set_data(inst, LAZY_PD_OPEN_TAG, pd_monitor);
 
 					slave = package_slave(pkg);
 					if (!slave) {
@@ -5318,13 +5327,14 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 			ret = LB_STATUS_ERROR_PERMISSION;
 		}
 	} else if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
-		int resize_aborted = 0;
-
-		pd_monitor = instance_del_data(inst, "pd,open,monitor");
+		DbgPrint("Buffer type PD\n");
+		pd_monitor = instance_del_data(inst, PD_OPEN_MONITOR_TAG);
 		if (pd_monitor) {
 			ErrPrint("PD Open request is found. cancel it [%s]\n", pkgname);
 
-			slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_open_buffer_cb, inst);
+			if (slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_open_buffer_cb, inst) < 0) {
+				DbgPrint("Failed to delete a deactivate callback\n");
+			}
 
 			/*!
 			 * \note
@@ -5334,8 +5344,7 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 			 * The client will permanently waiting destroyed event.
 			 * Because they understand that the destroy request is successfully processed.
 			 */
-			ret = LB_STATUS_ERROR_CANCEL;
-			ret = instance_client_pd_created(inst, ret);
+			ret = instance_client_pd_created(inst, LB_STATUS_ERROR_CANCEL);
 			if (ret < 0) {
 				ErrPrint("PD client create event: %d\n", ret);
 			}
@@ -5356,69 +5365,90 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 			}
 
 			ecore_timer_del(pd_monitor);
-			(void)instance_unref(inst);
-			goto out;
-		}
-
-		if (instance_get_data(inst, "lazy,pd,close") || instance_get_data(inst, "pd,close,monitor")) {
-			ret = LB_STATUS_ERROR_ALREADY;
-			goto out;
-		}
-
-		pd_monitor = instance_del_data(inst, "pd,resize,monitor");
-		if (pd_monitor) {
-			ErrPrint("PD Resize request is found. clear it [%s]\n", pkgname);
-			slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_resize_buffer_cb, inst);
-
-			ecore_timer_del(pd_monitor);
-
 			inst = instance_unref(inst);
 			if (!inst) {
-				goto out;
+				DbgPrint("Instance is deleted\n");
 			}
-
-			resize_aborted = 1;
-		}
-
-		ret = instance_signal_emit(inst, "pd,hide", instance_id(inst), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0);
-		if (ret < 0) {
-			ErrPrint("PD close signal emit failed: %d\n", ret);
-		}
-
-		ret = instance_slave_close_pd(inst, client);
-		if (ret < 0) {
-			ErrPrint("PD close request failed: %d\n", ret);
-		} else if (resize_aborted) {
-			pd_monitor = ecore_timer_add(DELAY_TIME, lazy_pd_destroyed_cb, instance_ref(inst));
-			if (!pd_monitor) {
-				ErrPrint("Failed to create a timer: %s\n", pkgname);
-				(void)instance_unref(inst);
-			} else {
-				(void)instance_set_data(inst, "lazy,pd,close", pd_monitor);
-				slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_close_buffer_cb, inst);
-			}
+		} else if (instance_get_data(inst, LAZY_PD_CLOSE_TAG) || instance_get_data(inst, PD_CLOSE_MONITOR_TAG)) {
+			DbgPrint("Close monitor is already fired\n");
+			ret = LB_STATUS_ERROR_ALREADY;
 		} else {
-			pd_monitor = ecore_timer_add(PD_REQUEST_TIMEOUT, pd_close_monitor_cb, instance_ref(inst));
-			if (!pd_monitor) {
-				(void)instance_unref(inst);
-				ErrPrint("Failed to add pd close monitor\n");
-			} else {
-				(void)instance_set_data(inst, "pd,close,monitor", pd_monitor);
-				slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_close_buffer_cb, inst);
+			int resize_aborted = 0;
+
+			pd_monitor = instance_del_data(inst, PD_RESIZE_MONITOR_TAG);
+			if (pd_monitor) {
+				ErrPrint("PD Resize request is found. clear it [%s]\n", pkgname);
+				if (slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_resize_buffer_cb, inst) < 0) {
+					DbgPrint("Failed to delete a deactivate callback\n");
+				}
+
+				ecore_timer_del(pd_monitor);
+
+				inst = instance_unref(inst);
+				if (!inst) {
+					DbgPrint("Instance is destroyed while resizing\n");
+					goto out;
+				}
+
+				resize_aborted = 1;
 			}
+
+			ret = instance_signal_emit(inst, "pd,hide", instance_id(inst), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0);
+			if (ret < 0) {
+				ErrPrint("PD close signal emit failed: %d\n", ret);
+			}
+
+			ret = instance_slave_close_pd(inst, client);
+			if (ret < 0) {
+				ErrPrint("PD close request failed: %d\n", ret);
+			} else if (resize_aborted) {
+				pd_monitor = ecore_timer_add(DELAY_TIME, lazy_pd_destroyed_cb, instance_ref(inst));
+				if (!pd_monitor) {
+					ErrPrint("Failed to create a timer: %s\n", pkgname);
+					inst = instance_unref(inst);
+					if (!inst) {
+						DbgPrint("Instance is deleted\n");
+					}
+				} else {
+					DbgPrint("Resize is aborted\n");
+					(void)instance_set_data(inst, LAZY_PD_CLOSE_TAG, pd_monitor);
+					if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_close_buffer_cb, inst) < 0) {
+						ErrPrint("Failed to add a slave event callback\n");
+					}
+				}
+			} else {
+				pd_monitor = ecore_timer_add(PD_REQUEST_TIMEOUT, pd_close_monitor_cb, instance_ref(inst));
+				if (!pd_monitor) {
+					ErrPrint("Failed to add pd close monitor\n");
+					inst = instance_unref(inst);
+					if (!inst) {
+						ErrPrint("Instance is deleted while closing PD\n");
+					}
+				} else {
+					DbgPrint("Add close monitor\n");
+					(void)instance_set_data(inst, PD_CLOSE_MONITOR_TAG, pd_monitor);
+					if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_close_buffer_cb, inst) < 0) {
+						ErrPrint("Failed to add SLAVE EVENT callback\n");
+					}
+				}
+			}
+
+			/*!
+			 * \note
+			 * release_buffer will be called by the slave after this routine.
+			 * It will send the "pd_destroyed" event to the client
+			 *
+			 * instance_client_pd_destroyed(inst, LB_STATUS_SUCCESS);
+			 *
+			 * Or the "pd_close_monitor_cb" or "lazy_pd_destroyed_cb" will be called.
+			 */
 		}
-		/*!
-		 * \note
-		 * release_buffer will be called by the slave after this.
-		 * Then it will send the "pd_destroyed" event to the client
-		 *
-		 * instance_client_pd_destroyed(inst);
-		 */
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
-		pd_monitor = instance_get_data(inst, "lazy,pd,open");
+		DbgPrint("Script TYPE PD\n");
+		pd_monitor = instance_get_data(inst, LAZY_PD_OPEN_TAG);
 		if (pd_monitor) {
 			ecore_timer_del(pd_monitor);
-			lazy_pd_created_cb(inst);
+			(void)lazy_pd_created_cb(inst);
 		}
 
 		ret = script_handler_unload(instance_pd_script(inst), 1);
@@ -5444,17 +5474,23 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 			/*!
 			 * \note
 			 * 13-05-28
-			 * I change my mind. There is no requirements to keep the timer handler.
+			 * I've changed my mind. There is no requirements to keep the timer handler.
 			 * But I just add it to the tagged-data of the instance.
 			 * Just reserve for future-use.
 			 */
+			DbgPrint("Add lazy PD destroy timer\n");
 			pd_monitor = ecore_timer_add(DELAY_TIME, lazy_pd_destroyed_cb, instance_ref(inst));
 			if (!pd_monitor) {
 				ErrPrint("Failed to create a timer: %s\n", pkgname);
-				(void)instance_unref(inst);
+				inst = instance_unref(inst);
+				if (!inst) {
+					DbgPrint("instance is deleted\n");
+				}
 			} else {
-				(void)instance_set_data(inst, "lazy,pd,close", pd_monitor);
-				slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_close_script_cb, inst);
+				(void)instance_set_data(inst, LAZY_PD_CLOSE_TAG, pd_monitor);
+				if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_close_script_cb, inst) < 0) {
+					ErrPrint("Failed to add a event callback for slave\n");
+				}
 			}
 		}
 	} else {
@@ -6571,9 +6607,9 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 		int is_resize;
 
 		is_resize = 0;
-		pd_monitor = instance_del_data(inst, "pd,open,monitor");
+		pd_monitor = instance_del_data(inst, PD_OPEN_MONITOR_TAG);
 		if (!pd_monitor) {
-			pd_monitor = instance_del_data(inst, "pd,resize,monitor");
+			pd_monitor = instance_del_data(inst, PD_RESIZE_MONITOR_TAG);
 			is_resize = !!pd_monitor;
 			if (!is_resize) {
 				/* Invalid request. Reject this */
@@ -6772,7 +6808,7 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 		struct buffer_info *info;
 		Ecore_Timer *pd_monitor;
 
-		pd_monitor = instance_del_data(inst, "pd,close,monitor");
+		pd_monitor = instance_del_data(inst, PD_CLOSE_MONITOR_TAG);
 		if (!pd_monitor && !package_is_fault(pkg)) {
 			ErrPrint("Slave requests to release a buffer\n");
 			/*!
@@ -6808,10 +6844,13 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 			if (ret == LB_STATUS_SUCCESS) {
 				pd_monitor = ecore_timer_add(PD_REQUEST_TIMEOUT, pd_resize_monitor_cb, instance_ref(inst));
 				if (!pd_monitor) {
-					(void)instance_unref(inst);
 					ErrPrint("Failed to create a timer for PD Open monitor\n");
+					inst = instance_unref(inst);
+					if (!inst) {
+						DbgPrint("Instance is deleted\n");
+					}
 				} else {
-					(void)instance_set_data(inst, "pd,resize,monitor", pd_monitor);
+					(void)instance_set_data(inst, PD_RESIZE_MONITOR_TAG, pd_monitor);
 					if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_resize_buffer_cb, inst) != LB_STATUS_SUCCESS) {
 						ErrPrint("Failed to add event handler: %s\n", pkgname);
 					}

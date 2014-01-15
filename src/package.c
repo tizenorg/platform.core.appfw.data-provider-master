@@ -1016,7 +1016,7 @@ HAPI const int const package_refcnt(const struct pkg_info *info)
 
 HAPI const enum lb_type package_lb_type(const struct pkg_info *info)
 {
-	return info->lb.type;
+	return info ? info->lb.type : LB_TYPE_NONE;
 }
 
 HAPI void package_set_lb_type(struct pkg_info *info, enum lb_type type)
@@ -1056,7 +1056,7 @@ HAPI void package_set_network(struct pkg_info *info, int network)
 
 HAPI const enum pd_type const package_pd_type(const struct pkg_info *info)
 {
-	return info->pd.type;
+	return info ? info->pd.type : PD_TYPE_NONE;
 }
 
 HAPI void package_set_pd_type(struct pkg_info *info, enum pd_type type)

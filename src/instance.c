@@ -535,7 +535,7 @@ static int send_pd_destroyed_to_client(struct inst_info *inst, int status)
 {
 	struct packet *packet;
 
-	if (!inst->pd.need_to_send_close_event) {
+	if (!inst->pd.need_to_send_close_event && status != LB_STATUS_ERROR_FAULT) {
 		ErrPrint("PD is not created\n");
 		return LB_STATUS_ERROR_INVALID;
 	}
@@ -1415,8 +1415,8 @@ static inline void release_resource_for_closing_pd(struct pkg_info *info, struct
 			 * Only if this function succeed to remove the pd_buffer_close_cb,
 			 * Decrease the reference count of this instance
 			 */
+			instance_unref(inst);
 		}
-		instance_unref(inst);
 	} else if (package_pd_type(info) == PD_TYPE_SCRIPT) {
 		if (client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, pd_script_close_cb, inst) == 0) {
 			/*!
@@ -1424,8 +1424,8 @@ static inline void release_resource_for_closing_pd(struct pkg_info *info, struct
 			 * Only if this function succeed to remove the script_close_cb,
 			 * Decrease the reference count of this instance
 			 */
+			instance_unref(inst);
 		}
-		instance_unref(inst);
 	} else {
 		ErrPrint("Unknown PD type\n");
 	}
