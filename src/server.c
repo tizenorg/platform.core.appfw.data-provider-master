@@ -951,6 +951,7 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 	const struct pkg_info *pkg;
 	int ret;
 	int type;
+	double timestamp;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -959,8 +960,8 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssi", &pkgname, &id, &type);
-	if (ret != 3) {
+	ret = packet_get(packet, "ssid", &pkgname, &id, &type, &timestamp);
+	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
 		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
@@ -981,7 +982,17 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 	 */
 	ret = validate_request(pkgname, id, &inst, &pkg);
 	if (ret != LB_STATUS_SUCCESS) {
-		goto out;
+		DbgPrint("Failed to find by id(%s), try to find it using timestamp(%lf)\n", id, timestamp);
+		inst = package_find_instance_by_timestamp(pkgname, timestamp);
+		if (!inst) {
+			goto out;
+		}
+
+		pkg = instance_package(inst);
+		if (!pkg) {
+			ErrPrint("Package info is not valid: %s\n", id);
+			goto out;
+		}
 	}
 
 	if (package_is_fault(pkg)) {
