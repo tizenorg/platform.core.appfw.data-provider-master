@@ -4703,7 +4703,7 @@ static struct packet *client_lb_release_pixmap(pid_t pid, int handle, const stru
 
 	ret = validate_request(pkgname, id, NULL, NULL);
 	if (ret != LB_STATUS_SUCCESS) {
-		goto out;
+		DbgPrint("It seems that the instance is already deleted: %s\n", id);
 	}
 
 	buf_ptr = buffer_handler_pixmap_find(pixmap);
@@ -4824,7 +4824,7 @@ static struct packet *client_pd_release_pixmap(pid_t pid, int handle, const stru
 
 	ret = validate_request(pkgname, id, NULL, NULL);
 	if (ret != LB_STATUS_SUCCESS) {
-		goto out;
+		DbgPrint("It seems that the instance is already deleted: %s\n", id);
 	}
 
 	buf_ptr = buffer_handler_pixmap_find(pixmap);
