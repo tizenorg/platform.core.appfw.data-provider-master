@@ -239,8 +239,18 @@ HAPI int client_rpc_init(struct client_node *client, int handle)
 	DbgPrint("CLIENT: New handle assigned for %d, %d (old: %d)\n", client_pid(client), handle, rpc->handle);
 	rpc->handle = handle;
 
-	client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, deactivated_cb, NULL);
-	return LB_STATUS_SUCCESS;
+	ret = client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, deactivated_cb, NULL);
+	if (ret < 0) {
+		struct client_rpc *weird;
+
+		weird = client_del_data(client, RPC_TAG);
+		if (weird != rpc) {
+			ErrPrint("What happens? (%p <> %p)\n", weird, rpc);
+		}
+		DbgFree(rpc);
+	}
+
+	return ret;
 }
 
 HAPI int client_rpc_fini(struct client_node *client)

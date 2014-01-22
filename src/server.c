@@ -821,7 +821,7 @@ static struct packet *client_clicked(pid_t pid, int handle, const struct packet 
 	 * The package has to be a livebox package name.
 	 */
 	ret = validate_request(pkgname, id, &inst, NULL);
-	if (ret == LB_STATUS_SUCCESS) {
+	if (ret == (int)LB_STATUS_SUCCESS) {
 		(void)instance_clicked(inst, event, timestamp, x, y);
 	}
 
@@ -855,7 +855,7 @@ static struct packet *client_update_mode(pid_t pid, int handle, const struct pac
 	}
 
 	ret = validate_request(pkgname, id, &inst, NULL);
-	if (ret == LB_STATUS_SUCCESS) {
+	if (ret == (int)LB_STATUS_SUCCESS) {
 		/*!
 		 * \note
 		 * Send change update mode request to a slave
@@ -908,7 +908,7 @@ static struct packet *client_text_signal(pid_t pid, int handle, const struct pac
 	 * The package has to be a livebox package name.
 	 */
 	ret = validate_request(pkgname, id, &inst, NULL);
-	if (ret == LB_STATUS_SUCCESS) {
+	if (ret == (int)LB_STATUS_SUCCESS) {
 		ret = instance_text_signal_emit(inst, emission, source, sx, sy, ex, ey);
 	}
 
@@ -4869,7 +4869,7 @@ static struct packet *client_pinup_changed(pid_t pid, int handle, const struct p
 	}
 
 	ret = validate_request(pkgname, id, &inst, NULL);
-	if (ret == LB_STATUS_SUCCESS) {
+	if (ret == (int)LB_STATUS_SUCCESS) {
 		ret = instance_set_pinup(inst, pinup);
 	}
 
@@ -5141,7 +5141,7 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		 * The SLAVE must has to repsonse this via "release_buffer" method.
 		 */
 		ret = instance_slave_open_pd(inst, client);
-		if (ret == LB_STATUS_SUCCESS) {
+		if (ret == (int)LB_STATUS_SUCCESS) {
 			ret = instance_signal_emit(inst, "pd,show", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
 			if (ret != LB_STATUS_SUCCESS) {
 				int tmp_ret;
@@ -5208,14 +5208,14 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 		script_handler_update_pointer(instance_pd_script(inst), ix, iy, 0);
 
 		ret = instance_slave_open_pd(inst, client);
-		if (ret == LB_STATUS_SUCCESS) {
+		if (ret == (int)LB_STATUS_SUCCESS) {
 			ret = script_handler_load(instance_pd_script(inst), 1);
 
 			/*!
 			 * \note
 			 * Send the PD created event to the clients,
 			 */
-			if (ret == LB_STATUS_SUCCESS) {
+			if (ret == (int)LB_STATUS_SUCCESS) {
 
 				/*!
 				 * \note
@@ -5481,7 +5481,7 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 		 * \note
 		 * Send the destroyed PD event to the client
 		 */
-		if (ret == LB_STATUS_SUCCESS) {
+		if (ret == (int)LB_STATUS_SUCCESS) {
 			/*!
 			 * \note
 			 * 13-05-28
@@ -6053,7 +6053,7 @@ static struct packet *slave_lb_update_begin(pid_t pid, int handle, const struct 
 
 	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
 		ret = instance_lb_update_begin(inst, priority, content, title);
-		if (ret == LB_STATUS_SUCCESS) {
+		if (ret == (int)LB_STATUS_SUCCESS) {
 			slave_freeze_ttl(slave);
 		}
 	} else {
@@ -6097,7 +6097,7 @@ static struct packet *slave_lb_update_end(pid_t pid, int handle, const struct pa
 
 	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
 		ret = instance_lb_update_end(inst);
-		if (ret == LB_STATUS_SUCCESS) {
+		if (ret == (int)LB_STATUS_SUCCESS) {
 			slave_thaw_ttl(slave);
 		}
 	} else {
@@ -6171,7 +6171,7 @@ static struct packet *slave_key_status(pid_t pid, int handle, const struct packe
 	}
 
 	ret = validate_request(pkgname, id, &inst, NULL);
-	if (ret == LB_STATUS_SUCCESS) {
+	if (ret == (int)LB_STATUS_SUCCESS) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
 		} else {
@@ -6205,7 +6205,7 @@ static struct packet *slave_access_status(pid_t pid, int handle, const struct pa
 	}
 
 	ret = validate_request(pkgname, id, &inst, NULL);
-	if (ret == LB_STATUS_SUCCESS) {
+	if (ret == (int)LB_STATUS_SUCCESS) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
 		} else {
@@ -6239,7 +6239,7 @@ static struct packet *slave_close_pd(pid_t pid, int handle, const struct packet 
 	}
 
 	ret = validate_request(pkgname, id, &inst, NULL);
-	if (ret == LB_STATUS_SUCCESS) {
+	if (ret == (int)LB_STATUS_SUCCESS) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
 		} else {
@@ -6378,7 +6378,7 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 	}
 
 	ret = validate_request(pkgname, id, &inst, NULL);
-	if (ret == LB_STATUS_SUCCESS) {
+	if (ret == (int)LB_STATUS_SUCCESS) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
 			goto out;
@@ -6441,7 +6441,7 @@ static struct packet *slave_hold_scroll(pid_t pid, int handle, const struct pack
 	}
 
 	ret = validate_request(pkgname, id, &inst, NULL);
-	if (ret == LB_STATUS_SUCCESS) {
+	if (ret == (int)LB_STATUS_SUCCESS) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
 		} else {
@@ -6526,7 +6526,7 @@ static struct packet *slave_deleted(pid_t pid, int handle, const struct packet *
 	}
 
 	ret = validate_request(pkgname, id, &inst, NULL);
-	if (ret == LB_STATUS_SUCCESS) {
+	if (ret == (int)LB_STATUS_SUCCESS) {
 		ret = instance_destroyed(inst, LB_STATUS_SUCCESS);
 	}
 
@@ -6746,7 +6746,7 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 		 * \note
 		 * id is resued for newly assigned ID
 		 */
-		if (ret == LB_STATUS_SUCCESS) {
+		if (ret == (int)LB_STATUS_SUCCESS) {
 			id = buffer_handler_id(info);
 			instance_set_lb_size(inst, w, h);
 			instance_set_lb_info(inst, PRIORITY_NO_CHANGE, CONTENT_NO_CHANGE, TITLE_NO_CHANGE);
@@ -6764,7 +6764,7 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 		 * \note
 		 * id is resued for newly assigned ID
 		 */
-		if (ret == LB_STATUS_SUCCESS) {
+		if (ret == (int)LB_STATUS_SUCCESS) {
 			id = buffer_handler_id(info);
 			instance_set_pd_size(inst, w, h);
 		}
@@ -6852,7 +6852,7 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 			info = instance_pd_buffer(inst);
 			ret = buffer_handler_unload(info);
 
-			if (ret == LB_STATUS_SUCCESS) {
+			if (ret == (int)LB_STATUS_SUCCESS) {
 				pd_monitor = ecore_timer_add(PD_REQUEST_TIMEOUT, pd_resize_monitor_cb, instance_ref(inst));
 				if (!pd_monitor) {
 					ErrPrint("Failed to create a timer for PD Open monitor\n");
@@ -6945,7 +6945,7 @@ static struct packet *service_change_period(pid_t pid, int handle, const struct 
 		}
 	} else {
 		ret = validate_request(pkgname, id, &inst, NULL);
-		if (ret == LB_STATUS_SUCCESS) {
+		if (ret == (int)LB_STATUS_SUCCESS) {
 			if (instance_state(inst) == INST_DESTROYED) {
 				ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
 				ret = LB_STATUS_ERROR_INVALID;
@@ -7026,7 +7026,7 @@ static struct packet *service_update(pid_t pid, int handle, const struct packet 
 			}
 		}
 
-		if (ret == LB_STATUS_ERROR_NOT_EXIST) {
+		if (ret == (int)LB_STATUS_ERROR_NOT_EXIST) {
 			DbgFree(lbid);
 			goto out;
 		}
