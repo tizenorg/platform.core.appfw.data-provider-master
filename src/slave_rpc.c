@@ -548,7 +548,9 @@ HAPI int slave_rpc_init(struct slave_node *slave)
 		return LB_STATUS_ERROR_MEMORY;
 	}
 
-	slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivate_cb, NULL);
+	if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivate_cb, NULL) < 0) {
+		ErrPrint("Failed to add event callback\n");
+	}
 
 	rpc->ping_count = 0;
 	rpc->next_ping_count = 1;

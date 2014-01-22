@@ -757,7 +757,7 @@ static Eina_Bool terminate_timer_cb(void *data)
 	ret = aul_terminate_pid(slave->pid);
 	if (ret < 0) {
 		ErrPrint("Terminate slave(%s) failed. pid %d (%d)\n", slave_name(slave), slave_pid(slave), ret);
-		slave = slave_deactivated(slave);
+		(void)slave_deactivated(slave);
 	}
 
 	return ECORE_CALLBACK_CANCEL;
