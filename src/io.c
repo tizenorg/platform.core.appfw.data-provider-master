@@ -557,7 +557,7 @@ static inline int build_group_info(struct pkg_info *info)
 		if (ctx_info) {
 			ret = load_context_item(ctx_info, id);
 			if (ret < 0) {
-				if (ret == LB_STATUS_ERROR_NOT_EXIST) {
+				if (ret == (int)LB_STATUS_ERROR_NOT_EXIST) {
 					DbgPrint("Has no specific context info\n");
 				} else {
 					DbgPrint("Context info is not valid\n");

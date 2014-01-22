@@ -349,7 +349,7 @@ static void update_mode_cb(struct slave_node *slave, const struct packet *packet
 		goto out;
 	}
 
-	if (ret == LB_STATUS_SUCCESS) {
+	if (ret == (int)LB_STATUS_SUCCESS) {
 		cbdata->inst->active_update = cbdata->active_update;
 	}
 
@@ -646,24 +646,24 @@ static inline void destroy_instance(struct inst_info *inst)
 
 	if (lb_type == LB_TYPE_SCRIPT) {
 		(void)script_handler_unload(inst->lb.canvas.script, 0);
-		if (script_handler_destroy(inst->lb.canvas.script) == LB_STATUS_SUCCESS) {
+		if (script_handler_destroy(inst->lb.canvas.script) == (int)LB_STATUS_SUCCESS) {
 			inst->lb.canvas.script = NULL;
 		}
 	} else if (lb_type == LB_TYPE_BUFFER) {
 		(void)buffer_handler_unload(inst->lb.canvas.buffer);
-		if (buffer_handler_destroy(inst->lb.canvas.buffer) == LB_STATUS_SUCCESS) {
+		if (buffer_handler_destroy(inst->lb.canvas.buffer) == (int)LB_STATUS_SUCCESS) {
 			inst->lb.canvas.buffer = NULL;
 		}
 	}
 
 	if (pd_type == PD_TYPE_SCRIPT) {
 		(void)script_handler_unload(inst->pd.canvas.script, 1);
-		if (script_handler_destroy(inst->pd.canvas.script) == LB_STATUS_SUCCESS) {
+		if (script_handler_destroy(inst->pd.canvas.script) == (int)LB_STATUS_SUCCESS) {
 			inst->pd.canvas.script = NULL;
 		}
 	} else if (pd_type == PD_TYPE_BUFFER) {
 		(void)buffer_handler_unload(inst->pd.canvas.buffer);
-		if (buffer_handler_destroy(inst->pd.canvas.buffer) == LB_STATUS_SUCCESS) {
+		if (buffer_handler_destroy(inst->pd.canvas.buffer) == (int)LB_STATUS_SUCCESS) {
 			inst->pd.canvas.buffer = NULL;
 		}
 	}
@@ -2226,7 +2226,7 @@ static void resize_cb(struct slave_node *slave, const struct packet *packet, voi
 		return;
 	}
 
-	if (ret == LB_STATUS_SUCCESS) {
+	if (ret == (int)LB_STATUS_SUCCESS) {
 		/*!
 		 * \note
 		 * else waiting the first update with new size
