@@ -16,8 +16,8 @@
 
 [Unit]
 Description=Data Provider daemon
-After=tizen-runtime.target email-service.service contacts-service.service calendar-serviced.service mdm-server.service connman.service
-Requires=tizen-runtime.target
+DefaultDependencies=no
+After=check-mount.service
 
 [Service]
 EnvironmentFile=/run/tizen-mobile-env
