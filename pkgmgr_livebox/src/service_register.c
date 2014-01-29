@@ -37,7 +37,9 @@
 #define ErrPrint(format, arg...)	SECURE_LOGE("[[32m%s/%s[0m:%d] " format, basename(__FILE__), __func__, __LINE__, ##arg)
 #define ErrPrintWithConsole(format, arg...)	do { fprintf(stderr, "[%s/%s:%d] " format, basename(__FILE__), __func__, __LINE__, ##arg); SECURE_LOGE("[[32m%s/%s[0m:%d] " format, basename(__FILE__), __func__, __LINE__, ##arg); } while (0)
 #endif
-/* End of a file */
+
+#define CUR_VER 2
+#define DEFAULT_CATEGORY	"http://tizen.org/category/default"
 
 /*!
  * \note
@@ -53,12 +55,12 @@
  * 
  *
  * pkgmap
- * +-------+-------+-------+-------+
- * | appid | pkgid | uiapp | prime |
- * +-------+-------+-------+-------+
- * |   -   |   -   |   -   |   -   |
- * +-------+-------+-------+-------+
- * CREATE TABLE pkgmap ( pkgid TEXT PRIMARY KEY NOT NULL, appid TEXT, uiapp TEXT, prime INTEGER )
+ * +-------+-------+-------+-------+-------------------+
+ * | appid | pkgid | uiapp | prime | categ(from ver 2) |
+ * +-------+-------+-------+-------+-------------------+
+ * |   -   |   -   |   -   |   -   |         -         |
+ * +-------+-------+-------+-------+-------------------+
+ * CREATE TABLE pkgmap ( pkgid TEXT PRIMARY KEY NOT NULL, appid TEXT, uiapp TEXT, prime INTEGER, category TEXT )
  *
  *
  * provider
@@ -176,6 +178,7 @@ struct livebox {
 	xmlChar *content; /* Content information */
 	xmlChar *setup;
 	xmlChar *uiapp;	/* UI App Id */
+	xmlChar *category; /* Category of this box */
 
 	int pinup; /* Is this support the pinup feature? */
 	int primary; /* Is this primary livebox? */
@@ -394,6 +397,28 @@ static int get_version(void)
 	return ret;
 }
 
+/*!
+ * \note
+ * From version 1 to 2
+ */
+static void upgrade_pkgmap_for_category(void)
+{
+	char *err;
+	static const char *ddl;
+
+	ddl = "ALTER TABLE pkgmap ADD COLUMN category TEXT DEFAULT \"" DEFAULT_CATEGORY "\"";
+	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
+		ErrPrint("Failed to execute the DDL (%s)\n", err);
+		return;
+	}
+
+	if (sqlite3_changes(s_info.handle) == 0) {
+		ErrPrint("No changes to DB\n");
+	}
+
+	return;
+}
+
 static void do_upgrade_db_schema(void)
 {
 	int version;
@@ -405,16 +430,18 @@ static void do_upgrade_db_schema(void)
 		db_create_version();
 		/* Need to create version table */
 	case -ENOENT:
-		if (set_version(1) < 0) {
+		if (set_version(CUR_VER) < 0) {
 			ErrPrint("Failed to set version\n");
 		}
 		/* Need to set version */
-	case 1:
+	case CUR_VER:
 		break;
+	case 1:
+		upgrade_pkgmap_for_category();
 	default:
 		/* Need to update version */
 		DbgPrint("Old version: %d\n", version);
-		if (update_version(1) < 0) {
+		if (update_version(CUR_VER) < 0) {
 			ErrPrint("Failed to update version\n");
 		}
 		break;
@@ -426,7 +453,7 @@ static inline int db_create_pkgmap(void)
 	char *err;
 	static const char *ddl;
 
-	ddl = "CREATE TABLE pkgmap ( pkgid TEXT PRIMARY KEY NOT NULL, appid TEXT, uiapp TEXT, prime INTEGER )";
+	ddl = "CREATE TABLE pkgmap ( pkgid TEXT PRIMARY KEY NOT NULL, appid TEXT, uiapp TEXT, prime INTEGER, category TEXT )";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -439,7 +466,7 @@ static inline int db_create_pkgmap(void)
 	return 0;
 }
 
-static inline int db_insert_pkgmap(const char *appid, const char *pkgid, const char *uiappid, int primary)
+static inline int db_insert_pkgmap(const char *appid, const char *pkgid, const char *uiappid, int primary, const char *category)
 {
 	int ret;
 	static const char *dml;
@@ -449,7 +476,7 @@ static inline int db_insert_pkgmap(const char *appid, const char *pkgid, const c
 		uiappid = ""; /*!< Could we replace this with Main AppId of this package? */
 	}
 
-	dml = "INSERT INTO pkgmap ( appid, pkgid, uiapp, prime ) VALUES (? ,?, ?, ?)";
+	dml = "INSERT INTO pkgmap ( appid, pkgid, uiapp, prime, category ) VALUES (? ,?, ?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
@@ -478,6 +505,13 @@ static inline int db_insert_pkgmap(const char *appid, const char *pkgid, const c
 	}
 
 	ret = sqlite3_bind_int(stmt, 4, primary);
+	if (ret != SQLITE_OK) {
+		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_text(stmt, 5, category, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		DbgPrint("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -1672,6 +1706,7 @@ static int livebox_destroy(struct livebox *livebox)
 	xmlFree(livebox->period);
 	xmlFree(livebox->content);
 	xmlFree(livebox->setup);
+	xmlFree(livebox->category);
 	xmlFree(livebox->preview[0]); /* 1x1 */
 	xmlFree(livebox->preview[1]); /* 2x1 */
 	xmlFree(livebox->preview[2]); /* 2x2 */
@@ -1821,15 +1856,40 @@ static inline void update_i18n_icon(struct livebox *livebox, xmlNodePtr node)
 static inline void update_launch(struct livebox *livebox, xmlNodePtr node)
 {
 	xmlChar *launch;
+
 	launch = xmlNodeGetContent(node);
 	if (!launch) {
 		DbgPrint("Has no launch\n");
 		return;
 	}
 
+	if (livebox->auto_launch) {
+		xmlFree(livebox->auto_launch);
+	}
+
 	livebox->auto_launch = xmlStrdup(launch);
 	if (!livebox->auto_launch) {
 		ErrPrint("Failed to duplicate string: %s\n", (char *)launch);
+		return;
+	}
+}
+
+static inline void update_category(struct livebox *livebox, xmlNodePtr node)
+{
+	xmlChar *category;
+	category = xmlNodeGetContent(node);
+	if (!category) {
+		DbgPrint("Has no valid category\n");
+		return;
+	}
+
+	if (livebox->category) {
+		xmlFree(livebox->category);
+	}
+
+	livebox->category = xmlStrdup(category);
+	if (!livebox->category) {
+		ErrPrint("Failed to duplicate string: %s\n", (char *)category);
 		return;
 	}
 }
@@ -1841,6 +1901,10 @@ static inline void update_ui_appid(struct livebox *livebox, xmlNodePtr node)
 	if (!uiapp) {
 		DbgPrint("Has no valid ui-appid\n");
 		return;
+	}
+
+	if (livebox->uiapp) {
+		xmlFree(livebox->uiapp);
 	}
 
 	livebox->uiapp = xmlStrdup(uiapp);
@@ -1859,6 +1923,10 @@ static inline void update_setup(struct livebox *livebox, xmlNodePtr node)
 		return;
 	}
 
+	if (livebox->setup) {
+		xmlFree(livebox->setup);
+	}
+
 	livebox->setup = xmlStrdup(setup);
 	if (!livebox->setup) {
 		ErrPrint("Failed to duplicate string: %s\n", (char *)setup);
@@ -1873,6 +1941,10 @@ static inline void update_content(struct livebox *livebox, xmlNodePtr node)
 	if (!content) {
 		DbgPrint("Has no content\n");
 		return;
+	}
+
+	if (livebox->content) {
+		xmlFree(livebox->content);
 	}
 
 	livebox->content = xmlStrdup(content);
@@ -2330,7 +2402,7 @@ static int db_insert_livebox(struct livebox *livebox, const char *appid)
 	struct option *option;
 
 	begin_transaction();
-	ret = db_insert_pkgmap(appid, (char *)livebox->pkgid, (char *)livebox->uiapp, livebox->primary);
+	ret = db_insert_pkgmap(appid, (char *)livebox->pkgid, (char *)livebox->uiapp, livebox->primary, (char *)livebox->category);
 	if (ret < 0) {
 		goto errout;
 	}
@@ -2672,6 +2744,11 @@ static int do_install(xmlNodePtr node, const char *appid)
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"ui-appid")) {
 			update_ui_appid(livebox, node);
+			continue;
+		}
+
+		if (!xmlStrcasecmp(node->name, (const xmlChar *)"category")) {
+			update_category(livebox, node);
 			continue;
 		}
 	}
