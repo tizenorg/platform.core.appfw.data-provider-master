@@ -24,6 +24,7 @@
 #include <packet.h>
 #include <dlog.h>
 #include <livebox-errno.h>
+#include <livebox-service.h>
 
 #include "util.h"
 #include "debug.h"
@@ -75,11 +76,9 @@ static void clear_log_file(struct slave_node *slave)
 
 static char *check_log_file(struct slave_node *slave)
 {
-	char pkgname[BUFSIZ];
-	const char *pattern = "liblive-";
+	char libexec[BUFSIZ];
 	char *ptr;
 	FILE *fp;
-	int i;
 	char filename[BUFSIZ];
 
 	snprintf(filename, sizeof(filename), "%s/slave.%d", SLAVE_LOG_PATH, slave_pid(slave));
@@ -89,35 +88,27 @@ static char *check_log_file(struct slave_node *slave)
 		return NULL;
 	}
 
-	ptr = fgets(pkgname, sizeof(pkgname), fp);
+	ptr = fgets(libexec, sizeof(libexec), fp);
 	if (fclose(fp) != 0) {
 		ErrPrint("fclose: %s\n", strerror(errno));
 	}
 
-	if (ptr != pkgname) {
+	if (ptr != libexec) {
 		ErrPrint("Invalid log\n");
 		return NULL;
 	}
 
-	for (i = 0; pattern[i] && (pattern[i] == pkgname[i]); i++); /*!< Check pattern of filename */
-	if (strlen(pattern) != i) {
-		ErrPrint("Pattern is not matched: %d\n", i);
-		return NULL;
-	}
-
-	ptr = pkgname + i;
-	i = strlen(ptr) - 3; /* Skip the ".so" */
-	if (i <= 0 || strcmp(ptr + i, ".so")) {
-		ErrPrint("Extension is not matched\n");
-		return NULL;
-	}
-		
-	ptr[i] = '\0'; /*!< Truncate tailer ".so" */
 	if (unlink(filename) < 0) {
 		ErrPrint("Failed to unlink %s\n", filename);
 	}
 
-	return strdup(ptr);
+	ptr = livebox_service_pkgname_by_libexec(libexec);
+	if (!ptr) {
+		ErrPrint("Failed to find the faulted package\n");
+	}
+
+	DbgPrint("Faulted package: %s\n", ptr);
+	return ptr;
 }
 
 HAPI void fault_unicast_info(struct client_node *client, const char *pkgname, const char *filename, const char *func)
