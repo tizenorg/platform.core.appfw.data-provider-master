@@ -46,6 +46,7 @@ struct liveinfo {
 	char fifo_name[60];
 	pid_t pid;
 	int handle;
+	void *data;
 };
 
 HAPI int liveinfo_init(void)
@@ -88,7 +89,26 @@ static inline int valid_requestor(pid_t pid)
 		return 0;
 	}
 
+	if (target.st_ino == src.st_ino) {
+		return 1;
+	}
+
+	if (stat("/opt/usr/devel/usr/bin/dbox-mgr", &src) < 0) {
+		ErrPrint("Error: %s\n", strerror(errno));
+		return 0;
+	}
+
 	return target.st_ino == src.st_ino;
+}
+
+HAPI void liveinfo_set_data(struct liveinfo *info, void *data)
+{
+	info->data = data;
+}
+
+HAPI void *liveinfo_data(struct liveinfo *info)
+{
+	return info->data;
 }
 
 HAPI struct liveinfo *liveinfo_create(pid_t pid, int handle)
