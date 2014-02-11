@@ -7087,31 +7087,18 @@ out:
 	return result;
 }
 
-static struct packet *liveinfo_slave_list(pid_t pid, int handle, const struct packet *packet)
+static Eina_Bool lazy_slave_list_cb(void *info)
 {
-	Eina_List *l;
-	Eina_List *list;
-	struct liveinfo *info;
-	struct slave_node *slave;
 	FILE *fp;
-	double timestamp;
-
-	if (packet_get(packet, "d", &timestamp) != 1) {
-		ErrPrint("Invalid argument\n");
-		goto out;
-	}
-
-	info = liveinfo_find_by_pid(pid);
-	if (!info) {
-		ErrPrint("Invalid request\n");
-		goto out;
-	}
+	Eina_List *list;
+	Eina_List *l;
+	struct slave_node *slave;
 
 	liveinfo_open_fifo(info);
 	fp = liveinfo_fifo(info);
 	if (!fp) {
 		liveinfo_close_fifo(info);
-		goto out;
+		return ECORE_CALLBACK_CANCEL;
 	}
 
 	list = (Eina_List *)slave_list();
@@ -7133,6 +7120,26 @@ static struct packet *liveinfo_slave_list(pid_t pid, int handle, const struct pa
 
 	fprintf(fp, "EOD\n");
 	liveinfo_close_fifo(info);
+	return ECORE_CALLBACK_CANCEL;
+}
+
+static struct packet *liveinfo_slave_list(pid_t pid, int handle, const struct packet *packet)
+{
+	struct liveinfo *info;
+	double timestamp;
+
+	if (packet_get(packet, "d", &timestamp) != 1) {
+		ErrPrint("Invalid argument\n");
+		goto out;
+	}
+
+	info = liveinfo_find_by_pid(pid);
+	if (!info) {
+		ErrPrint("Invalid request\n");
+		goto out;
+	}
+
+	lazy_slave_list_cb(info);
 out:
 	return NULL;
 }
@@ -7153,25 +7160,18 @@ static inline const char *visible_state_string(enum livebox_visible_state state)
 	return "Unknown";
 }
 
-static struct packet *liveinfo_inst_list(pid_t pid, int handle, const struct packet *packet)
+static Eina_Bool inst_list_cb(void *info)
 {
-	const char *pkgname;
-	struct liveinfo *info;
+	FILE *fp;
+	char *pkgname;
 	struct pkg_info *pkg;
 	Eina_List *l;
 	Eina_List *inst_list;
 	struct inst_info *inst;
-	FILE *fp;
 
-	if (packet_get(packet, "s", &pkgname) != 1) {
-		ErrPrint("Invalid argument\n");
-		goto out;
-	}
-
-	info = liveinfo_find_by_pid(pid);
-	if (!info) {
-		ErrPrint("Invalid request\n");
-		goto out;
+	pkgname = liveinfo_data(info);
+	if (!pkgname) {
+		return ECORE_CALLBACK_CANCEL;
 	}
 
 	liveinfo_open_fifo(info);
@@ -7179,15 +7179,18 @@ static struct packet *liveinfo_inst_list(pid_t pid, int handle, const struct pac
 	if (!fp) {
 		ErrPrint("Invalid fp\n");
 		liveinfo_close_fifo(info);
-		goto out;
+		free(pkgname);
+		return ECORE_CALLBACK_CANCEL;
 	}
 
 	if (!package_is_lb_pkgname(pkgname)) {
 		ErrPrint("Invalid package name\n");
+		free(pkgname);
 		goto close_out;
 	}
 
 	pkg = package_find(pkgname);
+	free(pkgname);
 	if (!pkg) {
 		ErrPrint("Package is not exists\n");
 		goto close_out;
@@ -7209,23 +7212,16 @@ close_out:
 	fprintf(fp, "EOD\n");
 	liveinfo_close_fifo(info);
 
-out:
-	return NULL;
+	return ECORE_CALLBACK_CANCEL;
 }
 
-static struct packet *liveinfo_pkg_list(pid_t pid, int handle, const struct packet *packet)
+static struct packet *liveinfo_inst_list(pid_t pid, int handle, const struct packet *packet)
 {
-	Eina_List *l;
-	Eina_List *list;
-	Eina_List *inst_list;
+	const char *pkgname;
+	char *dup_pkgname;
 	struct liveinfo *info;
-	struct pkg_info *pkg;
-	struct slave_node *slave;
-	FILE *fp;
-	const char *slavename;
-	double timestamp;
 
-	if (packet_get(packet, "d", &timestamp) != 1) {
+	if (packet_get(packet, "s", &pkgname) != 1) {
 		ErrPrint("Invalid argument\n");
 		goto out;
 	}
@@ -7236,11 +7232,36 @@ static struct packet *liveinfo_pkg_list(pid_t pid, int handle, const struct pack
 		goto out;
 	}
 
+	dup_pkgname = strdup(pkgname);
+	if (!dup_pkgname) {
+		ErrPrint("Invalid request\n");
+		goto out;
+	}
+
+	liveinfo_set_data(info, dup_pkgname);
+	inst_list_cb(info);
+
+out:
+	return NULL;
+}
+
+static Eina_Bool pkg_list_cb(void *info)
+{
+	FILE *fp;
+	Eina_List *l;
+	Eina_List *list;
+	Eina_List *inst_list;
+	struct pkg_info *pkg;
+	struct slave_node *slave;
+	const char *slavename;
+	pid_t pid;
+
 	liveinfo_open_fifo(info);
 	fp = liveinfo_fifo(info);
 	if (!fp) {
+		DbgPrint("Failed to open a pipe\n");
 		liveinfo_close_fifo(info);
-		goto out;
+		return ECORE_CALLBACK_CANCEL;
 	}
 
 	list = (Eina_List *)package_list();
@@ -7265,10 +7286,42 @@ static struct packet *liveinfo_pkg_list(pid_t pid, int handle, const struct pack
 			package_fault_count(pkg),
 			eina_list_count(inst_list)
 		);
+		DbgPrint("%d %s %s %s %d %d %d\n",
+			pid,
+			strlen(slavename) ? slavename : "(none)",
+			package_name(pkg),
+			package_abi(pkg),
+			package_refcnt(pkg),
+			package_fault_count(pkg),
+			eina_list_count(inst_list)
+		);
 	}
 
 	fprintf(fp, "EOD\n");
+	DbgPrint("EOD\n");
 	liveinfo_close_fifo(info);
+	return ECORE_CALLBACK_CANCEL;
+}
+
+static struct packet *liveinfo_pkg_list(pid_t pid, int handle, const struct packet *packet)
+{
+	struct liveinfo *info;
+	double timestamp;
+
+	if (packet_get(packet, "d", &timestamp) != 1) {
+		ErrPrint("Invalid argument\n");
+		goto out;
+	}
+
+	DbgPrint("Package List: %lf\n", timestamp);
+
+	info = liveinfo_find_by_pid(pid);
+	if (!info) {
+		ErrPrint("Invalid request\n");
+		goto out;
+	}
+
+	pkg_list_cb(info);
 out:
 	return NULL;
 }
@@ -7278,10 +7331,59 @@ static struct packet *liveinfo_slave_ctrl(pid_t pid, int handle, const struct pa
 	return NULL;
 }
 
+static Eina_Bool pkg_ctrl_rmpack_cb(void *info)
+{
+	FILE *fp;
+	liveinfo_open_fifo(info);
+	fp = liveinfo_fifo(info);
+	if (!fp) {
+		liveinfo_close_fifo(info);
+		return ECORE_CALLBACK_CANCEL;
+	}
+
+	fprintf(fp, "%d\n", ENOSYS);
+	fprintf(fp, "EOD\n");
+	liveinfo_close_fifo(info);
+	return ECORE_CALLBACK_CANCEL;
+}
+
+static Eina_Bool pkg_ctrl_rminst_cb(void *info)
+{
+	FILE *fp;
+
+	liveinfo_open_fifo(info);
+	fp = liveinfo_fifo(info);
+	if (!fp) {
+		liveinfo_close_fifo(info);
+		return ECORE_CALLBACK_CANCEL;
+	}
+
+	fprintf(fp, "%d\n", (int)liveinfo_data(info));
+	fprintf(fp, "EOD\n");
+	liveinfo_close_fifo(info);
+	return ECORE_CALLBACK_CANCEL;
+}
+
+static Eina_Bool pkg_ctrl_faultinst_cb(void *info)
+{
+	FILE *fp;
+
+	liveinfo_open_fifo(info);
+	fp = liveinfo_fifo(info);
+	if (!fp) {
+		liveinfo_close_fifo(info);
+		return ECORE_CALLBACK_CANCEL;
+	}
+
+	fprintf(fp, "%d\n", (int)liveinfo_data(info));
+	fprintf(fp, "EOD\n");
+	liveinfo_close_fifo(info);
+	return ECORE_CALLBACK_CANCEL;
+}
+
 static struct packet *liveinfo_pkg_ctrl(pid_t pid, int handle, const struct packet *packet)
 {
 	struct liveinfo *info;
-	FILE *fp;
 	char *cmd;
 	char *pkgname;
 	char *id;
@@ -7297,47 +7399,57 @@ static struct packet *liveinfo_pkg_ctrl(pid_t pid, int handle, const struct pack
 		goto out;
 	}
 
-	liveinfo_open_fifo(info);
-	fp = liveinfo_fifo(info);
-	if (!fp) {
-		liveinfo_close_fifo(info);
-		goto out;
-	}
-
 	if (!strcmp(cmd, "rmpack")) {
-		fprintf(fp, "%d\n", ENOSYS);
+		pkg_ctrl_rmpack_cb(info);
 	} else if (!strcmp(cmd, "rminst")) {
 		struct inst_info *inst;
 		inst = package_find_instance_by_id(pkgname, id);
 		if (!inst) {
-			fprintf(fp, "%d\n", ENOENT);
+			liveinfo_set_data(info, (void *)ENOENT);
 		} else {
 			(void)instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
-			fprintf(fp, "%d\n", 0);
+			liveinfo_set_data(info, (void *)0);
 		}
+
+		pkg_ctrl_rminst_cb(info);
 	} else if (!strcmp(cmd, "faultinst")) {
 		struct inst_info *inst;
 		inst = package_find_instance_by_id(pkgname, id);
 		if (!inst) {
-			fprintf(fp, "%d\n", ENOENT);
+			liveinfo_set_data(info, (void *)ENOENT);
 		} else {
 			struct pkg_info *pkg;
 
 			pkg = instance_package(inst);
 			if (!pkg) {
-				fprintf(fp, "%d\n", EFAULT);
+				liveinfo_set_data(info, (void *)EFAULT);
 			} else {
 				(void)package_faulted(pkg);
-				fprintf(fp, "%d\n", 0);
+				liveinfo_set_data(info, (void *)0);
 			}
 		}
-	}
 
-	fprintf(fp, "EOD\n");
-	liveinfo_close_fifo(info);
+		pkg_ctrl_faultinst_cb(info);
+	}
 
 out:
 	return NULL;
+}
+
+static Eina_Bool master_ctrl_cb(void *info)
+{
+	FILE *fp;
+
+	liveinfo_open_fifo(info);
+	fp = liveinfo_fifo(info);
+	if (!fp) {
+		liveinfo_close_fifo(info);
+		return ECORE_CALLBACK_CANCEL;
+	}
+	fprintf(fp, "%d\nEOD\n", (int)liveinfo_data(info));
+	liveinfo_close_fifo(info);
+
+	return ECORE_CALLBACK_CANCEL;
 }
 
 static struct packet *liveinfo_master_ctrl(pid_t pid, int handle, const struct packet *packet)
@@ -7346,7 +7458,6 @@ static struct packet *liveinfo_master_ctrl(pid_t pid, int handle, const struct p
 	char *cmd;
 	char *var;
 	char *val;
-	FILE *fp;
 	int ret = LB_STATUS_ERROR_INVALID;
 
 	if (packet_get(packet, "sss", &cmd, &var, &val) != 3) {
@@ -7374,14 +7485,8 @@ static struct packet *liveinfo_master_ctrl(pid_t pid, int handle, const struct p
 		ret = g_conf.slave_max_load;
 	}
 
-	liveinfo_open_fifo(info);
-	fp = liveinfo_fifo(info);
-	if (!fp) {
-		liveinfo_close_fifo(info);
-		goto out;
-	}
-	fprintf(fp, "%d\nEOD\n", ret);
-	liveinfo_close_fifo(info);
+	liveinfo_set_data(info, (void *)ret);
+	master_ctrl_cb(info);
 
 out:
 	return NULL;

@@ -29,5 +29,7 @@ extern pid_t liveinfo_pid(struct liveinfo *info);
 extern FILE *liveinfo_fifo(struct liveinfo *info);
 extern int liveinfo_open_fifo(struct liveinfo *info);
 extern void liveinfo_close_fifo(struct liveinfo *info);
+extern void liveinfo_set_data(struct liveinfo *info, void *data);
+extern void *liveinfo_data(struct liveinfo *info);
 
 /* End of a file */
