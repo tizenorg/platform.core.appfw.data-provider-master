@@ -7139,9 +7139,7 @@ static struct packet *liveinfo_slave_list(pid_t pid, int handle, const struct pa
 		goto out;
 	}
 
-	if (!ecore_timer_add(0.5f, lazy_slave_list_cb, info)) {
-		ErrPrint("Failed to add timer\n");
-	}
+	lazy_slave_list_cb(info);
 out:
 	return NULL;
 }
