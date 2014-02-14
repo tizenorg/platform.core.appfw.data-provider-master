@@ -867,10 +867,14 @@ HAPI int io_init(void)
 	int ret;
 
 	ret = db_init();
-	DbgPrint("DB initialized: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("DB initialized: %d\n", ret);
+	}
 
 	ret = load_abi_table();
-	DbgPrint("ABI table is loaded: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("ABI table is loaded: %d\n", ret);
+	}
 
 	return LB_STATUS_SUCCESS;
 }
@@ -882,7 +886,9 @@ HAPI int io_fini(void)
 	abi_del_all();
 
 	ret = db_fini();
-	DbgPrint("DB finalized: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("DB finalized: %d\n", ret);
+	}
 	return LB_STATUS_SUCCESS;
 }
 
