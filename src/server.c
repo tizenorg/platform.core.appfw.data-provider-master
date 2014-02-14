@@ -5008,7 +5008,6 @@ out:
 
 static Eina_Bool pd_open_monitor_cb(void *inst)
 {
-	int ret;
 	struct pkg_info *pkg;
 
 	pkg = instance_package(inst);
@@ -5021,17 +5020,16 @@ static Eina_Bool pd_open_monitor_cb(void *inst)
 		}
 	}
 
-	ret = instance_slave_close_pd(inst, instance_pd_owner(inst));
-	ret = instance_client_pd_created(inst, LB_STATUS_ERROR_TIMEOUT);
+	(void)instance_slave_close_pd(inst, instance_pd_owner(inst));
+	(void)instance_client_pd_created(inst, LB_STATUS_ERROR_TIMEOUT);
 	(void)instance_del_data(inst, PD_OPEN_MONITOR_TAG);
 	(void)instance_unref(inst);
-	ErrPrint("PD Open request is timed-out (%lf), ret: %d\n", PD_REQUEST_TIMEOUT, ret);
+	ErrPrint("PD Open request is timed-out (%lf)\n", PD_REQUEST_TIMEOUT);
 	return ECORE_CALLBACK_CANCEL;
 }
 
 static Eina_Bool pd_close_monitor_cb(void *inst)
 {
-	int ret;
 	struct pkg_info *pkg;
 
 	pkg = instance_package(inst);
@@ -5044,10 +5042,10 @@ static Eina_Bool pd_close_monitor_cb(void *inst)
 		}
 	}
 
-	ret = instance_client_pd_destroyed(inst, LB_STATUS_ERROR_TIMEOUT);
+	(void)instance_client_pd_destroyed(inst, LB_STATUS_ERROR_TIMEOUT);
 	(void)instance_del_data(inst, PD_CLOSE_MONITOR_TAG);
 	(void)instance_unref(inst);
-	ErrPrint("PD Close request is not processed in %lf seconds (%d)\n", PD_REQUEST_TIMEOUT, ret);
+	ErrPrint("PD Close request is not processed in %lf seconds\n", PD_REQUEST_TIMEOUT);
 	return ECORE_CALLBACK_CANCEL;
 }
 
