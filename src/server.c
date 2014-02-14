@@ -4908,7 +4908,9 @@ static Eina_Bool lazy_pd_created_cb(void *inst)
 	if (instance_unref(inst)) {
 		int ret;
 		ret = instance_client_pd_created(inst, LB_STATUS_SUCCESS);
-		DbgPrint("Send PD Create event (%d) to client\n", ret);
+		if (ret < 0) {
+			DbgPrint("Send PD Create event (%d) to client\n", ret);
+		}
 	}
 
 	return ECORE_CALLBACK_CANCEL;
@@ -5051,7 +5053,6 @@ static Eina_Bool pd_close_monitor_cb(void *inst)
 
 static Eina_Bool pd_resize_monitor_cb(void *inst)
 {
-	int ret;
 	struct pkg_info *pkg;
 
 	pkg = instance_package(inst);
@@ -5063,11 +5064,11 @@ static Eina_Bool pd_resize_monitor_cb(void *inst)
 		}
 	}
 
-	ret = instance_slave_close_pd(inst, instance_pd_owner(inst));
-	ret = instance_client_pd_destroyed(inst, LB_STATUS_ERROR_TIMEOUT);
+	(void)instance_slave_close_pd(inst, instance_pd_owner(inst));
+	(void)instance_client_pd_destroyed(inst, LB_STATUS_ERROR_TIMEOUT);
 	(void)instance_del_data(inst, PD_RESIZE_MONITOR_TAG);
 	(void)instance_unref(inst);
-	ErrPrint("PD Resize request is not processed in %lf seconds (%d)\n", PD_REQUEST_TIMEOUT, ret);
+	ErrPrint("PD Resize request is not processed in %lf seconds\n", PD_REQUEST_TIMEOUT);
 	return ECORE_CALLBACK_CANCEL;
 }
 
@@ -5147,7 +5148,9 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 				int tmp_ret;
 
 				tmp_ret = instance_slave_close_pd(inst, client);
-				ErrPrint("Unable to send script event for openning PD [%s], %d\n", pkgname, tmp_ret);
+				if (tmp_ret < 0) {
+					ErrPrint("Unable to send script event for openning PD [%s], %d\n", pkgname, tmp_ret);
+				}
 			} else {
 				pd_monitor = ecore_timer_add(PD_REQUEST_TIMEOUT, pd_open_monitor_cb, instance_ref(inst));
 				if (!pd_monitor) {
@@ -5271,7 +5274,9 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 			} else {
 				int tmp_ret;
 				tmp_ret = instance_slave_close_pd(inst, client);
-				ErrPrint("Unable to load script: %d, (close: %d)\n", ret, tmp_ret);
+				if (tmp_ret < 0) {
+					ErrPrint("Unable to load script: %d, (close: %d)\n", ret, tmp_ret);
+				}
 			}
 		} else {
 			ErrPrint("Unable open PD(%s): %d\n", pkgname, ret);

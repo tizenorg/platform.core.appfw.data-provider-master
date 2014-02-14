@@ -1372,7 +1372,9 @@ static int pd_buffer_close_cb(struct client_node *client, void *inst)
 	int ret;
 
 	ret = instance_slave_close_pd(inst, client);
-	DbgPrint("Forcely close the PD ret: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("Forcely close the PD ret: %d\n", ret);
+	}
 
 	instance_unref(inst);
 
@@ -1385,10 +1387,14 @@ static int pd_script_close_cb(struct client_node *client, void *inst)
 	int ret;
 
 	ret = script_handler_unload(instance_pd_script(inst), 1);
-	DbgPrint("Unload script: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("Unload script: %d\n", ret);
+	}
 
 	ret = instance_slave_close_pd(inst, client);
-	DbgPrint("Forcely close the PD ret: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("Forcely close the PD ret: %d\n", ret);
+	}
 
 	instance_unref(inst);
 
