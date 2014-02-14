@@ -193,10 +193,8 @@ HAPI int fault_check_pkgs(struct slave_node *slave)
 	if (pkgname) {
 		pkg = package_find(pkgname);
 		if (pkg) {
-			int ret;
-			ret = package_set_fault_info(pkg, util_timestamp(), NULL, NULL);
+			(void)package_set_fault_info(pkg, util_timestamp(), NULL, NULL);
 			dump_fault_info(slave_name(slave), slave_pid(slave), pkgname, "", "");
-			ErrPrint("Set fault %s(%d)\n", !ret ? "Success" : "Failed", ret);
 			fault_broadcast_info(pkgname, "", "");
 			DbgFree((char *)pkgname);
 
@@ -228,10 +226,8 @@ HAPI int fault_check_pkgs(struct slave_node *slave)
 	if (pkgname) {
 		pkg = package_find(pkgname);
 		if (pkg) {
-			int ret;
-			ret = package_set_fault_info(pkg, util_timestamp(), NULL, NULL);
+			(void)package_set_fault_info(pkg, util_timestamp(), NULL, NULL);
 			dump_fault_info(slave_name(slave), slave_pid(slave), pkgname, "", "");
-			ErrPrint("Set fault %s(%d)\n", !ret ? "Success" : "Failed", ret);
 			fault_broadcast_info(pkgname, "", "");
 
 			s_info.fault_mark_count = 0;
@@ -272,10 +268,8 @@ HAPI int fault_check_pkgs(struct slave_node *slave)
 			func = info->func ? info->func : "";
 
 			if (!checked) {
-				int ret;
-				ret = package_set_fault_info(pkg, info->timestamp, info->filename, info->func);
+				(void)package_set_fault_info(pkg, info->timestamp, info->filename, info->func);
 				fault_broadcast_info(info->pkgname, info->filename, info->func);
-				ErrPrint("Set fault %s(%d)\n", !ret ? "Success" : "Failed", ret);
 			} else {
 				DbgPrint("Treated as a false log\n");
 				dump_fault_info(

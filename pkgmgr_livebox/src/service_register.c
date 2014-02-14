@@ -2937,7 +2937,9 @@ int PKGMGR_PARSER_PLUGIN_PRE_INSTALL(const char *appid)
 	cnt = pkglist_get_via_callback(appid, clear_all_pkg, NULL);
 	commit_transaction();
 
-	DbgPrint("Package[%s] is not deleted: %d\n", appid, cnt);
+	if (cnt > 0) {
+		DbgPrint("Package[%s] is not deleted: %d\n", appid, cnt);
+	}
 	return 0;
 }
 
@@ -2970,7 +2972,9 @@ int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *appid)
 		DbgPrint("node->name: %s\n", node->name);
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"livebox")) {
 			ret = do_install(node, appid);
-			DbgPrint("Returns: %d\n", ret);
+			if (ret < 0) {
+				DbgPrint("Returns: %d\n", ret);
+			}
 		}
 	}
 
@@ -2996,7 +3000,9 @@ int PKGMGR_PARSER_PLUGIN_PRE_UPGRADE(const char *appid)
 	cnt = pkglist_get_via_callback(appid, clear_all_pkg, NULL);
 	commit_transaction();
 
-	DbgPrint("Package %s is deleted: %d\n", appid, cnt);
+	if (cnt > 0) {
+		DbgPrint("Package %s is deleted: %d\n", appid, cnt);
+	}
 	return 0;
 }
 
@@ -3028,7 +3034,9 @@ int PKGMGR_PARSER_PLUGIN_UPGRADE(xmlDocPtr docPtr, const char *appid)
 	for (node = node->children; node; node = node->next) {
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"livebox")) {
 			ret = do_install(node, appid);
-			DbgPrint("Returns: %d\n", ret);
+			if (ret < 0) {
+				DbgPrint("Returns: %d\n", ret);
+			}
 		}
 	}
 
@@ -3064,7 +3072,9 @@ int PKGMGR_PARSER_PLUGIN_POST_UNINSTALL(const char *appid)
 	cnt = pkglist_get_via_callback(appid, clear_all_pkg, NULL);
 	commit_transaction();
 
-	DbgPrint("Package %s is deleted: %d\n", appid, cnt);
+	if (cnt > 0) {
+		DbgPrint("Package %s is deleted: %d\n", appid, cnt);
+	}
 	db_fini();
 	return 0;
 }

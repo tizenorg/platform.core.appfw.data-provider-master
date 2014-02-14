@@ -85,30 +85,46 @@ static inline int app_create(void)
 	 * dead_init should be done before other components are initiated.
 	 */
 	ret = setting_init();
-	DbgPrint("Setting initialized: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("Setting initialized: %d\n", ret);
+	}
 
 	ret = client_init();
-	DbgPrint("Client initialized: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("Client initialized: %d\n", ret);
+	}
 
 	ret = dead_init();
-	DbgPrint("Dead callback is registered: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("Dead callback is registered: %d\n", ret);
+	}
 
 	ret = group_init();
-	DbgPrint("group init: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("group init: %d\n", ret);
+	}
 
 	ret = io_init();
-	DbgPrint("Init I/O: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("Init I/O: %d\n", ret);
+	}
 
 	ret = package_init();
-	DbgPrint("pkgmgr initialized: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("pkgmgr initialized: %d\n", ret);
+	}
 
 	instance_init();
 
 	ret = xmonitor_init();
-	DbgPrint("XMonitor init is done: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("XMonitor init is done: %d\n", ret);
+	}
 
 	ret = buffer_handler_init();
-	DbgPrint("Buffer handler init is done: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("Buffer handler init is done: %d\n", ret);
+	}
 
 	/*!
 	 * \note
@@ -116,7 +132,9 @@ static inline int app_create(void)
 	 * Enable the server socket.
 	 */
 	ret = server_init();
-	DbgPrint("Server initialized: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("Server initialized: %d\n", ret);
+	}
 
 	event_init();
 
@@ -151,62 +169,92 @@ static inline int app_terminate(void)
 
 	if (util_service_is_enabled(SERVICE_FILE)) {
 		ret = file_service_fini();
-		DbgPrint("Finalize the file service: %d\n", ret);
+		if (ret < 0) {
+			DbgPrint("Finalize the file service: %d\n", ret);
+		}
 	}
 
 	ret = server_fini();
-	DbgPrint("Finalize server: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("Finalize server: %d\n", ret);
+	}
 
 	ret = dead_fini();
-	DbgPrint("dead signal handler finalized: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("dead signal handler finalized: %d\n", ret);
+	}
 
 	if (util_service_is_enabled(SERVICE_UTILITY)) {
 		ret = utility_service_fini();
-		DbgPrint("utility: %d\n", ret);
+		if (ret < 0) {
+			DbgPrint("utility: %d\n", ret);
+		}
 	}
 
 	if (util_service_is_enabled(SERVICE_BADGE)) {
 		ret = badge_service_fini();
-		DbgPrint("badge: %d\n", ret);
+		if (ret < 0) {
+			DbgPrint("badge: %d\n", ret);
+		}
 	}
 
 	if (util_service_is_enabled(SERVICE_NOTIFICATION)) {
 		ret = notification_service_fini();
-		DbgPrint("noti: %d\n", ret);
+		if (ret < 0) {
+			DbgPrint("noti: %d\n", ret);
+		}
 	}
 
 	if (util_service_is_enabled(SERVICE_SHORTCUT)) {
 		ret = shortcut_service_fini();
-		DbgPrint("shortcut: %d\n", ret);
+		if (ret < 0) {
+			DbgPrint("shortcut: %d\n", ret);
+		}
 	}
 
 	ret = event_fini();
-	DbgPrint("event: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("event: %d\n", ret);
+	}
 
 	ret = setting_fini();
-	DbgPrint("Finalize setting : %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("Finalize setting : %d\n", ret);
+	}
 
 	ret = instance_fini();
-	DbgPrint("Finalizing instances: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("Finalizing instances: %d\n", ret);
+	}
 
 	ret = package_fini();
-	DbgPrint("Finalize package info: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("Finalize package info: %d\n", ret);
+	}
 
 	ret = script_fini();
-	DbgPrint("script: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("script: %d\n", ret);
+	}
 
 	ret = buffer_handler_fini();
-	DbgPrint("buffer handler: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("buffer handler: %d\n", ret);
+	}
 
 	xmonitor_fini();
 
 	client_fini();
 
 	ret = io_fini();
-	DbgPrint("IO finalized: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("IO finalized: %d\n", ret);
+	}
 
 	ret = group_fini();
-	DbgPrint("Group finalized: %d\n", ret);
+	if (ret < 0) {
+		DbgPrint("Group finalized: %d\n", ret);
+	}
 
 	DbgPrint("Terminated\n");
 	return 0;
