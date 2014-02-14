@@ -472,10 +472,6 @@ static inline int db_insert_pkgmap(const char *appid, const char *pkgid, const c
 	static const char *dml;
 	sqlite3_stmt *stmt;
 
-	if (!uiappid) {
-		uiappid = ""; /*!< Could we replace this with Main AppId of this package? */
-	}
-
 	dml = "INSERT INTO pkgmap ( appid, pkgid, uiapp, prime, category ) VALUES (? ,?, ?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
@@ -639,26 +635,6 @@ static int db_insert_provider(struct livebox *livebox)
 		abi = "c";
 	}
 
-	if (!box_src) {
-		box_src = "";
-	}
-
-	if (!box_group) {
-		box_group = "";
-	}
-
-	if (!pd_src) {
-		pd_src = "";
-	}
-
-	if (!pd_group) {
-		pd_group = "";
-	}
-
-	if (!libexec) {
-		libexec = "";
-	}
-
 	if (!timeout) {
 		timeout = "10";
 	}
@@ -684,7 +660,6 @@ static int db_insert_provider(struct livebox *livebox)
 		ret = -EIO;
 		goto out;
 	}
-
 
 	ret = sqlite3_bind_int(stmt, 2, livebox->network);
 	if (ret != SQLITE_OK) {
@@ -864,7 +839,7 @@ static inline int db_insert_client(struct livebox *livebox)
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 6, livebox->content ? (char *)livebox->content : "", -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 6, (char *)livebox->content, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -878,7 +853,7 @@ static inline int db_insert_client(struct livebox *livebox)
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 8, livebox->setup ? (char *)livebox->setup : "", -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 8, (char *)livebox->setup, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -1504,7 +1479,7 @@ static int db_insert_box_size(const char *pkgid, int size_type, const char *prev
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 3, preview ? preview : "", -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 3, preview, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
