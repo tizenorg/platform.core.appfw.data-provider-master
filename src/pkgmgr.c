@@ -450,8 +450,10 @@ static int pkgmgr_cb(int req_id, const char *type, const char *pkgname, const ch
 		}
 
 		ret = handler[i].func(pkgname, val, data);
-		DbgPrint("REQ[%d] pkgname[%s], type[%s], key[%s], val[%s], ret = %d\n",
+		if (ret < 0) {
+			DbgPrint("REQ[%d] pkgname[%s], type[%s], key[%s], val[%s], ret = %d\n",
 						req_id, pkgname, type, key, val, ret);
+		}
 	}
 
 	return LB_STATUS_SUCCESS;
