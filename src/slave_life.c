@@ -672,7 +672,7 @@ HAPI int slave_activated(struct slave_node *slave)
 		slave_pause(slave);
 	}
 
-	if (slave->secured == 1) {
+	if (slave->secured == 1 && SLAVE_TTL > 0.0f) {
 		DbgPrint("Slave deactivation timer is added (%s - %lf)\n", slave_name(slave), SLAVE_TTL);
 		slave->ttl_timer = ecore_timer_add(SLAVE_TTL, slave_ttl_cb, slave);
 		if (!slave->ttl_timer) {
