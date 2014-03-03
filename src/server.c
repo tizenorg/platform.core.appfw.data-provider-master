@@ -292,7 +292,7 @@ static int slave_fault_open_script_cb(struct slave_node *slave, void *data)
 	Ecore_Timer *timer;
 
 	(void)script_handler_unload(instance_pd_script(data), 1);
-	(void)instance_slave_close_pd(data, instance_pd_owner(data));
+	(void)instance_slave_close_pd(data, instance_pd_owner(data), LB_CLOSE_PD_FAULT);
 	(void)instance_client_pd_created(data, LB_STATUS_ERROR_FAULT);
 
 	timer = instance_del_data(data, LAZY_PD_OPEN_TAG);
@@ -309,7 +309,7 @@ static int slave_fault_open_buffer_cb(struct slave_node *slave, void *data)
 {
 	Ecore_Timer *timer;
 
-	(void)instance_slave_close_pd(data, instance_pd_owner(data));
+	(void)instance_slave_close_pd(data, instance_pd_owner(data), LB_CLOSE_PD_FAULT);
 	(void)instance_client_pd_created(data, LB_STATUS_ERROR_FAULT);
 
 	timer = instance_del_data(data, PD_OPEN_MONITOR_TAG);
@@ -362,7 +362,7 @@ static int slave_fault_resize_buffer_cb(struct slave_node *slave, void *data)
 {
 	Ecore_Timer *timer;
 
-	(void)instance_slave_close_pd(data, instance_pd_owner(data));
+	(void)instance_slave_close_pd(data, instance_pd_owner(data), LB_CLOSE_PD_FAULT);
 	(void)instance_client_pd_destroyed(data, LB_STATUS_ERROR_FAULT);
 
 	timer = instance_del_data(data, PD_RESIZE_MONITOR_TAG);
@@ -5020,7 +5020,7 @@ static Eina_Bool pd_open_monitor_cb(void *inst)
 		}
 	}
 
-	(void)instance_slave_close_pd(inst, instance_pd_owner(inst));
+	(void)instance_slave_close_pd(inst, instance_pd_owner(inst), LB_CLOSE_PD_TIMEOUT);
 	(void)instance_client_pd_created(inst, LB_STATUS_ERROR_TIMEOUT);
 	(void)instance_del_data(inst, PD_OPEN_MONITOR_TAG);
 	(void)instance_unref(inst);
@@ -5062,7 +5062,7 @@ static Eina_Bool pd_resize_monitor_cb(void *inst)
 		}
 	}
 
-	(void)instance_slave_close_pd(inst, instance_pd_owner(inst));
+	(void)instance_slave_close_pd(inst, instance_pd_owner(inst), LB_CLOSE_PD_TIMEOUT);
 	(void)instance_client_pd_destroyed(inst, LB_STATUS_ERROR_TIMEOUT);
 	(void)instance_del_data(inst, PD_RESIZE_MONITOR_TAG);
 	(void)instance_unref(inst);
@@ -5145,7 +5145,7 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 			if (ret != LB_STATUS_SUCCESS) {
 				int tmp_ret;
 
-				tmp_ret = instance_slave_close_pd(inst, client);
+				tmp_ret = instance_slave_close_pd(inst, client, LB_CLOSE_PD_FAULT);
 				if (tmp_ret < 0) {
 					ErrPrint("Unable to send script event for openning PD [%s], %d\n", pkgname, tmp_ret);
 				}
@@ -5243,7 +5243,7 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 					ret = script_handler_unload(instance_pd_script(inst), 1);
 					ErrPrint("Unload script: %d\n", ret);
 
-					ret = instance_slave_close_pd(inst, client);
+					ret = instance_slave_close_pd(inst, client, LB_CLOSE_PD_NORMAL);
 					ErrPrint("Close PD %d\n", ret);
 
 					inst = instance_unref(inst);
@@ -5271,7 +5271,7 @@ static struct packet *client_create_pd(pid_t pid, int handle, const struct packe
 				}
 			} else {
 				int tmp_ret;
-				tmp_ret = instance_slave_close_pd(inst, client);
+				tmp_ret = instance_slave_close_pd(inst, client, LB_CLOSE_PD_FAULT);
 				if (tmp_ret < 0) {
 					ErrPrint("Unable to load script: %d, (close: %d)\n", ret, tmp_ret);
 				}
@@ -5373,7 +5373,7 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 				ErrPrint("PD close signal emit failed: %d\n", ret);
 			}
 
-			ret = instance_slave_close_pd(inst, client);
+			ret = instance_slave_close_pd(inst, client, LB_CLOSE_PD_NORMAL);
 			if (ret < 0) {
 				ErrPrint("PD close request failed: %d\n", ret);
 			}
@@ -5412,7 +5412,7 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 				ErrPrint("PD close signal emit failed: %d\n", ret);
 			}
 
-			ret = instance_slave_close_pd(inst, client);
+			ret = instance_slave_close_pd(inst, client, LB_CLOSE_PD_NORMAL);
 			if (ret < 0) {
 				ErrPrint("PD close request failed: %d\n", ret);
 			} else if (resize_aborted) {
@@ -5475,7 +5475,7 @@ static struct packet *client_destroy_pd(pid_t pid, int handle, const struct pack
 		 * Send request to the slave.
 		 * The SLAVE must has to repsonse this via "release_buffer" method.
 		 */
-		ret = instance_slave_close_pd(inst, client);
+		ret = instance_slave_close_pd(inst, client, LB_CLOSE_PD_NORMAL);
 		if (ret < 0) {
 			ErrPrint("Unable to close the PD: %s, %d\n", pkgname, ret);
 		}

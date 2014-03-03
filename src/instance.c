@@ -1371,7 +1371,7 @@ static int pd_buffer_close_cb(struct client_node *client, void *inst)
 {
 	int ret;
 
-	ret = instance_slave_close_pd(inst, client);
+	ret = instance_slave_close_pd(inst, client, LB_CLOSE_PD_NORMAL);
 	if (ret < 0) {
 		DbgPrint("Forcely close the PD ret: %d\n", ret);
 	}
@@ -1391,7 +1391,7 @@ static int pd_script_close_cb(struct client_node *client, void *inst)
 		DbgPrint("Unload script: %d\n", ret);
 	}
 
-	ret = instance_slave_close_pd(inst, client);
+	ret = instance_slave_close_pd(inst, client, LB_CLOSE_PD_NORMAL);
 	if (ret < 0) {
 		DbgPrint("Forcely close the PD ret: %d\n", ret);
 	}
@@ -3046,7 +3046,7 @@ HAPI int instance_slave_open_pd(struct inst_info *inst, struct client_node *clie
 	return ret;
 }
 
-HAPI int instance_slave_close_pd(struct inst_info *inst, struct client_node *client)
+HAPI int instance_slave_close_pd(struct inst_info *inst, struct client_node *client, int reason)
 {
 	const char *pkgname;
 	const char *id;
@@ -3080,7 +3080,7 @@ HAPI int instance_slave_close_pd(struct inst_info *inst, struct client_node *cli
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	packet = packet_create_noack("pd_hide", "ss", pkgname, id);
+	packet = packet_create_noack("pd_hide", "ssi", pkgname, id, reason);
 	if (!packet) {
 		ErrPrint("Failed to create a packet\n");
 		return LB_STATUS_ERROR_FAULT;

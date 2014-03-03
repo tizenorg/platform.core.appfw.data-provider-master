@@ -1863,7 +1863,7 @@ int main(int argc, char *argv[])
 	int c;
 
 	do {
-		c = getopt_long(argc, argv, "b:hv:", long_options, &option_index);
+		c = getopt_long(argc, argv, "b:hv:x:", long_options, &option_index);
 		switch (c) {
 		case 'b':
 			if (!optarg || !*optarg) {

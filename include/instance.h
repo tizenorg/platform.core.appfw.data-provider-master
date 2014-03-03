@@ -209,7 +209,7 @@ extern void instance_slave_set_pd_pos(struct inst_info *inst, double x, double y
 extern void instance_slave_get_pd_pos(struct inst_info *inst, double *x, double *y);
 
 extern int instance_slave_open_pd(struct inst_info *inst, struct client_node *client);
-extern int instance_slave_close_pd(struct inst_info *inst, struct client_node *client);
+extern int instance_slave_close_pd(struct inst_info *inst, struct client_node *client, int reason);
 
 extern int instance_freeze_updator(struct inst_info *inst);
 extern int instance_thaw_updator(struct inst_info *inst);
