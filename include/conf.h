@@ -27,6 +27,7 @@ struct conf {
 		char *abi;
 		char *pd_group;
 		double period;
+		int pixels;
 	} default_conf;
 
 	struct {
@@ -125,6 +126,7 @@ extern void conf_init(void);
 #define DEFAULT_ABI		g_conf.default_conf.abi
 #define DEFAULT_GROUP		g_conf.default_conf.pd_group
 #define DEFAULT_PERIOD		g_conf.default_conf.period
+#define DEFAULT_PIXELS		g_conf.default_conf.pixels
 #define PRIORITY_NO_CHANGE	-1.0f
 
 #define BUNDLE_SLAVE_NAME	g_conf.launch_key.name

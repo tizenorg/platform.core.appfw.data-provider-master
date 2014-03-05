@@ -552,7 +552,7 @@ HAPI struct script_info *script_handler_create(struct inst_info *inst, const cha
 		return NULL;
 	}
 
-	info->buffer_handle = buffer_handler_create(inst, s_info.env_buf_type, w, h, sizeof(int));
+	info->buffer_handle = buffer_handler_create(inst, s_info.env_buf_type, w, h, DEFAULT_PIXELS);
 	if (!info->buffer_handle) {
 		/* buffer_handler_create will prints some log */
 		DbgFree(info);

@@ -74,6 +74,7 @@ static const int CONF_DEFAULT_PREMULTIPLIED = 1;
 static const double CONF_DEFAULT_SCALE_WIDTH_FACTOR = 1.0f;
 static const double CONF_DEFAULT_SCALE_HEIGHT_FACTOR = 1.0f;
 static const double CONF_DEFAULT_PD_REQUEST_TIMEOUT = 5.0f;
+static const int CONF_DEFAULT_PIXELS = sizeof(int);
 
 HAPI struct conf g_conf;
 
@@ -154,6 +155,14 @@ static void minimum_period_handler(char *buffer)
 		ErrPrint("Failed to parse the minimum_period\n");
 	}
 	DbgPrint("Minimum period: %lf\n", g_conf.minimum_period);
+}
+
+static void pixels_handler(char *buffer)
+{
+	if (sscanf(buffer, "%d", &g_conf.default_conf.pixels) != 1) {
+		ErrPrint("Failed to parse the minimum_period\n");
+	}
+	DbgPrint("Default pixels: %lf\n", g_conf.default_conf.pixels);
 }
 
 static void script_handler(char *buffer)
@@ -375,6 +384,7 @@ HAPI void conf_init(void)
 	g_conf.base_height = CONF_DEFAULT_BASE_HEIGHT;
 	g_conf.minimum_period = CONF_DEFAULT_MINIMUM_PERIOD;
 	g_conf.default_conf.period = CONF_DEFAULT_PERIOD;
+	g_conf.default_conf.pixels = CONF_DEFAULT_PIXELS;
 	g_conf.minimum_space = CONF_DEFAULT_MINIMUM_SPACE;
 	g_conf.default_packet_time = CONF_DEFAULT_PACKET_TIME;
 	g_conf.slave_ttl = CONF_DEFAULT_SLAVE_TTL;
@@ -459,6 +469,10 @@ HAPI int conf_loader(void)
 		{
 			.name = "script",
 			.handler = script_handler,
+		},
+		{
+			.name = "pixels",
+			.handler = pixels_handler,
 		},
 		{
 			.name = "default_abi",
@@ -803,6 +817,7 @@ HAPI void conf_reset(void)
 	g_conf.scale_height_factor = CONF_DEFAULT_SCALE_HEIGHT_FACTOR;
 	g_conf.pd_request_timeout = CONF_DEFAULT_PD_REQUEST_TIMEOUT;
 	g_conf.premultiplied = CONF_DEFAULT_PREMULTIPLIED;
+	g_conf.default_conf.pixels = CONF_DEFAULT_PIXELS;
 
 	if (g_conf.default_conf.script != CONF_DEFAULT_SCRIPT_TYPE) {
 		DbgFree(g_conf.default_conf.script);

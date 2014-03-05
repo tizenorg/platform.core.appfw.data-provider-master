@@ -6589,7 +6589,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 
 		info = instance_lb_buffer(inst);
 		if (!info) {
-			if (!instance_create_lb_buffer(inst)) {
+			if (!instance_create_lb_buffer(inst, pixel_size)) {
 				ErrPrint("Failed to create a LB buffer\n");
 				ret = LB_STATUS_ERROR_FAULT;
 				goto out;
@@ -6645,7 +6645,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 
 		info = instance_pd_buffer(inst);
 		if (!info) {
-			if (!instance_create_pd_buffer(inst)) {
+			if (!instance_create_pd_buffer(inst, pixel_size)) {
 				ErrPrint("Failed to create a PD buffer\n");
 				ret = LB_STATUS_ERROR_FAULT;
 				instance_client_pd_created(inst, ret);
