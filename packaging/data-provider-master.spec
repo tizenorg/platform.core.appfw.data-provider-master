@@ -2,7 +2,7 @@
 
 Name: data-provider-master
 Summary: Master service provider for liveboxes
-Version: 0.40.0
+Version: 0.40.1
 Release: 1
 Group: HomeTF/Livebox
 License: Flora
@@ -81,6 +81,7 @@ export LIVEBOX_SHM=private
 %if %{with wayland}
 export WAYLAND_SUPPORT=On
 export X11_SUPPORT=Off
+export LIVEBOX_SHM=wayland
 %else
 export WAYLAND_SUPPORT=Off
 export X11_SUPPORT=On

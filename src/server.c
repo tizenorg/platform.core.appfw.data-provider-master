@@ -5986,7 +5986,7 @@ out:
 static struct packet *slave_faulted(pid_t pid, int handle, const struct packet *packet)
 {
 	struct slave_node *slave;
-	struct inst_info *inst;
+	struct pkg_info *pkg;
 	const char *pkgname;
 	const char *id;
 	const char *func;
@@ -6007,13 +6007,11 @@ static struct packet *slave_faulted(pid_t pid, int handle, const struct packet *
 	ret = fault_info_set(slave, pkgname, id, func);
 	DbgPrint("Slave Faulted: %s (%d)\n", slave_name(slave), ret);
 
-	inst = package_find_instance_by_id(pkgname, id);
-	if (!inst) {
-		DbgPrint("There is a no such instance(%s)\n", id);
-	} else if (instance_state(inst) == INST_DESTROYED) {
-		ErrPrint("Instance(%s) is already destroyed\n", id);
+	pkg = package_find(pkgname);
+	if (!pkg) {
+		ErrPrint("There is no package info found: %s\n", pkgname);
 	} else {
-		ret = instance_destroy(inst, INSTANCE_DESTROY_FAULT);
+		package_faulted(pkg, 0);
 	}
 
 out:
@@ -7427,7 +7425,7 @@ static struct packet *liveinfo_pkg_ctrl(pid_t pid, int handle, const struct pack
 			if (!pkg) {
 				liveinfo_set_data(info, (void *)EFAULT);
 			} else {
-				(void)package_faulted(pkg);
+				(void)package_faulted(pkg, 1);
 				liveinfo_set_data(info, (void *)0);
 			}
 		}
