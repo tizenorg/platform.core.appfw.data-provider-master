@@ -24,7 +24,6 @@
 #include <ctype.h>
 
 #include <Ecore.h>
-#include <Ecore_X.h>
 #include <glib.h>
 #include <glib-object.h>
 #include <aul.h>
@@ -390,7 +389,7 @@ int main(int argc, char *argv[])
 		CRITICAL_LOG("Signal handler initiated: %d\n", ret);
 	}
 
-	if (ecore_x_init(NULL) <= 0) {
+	if (util_screen_init() <= 0) {
 		CRITICAL_LOG("Failed to ecore x init\n");
 		ecore_shutdown();
 		critical_log_fini();
@@ -405,7 +404,7 @@ int main(int argc, char *argv[])
 
 	/*!
  	 * \note
-	 * conf_update_size requires ecore_x_init.
+	 * conf_update_size requires util_screen_init.
 	 */
 	conf_update_size();
 
@@ -421,7 +420,7 @@ int main(int argc, char *argv[])
 
 	app_terminate();
 
-	ecore_x_shutdown();
+	util_screen_fini();
 
 	if (signal_handler) {
 		ecore_main_fd_handler_del(signal_handler);

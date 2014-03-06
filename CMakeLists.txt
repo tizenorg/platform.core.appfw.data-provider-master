@@ -12,17 +12,8 @@ pkg_check_modules(pkg REQUIRED
 	glib-2.0
 	gio-2.0
 	bundle
-	ecore-x
 	ecore
 	com-core
-	x11
-	libdri2
-	libdrm
-	libtbm
-	xfixes
-	dri2proto
-	xext
-	xdamage
 	pkgmgr
 	livebox-service
 	notification
@@ -32,6 +23,26 @@ pkg_check_modules(pkg REQUIRED
 	libsmack
 	shortcut
 )
+
+IF (X11_SUPPORT)
+pkg_check_modules(pkg_extra REQUIRED
+	ecore-x
+	x11
+	libdri2
+	libdrm
+	libtbm
+	xfixes
+	dri2proto
+	xext
+	xdamage
+)
+ENDIF (X11_SUPPORT)
+
+IF (WAYLAND_SUPPORT)
+pkg_check_modules(pkg_extra REQUIRED
+	ecore-wayland
+)
+ENDIF (WAYLAND_SUPPORT)
 
 SET(PACKAGE "${PROJECT_NAME}")
 SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Winline -Werror -fno-builtin-malloc -fno-omit-frame-pointer -g")
@@ -66,12 +77,8 @@ ADD_DEFINITIONS("-DDEFAULT_MASTER_CONF=\"/usr/share/data-provider-master/conf.in
 ADD_DEFINITIONS("-DNDEBUG")
 
 ADD_DEFINITIONS("-D_USE_ECORE_TIME_GET")
-#ADD_DEFINITIONS("-D_APPLY_SCRIPT_ASYNC_UPDATE")
-#ADD_DEFINITIONS("-DFLOG")
-ADD_DEFINITIONS(${pkg_CFLAGS})
-ADD_DEFINITIONS(${pkg_LDFLAGS})
 
-ADD_EXECUTABLE(${PROJECT_NAME}
+SET(BUILD_SOURCE
 	src/main.c
 	src/util.c
 	src/fault_manager.c
@@ -80,9 +87,7 @@ ADD_EXECUTABLE(${PROJECT_NAME}
 	src/dead_monitor.c
 	src/group.c
 	src/script_handler.c
-	src/buffer_handler.c
 	src/io.c
-	src/xmonitor.c
 	src/slave_life.c
 	src/slave_rpc.c
 	src/client_life.c
@@ -104,7 +109,36 @@ ADD_EXECUTABLE(${PROJECT_NAME}
 	src/service_common.c
 )
 
-TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${pkg_LDFLAGS} "-ldl -lrt")
+IF (WAYLAND_SUPPORT)
+	ADD_DEFINITIONS("-DHAVE_WAYLAND")
+	SET(BUILD_SOURCE 
+		${BUILD_SOURCE}
+		src/xmonitor_wayland.c
+		src/buffer_handler_wayland.c
+		src/util_wayland.c
+	)
+ENDIF (WAYLAND_SUPPORT)
+
+IF (X11_SUPPORT)
+	ADD_DEFINITIONS("-DHAVE_X11")
+	SET(BUILD_SOURCE 
+		${BUILD_SOURCE}
+		src/xmonitor.c
+		src/buffer_handler.c
+		src/util_x11.c
+	)
+ENDIF (X11_SUPPORT)
+
+#ADD_DEFINITIONS("-D_APPLY_SCRIPT_ASYNC_UPDATE")
+#ADD_DEFINITIONS("-DFLOG")
+ADD_DEFINITIONS(${pkg_CFLAGS})
+ADD_DEFINITIONS(${pkg_LDFLAGS})
+ADD_DEFINITIONS(${pkg_extra_CFLAGS})
+ADD_DEFINITIONS(${pkg_extra_LDFLAGS})
+
+ADD_EXECUTABLE(${PROJECT_NAME} ${BUILD_SOURCE})
+
+TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${pkg_LDFLAGS} ${pkg_extra_LDFLAGS} "-ldl -lrt")
 INSTALL(FILES ${CMAKE_SOURCE_DIR}/data/abi.ini DESTINATION /usr/share/data-provider-master PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
 
 INSTALL(FILES ${CMAKE_SOURCE_DIR}/data/${PRODUCT}.conf.ini DESTINATION /usr/share/data-provider-master RENAME "conf.ini" PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
@@ -118,6 +152,10 @@ ADD_SUBDIRECTORY(res)
 ADD_SUBDIRECTORY(data)
 ADD_SUBDIRECTORY(pkgmgr_livebox)
 
-if ("${ENGINEER_BINARY}" STREQUAL "true")
-ADD_SUBDIRECTORY(util_liveinfo)
-endif ("${ENGINEER_BINARY}" STREQUAL "true")
+IF (X11_SUPPORT)
+	IF ("${ENGINEER_BINARY}" STREQUAL "true")
+		ADD_SUBDIRECTORY(util_liveinfo)
+	ENDIF ("${ENGINEER_BINARY}" STREQUAL "true")
+ENDIF (X11_SUPPORT)
+
+# End of a file
