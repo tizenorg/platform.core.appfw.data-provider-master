@@ -1572,7 +1572,7 @@ HAPI int package_is_enabled(const char *appid)
 	return enabled == true;
 }
 
-HAPI int package_faulted(struct pkg_info *pkg)
+HAPI int package_faulted(struct pkg_info *pkg, int broadcast)
 {
 	Eina_List *l;
 	Eina_List *n;
@@ -1587,7 +1587,9 @@ HAPI int package_faulted(struct pkg_info *pkg)
 
 	/* Emulated fault routine */
 	// (void)package_set_fault_info(pkg, util_timestamp(), slave_name(slave), __func__);
-	fault_broadcast_info(package_name(pkg), slave_name(slave), __func__);
+	if (broadcast) {
+		fault_broadcast_info(package_name(pkg), slave_name(slave), __func__);
+	}
 
 	DbgPrint("package: %s (forucely faulted %s)\n", package_name(pkg), slave_name(slave));
 	EINA_LIST_FOREACH_SAFE(pkg->inst_list, l, n, inst) {

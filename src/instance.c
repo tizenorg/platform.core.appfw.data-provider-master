@@ -1208,7 +1208,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 					script_handler_load(inst->lb.canvas.script, 0);
 				}
 			} else if (package_lb_type(inst->info) == LB_TYPE_BUFFER) {
-				instance_create_lb_buffer(inst);
+				instance_create_lb_buffer(inst, DEFAULT_PIXELS);
 			}
 
 			if (package_pd_type(inst->info) == PD_TYPE_SCRIPT) {
@@ -1225,7 +1225,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 					ErrPrint("Failed to create PD\n");
 				}
 			} else if (package_pd_type(inst->info) == PD_TYPE_BUFFER) {
-				instance_create_pd_buffer(inst);
+				instance_create_pd_buffer(inst, DEFAULT_PIXELS);
 			}
 
 			instance_broadcast_created_event(inst);
@@ -1246,14 +1246,14 @@ out:
 	instance_unref(inst);
 }
 
-HAPI int instance_create_pd_buffer(struct inst_info *inst)
+HAPI int instance_create_pd_buffer(struct inst_info *inst, int pixels)
 {
 	if (inst->pd.width == 0 && inst->pd.height == 0) {
 		instance_set_pd_size(inst, package_pd_width(inst->info), package_pd_height(inst->info));
 	}
 
 	if (!inst->pd.canvas.buffer) {
-		inst->pd.canvas.buffer = buffer_handler_create(inst, s_info.env_buf_type, inst->pd.width, inst->pd.height, sizeof(int));
+		inst->pd.canvas.buffer = buffer_handler_create(inst, s_info.env_buf_type, inst->pd.width, inst->pd.height, pixels);
 		if (!inst->pd.canvas.buffer) {
 			ErrPrint("Failed to create PD Buffer\n");
 		}
@@ -1262,7 +1262,7 @@ HAPI int instance_create_pd_buffer(struct inst_info *inst)
 	return !!inst->pd.canvas.buffer;
 }
 
-HAPI int instance_create_lb_buffer(struct inst_info *inst)
+HAPI int instance_create_lb_buffer(struct inst_info *inst, int pixels)
 {
 	if (inst->lb.width == 0 && inst->lb.height == 0) {
 		livebox_service_get_size(LB_SIZE_TYPE_1x1, &inst->lb.width, &inst->lb.height);
@@ -1274,7 +1274,7 @@ HAPI int instance_create_lb_buffer(struct inst_info *inst)
 		 * Slave doesn't call the acquire_buffer.
 		 * In this case, create the buffer from here.
 		 */
-		inst->lb.canvas.buffer = buffer_handler_create(inst, s_info.env_buf_type, inst->lb.width, inst->lb.height, sizeof(int));
+		inst->lb.canvas.buffer = buffer_handler_create(inst, s_info.env_buf_type, inst->lb.width, inst->lb.height, pixels);
 		if (!inst->lb.canvas.buffer) {
 			ErrPrint("Failed to create LB\n");
 		}

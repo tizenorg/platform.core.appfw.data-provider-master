@@ -662,7 +662,7 @@ static inline int load_pixmap_buffer(struct buffer_info *info)
 
 	gem = (struct gem_data *)buffer->data;
 
-	snprintf(info->id, len, SCHEMA_PIXMAP "%d", (int)gem->pixmap);
+	snprintf(info->id, len, SCHEMA_PIXMAP "%d:%d", (int)gem->pixmap, info->pixel_size);
 	DbgPrint("Loaded pixmap(info->id): %s\n", info->id);
 	return LB_STATUS_SUCCESS;
 }
@@ -768,14 +768,15 @@ static inline int unload_pixmap_buffer(struct buffer_info *info)
 {
 	int id;
 	char *new_id;
+	int pixels;
 
-	new_id = strdup(SCHEMA_PIXMAP "0");
+	new_id = strdup(SCHEMA_PIXMAP "0:0");
 	if (!new_id) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		return LB_STATUS_ERROR_MEMORY;
 	}
 
-	if (sscanf(info->id, SCHEMA_PIXMAP "%d", &id) != 1) {
+	if (sscanf(info->id, SCHEMA_PIXMAP "%d:%d", &id, &pixels) != 2) {
 		ErrPrint("Invalid ID (%s)\n", info->id);
 		DbgFree(new_id);
 		return LB_STATUS_ERROR_INVALID;
@@ -1541,7 +1542,7 @@ static inline struct buffer *raw_open_pixmap(unsigned int pixmap)
 {
 	struct buffer *buffer;
 
-	buffer = calloc(1, sizeof(*buffer) + sizeof(int));
+	buffer = calloc(1, sizeof(*buffer) + DEFAULT_PIXELS);
 	if (!buffer) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		return NULL;
@@ -1708,6 +1709,11 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buff
 
 	switch (type) {
 	case BUFFER_TYPE_SHM:
+		if (pixel_size != DEFAULT_PIXELS) {
+			DbgPrint("SHM only supportes %d bytes pixels (requested: %d)\n", DEFAULT_PIXELS, pixel_size);
+			pixel_size = DEFAULT_PIXELS;
+		}
+
 		info->id = strdup(SCHEMA_SHM "-1");
 		if (!info->id) {
 			ErrPrint("Heap: %s\n", strerror(errno));
@@ -1716,6 +1722,11 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buff
 		}
 		break;
 	case BUFFER_TYPE_FILE:
+		if (pixel_size != DEFAULT_PIXELS) {
+			DbgPrint("FILE only supportes %d bytes pixels (requested: %d)\n", DEFAULT_PIXELS, pixel_size);
+			pixel_size = DEFAULT_PIXELS;
+		}
+
 		info->id = strdup(SCHEMA_FILE "/tmp/.live.undefined");
 		if (!info->id) {
 			ErrPrint("Heap: %s\n", strerror(errno));
@@ -1724,7 +1735,7 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buff
 		}
 		break;
 	case BUFFER_TYPE_PIXMAP:
-		info->id = strdup(SCHEMA_PIXMAP "0");
+		info->id = strdup(SCHEMA_PIXMAP "0:0");
 		if (!info->id) {
 			ErrPrint("Heap: %s\n", strerror(errno));
 			DbgFree(info);

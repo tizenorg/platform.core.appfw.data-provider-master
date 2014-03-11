@@ -34,6 +34,10 @@ extern void util_prepare_emergency_disk(void);
 extern int util_emergency_disk_is_mounted(void);
 extern int util_service_is_enabled(const char *tag);
 
+extern int util_screen_size_get(int *width, int *height);
+extern int util_screen_init(void);
+extern int util_screen_fini(void);
+
 #define SCHEMA_FILE	"file://"
 #define SCHEMA_PIXMAP	"pixmap://"
 #define SCHEMA_SHM	"shm://"

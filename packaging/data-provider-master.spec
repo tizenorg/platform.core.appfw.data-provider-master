@@ -1,6 +1,8 @@
+%bcond_with wayland
+
 Name: data-provider-master
 Summary: Master service provider for liveboxes
-Version: 0.34.5
+Version: 0.40.1
 Release: 1
 Group: HomeTF/Livebox
 License: Flora
@@ -17,10 +19,11 @@ BuildRequires: pkgconfig(glib-2.0)
 BuildRequires: pkgconfig(gio-2.0)
 BuildRequires: pkgconfig(libsmack)
 BuildRequires: pkgconfig(bundle)
+
+%if %{with wayland}
+BuildRequires: pkgconfig(ecore-wayland)
+%else
 BuildRequires: pkgconfig(ecore-x)
-BuildRequires: pkgconfig(ecore)
-BuildRequires: pkgconfig(com-core)
-BuildRequires: pkgconfig(libxml-2.0)
 BuildRequires: pkgconfig(x11)
 BuildRequires: pkgconfig(libdri2)
 BuildRequires: pkgconfig(libdrm)
@@ -29,6 +32,11 @@ BuildRequires: pkgconfig(xfixes)
 BuildRequires: pkgconfig(dri2proto)
 BuildRequires: pkgconfig(xext)
 BuildRequires: pkgconfig(xdamage)
+%endif
+
+BuildRequires: pkgconfig(ecore)
+BuildRequires: pkgconfig(com-core)
+BuildRequires: pkgconfig(libxml-2.0)
 BuildRequires: pkgconfig(pkgmgr)
 BuildRequires: pkgconfig(livebox-service)
 BuildRequires: pkgconfig(notification)
@@ -70,7 +78,16 @@ export LIVEBOX_SHM=baltic
 export LIVEBOX_SHM=private
 %endif
 
-%cmake . -DPRODUCT=${LIVEBOX_SHM} -DENGINEER_BINARY=${ENGINEER}
+%if %{with wayland}
+export WAYLAND_SUPPORT=On
+export X11_SUPPORT=Off
+export LIVEBOX_SHM=wayland
+%else
+export WAYLAND_SUPPORT=Off
+export X11_SUPPORT=On
+%endif
+
+%cmake . -DPRODUCT=${LIVEBOX_SHM} -DENGINEER_BINARY=${ENGINEER} -DWAYLAND_SUPPORT=${WAYLAND_SUPPORT} -DX11_SUPPORT=${X11_SUPPORT}
 
 CFLAGS="${CFLAGS} -Wall -Winline -Werror" LDFLAGS="${LDFLAGS}" make %{?jobs:-j%jobs}
 
