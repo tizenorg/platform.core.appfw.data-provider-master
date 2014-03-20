@@ -90,6 +90,8 @@ struct slave_node {
 	Ecore_Timer *terminate_timer; /*!< Waiting this timer before terminate the service provider */
 	int relaunch_count;
 
+	int ctrl_option;
+
 #if defined(_USE_ECORE_TIME_GET)
 	double activated_at;
 #else
@@ -440,13 +442,20 @@ static inline void invoke_slave_fault_handler(struct slave_node *slave)
 	slave_set_reactivate_instances(slave, 0);
 
 	if (slave_pid(slave) > 0) {
-		int ret;
-		DbgPrint("Try to terminate PID: %d\n", slave_pid(slave));
-		ret = aul_terminate_pid(slave_pid(slave));
-		if (ret < 0) {
-			ErrPrint("Terminate failed, pid %d (reason: %d)\n", slave_pid(slave), ret);
+		if ((slave->ctrl_option & PROVIDER_CTRL_MANUAL_TERMINATION) == PROVIDER_CTRL_MANUAL_TERMINATION) {
+			DbgPrint("Manual termination is turned on\n");
+			(void)slave_rpc_disconnect(slave);
+		} else {
+			int ret;
+			DbgPrint("Try to terminate PID: %d\n", slave_pid(slave));
+			ret = aul_terminate_pid(slave_pid(slave));
+			if (ret < 0) {
+				ErrPrint("Terminate failed, pid %d (reason: %d)\n", slave_pid(slave), ret);
+			}
 		}
 	}
+
+	slave->state = SLAVE_TERMINATED;
 }
 
 static Eina_Bool relaunch_timer_cb(void *data)
@@ -548,7 +557,7 @@ HAPI int slave_activate(struct slave_node *slave)
 			DbgPrint("Clear terminate timer. to reuse (%d)\n", slave->pid);
 			ecore_timer_del(slave->terminate_timer);
 			slave->terminate_timer = NULL;
-		} else if (slave_state(slave) == SLAVE_REQUEST_TO_TERMINATE) {
+		} else if (slave_state(slave) == SLAVE_REQUEST_TO_TERMINATE || slave_state(slave) == SLAVE_REQUEST_TO_DISCONNECT) {
 			slave_set_reactivation(slave, 1);
 		}
 		return LB_STATUS_ERROR_ALREADY;
@@ -783,46 +792,58 @@ HAPI struct slave_node *slave_deactivate(struct slave_node *slave, int direct)
 		return slave;
 	}
 
-	if (slave_pid(slave) > 0) {
-		if (slave->terminate_timer) {
-			ErrPrint("Terminate timer is already fired (%d)\n", slave->pid);
-		} else if (!direct) {
-			DbgPrint("Fire the terminate timer: %d\n", slave->pid);
-			slave->terminate_timer = ecore_timer_add(SLAVE_ACTIVATE_TIME, terminate_timer_cb, slave);
-			if (!slave->terminate_timer) {
-				/*!
-				 * \note
-				 * Normally, Call the terminate_timer_cb directly from here
-				 * But in this case. if the aul_terminate_pid failed, Call the slave_deactivated function directly.
-				 * Then the "slave" pointer can be changed. To trace it, Copy the body of terminate_timer_cb to here.
-				 */
-				ErrPrint("Failed to add a new timer for terminating\n");
-				DbgPrint("Terminate slave: %d (%s)\n", slave_pid(slave), slave_name(slave));
-				/*!
-				 * \todo
-				 * check the return value of the aul_terminate_pid
-				 */
-				slave->state = SLAVE_REQUEST_TO_TERMINATE;
+	if (slave_pid(slave) <= 0) {
+		return slave;
+	}
 
-				ret = aul_terminate_pid(slave->pid);
-				if (ret < 0) {
-					ErrPrint("Terminate slave(%s) failed. pid %d (%d)\n", slave_name(slave), slave_pid(slave), ret);
-					slave = slave_deactivated(slave);
-				}
-			}
-		} else {
+	if ((slave->ctrl_option & PROVIDER_CTRL_MANUAL_TERMINATION) == PROVIDER_CTRL_MANUAL_TERMINATION) {
+		/*!
+		 * \note
+		 * In this case,
+		 * The provider requests MANUAL TERMINATION control option.
+		 * Master will not send terminate request in this case, the provider should be terminated by itself.
+		 */
+		DbgPrint("Manual termination is turned on\n");
+		slave->state = SLAVE_REQUEST_TO_DISCONNECT;
+		(void)slave_rpc_disconnect(slave);
+	} else if (slave->terminate_timer) {
+		ErrPrint("Terminate timer is already fired (%d)\n", slave->pid);
+	} else if (!direct) {
+		DbgPrint("Fire the terminate timer: %d\n", slave->pid);
+		slave->terminate_timer = ecore_timer_add(SLAVE_ACTIVATE_TIME, terminate_timer_cb, slave);
+		if (!slave->terminate_timer) {
+			/*!
+			 * \note
+			 * Normally, Call the terminate_timer_cb directly from here
+			 * But in this case. if the aul_terminate_pid failed, Call the slave_deactivated function directly.
+			 * Then the "slave" pointer can be changed. To trace it, Copy the body of terminate_timer_cb to here.
+			 */
+			ErrPrint("Failed to add a new timer for terminating\n");
+			DbgPrint("Terminate slave: %d (%s)\n", slave_pid(slave), slave_name(slave));
 			/*!
 			 * \todo
 			 * check the return value of the aul_terminate_pid
 			 */
 			slave->state = SLAVE_REQUEST_TO_TERMINATE;
 
-			DbgPrint("Terminate slave: %d (%s)\n", slave_pid(slave), slave_name(slave));
 			ret = aul_terminate_pid(slave->pid);
 			if (ret < 0) {
 				ErrPrint("Terminate slave(%s) failed. pid %d (%d)\n", slave_name(slave), slave_pid(slave), ret);
 				slave = slave_deactivated(slave);
 			}
+		}
+	} else {
+		/*!
+		 * \todo
+		 * check the return value of the aul_terminate_pid
+		 */
+		slave->state = SLAVE_REQUEST_TO_TERMINATE;
+
+		DbgPrint("Terminate slave: %d (%s)\n", slave_pid(slave), slave_name(slave));
+		ret = aul_terminate_pid(slave->pid);
+		if (ret < 0) {
+			ErrPrint("Terminate slave(%s) failed. pid %d (%d)\n", slave_name(slave), slave_pid(slave), ret);
+			slave = slave_deactivated(slave);
 		}
 	}
 
@@ -864,7 +885,14 @@ HAPI struct slave_node *slave_deactivated(struct slave_node *slave)
 		return slave;
 	}
 
-	if (reactivate && slave_need_to_reactivate(slave)) {
+	if ((slave->ctrl_option & PROVIDER_CTRL_MANUAL_REACTIVATION) == PROVIDER_CTRL_MANUAL_REACTIVATION) {
+		/*!
+		 * \note
+		 * In this case, the provider(Slave) should be reactivated by itself or user.
+		 * The master will not reactivate it automatically.
+		 */
+		DbgPrint("Manual reactivate option is turned on\n");
+	} else if (reactivate && slave_need_to_reactivate(slave)) {
 		int ret;
 
 		DbgPrint("Need to reactivate a slave\n");
@@ -972,6 +1000,10 @@ HAPI const int const slave_is_activated(struct slave_node *slave)
 	case SLAVE_REQUEST_TO_TERMINATE:
 	case SLAVE_TERMINATED:
 		return 0;
+	case SLAVE_REQUEST_TO_DISCONNECT:
+		/* This case should be treated as an activated state.
+		 * To send the last request to the provider.
+		 */
 	case SLAVE_REQUEST_TO_LAUNCH:
 		 /* Not yet launched. but the slave incurred an unexpected error */
 	case SLAVE_REQUEST_TO_PAUSE:
@@ -1233,7 +1265,7 @@ HAPI struct slave_node *slave_find_available(const char *abi, int secured, int n
 			continue;
 		}
 
-		if (slave->state == SLAVE_REQUEST_TO_TERMINATE && slave->loaded_instance == 0) {
+		if ((slave->state == SLAVE_REQUEST_TO_TERMINATE || slave->state == SLAVE_REQUEST_TO_DISCONNECT) && slave->loaded_instance == 0) {
 			/*!
 			 * \note
 			 * If a slave is in request_to_terminate state,
@@ -1408,7 +1440,7 @@ static void resume_cb(struct slave_node *slave, const struct packet *packet, voi
 {
 	int ret;
 
-	if (slave->state == SLAVE_REQUEST_TO_TERMINATE) {
+	if (slave->state == SLAVE_REQUEST_TO_TERMINATE || slave->state == SLAVE_REQUEST_TO_DISCONNECT) {
 		DbgPrint("Slave is terminating now. ignore resume result\n");
 		return;
 	}
@@ -1451,7 +1483,7 @@ static void pause_cb(struct slave_node *slave, const struct packet *packet, void
 {
 	int ret;
 
-	if (slave->state == SLAVE_REQUEST_TO_TERMINATE) {
+	if (slave->state == SLAVE_REQUEST_TO_TERMINATE || slave->state == SLAVE_REQUEST_TO_DISCONNECT) {
 		DbgPrint("Slave is terminating now. ignore pause result\n");
 		return;
 	}
@@ -1480,6 +1512,7 @@ HAPI int slave_resume(struct slave_node *slave)
 	struct packet *packet;
 
 	switch (slave->state) {
+	case SLAVE_REQUEST_TO_DISCONNECT:
 	case SLAVE_REQUEST_TO_LAUNCH:
 	case SLAVE_REQUEST_TO_TERMINATE:
 	case SLAVE_TERMINATED:
@@ -1509,6 +1542,7 @@ HAPI int slave_pause(struct slave_node *slave)
 	struct packet *packet;
 
 	switch (slave->state) {
+	case SLAVE_REQUEST_TO_DISCONNECT:
 	case SLAVE_REQUEST_TO_LAUNCH:
 	case SLAVE_REQUEST_TO_TERMINATE:
 	case SLAVE_TERMINATED:
@@ -1545,6 +1579,8 @@ HAPI enum slave_state slave_state(const struct slave_node *slave)
 HAPI const char *slave_state_string(const struct slave_node *slave)
 {
 	switch (slave->state) {
+	case SLAVE_REQUEST_TO_DISCONNECT:
+		return "RequestToDisconnect";
 	case SLAVE_REQUEST_TO_LAUNCH:
 		return "RequestToLaunch";
 	case SLAVE_REQUEST_TO_TERMINATE:
@@ -1662,6 +1698,16 @@ HAPI int slave_activate_all(void)
 	}
 
 	return cnt;
+}
+
+HAPI void slave_set_control_option(struct slave_node *slave, int ctrl)
+{
+	slave->ctrl_option = ctrl;
+}
+
+HAPI int slave_control_option(struct slave_node *slave)
+{
+	return slave->ctrl_option;
 }
 
 /* End of a file */
