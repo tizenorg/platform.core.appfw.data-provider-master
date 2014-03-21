@@ -409,7 +409,9 @@ HAPI int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, 
 
 	if (rpc->handle < 0) {
 		DbgPrint("RPC handle is not ready to use it\n");
-		if (slave_is_secured(slave) && !slave_is_activated(slave)) {
+		if (((slave_control_option(slave) & PROVIDER_CTRL_MANUAL_REACTIVATION) == PROVIDER_CTRL_MANUAL_REACTIVATION || slave_is_secured(slave))
+			 && !slave_is_activated(slave))
+		{
 			int ret;
 			DbgPrint("Activate slave forcely\n");
 			ret = slave_activate(slave);
@@ -467,8 +469,9 @@ HAPI int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, s
 
 	if (rpc->handle < 0) {
 		DbgPrint("RPC handle is not ready to use it\n");
-
-		if (slave_is_secured(slave) && !slave_is_activated(slave)) {
+		if (((slave_control_option(slave) & PROVIDER_CTRL_MANUAL_REACTIVATION) == PROVIDER_CTRL_MANUAL_REACTIVATION || slave_is_secured(slave))
+			 && !slave_is_activated(slave))
+		 {
 			int ret;
 
 			DbgPrint("Activate slave forcely\n");
@@ -676,10 +679,24 @@ HAPI int slave_rpc_handle(struct slave_node *slave)
 	rpc = slave_data(slave, "rpc");
 	if (!rpc) {
 		DbgPrint("Slave RPC is not initiated\n");
-		return -EINVAL;
+		return LB_STATUS_ERROR_INVALID;
 	}
 
 	return rpc->handle;
+}
+
+HAPI int slave_rpc_disconnect(struct slave_node *slave)
+{
+	struct packet *packet;
+
+	packet = packet_create_noack("disconnect", "d", util_timestamp());
+	if (!packet) {
+		ErrPrint("Failed to create a packet\n");
+		return LB_STATUS_ERROR_FAULT;
+	}
+
+	DbgPrint("Send disconnection request packet\n");
+	return slave_rpc_request_only(slave, NULL, packet, 0);
 }
 
 /* End of a file */

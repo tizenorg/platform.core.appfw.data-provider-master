@@ -2,7 +2,7 @@
 
 Name: data-provider-master
 Summary: Master service provider for liveboxes
-Version: 0.40.1
+Version: 0.41.0
 Release: 1
 Group: HomeTF/Livebox
 License: Flora

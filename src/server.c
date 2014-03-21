@@ -5960,6 +5960,29 @@ out:
 	return NULL;
 }
 
+static struct packet *slave_ctrl(pid_t pid, int handle, const struct packet *packet)
+{
+	struct slave_node *slave;
+	int ctrl;
+	int ret;
+
+	slave = slave_find_by_pid(pid);
+	if (!slave) {
+		ErrPrint("Slave %d is not exists\n", pid);
+		goto out;
+	}
+
+	ret = packet_get(packet, "i", &ctrl);
+	if (ret != 1) {
+		ErrPrint("Parameter is not matched\n");
+	} else {
+		slave_set_control_option(slave, ctrl);
+	}
+
+out:
+	return NULL;
+}
+
 static struct packet *slave_ping(pid_t pid, int handle, const struct packet *packet) /* slave_name, ret */
 {
 	struct slave_node *slave;
@@ -7932,6 +7955,10 @@ static struct method s_slave_table[] = {
 	{
 		.cmd = "ping",
 		.handler = slave_ping, /* slave_name, ret */
+	},
+	{
+		.cmd = "ctrl",
+		.handler = slave_ctrl, /* control bits */
 	},
 
 	{

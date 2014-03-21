@@ -59,12 +59,25 @@ enum slave_state {
 
 	/*!
 	 * \note
+	 * Request an action for disconnecting to master from the provider side.
+	 * This flag should be treated as an activated state.
+	 */
+	SLAVE_REQUEST_TO_DISCONNECT,
+
+	/*!
+	 * \note
 	 * SLAVE_ACTIVATED = { SLAVE_PAUSED, SLAVE_RESUMED }
 	 */
 	SLAVE_PAUSED,
 	SLAVE_RESUMED,
 
 	SLAVE_ERROR = 0xFF /* Explicitly define the size of this enum type */
+};
+
+enum PROVIDER_CTRL {
+	PROVIDER_CTRL_DEFAULT = 0x00,			/*!< Set default control operation */
+	PROVIDER_CTRL_MANUAL_TERMINATION = 0x01,	/*!< Terminate process manually */
+	PROVIDER_CTRL_MANUAL_REACTIVATION = 0x02,	/*!< Reactivate process manually */
 };
 
 extern struct slave_node *slave_ref(struct slave_node *slave);
@@ -195,5 +208,8 @@ extern void slave_set_network(struct slave_node *slave, int network);
 
 extern int slave_deactivate_all(int reactivate, int reactivate_instances);
 extern int slave_activate_all(void);
+
+extern void slave_set_control_option(struct slave_node *slave, int ctrl);
+extern int slave_control_option(struct slave_node *slave);
 
 /* End of a file */

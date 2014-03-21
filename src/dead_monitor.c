@@ -42,10 +42,15 @@ static int evt_cb(int handle, void *data)
 	slave = slave_find_by_rpc_handle(handle);
 	if (slave) {
 		if (slave_pid(slave) != (pid_t)-1) {
-			if (slave_state(slave) == SLAVE_REQUEST_TO_TERMINATE) {
+			switch (slave_state(slave)) {
+			case SLAVE_REQUEST_TO_DISCONNECT:
+				DbgPrint("Disconnected from %d\n", slave_pid(slave));
+			case SLAVE_REQUEST_TO_TERMINATE:
 				slave = slave_deactivated(slave);
-			} else if (slave_state(slave) != SLAVE_TERMINATED) {
+				break;
+			default:
 				slave = slave_deactivated_by_fault(slave);
+				break;
 			}
 		}
 
