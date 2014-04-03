@@ -260,4 +260,5 @@ extern int instance_set_data(struct inst_info *inst, const char *tag, void *data
 extern void *instance_del_data(struct inst_info *inst, const char *tag);
 extern void *instance_get_data(struct inst_info *inst, const char *tag);
 
+extern void instance_reload_period(struct inst_info *inst, double period);
 /* End of a file */

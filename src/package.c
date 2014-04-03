@@ -1292,8 +1292,11 @@ static inline void reload_package_info(struct pkg_info *info)
 	unsigned int size_type;
 	int width;
 	int height;
+	double old_period;
 
 	DbgPrint("Already exists, try to update it\n");
+
+	old_period = info->lb.period;
 
 	group_del_livebox(info->lbid);
 	package_clear_fault(info);
@@ -1313,6 +1316,9 @@ static inline void reload_package_info(struct pkg_info *info)
 		height = instance_lb_height(inst);
 		size_type = livebox_service_size_type(width, height);
 		if (info->lb.size_list & size_type) {
+			if (instance_period(inst) == old_period) {
+				instance_reload_period(inst, package_period(info));
+			}
 			instance_reload(inst, INSTANCE_DESTROY_UPGRADE);
 		} else {
 			instance_destroy(inst, INSTANCE_DESTROY_UNINSTALL);
