@@ -369,7 +369,7 @@ static inline int enable_xmonitor(void)
 	s_info.destroy_handler =
 		ecore_event_handler_add(ECORE_X_EVENT_WINDOW_DESTROY,
 							destroy_cb, NULL);
-	if (!s_info.create_handler) {
+	if (!s_info.destroy_handler) {
 		ErrPrint("Failed to add destroy event handler\n");
 		ecore_event_handler_del(s_info.create_handler);
 		s_info.create_handler = NULL;

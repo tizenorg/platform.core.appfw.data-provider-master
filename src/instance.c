@@ -2393,6 +2393,11 @@ static Eina_Bool timer_updator_cb(void *data)
 	return ECORE_CALLBACK_CANCEL;
 }
 
+HAPI void instance_reload_period(struct inst_info *inst, double period)
+{
+	inst->lb.period = period;
+}
+
 HAPI int instance_set_period(struct inst_info *inst, double period)
 {
 	struct packet *packet;
