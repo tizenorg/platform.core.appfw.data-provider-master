@@ -2060,6 +2060,446 @@ out:
 	return NULL;
 }
 
+static struct packet *client_lb_mouse_on_scroll(pid_t pid, int handle, const struct packet *packet)
+{
+	struct client_node *client;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	double timestamp;
+	int x;
+	int y;
+	struct inst_info *inst;
+	const struct pkg_info *pkg;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
+	if (ret != 5) {
+		ErrPrint("Parameter is not matched\n");
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	if (ret != LB_STATUS_SUCCESS) {
+		goto out;
+	}
+
+	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
+		ret = forward_lb_event_packet(pkg, inst, packet);
+	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
+		struct script_info *script;
+
+		script = instance_lb_script(inst);
+		if (!script) {
+			ret = LB_STATUS_ERROR_FAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, x, y, -1);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_ON_SCROLL, timestamp);
+		ret = 0;
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = LB_STATUS_ERROR_INVALID;
+	}
+
+out:
+	/*! \note No reply packet */
+	return NULL;
+}
+
+static struct packet *client_lb_mouse_off_scroll(pid_t pid, int handle, const struct packet *packet)
+{
+	struct client_node *client;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	double timestamp;
+	int x;
+	int y;
+	struct inst_info *inst;
+	const struct pkg_info *pkg;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
+	if (ret != 5) {
+		ErrPrint("Parameter is not matched\n");
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	if (ret != LB_STATUS_SUCCESS) {
+		goto out;
+	}
+
+	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
+		ret = forward_lb_event_packet(pkg, inst, packet);
+	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
+		struct script_info *script;
+
+		script = instance_lb_script(inst);
+		if (!script) {
+			ret = LB_STATUS_ERROR_FAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, x, y, -1);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_OFF_SCROLL, timestamp);
+		ret = 0;
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = LB_STATUS_ERROR_INVALID;
+	}
+
+out:
+	/*! \note No reply packet */
+	return NULL;
+}
+
+static struct packet *client_lb_mouse_on_hold(pid_t pid, int handle, const struct packet *packet)
+{
+	struct client_node *client;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	double timestamp;
+	int x;
+	int y;
+	struct inst_info *inst;
+	const struct pkg_info *pkg;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
+	if (ret != 5) {
+		ErrPrint("Parameter is not matched\n");
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	if (ret != LB_STATUS_SUCCESS) {
+		goto out;
+	}
+
+	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
+		ret = forward_lb_event_packet(pkg, inst, packet);
+	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
+		struct script_info *script;
+
+		script = instance_lb_script(inst);
+		if (!script) {
+			ret = LB_STATUS_ERROR_FAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, x, y, -1);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_ON_HOLD, timestamp);
+		ret = 0;
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = LB_STATUS_ERROR_INVALID;
+	}
+
+out:
+	/*! \note No reply packet */
+	return NULL;
+}
+
+static struct packet *client_lb_mouse_off_hold(pid_t pid, int handle, const struct packet *packet)
+{
+	struct client_node *client;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	double timestamp;
+	int x;
+	int y;
+	struct inst_info *inst;
+	const struct pkg_info *pkg;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
+	if (ret != 5) {
+		ErrPrint("Parameter is not matched\n");
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	if (ret != LB_STATUS_SUCCESS) {
+		goto out;
+	}
+
+	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
+		ret = forward_lb_event_packet(pkg, inst, packet);
+	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
+		struct script_info *script;
+
+		script = instance_lb_script(inst);
+		if (!script) {
+			ret = LB_STATUS_ERROR_FAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, x, y, -1);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_OFF_HOLD, timestamp);
+		ret = 0;
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = LB_STATUS_ERROR_INVALID;
+	}
+
+out:
+	/*! \note No reply packet */
+	return NULL;
+}
+
+static struct packet *client_pd_mouse_on_scroll(pid_t pid, int handle, const struct packet *packet)
+{
+	struct client_node *client;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	double timestamp;
+	int x;
+	int y;
+	struct inst_info *inst;
+	const struct pkg_info *pkg;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
+	if (ret != 5) {
+		ErrPrint("Parameter is not matched\n");
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	if (ret != LB_STATUS_SUCCESS) {
+		goto out;
+	}
+
+	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
+		ret = forward_pd_event_packet(pkg, inst, packet);
+	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
+		struct script_info *script;
+
+		script = instance_pd_script(inst);
+		if (!script) {
+			ret = LB_STATUS_ERROR_FAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, x, y, -1);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_ON_SCROLL, timestamp);
+		ret = 0;
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = LB_STATUS_ERROR_INVALID;
+	}
+
+out:
+	/*! \note No reply packet */
+	return NULL;
+}
+
+static struct packet *client_pd_mouse_off_scroll(pid_t pid, int handle, const struct packet *packet)
+{
+	struct client_node *client;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	double timestamp;
+	int x;
+	int y;
+	struct inst_info *inst;
+	const struct pkg_info *pkg;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
+	if (ret != 5) {
+		ErrPrint("Parameter is not matched\n");
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	if (ret != LB_STATUS_SUCCESS) {
+		goto out;
+	}
+
+	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
+		ret = forward_pd_event_packet(pkg, inst, packet);
+	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
+		struct script_info *script;
+
+		script = instance_pd_script(inst);
+		if (!script) {
+			ret = LB_STATUS_ERROR_FAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, x, y, -1);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_OFF_SCROLL, timestamp);
+		ret = 0;
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = LB_STATUS_ERROR_INVALID;
+	}
+
+out:
+	/*! \note No reply packet */
+	return NULL;
+}
+
+static struct packet *client_pd_mouse_on_hold(pid_t pid, int handle, const struct packet *packet)
+{
+	struct client_node *client;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	double timestamp;
+	int x;
+	int y;
+	struct inst_info *inst;
+	const struct pkg_info *pkg;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
+	if (ret != 5) {
+		ErrPrint("Parameter is not matched\n");
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	if (ret != LB_STATUS_SUCCESS) {
+		goto out;
+	}
+
+	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
+		ret = forward_pd_event_packet(pkg, inst, packet);
+	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
+		struct script_info *script;
+
+		script = instance_pd_script(inst);
+		if (!script) {
+			ret = LB_STATUS_ERROR_FAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, x, y, -1);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_ON_HOLD, timestamp);
+		ret = 0;
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = LB_STATUS_ERROR_INVALID;
+	}
+
+out:
+	/*! \note No reply packet */
+	return NULL;
+}
+
+static struct packet *client_pd_mouse_off_hold(pid_t pid, int handle, const struct packet *packet)
+{
+	struct client_node *client;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	double timestamp;
+	int x;
+	int y;
+	struct inst_info *inst;
+	const struct pkg_info *pkg;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
+	if (ret != 5) {
+		ErrPrint("Parameter is not matched\n");
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	if (ret != LB_STATUS_SUCCESS) {
+		goto out;
+	}
+
+	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
+		ret = forward_pd_event_packet(pkg, inst, packet);
+	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
+		struct script_info *script;
+
+		script = instance_pd_script(inst);
+		if (!script) {
+			ret = LB_STATUS_ERROR_FAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, x, y, -1);
+		script_handler_feed_event(script, LB_SCRIPT_MOUSE_OFF_HOLD, timestamp);
+		ret = 0;
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = LB_STATUS_ERROR_INVALID;
+	}
+
+out:
+	/*! \note No reply packet */
+	return NULL;
+}
+
 static struct packet *client_pd_mouse_unset(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
@@ -7607,6 +8047,38 @@ static struct method s_client_table[] = {
 	{
 		.cmd = "pd_mouse_unset",
 		.handler = client_pd_mouse_unset,
+	},
+	{
+		.cmd = "lb_mouse_on_scroll",
+		.handler = client_lb_mouse_on_scroll,
+	},
+	{
+		.cmd = "lb_mouse_off_scroll",
+		.handler = client_lb_mouse_off_scroll,
+	},
+	{
+		.cmd = "pd_mouse_on_scroll",
+		.handler = client_pd_mouse_on_scroll,
+	},
+	{
+		.cmd = "pd_mouse_off_scroll",
+		.handler = client_pd_mouse_off_scroll,
+	},
+	{
+		.cmd = "lb_mouse_on_hold",
+		.handler = client_lb_mouse_on_hold,
+	},
+	{
+		.cmd = "lb_mouse_off_hold",
+		.handler = client_lb_mouse_off_hold,
+	},
+	{
+		.cmd = "pd_mouse_on_hold",
+		.handler = client_pd_mouse_on_hold,
+	},
+	{
+		.cmd = "pd_mouse_off_hold",
+		.handler = client_pd_mouse_off_hold,
 	},
 	{
 		.cmd = "change,visibility",
