@@ -13,6 +13,7 @@ pkg_check_modules(pkg REQUIRED
 	gio-2.0
 	bundle
 	ecore
+	eina
 	com-core
 	pkgmgr
 	livebox-service
