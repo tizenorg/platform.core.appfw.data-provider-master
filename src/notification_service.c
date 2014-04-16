@@ -38,7 +38,6 @@
 #ifndef NOTIFICATION_DEL_PACKET_UNIT
 #define NOTIFICATION_DEL_PACKET_UNIT 10
 #endif
-#define ENABLE_NS_ACCESS_CONTROL 1
 
 static struct info {
 	Eina_List *context_list;
@@ -61,18 +60,7 @@ struct noti_service {
 	void (*handler_access_error)(struct tcb *tcb, struct packet *packet);
 };
 
-/*!
- * FUNCTIONS to handle notifcation
- */
-static inline int get_priv_id(int num_deleted, int *list_deleted, int index) {
-	if (index < num_deleted) {
-		return *(list_deleted + index);
-	} else {
-		return -1;
-	}
-}
-
-static inline char *get_string(char *string)
+static inline char *_string_get(char *string)
 {
 	if (string == NULL) {
 		return NULL;
@@ -84,56 +72,33 @@ static inline char *get_string(char *string)
 	return string;
 }
 
-static inline struct packet *create_packet_from_deleted_list(int op_num, int *list, int start_index) {
+/*!
+ * FUNCTIONS to create packets
+ */
+static inline int _priv_id_get_from_list(int num_data, int *list, int index) {
+	if (index < num_data) {
+		return *(list + index);
+	} else {
+		return -1;
+	}
+}
+
+static inline struct packet *_packet_create_with_list(int op_num, int *list, int start_index) {
 	return packet_create(
 		"del_noti_multiple",
 		"iiiiiiiiiii",
 		((op_num - start_index) > NOTIFICATION_DEL_PACKET_UNIT) ? NOTIFICATION_DEL_PACKET_UNIT : op_num - start_index,
-		get_priv_id(op_num, list, start_index),
-		get_priv_id(op_num, list, start_index + 1),
-		get_priv_id(op_num, list, start_index + 2),
-		get_priv_id(op_num, list, start_index + 3),
-		get_priv_id(op_num, list, start_index + 4),
-		get_priv_id(op_num, list, start_index + 5),
-		get_priv_id(op_num, list, start_index + 6),
-		get_priv_id(op_num, list, start_index + 7),
-		get_priv_id(op_num, list, start_index + 8),
-		get_priv_id(op_num, list, start_index + 9)
+		_priv_id_get_from_list(op_num, list, start_index),
+		_priv_id_get_from_list(op_num, list, start_index + 1),
+		_priv_id_get_from_list(op_num, list, start_index + 2),
+		_priv_id_get_from_list(op_num, list, start_index + 3),
+		_priv_id_get_from_list(op_num, list, start_index + 4),
+		_priv_id_get_from_list(op_num, list, start_index + 5),
+		_priv_id_get_from_list(op_num, list, start_index + 6),
+		_priv_id_get_from_list(op_num, list, start_index + 7),
+		_priv_id_get_from_list(op_num, list, start_index + 8),
+		_priv_id_get_from_list(op_num, list, start_index + 9)
 		);
-}
-
-static void _notification_data_init(void)
-{
-	int property = 0;
-	int priv_id = 0;
-	char *noti_pkgname = NULL;
-	notification_h noti = NULL;
-	notification_list_h noti_list = NULL;
-	notification_list_h noti_list_head = NULL;
-	notification_type_e noti_type = NOTIFICATION_TYPE_NONE;
-
-	notification_get_list(NOTIFICATION_TYPE_NONE, -1, &noti_list);
-	noti_list_head = noti_list;
-
-	while (noti_list != NULL) {
-		noti = notification_list_get_data(noti_list);
-		if (noti) {
-			notification_get_id(noti, NULL, &priv_id);
-			notification_get_pkgname(noti, &noti_pkgname);
-			notification_get_property(noti, &property);
-			notification_get_type(noti, &noti_type);
-
-			if (noti_type == NOTIFICATION_TYPE_ONGOING
-					|| property & NOTIFICATION_PROP_VOLATILE_DISPLAY) {
-				notification_noti_delete_by_priv_id(noti_pkgname, priv_id);
-			}
-		}
-		noti_list = notification_list_get_next(noti_list);
-	}
-
-	if (noti_list_head != NULL) {
-		notification_free_list(noti_list_head);
-	}
 }
 
 /*!
@@ -260,7 +225,7 @@ static void _handler_delete_single(struct tcb *tcb, struct packet *packet, void 
 	char *pkgname = NULL;
 
 	if (packet_get(packet, "si", &pkgname, &priv_id) == 2) {
-		pkgname = get_string(pkgname);
+		pkgname = _string_get(pkgname);
 
 		ret = notification_noti_delete_by_priv_id_get_changes(pkgname, priv_id, &num_changes);
 
@@ -303,7 +268,7 @@ static void _handler_delete_multiple(struct tcb *tcb, struct packet *packet, voi
 	int *list_deleted = NULL;
 
 	if (packet_get(packet, "si", &pkgname, &type) == 2) {
-		pkgname = get_string(pkgname);
+		pkgname = _string_get(pkgname);
 		DbgPrint("pkgname: [%s] type: [%d]\n", pkgname, type);
 
 		ret = notification_noti_delete_all(type, pkgname, &num_deleted, &list_deleted);
@@ -329,7 +294,7 @@ static void _handler_delete_multiple(struct tcb *tcb, struct packet *packet, voi
 
 		if (num_deleted > 0) {
 			if (num_deleted <= NOTIFICATION_DEL_PACKET_UNIT) {
-				packet_service = create_packet_from_deleted_list(num_deleted, list_deleted, 0);
+				packet_service = _packet_create_with_list(num_deleted, list_deleted, 0);
 
 				if (packet_service) {
 					if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0) {
@@ -344,7 +309,7 @@ static void _handler_delete_multiple(struct tcb *tcb, struct packet *packet, voi
 				int set_total = num_deleted / NOTIFICATION_DEL_PACKET_UNIT;
 
 				for (set = 0; set <= set_total; set++) {
-					packet_service = create_packet_from_deleted_list(num_deleted,
+					packet_service = _packet_create_with_list(num_deleted,
 							list_deleted, set * NOTIFICATION_DEL_PACKET_UNIT);
 
 					if (packet_service) {
@@ -368,7 +333,7 @@ static void _handler_delete_multiple(struct tcb *tcb, struct packet *packet, voi
 	}
 }
 
-static void _handler_set_noti_property(struct tcb *tcb, struct packet *packet, void *data)
+static void _handler_noti_property_set(struct tcb *tcb, struct packet *packet, void *data)
 {
 	int ret = 0, ret_p = 0;
 	struct packet *packet_reply = NULL;
@@ -377,9 +342,9 @@ static void _handler_set_noti_property(struct tcb *tcb, struct packet *packet, v
 	char *value = NULL;
 
 	if (packet_get(packet, "sss", &pkgname, &property, &value) == 3) {
-		pkgname = get_string(pkgname);
-		property = get_string(property);
-		value = get_string(value);
+		pkgname = _string_get(pkgname);
+		property = _string_get(property);
+		value = _string_get(value);
 
 		ret = notification_setting_db_set(pkgname, property, value);
 
@@ -401,7 +366,7 @@ static void _handler_set_noti_property(struct tcb *tcb, struct packet *packet, v
 	}
 }
 
-static void _handler_get_noti_property(struct tcb *tcb, struct packet *packet, void *data)
+static void _handler_noti_property_get(struct tcb *tcb, struct packet *packet, void *data)
 {
 	int ret = 0, ret_p = 0;
 	struct packet *packet_reply = NULL;
@@ -410,8 +375,8 @@ static void _handler_get_noti_property(struct tcb *tcb, struct packet *packet, v
 	char *value = NULL;
 
 	if (packet_get(packet, "sss", &pkgname, &property) == 2) {
-		pkgname = get_string(pkgname);
-		property = get_string(property);
+		pkgname = _string_get(pkgname);
+		property = _string_get(property);
 
 		ret = notification_setting_db_get(pkgname, property, &value);
 
@@ -428,16 +393,6 @@ static void _handler_get_noti_property(struct tcb *tcb, struct packet *packet, v
 		if (value != NULL) {
 			DbgFree(value);
 		}
-	}
-}
-
-static void _notification_init(void) {
-	int ret = -1;
-	int restart_count = 0;
-
-	ret = vconf_get_int(VCONFKEY_MASTER_RESTART_COUNT, &restart_count);
-	if (ret == 0 && restart_count <= 1) {
-		_notification_data_init();
 	}
 }
 
@@ -459,7 +414,10 @@ static void _handler_service_register(struct tcb *tcb, struct packet *packet, vo
 	}
 }
 
-static void _handler_access_control_error_common(struct tcb *tcb, struct packet *packet)
+/*!
+ * SERVICE PERMISSION CHECK
+ */
+static void _permission_check_common(struct tcb *tcb, struct packet *packet)
 {
 	int ret_p = 0;
 	struct packet *packet_reply = NULL;
@@ -475,7 +433,7 @@ static void _handler_access_control_error_common(struct tcb *tcb, struct packet 
 	}
 }
 
-static void _handler_access_control_error_refresh(struct tcb *tcb, struct packet *packet)
+static void _permission_check_refresh(struct tcb *tcb, struct packet *packet)
 {
 	int ret_p = 0;
 	struct packet *packet_reply = NULL;
@@ -491,7 +449,7 @@ static void _handler_access_control_error_refresh(struct tcb *tcb, struct packet
 	}
 }
 
-static void _handler_access_control_error_get_property(struct tcb *tcb, struct packet *packet)
+static void _permission_check_property_get(struct tcb *tcb, struct packet *packet)
 {
 	int ret_p = 0;
 	struct packet *packet_reply = NULL;
@@ -507,7 +465,7 @@ static void _handler_access_control_error_get_property(struct tcb *tcb, struct p
 	}
 }
 
-static int _is_valid_permission(int fd, struct noti_service *service)
+static int _persmission_check(int fd, struct noti_service *service)
 {
 	int ret;
 
@@ -523,6 +481,53 @@ static int _is_valid_permission(int fd, struct noti_service *service)
 }
 
 /*!
+ * NOTIFICATION SERVICE INITIALIZATION
+ */
+static void _notification_data_init(void)
+{
+	int property = 0;
+	int priv_id = 0;
+	char *noti_pkgname = NULL;
+	notification_h noti = NULL;
+	notification_list_h noti_list = NULL;
+	notification_list_h noti_list_head = NULL;
+	notification_type_e noti_type = NOTIFICATION_TYPE_NONE;
+
+	notification_get_list(NOTIFICATION_TYPE_NONE, -1, &noti_list);
+	noti_list_head = noti_list;
+
+	while (noti_list != NULL) {
+		noti = notification_list_get_data(noti_list);
+		if (noti) {
+			notification_get_id(noti, NULL, &priv_id);
+			notification_get_pkgname(noti, &noti_pkgname);
+			notification_get_property(noti, &property);
+			notification_get_type(noti, &noti_type);
+
+			if (noti_type == NOTIFICATION_TYPE_ONGOING
+					|| property & NOTIFICATION_PROP_VOLATILE_DISPLAY) {
+				notification_noti_delete_by_priv_id(noti_pkgname, priv_id);
+			}
+		}
+		noti_list = notification_list_get_next(noti_list);
+	}
+
+	if (noti_list_head != NULL) {
+		notification_free_list(noti_list_head);
+	}
+}
+
+static void _notification_init(void) {
+	int ret = -1;
+	int restart_count = 0;
+
+	ret = vconf_get_int(VCONFKEY_MASTER_RESTART_COUNT, &restart_count);
+	if (ret == 0 && restart_count <= 1) {
+		_notification_data_init();
+	}
+}
+
+/*!
  * SERVICE THREAD
  */
 static int service_thread_main(struct tcb *tcb, struct packet *packet, void *data)
@@ -535,49 +540,49 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 			.handler = _handler_insert,
 			.rule = "data-provider-master::notification.client",
 			.access = "w",
-			.handler_access_error = _handler_access_control_error_common,
+			.handler_access_error = _permission_check_common,
 		},
 		{
 			.cmd = "update_noti",
 			.handler = _handler_update,
 			.rule = "data-provider-master::notification.client",
 			.access = "w",
-			.handler_access_error = _handler_access_control_error_common,
+			.handler_access_error = _permission_check_common,
 		},
 		{
 			.cmd = "refresh_noti",
 			.handler = _handler_refresh,
 			.rule = "data-provider-master::notification.client",
 			.access = "w",
-			.handler_access_error = _handler_access_control_error_refresh,
+			.handler_access_error = _permission_check_refresh,
 		},
 		{
 			.cmd = "del_noti_single",
 			.handler = _handler_delete_single,
 			.rule = "data-provider-master::notification.client",
 			.access = "w",
-			.handler_access_error = _handler_access_control_error_common,
+			.handler_access_error = _permission_check_common,
 		},
 		{
 			.cmd = "del_noti_multiple",
 			.handler = _handler_delete_multiple,
 			.rule = "data-provider-master::notification.client",
 			.access = "w",
-			.handler_access_error = _handler_access_control_error_common,
+			.handler_access_error = _permission_check_common,
 		},
 		{
 			.cmd = "set_noti_property",
-			.handler = _handler_set_noti_property,
+			.handler = _handler_noti_property_set,
 			.rule = "data-provider-master::notification.client",
 			.access = "w",
-			.handler_access_error = _handler_access_control_error_common,
+			.handler_access_error = _permission_check_common,
 		},
 		{
 			.cmd = "get_noti_property",
-			.handler = _handler_get_noti_property,
+			.handler = _handler_noti_property_get,
 			.rule = "data-provider-master::notification.client",
 			.access = "r",
-			.handler_access_error = _handler_access_control_error_get_property,
+			.handler_access_error = _permission_check_property_get,
 		},
 		{
 			.cmd = "service_register",
@@ -616,18 +621,13 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 				continue;
 			}
 
-#if ENABLE_NS_ACCESS_CONTROL
-			if (_is_valid_permission(tcb_fd(tcb), &(service_req_table[i])) == 1) {
+			if (_persmission_check(tcb_fd(tcb), &(service_req_table[i])) == 1) {
 				service_req_table[i].handler(tcb, packet, data);
 			} else {
 				if (service_req_table[i].handler_access_error != NULL) {
 					service_req_table[i].handler_access_error(tcb, packet);
 				}
 			}
-#else
-			_is_valid_permission(tcb_fd(tcb), &(service_req_table[i]));
-			service_req_table[i].handler(tcb, packet, data);
-#endif
 			break;
 		}
 
