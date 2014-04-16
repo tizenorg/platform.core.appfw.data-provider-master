@@ -240,7 +240,7 @@ static void _handler_delete_single(struct tcb *tcb, struct packet *packet, void 
 			ErrPrint("failed to create a reply packet\n");
 		}
 
-		if (ret != NOTIFICATION_ERROR_NONE && num_changes <= 0) {
+		if (ret != NOTIFICATION_ERROR_NONE || num_changes <= 0) {
 			ErrPrint("failed to delete a notification:%d %d\n", ret, num_changes);
 			return ;
 		}
