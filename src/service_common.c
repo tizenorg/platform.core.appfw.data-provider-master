@@ -105,6 +105,7 @@ struct tcb { /* Thread controll block */
 	int fd; /*!< Connection handle */
 	enum tcb_type type;
 	int ctrl_pipe[PIPE_MAX];
+	pid_t pid; /*!< Keep the PID of client, if the client is remote one, this will be -1 */
 };
 
 /*!
@@ -122,7 +123,6 @@ static void *client_packet_pump_main(void *data)
 	int size = 0;
 	int packet_offset = 0;
 	int recv_offset = 0;
-	int pid;
 	long ret;
 	int fd;
 	char evt_ch = EVT_CH;
@@ -181,7 +181,7 @@ static void *client_packet_pump_main(void *data)
 			ptr = NULL;
 			break;
 		}
-		
+
 		/*!
 		 * \TODO
 		 * Service!!! Receive packet & route packet
@@ -201,7 +201,7 @@ static void *client_packet_pump_main(void *data)
 			recv_state = RECV_HEADER;
 			/* Go through, don't break from here */
 		case RECV_HEADER:
-			ret = secure_socket_recv(tcb->fd, ptr, size - recv_offset, &pid);
+			ret = secure_socket_recv(tcb->fd, ptr, size - recv_offset, &tcb->pid);
 			if (ret <= 0) {
 				if (ret == 0) {
 					ret = -ECANCELED;
@@ -243,7 +243,7 @@ static void *client_packet_pump_main(void *data)
 			}
 			break;
 		case RECV_PAYLOAD:
-			ret = secure_socket_recv(tcb->fd, ptr, size - recv_offset, &pid);
+			ret = secure_socket_recv(tcb->fd, ptr, size - recv_offset, &tcb->pid);
 			if (ret <= 0) {
 				if (ret == 0) {
 					ret = -ECANCELED;
@@ -436,6 +436,7 @@ static inline struct tcb *tcb_create(struct service_context *svc_ctx, int fd)
 	tcb->fd = fd;
 	tcb->svc_ctx = svc_ctx;
 	tcb->type = TCB_CLIENT_TYPE_APP;
+	tcb->pid = -1;
 
 	DbgPrint("Create a new service thread [%d]\n", fd);
 	status = pthread_create(&tcb->thid, NULL, client_packet_pump_main, tcb);
@@ -694,7 +695,7 @@ static void *server_main(void *data)
 				ErrPrint("Failed to create a new TCB: %d (%d)\n", client_fd, svc_ctx->fd);
 				secure_socket_destroy_handle(client_fd);
 			}
-		} 
+		}
 
 		if (FD_ISSET(svc_ctx->evt_pipe[PIPE_READ], &set)) {
 			if (read(svc_ctx->evt_pipe[PIPE_READ], &evt_ch, sizeof(evt_ch)) != sizeof(evt_ch)) {
@@ -784,7 +785,7 @@ static void *server_main(void *data)
 			 * how can I protect this TCB from deletion without disturbing the server thread?
 			 */
 			tcb_destroy(svc_ctx, tcb);
-		} 
+		}
 
 		/* If there is no such triggered FD? */
 	}
@@ -976,6 +977,19 @@ HAPI int tcb_is_valid(struct service_context *svc_ctx, struct tcb *tcb)
 	CRITICAL_SECTION_END(&svc_ctx->tcb_list_lock);
 
 	return ret;
+}
+
+/*!
+ * \note
+ * SERVER THREAD
+ */
+HAPI int tcb_pid(struct tcb *tcb)
+{
+	if (!tcb) {
+		return -1;
+	}
+
+	return tcb->pid;
 }
 
 /*!

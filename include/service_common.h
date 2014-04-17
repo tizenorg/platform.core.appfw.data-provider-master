@@ -29,6 +29,17 @@ struct service_context;
 struct service_event_item;
 
 extern int tcb_fd(struct tcb *tcb);
+
+/*!
+ * \remarks This function will return valid pid only after it gets the packet from a client.
+ *          or it will returns -1.
+ * \param[in] Thread Control Block
+ * \return pid Process Id
+ * \retval -1 TCB is not valid or the client is remote host. so we cannot get the PID of it.
+ * \retval >0 Process Id (PID)
+ */
+extern int tcb_pid(struct tcb *tcb);
+
 extern struct service_context *tcb_svc_ctx(struct tcb *tcb);
 extern int tcb_client_type(struct tcb *tcb);
 extern int tcb_client_type_set(struct tcb *tcb, enum tcb_type type);
