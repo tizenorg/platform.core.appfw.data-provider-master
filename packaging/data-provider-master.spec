@@ -2,7 +2,7 @@
 
 Name: data-provider-master
 Summary: Master service provider for liveboxes
-Version: 0.42.0
+Version: 0.42.1
 Release: 1
 Group: HomeTF/Livebox
 License: Flora
@@ -46,7 +46,6 @@ BuildRequires: pkgconfig(badge)
 BuildRequires: pkgconfig(badge-service)
 BuildRequires: pkgconfig(shortcut)
 BuildRequires: pkgconfig(security-server)
-BuildRequires: sec-product-features
 Requires(post): sys-assert
 Requires(post): dbus
 
@@ -73,12 +72,6 @@ export FFLAGS="${FFLAGS} -DTIZEN_ENGINEER_MODE"
 export ENGINEER=true
 %endif
 
-%if 0%{?sec_product_feature_livebox_shm}
-export LIVEBOX_SHM=baltic
-%else
-export LIVEBOX_SHM=private
-%endif
-
 %if %{with wayland}
 export WAYLAND_SUPPORT=On
 export X11_SUPPORT=Off
@@ -86,6 +79,7 @@ export LIVEBOX_SHM=wayland
 %else
 export WAYLAND_SUPPORT=Off
 export X11_SUPPORT=On
+export LIVEBOX_SHM=private
 %endif
 
 %cmake . -DPRODUCT=${LIVEBOX_SHM} -DENGINEER_BINARY=${ENGINEER} -DWAYLAND_SUPPORT=${WAYLAND_SUPPORT} -DX11_SUPPORT=${X11_SUPPORT}
@@ -102,7 +96,6 @@ mkdir -p %{buildroot}/opt/usr/share/live_magazine/reader
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/always
 mkdir -p %{buildroot}/opt/usr/devel/usr/bin
 mkdir -p %{buildroot}/opt/dbspace
-#mkdir -p %{buildroot}/%{_sysconfdir}/rc.d/rc3.d
 mkdir -p %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants
 touch %{buildroot}/opt/dbspace/.livebox.db
 touch %{buildroot}/opt/dbspace/.livebox.db-journal
