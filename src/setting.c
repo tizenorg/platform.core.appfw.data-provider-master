@@ -143,80 +143,6 @@ static void lang_changed_cb(keynode_t *node, void *user_data)
 	DbgFree(lang);
 }
 
-static void ail_info_cb(keynode_t *node, void *user_data)
-{
-	Eina_List *inst_list;
-	Eina_List *pkg_list;
-	struct inst_info *inst;
-	Eina_List *l;
-	Eina_List *n;
-	Eina_List *j;
-	struct pkg_info *info;
-	char *event;
-	char *appid;
-	char *pkgname;
-	int len;
-	int enabled;
-
-	event = vconf_get_str(VCONFKEY_AIL_INFO_STATE);
-	if (!event) {
-		return;
-	}
-
-	len = strlen("update:");
-	if (!strncasecmp(event, "update:", len)) {
-		goto out;
-	}
-
-	appid = event + len;
-	DbgPrint("AppId: [%s]\n", appid);
-
-	enabled = package_is_enabled(appid);
-
-	DbgPrint("AppId: %s, %d\n", appid, enabled);
-	if (enabled != 0) {
-		/*
-		 * \note
-		 * reload?
-		 */
-		goto out;
-	}
-
-	len = strlen(appid);
-
-	pkg_list = (Eina_List *)package_list();
-	EINA_LIST_FOREACH(pkg_list, l, info) {
-		inst_list = NULL;
-		pkgname = livebox_service_mainappid(package_name(info));
-		if (!pkgname) {
-			/*!
-			 * Even if we failed to get package name,
-			 * Try to use the ordinal package name first.
-			 */
-			pkgname = strdup(package_name(info));
-			DbgPrint("Try to use the pkgname: %s\n", pkgname);
-			if (!pkgname) {
-				continue;
-			}
-		}
-
-		if (strcmp(appid, pkgname)) {
-			DbgFree(pkgname);
-			continue;
-		}
-		DbgPrint("Package disabled: %s (%s)\n", pkgname, appid);
-		DbgFree(pkgname);
-
-		inst_list = package_instance_list(info);
-		EINA_LIST_FOREACH_SAFE(inst_list, j, n, inst) {
-			instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
-		}
-	}
-
-out:
-	DbgFree(event);
-}
-
 static void low_mem_cb(keynode_t *node, void *user_data)
 {
 	int val;
@@ -265,11 +191,6 @@ HAPI int setting_init(void)
 		ErrPrint("Failed to add vconf for region change: %d\n", ret);
 	}
 
-	ret = vconf_notify_key_changed(VCONFKEY_AIL_INFO_STATE, ail_info_cb, NULL);
-	if (ret < 0) {
-		ErrPrint("Failed to add vconf for ail info state: %d\n", ret);
-	}
-
 	ret = vconf_notify_key_changed(VCONFKEY_SYSMAN_LOW_MEMORY, low_mem_cb, NULL);
 	if (ret < 0) {
 		ErrPrint("Failed to add vconf for low mem monitor: %d\n", ret);
@@ -305,11 +226,6 @@ HAPI int setting_fini(void)
 	}
 
 	ret = vconf_ignore_key_changed(VCONFKEY_SYSMAN_POWER_OFF_STATUS, power_off_cb);
-	if (ret < 0) {
-		ErrPrint("Failed to ignore vconf key (%d)\n", ret);
-	}
-
-	ret = vconf_ignore_key_changed(VCONFKEY_AIL_INFO_STATE, ail_info_cb);
 	if (ret < 0) {
 		ErrPrint("Failed to ignore vconf key (%d)\n", ret);
 	}
