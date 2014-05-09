@@ -38,7 +38,7 @@
 #define ErrPrintWithConsole(format, arg...)	do { fprintf(stderr, "[%s/%s:%d] " format, basename(__FILE__), __func__, __LINE__, ##arg); SECURE_LOGE("[[32m%s/%s[0m:%d] " format, basename(__FILE__), __func__, __LINE__, ##arg); } while (0)
 #endif
 
-#define CUR_VER 2
+#define CUR_VER 3
 #define DEFAULT_CATEGORY	"http://tizen.org/category/default"
 
 /*!
@@ -78,12 +78,12 @@
  *
  *
  * client
- * +-------+------+---------+-------------+---------+---------+-----------+-------+-------------+
- * | pkgid | Icon |  Name   | auto_launch | pd_size | content | nodisplay | setup | mouse_event |
- * +-------+------+---------+-------------+---------+---------+-----------+-------+-------------+
- * |   -   |   -  |    -    |      -      |    -    |    -    |     -     |   -   |      -      }
- * +-------+------+---------+-------------+---------+---------+-----------+-------+-------------+
- * CREATE TABLE client ( pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch TEXT, pd_size TEXT, content TEXT, nodisplay INTEGER, setup TEXT, mouse_event, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
+ * +-------+------+---------+-------------+---------+---------+-----------+-------+
+ * | pkgid | Icon |  Name   | auto_launch | pd_size | content | nodisplay | setup |
+ * +-------+------+---------+-------------+---------+---------+-----------+-------+
+ * |   -   |   -  |    -    |      -      |    -    |    -    |     -     |   -   |
+ * +-------+------+---------+-------------+---------+---------+-----------+-------+
+ * CREATE TABLE client ( pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch TEXT, pd_size TEXT, content TEXT, nodisplay INTEGER, setup TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
  *
  * = auto_launch = UI-APPID
  * = pd_size = WIDTHxHEIGHT
@@ -99,12 +99,12 @@
  *
  *
  * box_size
- * +-------+-----------+---------+--------------+------------+
- * | pkgid | size_type | preview | touch_effect | need_frame |
- * +-------+-----------+---------+--------------+------------+
- * |   -   |     -     |    -    |       -      |     -      |
- * +-------+-----------+---------+--------------+------------+
- * CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, preview TEXT, INTEGER, touch_effect INTEGER, need_frame INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
+ * +-------+-----------+---------+--------------+------------+-------------------------+
+ * | pkgid | size_type | preview | touch_effect | need_frame | mouse_event(from ver 3) |
+ * +-------+-----------+---------+--------------+------------+-------------------------+
+ * |   -   |     -     |    -    |       -      |     -      |            -            |
+ * +-------+-----------+---------+--------------+------------+-------------------------+
+ * CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, preview TEXT, INTEGER, touch_effect INTEGER, need_frame INTEGER, mouse_event INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
  *
  * = box_size_list = { WIDTHxHEIGHT; WIDTHxHEIGHT; ... }
  *
@@ -183,8 +183,8 @@ struct livebox {
 	int pinup; /* Is this support the pinup feature? */
 	int primary; /* Is this primary livebox? */
 	int nodisplay;
-	int mouse_event; /* Mouse event processing option for livebox */
 
+	int default_mouse_event; /* Mouse event processing option for livebox */
 	int default_touch_effect;
 	int default_need_frame;
 
@@ -196,6 +196,7 @@ struct livebox {
 	xmlChar *preview[NR_OF_SIZE_LIST];
 	int touch_effect[NR_OF_SIZE_LIST]; /* Touch effect of a livebox */
 	int need_frame[NR_OF_SIZE_LIST]; /* Box needs frame which should be cared by viewer */
+	int mouse_event[NR_OF_SIZE_LIST];
 
 	enum pd_type pd_type;
 	xmlChar *pd_src;
@@ -419,6 +420,117 @@ static void upgrade_pkgmap_for_category(void)
 	return;
 }
 
+/*!
+ * \note
+ * From version 2 to 3
+ * mouse_event is deleted from client table
+ * mouse_event is added to box_size table
+ *
+ * Every size has their own configuration for mouse_event flag.
+ */
+static void upgrade_to_version_3(void)
+{
+	char *err;
+	static const char *ddl;
+	static const char *dml;
+	sqlite3_stmt *select_stmt;
+	int ret;
+
+	/*
+	 * Step 1
+	 * Create a new column for mouse_event to box_size table.
+	 */
+	ddl = "ALTER TABLE box_size ADD COLUMN mouse_event INTEGER DEFAULT 0";
+	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
+		ErrPrint("Failed to execute the DDL (%s)\n", err);
+		return;
+	}
+
+	if (sqlite3_changes(s_info.handle) == 0) {
+		ErrPrint("No changes to DB\n");
+	}
+
+	/*
+	 * Step 2
+	 * Copy mouse_event values from the client to the box_size table.
+	 */
+	dml = "SELECT pkgid, mouse_event FROM client";
+	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &select_stmt, NULL);
+	if (ret == SQLITE_OK) {
+		sqlite3_stmt *update_stmt;
+
+		dml = "UPDATE box_size SET mouse_event = ? WHERE pkgid = ?";
+		ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &update_stmt, NULL);
+		if (ret == SQLITE_OK) {
+			int mouse_event;
+			const char *pkgid;
+
+			while (sqlite3_step(select_stmt) == SQLITE_ROW) {
+				pkgid = (const char *)sqlite3_column_text(select_stmt, 0);
+				if (!pkgid) {
+					ErrPrint("Package Id is not valid\n");
+					continue;
+				}
+
+				mouse_event = sqlite3_column_int(select_stmt, 1);
+
+				ret = sqlite3_bind_int(update_stmt, 1, mouse_event);
+				if (ret != SQLITE_OK) {
+					ErrPrint("Failed to bind mouse_event [%s], [%d]\n", pkgid, mouse_event);
+					sqlite3_reset(update_stmt);
+					sqlite3_clear_bindings(update_stmt);
+					continue;
+				}
+
+				ret = sqlite3_bind_text(update_stmt, 2, pkgid, -1, SQLITE_TRANSIENT);
+				if (ret != SQLITE_OK) {
+					ErrPrint("Failed to bind pkgid [%s], [%d]\n", pkgid, mouse_event);
+					sqlite3_reset(update_stmt);
+					sqlite3_clear_bindings(update_stmt);
+					continue;
+				}
+
+				ret = sqlite3_step(update_stmt);
+				if (ret != SQLITE_DONE) {
+					ErrPrint("Failed to execute DML: %d\n", ret);
+					sqlite3_reset(update_stmt);
+					sqlite3_clear_bindings(update_stmt);
+					continue;
+				}
+
+				sqlite3_reset(update_stmt);
+				sqlite3_clear_bindings(update_stmt);
+			}
+
+			sqlite3_finalize(update_stmt);
+		} else {
+			ErrPrint("Failed to execute DML\n");
+		}
+
+		sqlite3_reset(select_stmt);
+		sqlite3_clear_bindings(select_stmt);
+		sqlite3_finalize(select_stmt);
+	} else {
+		ErrPrint("Failed to prepare the initial DML(%s)\n", sqlite3_errmsg(s_info.handle));
+	}
+
+	/*
+	 * Step 3
+	 * Drop a column from the client table
+	 */
+	ddl = "ALTER TABLE client DROP COLUMN mouse_event";
+	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
+		ErrPrint("Failed to execute the DDL (%s)\n", err);
+		return;
+	}
+
+	if (sqlite3_changes(s_info.handle) == 0) {
+		ErrPrint("No changes to DB\n");
+	}
+
+	return;
+}
+
 static void do_upgrade_db_schema(void)
 {
 	int version;
@@ -434,16 +546,17 @@ static void do_upgrade_db_schema(void)
 			ErrPrint("Failed to set version\n");
 		}
 		/* Need to set version */
-	case CUR_VER:
-		break;
 	case 1:
 		upgrade_pkgmap_for_category();
+	case 2:
+		upgrade_to_version_3();
 	default:
 		/* Need to update version */
 		DbgPrint("Old version: %d\n", version);
 		if (update_version(CUR_VER) < 0) {
 			ErrPrint("Failed to update version\n");
 		}
+	case CUR_VER:
 		break;
 	}
 }
@@ -778,7 +891,7 @@ static inline int db_create_client(void)
 
 	ddl = "CREATE TABLE client (" \
 		"pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, " \
-		"auto_launch TEXT, pd_size TEXT, content TEXT, nodisplay INTEGER, setup TEXT, mouse_event INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
+		"auto_launch TEXT, pd_size TEXT, content TEXT, nodisplay INTEGER, setup TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -797,7 +910,7 @@ static inline int db_insert_client(struct livebox *livebox)
 	int ret;
 	sqlite3_stmt *stmt;
 
-	dml = "INSERT INTO client ( pkgid, icon, name, auto_launch, pd_size, content, nodisplay, setup, mouse_event ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	dml = "INSERT INTO client ( pkgid, icon, name, auto_launch, pd_size, content, nodisplay, setup ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
@@ -854,13 +967,6 @@ static inline int db_insert_client(struct livebox *livebox)
 	}
 
 	ret = sqlite3_bind_text(stmt, 8, (char *)livebox->setup, -1, SQLITE_TRANSIENT);
-	if (ret != SQLITE_OK) {
-		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
-		ret = -EIO;
-		goto out;
-	}
-
-	ret = sqlite3_bind_int(stmt, 9, livebox->mouse_event);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -1437,7 +1543,7 @@ static inline int db_create_box_size(void)
 	char *err;
 	static const char *ddl;
 
-	ddl = "CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, preview TEXT, touch_effect INTEGER, need_frame INTEGER, " \
+	ddl = "CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, preview TEXT, touch_effect INTEGER, need_frame INTEGER, mouse_event INTEGER " \
 		"FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
@@ -1451,14 +1557,14 @@ static inline int db_create_box_size(void)
 	return 0;
 }
 
-static int db_insert_box_size(const char *pkgid, int size_type, const char *preview, int touch_effect, int need_frame)
+static int db_insert_box_size(const char *pkgid, int size_type, const char *preview, int touch_effect, int need_frame, int mouse_event)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 
 	DbgPrint("box size: %s - %d (%s) is added\n", pkgid, size_type, preview);
-	dml = "INSERT INTO box_size ( pkgid, size_type, preview, touch_effect, need_frame ) VALUES (?, ?, ?, ?, ?)";
+	dml = "INSERT INTO box_size ( pkgid, size_type, preview, touch_effect, need_frame, mouse_event ) VALUES (?, ?, ?, ?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
@@ -1493,7 +1599,14 @@ static int db_insert_box_size(const char *pkgid, int size_type, const char *prev
 		goto out;
 	}
 
-	ret =  sqlite3_bind_int(stmt, 5, need_frame);
+	ret = sqlite3_bind_int(stmt, 5, need_frame);
+	if (ret != SQLITE_OK) {
+		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_int(stmt, 6, mouse_event);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -1962,6 +2075,20 @@ static void update_size_info(struct livebox *livebox, int idx, xmlNodePtr node)
 	} else {
 		livebox->touch_effect[idx] = livebox->default_touch_effect;
 	}
+
+	if (xmlHasProp(node, (const xmlChar *)"mouse_event")) {
+		xmlChar *mouse_event;
+
+		mouse_event = xmlGetProp(node, (const xmlChar *)"mouse_event");
+		if (mouse_event) {
+			livebox->mouse_event[idx] = !xmlStrcasecmp(mouse_event, (const xmlChar *)"true");
+			xmlFree(mouse_event);
+		} else {
+			livebox->mouse_event[idx] = livebox->default_mouse_event;
+		}
+	} else {
+		livebox->mouse_event[idx] = livebox->default_mouse_event;
+	}
 }
 
 static inline void update_box(struct livebox *livebox, xmlNodePtr node)
@@ -1991,16 +2118,16 @@ static inline void update_box(struct livebox *livebox, xmlNodePtr node)
 	}
 
 	if (!xmlHasProp(node, (const xmlChar *)"mouse_event")) {
-		livebox->mouse_event = 0;
+		livebox->default_mouse_event = 0;
 	} else {
 		xmlChar *mouse_event;
 
 		mouse_event = xmlGetProp(node, (const xmlChar *)"mouse_event");
 		if (!mouse_event) {
 			ErrPrint("mouse_event is NIL\n");
-			livebox->mouse_event = 0;
+			livebox->default_mouse_event = 0;
 		} else {
-			livebox->mouse_event = !xmlStrcasecmp(mouse_event, (const xmlChar *)"true");
+			livebox->default_mouse_event = !xmlStrcasecmp(mouse_event, (const xmlChar *)"true");
 			xmlFree(mouse_event);
 		}
 	}
@@ -2400,91 +2527,91 @@ static int db_insert_livebox(struct livebox *livebox, const char *appid)
 	}
 
 	if (livebox->size_list & LB_SIZE_TYPE_1x1) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_1x1, (char *)livebox->preview[0], livebox->touch_effect[0], livebox->need_frame[0]);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_1x1, (char *)livebox->preview[0], livebox->touch_effect[0], livebox->need_frame[0], livebox->mouse_event[0]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
 	if (livebox->size_list & LB_SIZE_TYPE_2x1) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_2x1, (char *)livebox->preview[1], livebox->touch_effect[1], livebox->need_frame[1]);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_2x1, (char *)livebox->preview[1], livebox->touch_effect[1], livebox->need_frame[1], livebox->mouse_event[1]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
 	if (livebox->size_list & LB_SIZE_TYPE_2x2) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_2x2, (char *)livebox->preview[2], livebox->touch_effect[2], livebox->need_frame[2]);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_2x2, (char *)livebox->preview[2], livebox->touch_effect[2], livebox->need_frame[2], livebox->mouse_event[2]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
 	if (livebox->size_list & LB_SIZE_TYPE_4x1) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_4x1, (char *)livebox->preview[3], livebox->touch_effect[3], livebox->need_frame[3]);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_4x1, (char *)livebox->preview[3], livebox->touch_effect[3], livebox->need_frame[3], livebox->mouse_event[3]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
 	if (livebox->size_list & LB_SIZE_TYPE_4x2) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_4x2, (char *)livebox->preview[4], livebox->touch_effect[4], livebox->need_frame[4]);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_4x2, (char *)livebox->preview[4], livebox->touch_effect[4], livebox->need_frame[4], livebox->mouse_event[4]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
 	if (livebox->size_list & LB_SIZE_TYPE_4x3) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_4x3, (char *)livebox->preview[5], livebox->touch_effect[5], livebox->need_frame[5]);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_4x3, (char *)livebox->preview[5], livebox->touch_effect[5], livebox->need_frame[5], livebox->mouse_event[5]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
 	if (livebox->size_list & LB_SIZE_TYPE_4x4) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_4x4, (char *)livebox->preview[6], livebox->touch_effect[6], livebox->need_frame[6]);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_4x4, (char *)livebox->preview[6], livebox->touch_effect[6], livebox->need_frame[6], livebox->mouse_event[6]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
 	if (livebox->size_list & LB_SIZE_TYPE_4x5) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_4x5, (char *)livebox->preview[7], livebox->touch_effect[7], livebox->need_frame[7]);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_4x5, (char *)livebox->preview[7], livebox->touch_effect[7], livebox->need_frame[7], livebox->mouse_event[7]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
 	if (livebox->size_list & LB_SIZE_TYPE_4x6) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_4x6, (char *)livebox->preview[8], livebox->touch_effect[8], livebox->need_frame[8]);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_4x6, (char *)livebox->preview[8], livebox->touch_effect[8], livebox->need_frame[8], livebox->mouse_event[8]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
 	if (livebox->size_list & LB_SIZE_TYPE_EASY_1x1) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_EASY_1x1, (char *)livebox->preview[9], livebox->touch_effect[9], livebox->need_frame[9]);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_EASY_1x1, (char *)livebox->preview[9], livebox->touch_effect[9], livebox->need_frame[9], livebox->mouse_event[9]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
 	if (livebox->size_list & LB_SIZE_TYPE_EASY_3x1) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_EASY_3x1, (char *)livebox->preview[10], livebox->touch_effect[10], livebox->need_frame[10]);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_EASY_3x1, (char *)livebox->preview[10], livebox->touch_effect[10], livebox->need_frame[10], livebox->mouse_event[10]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
 	if (livebox->size_list & LB_SIZE_TYPE_EASY_3x3) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_EASY_3x3, (char *)livebox->preview[11], livebox->touch_effect[11], livebox->need_frame[11]);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_EASY_3x3, (char *)livebox->preview[11], livebox->touch_effect[11], livebox->need_frame[11], livebox->mouse_event[11]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
 	if (livebox->size_list & LB_SIZE_TYPE_0x0) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_0x0, (char *)livebox->preview[12], livebox->touch_effect[12], livebox->need_frame[12]);
+		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_0x0, (char *)livebox->preview[12], livebox->touch_effect[12], livebox->need_frame[12], livebox->mouse_event[12]);
 		if (ret < 0) {
 			goto errout;
 		}
