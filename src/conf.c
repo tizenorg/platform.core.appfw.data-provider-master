@@ -21,7 +21,11 @@
 #include <stdlib.h>
 
 #include <dlog.h>
+#if defined(HAVE_LIVEBOX)
 #include <livebox-errno.h>
+#else
+#include "lite-errno.h"
+#endif
 #include <Eina.h>
 
 #include "conf.h"

@@ -31,18 +31,22 @@
 #include <Ecore.h>
 #include <Eina.h>
 
-#include <livebox-service.h>
-
-#include "client_life.h"
 #include "setting.h"
 #include "util.h"
 #include "debug.h"
-#include "slave_life.h"
-#include "critical_log.h"
-#include "xmonitor.h"
 #include "conf.h"
+#include "critical_log.h"
+
+#if defined(HAVE_LIVEBOX)
+#include <livebox-service.h>
+#include "client_life.h"
+#include "slave_life.h"
+#include "xmonitor.h"
 #include "package.h"
 #include "instance.h"
+#else
+#define xmonitor_handle_state_changes()
+#endif
 
 int errno;
 

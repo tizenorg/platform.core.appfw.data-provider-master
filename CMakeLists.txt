@@ -16,7 +16,6 @@ pkg_check_modules(pkg REQUIRED
 	eina
 	com-core
 	pkgmgr
-	livebox-service
 	notification
 	notification-service
 	badge
@@ -24,6 +23,12 @@ pkg_check_modules(pkg REQUIRED
 	libsmack
 	shortcut
 )
+
+IF (LIVEBOX)
+pkg_check_modules(pkg_livebox REQUIRED
+	livebox-service
+)
+ENDIF (LIVEBOX)
 
 IF (X11_SUPPORT)
 pkg_check_modules(pkg_extra REQUIRED
@@ -88,40 +93,65 @@ ENDIF (MOBILE)
 SET(BUILD_SOURCE
 	src/main.c
 	src/util.c
-	src/fault_manager.c
-	src/parser.c
-	src/conf.c
-	src/dead_monitor.c
-	src/group.c
-	src/script_handler.c
-	src/io.c
-	src/slave_life.c
-	src/slave_rpc.c
-	src/client_life.c
-	src/client_rpc.c
 	src/setting.c
-	src/package.c
-	src/instance.c
-	src/server.c
-	src/abi.c
 	src/critical_log.c
-	src/liveinfo.c
-	src/pkgmgr.c
-	src/event.c
 	src/shortcut_service.c
 	src/badge_service.c
 	src/notification_service.c
-	src/utility_service.c
-	src/file_service.c
 	src/service_common.c
+	src/conf.c
 )
+
+IF (LIVEBOX)
+	ADD_DEFINITIONS("-DHAVE_LIVEBOX")
+	SET(BUILD_SOURCE
+		${BUILD_SOURCE}
+		src/utility_service.c
+		src/dead_monitor.c
+		src/package.c
+		src/instance.c
+		src/server.c
+		src/abi.c
+		src/fault_manager.c
+		src/parser.c
+		src/io.c
+		src/slave_life.c
+		src/slave_rpc.c
+		src/client_life.c
+		src/client_rpc.c
+		src/group.c
+		src/script_handler.c
+		src/liveinfo.c
+		src/pkgmgr.c
+		src/event.c
+		src/file_service.c
+	)
+
+	IF (WAYLAND_SUPPORT)
+		ADD_DEFINITIONS("-DHAVE_WAYLAND")
+		SET(BUILD_SOURCE 
+			${BUILD_SOURCE}
+			src/xmonitor_wayland.c
+			src/buffer_handler_wayland.c
+			src/util_wayland.c
+		)
+	ENDIF (WAYLAND_SUPPORT)
+
+	IF (X11_SUPPORT)
+		ADD_DEFINITIONS("-DHAVE_X11")
+		SET(BUILD_SOURCE 
+			${BUILD_SOURCE}
+			src/xmonitor.c
+			src/buffer_handler.c
+			src/util_x11.c
+		)
+	ENDIF (X11_SUPPORT)
+ENDIF (LIVEBOX)
 
 IF (WAYLAND_SUPPORT)
 	ADD_DEFINITIONS("-DHAVE_WAYLAND")
 	SET(BUILD_SOURCE 
 		${BUILD_SOURCE}
-		src/xmonitor_wayland.c
-		src/buffer_handler_wayland.c
 		src/util_wayland.c
 	)
 ENDIF (WAYLAND_SUPPORT)
@@ -130,8 +160,6 @@ IF (X11_SUPPORT)
 	ADD_DEFINITIONS("-DHAVE_X11")
 	SET(BUILD_SOURCE 
 		${BUILD_SOURCE}
-		src/xmonitor.c
-		src/buffer_handler.c
 		src/util_x11.c
 	)
 ENDIF (X11_SUPPORT)
@@ -142,22 +170,27 @@ ADD_DEFINITIONS(${pkg_CFLAGS})
 ADD_DEFINITIONS(${pkg_LDFLAGS})
 ADD_DEFINITIONS(${pkg_extra_CFLAGS})
 ADD_DEFINITIONS(${pkg_extra_LDFLAGS})
+ADD_DEFINITIONS(${pkg_livebox_CFLAGS})
+ADD_DEFINITIONS(${pkg_livebox_LDFLAGS})
 
 ADD_EXECUTABLE(${PROJECT_NAME} ${BUILD_SOURCE})
 
-TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${pkg_LDFLAGS} ${pkg_extra_LDFLAGS} "-ldl -lrt")
+TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${pkg_LDFLAGS} ${pkg_extra_LDFLAGS} ${pkg_livebox_LDFLAGS} "-ldl -lrt")
+
+IF (LIVEBOX)
 INSTALL(FILES ${CMAKE_SOURCE_DIR}/data/abi.ini DESTINATION /usr/share/data-provider-master PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
-
 INSTALL(FILES ${CMAKE_SOURCE_DIR}/data/${PRODUCT}.conf.ini DESTINATION /usr/share/data-provider-master RENAME "conf.ini" PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
-
 INSTALL(FILES ${CMAKE_SOURCE_DIR}/data/${PRODUCT}.resolution.ini DESTINATION /usr/share/data-provider-master RENAME "resolution.ini" PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
+ENDIF (LIVEBOX)
 INSTALL(FILES ${CMAKE_SOURCE_DIR}/LICENSE DESTINATION /usr/share/license RENAME "${PROJECT_NAME}")
 INSTALL(TARGETS ${PROJECT_NAME} DESTINATION /usr/bin PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 
 # INCLUDE FOR BUILD & INSTALL .PO FILES
 ADD_SUBDIRECTORY(res)
 ADD_SUBDIRECTORY(data)
+IF (LIVEBOX)
 ADD_SUBDIRECTORY(pkgmgr_livebox)
+ENDIF (LIVEBOX)
 
 IF (X11_SUPPORT)
 	IF ("${ENGINEER_BINARY}" STREQUAL "true")
