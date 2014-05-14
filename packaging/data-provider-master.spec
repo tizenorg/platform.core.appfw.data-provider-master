@@ -2,7 +2,7 @@
 
 Name: data-provider-master
 Summary: Master service provider for liveboxes
-Version: 0.42.0
+Version: 0.43.1
 Release: 1
 Group: HomeTF/Livebox
 License: Flora
@@ -39,14 +39,19 @@ BuildRequires: pkgconfig(eina)
 BuildRequires: pkgconfig(com-core)
 BuildRequires: pkgconfig(libxml-2.0)
 BuildRequires: pkgconfig(pkgmgr)
+
+%if 0%{?sec_product_feature_profile_lite}
+# Nothing provides
+%else
 BuildRequires: pkgconfig(livebox-service)
+%endif
+
 BuildRequires: pkgconfig(notification)
 BuildRequires: pkgconfig(notification-service)
 BuildRequires: pkgconfig(badge)
 BuildRequires: pkgconfig(badge-service)
 BuildRequires: pkgconfig(shortcut)
 BuildRequires: pkgconfig(security-server)
-BuildRequires: sec-product-features
 Requires(post): sys-assert
 Requires(post): dbus
 
@@ -73,12 +78,6 @@ export FFLAGS="${FFLAGS} -DTIZEN_ENGINEER_MODE"
 export ENGINEER=true
 %endif
 
-%if 0%{?sec_product_feature_livebox_shm}
-export LIVEBOX_SHM=baltic
-%else
-export LIVEBOX_SHM=private
-%endif
-
 %if %{with wayland}
 export WAYLAND_SUPPORT=On
 export X11_SUPPORT=Off
@@ -86,9 +85,26 @@ export LIVEBOX_SHM=wayland
 %else
 export WAYLAND_SUPPORT=Off
 export X11_SUPPORT=On
+export LIVEBOX_SHM=x11
 %endif
 
-%cmake . -DPRODUCT=${LIVEBOX_SHM} -DENGINEER_BINARY=${ENGINEER} -DWAYLAND_SUPPORT=${WAYLAND_SUPPORT} -DX11_SUPPORT=${X11_SUPPORT}
+%if "%{_repository}" == "wearable"
+export LIVEBOX_SHM="${LIVEBOX_SHM}.wearable"
+export MOBILE=Off
+export WEARABLE=On
+%else
+export LIVEBOX_SHM="${LIVEBOX_SHM}.mobile"
+export MOBILE=On
+export WEARABLE=Off
+%endif
+
+%if "%{sec_product_feature_livebox}" == "0"
+export LIVEBOX=Off
+%else
+export LIVEBOX=On
+%endif
+
+%cmake . -DPRODUCT=${LIVEBOX_SHM} -DENGINEER_BINARY=${ENGINEER} -DWAYLAND_SUPPORT=${WAYLAND_SUPPORT} -DX11_SUPPORT=${X11_SUPPORT} -DMOBILE=${MOBILE} -DWEARABLE=${WEARABLE} -DLIVEBOX=${LIVEBOX}
 
 CFLAGS="${CFLAGS} -Wall -Winline -Werror" LDFLAGS="${LDFLAGS}" make %{?jobs:-j%jobs}
 
@@ -96,23 +112,25 @@ CFLAGS="${CFLAGS} -Wall -Winline -Werror" LDFLAGS="${LDFLAGS}" make %{?jobs:-j%j
 rm -rf %{buildroot}
 %make_install
 mkdir -p %{buildroot}/%{_datarootdir}/license
+mkdir -p %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants
+ln -sf ../data-provider-master.service %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants/data-provider-master.service
+%if "%{sec_product_feature_livebox}" == "0"
+# Nothing provides
+%else
 mkdir -p %{buildroot}/opt/usr/share/live_magazine
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/log
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/reader
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/always
 mkdir -p %{buildroot}/opt/usr/devel/usr/bin
 mkdir -p %{buildroot}/opt/dbspace
-#mkdir -p %{buildroot}/%{_sysconfdir}/rc.d/rc3.d
-mkdir -p %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants
 touch %{buildroot}/opt/dbspace/.livebox.db
 touch %{buildroot}/opt/dbspace/.livebox.db-journal
-ln -sf ../data-provider-master.service %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants/data-provider-master.service
 if [ ! -s %{buildroot}/opt/dbspace/.livebox.db ]; then
 echo "LiveBox DB file is not exists, initiate it"
 sqlite3 %{buildroot}/opt/dbspace/.livebox.db <<EOF
 CREATE TABLE version ( version INTEGER );
-CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, preview TEXT, touch_effect INTEGER, need_frame INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
-CREATE TABLE client (pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch TEXT, pd_size TEXT, content TEXT, nodisplay INTEGER, setup TEXT, mouse_event INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
+CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, preview TEXT, touch_effect INTEGER, need_frame INTEGER, mouse_event INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
+CREATE TABLE client (pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch TEXT, pd_size TEXT, content TEXT, nodisplay INTEGER, setup TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
 CREATE TABLE groupinfo ( id INTEGER PRIMARY KEY AUTOINCREMENT, cluster TEXT NOT NULL, category TEXT NOT NULL, pkgid TEXT NOT NULL, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
 CREATE TABLE groupmap (option_id INTEGER PRIMARY KEY AUTOINCREMENT, id INTEGER, pkgid TEXT NOT NULL, ctx_item TEXT NOT NULL, FOREIGN KEY(id) REFERENCES groupinfo(id), FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
 CREATE TABLE i18n ( pkgid TEXT NOT NULL, lang TEXT COLLATE NOCASE, name TEXT, icon TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
@@ -121,6 +139,7 @@ CREATE TABLE pkgmap ( pkgid TEXT PRIMARY KEY NOT NULL, appid TEXT, uiapp TEXT, p
 CREATE TABLE provider ( pkgid TEXT PRIMARY KEY NOT NULL, network INTEGER, abi TEXT, secured INTEGER, box_type INTEGER, box_src TEXT, box_group TEXT, pd_type INTEGER, pd_src TEXT, pd_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
 EOF
 fi
+%endif
 
 %pre
 # Executing the stop script for stopping the service of installed provider (old version)
@@ -129,6 +148,9 @@ if [ -x %{_sysconfdir}/rc.d/init.d/data-provider-master ]; then
 fi
 
 %post
+%if "%{sec_product_feature_livebox}" == "0"
+#Nothing provides
+%else
 chown 5000:5000 /opt/usr/share/live_magazine
 chmod 750 /opt/usr/share/live_magazine
 chown 5000:5000 /opt/usr/share/live_magazine/log
@@ -141,6 +163,7 @@ chown 0:5000 /opt/dbspace/.livebox.db
 chmod 640 /opt/dbspace/.livebox.db
 chown 0:5000 /opt/dbspace/.livebox.db-journal
 chmod 640 /opt/dbspace/.livebox.db-journal
+%endif
 vconftool set -t bool "memory/data-provider-master/started" 0 -i -u 5000 -f -s system::vconf_system
 vconftool set -t int "memory/private/data-provider-master/restart_count" 0 -i -u 5000 -f -s data-provider-master
 vconftool set -t string "db/data-provider-master/serveraddr" "/opt/usr/share/live_magazine/.client.socket" -i -u 5000 -f -s system::vconf_system
@@ -151,17 +174,21 @@ echo "%{_sysconfdir}/init.d/data-provider-master start"
 %manifest %{name}.manifest
 %defattr(-,root,root,-)
 %{_bindir}/data-provider-master
-%{_prefix}/etc/package-manager/parserlib/*
-%{_datarootdir}/data-provider-master/*
 %{_libdir}/systemd/system/multi-user.target.wants/data-provider-master.service
 %{_libdir}/systemd/system/data-provider-master.service
 %{_datarootdir}/license/*
-/opt/usr/share/live_magazine/*
-/opt/etc/dump.d/module.d/dump_livebox.sh
 %if 0%{?tizen_build_binary_release_type_eng}
 /opt/usr/devel/usr/bin/*
 %endif
+%if "%{sec_product_feature_livebox}" == "0"
+# Nothing provides
+%else
+%{_prefix}/etc/package-manager/parserlib/*
+%{_datarootdir}/data-provider-master/*
+/opt/etc/dump.d/module.d/dump_livebox.sh
+/opt/usr/share/live_magazine/*
 /opt/dbspace/.livebox.db
 /opt/dbspace/.livebox.db-journal
+%endif
 
 # End of a file

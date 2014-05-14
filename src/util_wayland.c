@@ -1,5 +1,11 @@
 #include "util.h"
 
+#if defined(HAVE_LIVEBOX)
+#include <livebox-errno.h>
+#else
+#include "lite-errno.h"
+#endif
+
 int util_screen_size_get(int *width, int *height)
 {
 	*width = 0;

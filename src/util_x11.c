@@ -1,6 +1,10 @@
 #include <Ecore_X.h>
 
+#if defined(HAVE_LIVEBOX)
 #include <livebox-errno.h>
+#else
+#include "lite-errno.h"
+#endif
 #include "util.h"
 
 int util_screen_size_get(int *width, int *height)

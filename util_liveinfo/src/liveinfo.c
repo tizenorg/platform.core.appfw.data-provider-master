@@ -734,9 +734,6 @@ static inline int do_stat(const char *cmd)
 		printf("%s)\n", tmp);
 		free(tmp);
 
-		i = livebox_service_mouse_event(node_name(node));
-		printf("Mouse event: %s\n", i ? "enabled" : "disabled");
-
 		break;
 	case PROVIDER:
 		printf("Not supported yet\n");

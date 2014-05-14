@@ -29,7 +29,11 @@
 #include <dlog.h>
 #include <Eina.h>
 #include <com-core.h>
+#if defined(HAVE_LIVEBOX)
 #include <livebox-errno.h>
+#else
+#include <lite-errno.h>
+#endif
 
 #include "service_common.h"
 #include "util.h"

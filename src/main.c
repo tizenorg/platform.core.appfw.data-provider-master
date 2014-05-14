@@ -32,6 +32,7 @@
 #include <packet.h>
 #include <dlog.h>
 
+#if defined(HAVE_LIVEBOX)
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"
@@ -41,20 +42,22 @@
 #include "package.h"
 #include "group.h"
 #include "dead_monitor.h"
-#include "conf.h"
 #include "io.h"
 #include "xmonitor.h"
-#include "setting.h"
 #include "server.h"
+#include "event.h"
+#include "file_service.h"
+#include "utility_service.h"
+#endif
+
+#include "conf.h"
+#include "setting.h"
 #include "util.h"
 #include "debug.h"
 #include "critical_log.h"
-#include "event.h"
 #include "shortcut_service.h"
 #include "notification_service.h"
-#include "utility_service.h"
 #include "badge_service.h"
-#include "file_service.h"
 
 #if defined(FLOG)
 FILE *__file_log_fp;
@@ -88,6 +91,7 @@ static inline int app_create(void)
 		DbgPrint("Setting initialized: %d\n", ret);
 	}
 
+#if defined(HAVE_LIVEBOX)
 	ret = client_init();
 	if (ret < 0) {
 		DbgPrint("Client initialized: %d\n", ret);
@@ -137,6 +141,17 @@ static inline int app_create(void)
 
 	event_init();
 
+	script_init();
+
+	if (util_service_is_enabled(SERVICE_FILE)) {
+		file_service_init();
+	}
+
+	if (util_service_is_enabled(SERVICE_UTILITY)) {
+		utility_service_init();
+	}
+#endif
+
 	if (util_service_is_enabled(SERVICE_SHORTCUT)) {
 		shortcut_service_init();
 	}
@@ -149,16 +164,6 @@ static inline int app_create(void)
 		badge_service_init();
 	}
 
-	if (util_service_is_enabled(SERVICE_UTILITY)) {
-		utility_service_init();
-	}
-
-	script_init();
-
-	if (util_service_is_enabled(SERVICE_FILE)) {
-		file_service_init();
-	}
-
 	return 0;
 }
 
@@ -166,6 +171,28 @@ static inline int app_terminate(void)
 {
 	int ret;
 
+	if (util_service_is_enabled(SERVICE_BADGE)) {
+		ret = badge_service_fini();
+		if (ret < 0) {
+			DbgPrint("badge: %d\n", ret);
+		}
+	}
+
+	if (util_service_is_enabled(SERVICE_NOTIFICATION)) {
+		ret = notification_service_fini();
+		if (ret < 0) {
+			DbgPrint("noti: %d\n", ret);
+		}
+	}
+
+	if (util_service_is_enabled(SERVICE_SHORTCUT)) {
+		ret = shortcut_service_fini();
+		if (ret < 0) {
+			DbgPrint("shortcut: %d\n", ret);
+		}
+	}
+
+#if defined(HAVE_LIVEBOX)
 	if (util_service_is_enabled(SERVICE_FILE)) {
 		ret = file_service_fini();
 		if (ret < 0) {
@@ -187,27 +214,6 @@ static inline int app_terminate(void)
 		ret = utility_service_fini();
 		if (ret < 0) {
 			DbgPrint("utility: %d\n", ret);
-		}
-	}
-
-	if (util_service_is_enabled(SERVICE_BADGE)) {
-		ret = badge_service_fini();
-		if (ret < 0) {
-			DbgPrint("badge: %d\n", ret);
-		}
-	}
-
-	if (util_service_is_enabled(SERVICE_NOTIFICATION)) {
-		ret = notification_service_fini();
-		if (ret < 0) {
-			DbgPrint("noti: %d\n", ret);
-		}
-	}
-
-	if (util_service_is_enabled(SERVICE_SHORTCUT)) {
-		ret = shortcut_service_fini();
-		if (ret < 0) {
-			DbgPrint("shortcut: %d\n", ret);
 		}
 	}
 
@@ -254,6 +260,7 @@ static inline int app_terminate(void)
 	if (ret < 0) {
 		DbgPrint("Group finalized: %d\n", ret);
 	}
+#endif
 
 	DbgPrint("Terminated\n");
 	return 0;
@@ -295,15 +302,19 @@ static Eina_Bool signal_cb(void *data, Ecore_Fd_Handler *handler)
 		 * Turn off auto-reactivation
 		 * Terminate all slaves
 		 */
+#if defined(HAVE_LIVEBOX)
 		CRITICAL_LOG("USRS1, Deactivate ALL\n");
 		slave_deactivate_all(0, 1);
+#endif
 	} else if (fdsi.ssi_signo == SIGUSR2) {
 		/*!
 		 * Turn on auto-reactivation
 		 * Launch all slaves again
 		 */
+#if defined(HAVE_LIVEBOX)
 		CRITICAL_LOG("USR2, Activate ALL\n");
 		slave_activate_all();
+#endif
 	} else {
 		CRITICAL_LOG("Unknown SIG[%d] received\n", fdsi.ssi_signo);
 	}
@@ -318,8 +329,10 @@ int main(int argc, char *argv[])
 	sigset_t mask;
 	Ecore_Fd_Handler *signal_handler = NULL;
 
+#if defined(HAVE_LIVEBOX)
 	conf_init();
 	conf_loader();
+#endif
 
 	/*!
 	 * \note
@@ -402,11 +415,13 @@ int main(int argc, char *argv[])
 	g_type_init();
 #endif
 
+#if defined(HAVE_LIVEBOX)
 	/*!
  	 * \note
 	 * conf_update_size requires util_screen_init.
 	 */
 	conf_update_size();
+#endif
 
 	app_create();
 
