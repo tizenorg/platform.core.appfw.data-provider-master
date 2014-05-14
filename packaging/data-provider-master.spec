@@ -79,10 +79,20 @@ export LIVEBOX_SHM=wayland
 %else
 export WAYLAND_SUPPORT=Off
 export X11_SUPPORT=On
-export LIVEBOX_SHM=private
+export LIVEBOX_SHM=x11
 %endif
 
-%cmake . -DPRODUCT=${LIVEBOX_SHM} -DENGINEER_BINARY=${ENGINEER} -DWAYLAND_SUPPORT=${WAYLAND_SUPPORT} -DX11_SUPPORT=${X11_SUPPORT}
+%if "%{_repository}" == "wearable"
+export LIVEBOX_SHM="${LIVEBOX_SHM}.wearable"
+export MOBILE=Off
+export WEARABLE=On
+%else
+export LIVEBOX_SHM="${LIVEBOX_SHM}.mobile"
+export MOBILE=On
+export WEARABLE=Off
+%endif
+
+%cmake . -DPRODUCT=${LIVEBOX_SHM} -DENGINEER_BINARY=${ENGINEER} -DWAYLAND_SUPPORT=${WAYLAND_SUPPORT} -DX11_SUPPORT=${X11_SUPPORT} -DMOBILE=${MOBILE} -DWEARABLE=${WEARABLE}
 
 CFLAGS="${CFLAGS} -Wall -Winline -Werror" LDFLAGS="${LDFLAGS}" make %{?jobs:-j%jobs}
 
@@ -104,8 +114,8 @@ if [ ! -s %{buildroot}/opt/dbspace/.livebox.db ]; then
 echo "LiveBox DB file is not exists, initiate it"
 sqlite3 %{buildroot}/opt/dbspace/.livebox.db <<EOF
 CREATE TABLE version ( version INTEGER );
-CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, preview TEXT, touch_effect INTEGER, need_frame INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
-CREATE TABLE client (pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch TEXT, pd_size TEXT, content TEXT, nodisplay INTEGER, setup TEXT, mouse_event INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
+CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, preview TEXT, touch_effect INTEGER, need_frame INTEGER, mouse_event INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
+CREATE TABLE client (pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch TEXT, pd_size TEXT, content TEXT, nodisplay INTEGER, setup TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
 CREATE TABLE groupinfo ( id INTEGER PRIMARY KEY AUTOINCREMENT, cluster TEXT NOT NULL, category TEXT NOT NULL, pkgid TEXT NOT NULL, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
 CREATE TABLE groupmap (option_id INTEGER PRIMARY KEY AUTOINCREMENT, id INTEGER, pkgid TEXT NOT NULL, ctx_item TEXT NOT NULL, FOREIGN KEY(id) REFERENCES groupinfo(id), FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
 CREATE TABLE i18n ( pkgid TEXT NOT NULL, lang TEXT COLLATE NOCASE, name TEXT, icon TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
