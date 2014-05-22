@@ -775,7 +775,7 @@ static Eina_Bool terminate_timer_cb(void *data)
 	return ECORE_CALLBACK_CANCEL;
 }
 
-HAPI struct slave_node *slave_deactivate(struct slave_node *slave, int direct)
+HAPI struct slave_node *slave_deactivate(struct slave_node *slave, int no_timer)
 {
 	int ret;
 
@@ -808,7 +808,7 @@ HAPI struct slave_node *slave_deactivate(struct slave_node *slave, int direct)
 		(void)slave_rpc_disconnect(slave);
 	} else if (slave->terminate_timer) {
 		ErrPrint("Terminate timer is already fired (%d)\n", slave->pid);
-	} else if (!direct) {
+	} else if (!no_timer) {
 		DbgPrint("Fire the terminate timer: %d\n", slave->pid);
 		slave->terminate_timer = ecore_timer_add(SLAVE_ACTIVATE_TIME, terminate_timer_cb, slave);
 		if (!slave->terminate_timer) {
@@ -1653,7 +1653,7 @@ HAPI void slave_set_network(struct slave_node *slave, int network)
 	slave->network = network;
 }
 
-HAPI int slave_deactivate_all(int reactivate, int reactivate_instances)
+HAPI int slave_deactivate_all(int reactivate, int reactivate_instances, int no_timer)
 {
 	Eina_List *l;
 	Eina_List *n;
@@ -1670,7 +1670,7 @@ HAPI int slave_deactivate_all(int reactivate, int reactivate_instances)
 		slave_set_reactivate_instances(slave, reactivate_instances);
 		slave_set_reactivation(slave, reactivate);
 
-		if (!slave_deactivate(slave, 0)) {
+		if (!slave_deactivate(slave, no_timer)) {
 			s_info.slave_list = eina_list_remove(s_info.slave_list, slave);
 		}
 

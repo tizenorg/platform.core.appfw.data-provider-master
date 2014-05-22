@@ -304,7 +304,7 @@ static Eina_Bool signal_cb(void *data, Ecore_Fd_Handler *handler)
 		 */
 #if defined(HAVE_LIVEBOX)
 		CRITICAL_LOG("USRS1, Deactivate ALL\n");
-		slave_deactivate_all(0, 1);
+		slave_deactivate_all(0, 1, 1);
 #endif
 	} else if (fdsi.ssi_signo == SIGUSR2) {
 		/*!
