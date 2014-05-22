@@ -206,7 +206,7 @@ extern int slave_need_to_reactivate(struct slave_node *slave);
 extern int slave_network(const struct slave_node *slave);
 extern void slave_set_network(struct slave_node *slave, int network);
 
-extern int slave_deactivate_all(int reactivate, int reactivate_instances);
+extern int slave_deactivate_all(int reactivate, int reactivate_instances, int no_timer);
 extern int slave_activate_all(void);
 
 extern void slave_set_control_option(struct slave_node *slave, int ctrl);
