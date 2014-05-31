@@ -1,0 +1,39 @@
+#
+# Copyright 2013  Samsung Electronics Co., Ltd
+#
+# Licensed under the Flora License, Version 1.1 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://floralicense.org/license/
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+[Unit]
+Description=Data Provider daemon
+DefaultDependencies=no
+After=check-mount.service
+
+[Service]
+Environment=MULTISENSE_SND_PLAYER=tizen_snd_player
+Environment=ELM_MODULES=ctxpopup_copypasteUI>entry/api:datetime_input_popup>datetime/api:object_dump>win/api:access_output_tts>access/api
+Environment=EINA_LOG_LEVEL=1
+Environment=ECORE_INPUT_TIMEOUT_FIX=0
+Environment=EINA_LOG_LEVELS=ecore_x:4,evas_main:1
+Environment=BUFMGR_LOCK_TYPE="once"
+Environment=BUFMGR_MAP_CACHE="true"
+Environment=ELM_PROFILE=mobile
+EnvironmentFile=-/run/tizen-mobile-env
+Type=simple
+ExecStart=/usr/bin/data-provider-master
+RestartSec=1
+Restart=always
+MemoryLimit=50M
+
+[Install]
+WantedBy=multi-user.target
