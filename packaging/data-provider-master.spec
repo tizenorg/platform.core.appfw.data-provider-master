@@ -40,9 +40,7 @@ BuildRequires: pkgconfig(com-core)
 BuildRequires: pkgconfig(libxml-2.0)
 BuildRequires: pkgconfig(pkgmgr)
 
-%if 0%{?sec_product_feature_profile_lite}
-# Nothing provides
-%else
+%if "%{sec_product_feature_livebox}" != "0"
 BuildRequires: pkgconfig(livebox-service)
 %endif
 
