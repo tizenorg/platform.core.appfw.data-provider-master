@@ -29,6 +29,8 @@ struct event_data {
 		int minor;
 	} width;
 	int distance;	/* Hovering */
+	int orientation;
+	int pressure;
 #if defined(_USE_ECORE_TIME_GET)
 	double tv;
 #else
