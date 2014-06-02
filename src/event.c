@@ -116,10 +116,50 @@ HAPI int event_fini(void)
 	return LB_STATUS_SUCCESS;
 }
 
-static inline int processing_input_event(struct input_event *event)
+static int push_event_item(void)
 {
 	struct event_data *item;
 
+	if (s_info.event_data.x < 0 || s_info.event_data.y < 0) {
+		/* Waiting full event packet */
+		return LB_STATUS_SUCCESS;
+	}
+
+	item = malloc(sizeof(*item));
+	if (item) {
+		char event_ch = EVENT_CH;
+
+#if defined(_USE_ECORE_TIME_GET)
+		s_info.event_data.tv = ecore_time_get();
+#else
+		if (gettimeofday(&s_info.event_data.tv, NULL) < 0) {
+			ErrPrint("gettimeofday: %s\n", strerror(errno));
+		}
+#endif
+
+		memcpy(item, &s_info.event_data, sizeof(*item));
+
+		CRITICAL_SECTION_BEGIN(&s_info.event_list_lock);
+		s_info.event_list = eina_list_append(s_info.event_list, item);
+		CRITICAL_SECTION_END(&s_info.event_list_lock);
+
+		if (write(s_info.evt_pipe[PIPE_WRITE], &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
+			ErrPrint("Unable to send an event: %s\n", strerror(errno));
+			return LB_STATUS_ERROR_IO;
+		}
+
+		/* Take a breathe */
+		pthread_yield();
+	} else {
+		ErrPrint("Heap: %s\n", strerror(errno));
+	}
+
+	return LB_STATUS_SUCCESS;
+}
+
+static inline int processing_input_event(struct input_event *event)
+{
+	int ret;
 	switch (event->type) {
 	case EV_SYN:
 		switch (event->code) {
@@ -128,44 +168,9 @@ static inline int processing_input_event(struct input_event *event)
 			break;
 		case SYN_MT_REPORT:
 		case SYN_REPORT:
-			if (s_info.event_data.x < 0 || s_info.event_data.y < 0) {
-				/* Waiting full event packet */
-				break;
-			}
-
-			item = malloc(sizeof(*item));
-			if (item) {
-				char event_ch = EVENT_CH;
-
-#if defined(_USE_ECORE_TIME_GET)
-				s_info.event_data.tv = ecore_time_get();
-#else
-				if (gettimeofday(&s_info.event_data.tv, NULL) < 0) {
-					ErrPrint("gettimeofday: %s\n", strerror(errno));
-				}
-#endif
-
-				memcpy(item, &s_info.event_data, sizeof(*item));
-
-				CRITICAL_SECTION_BEGIN(&s_info.event_list_lock);
-				s_info.event_list = eina_list_append(s_info.event_list, item);
-				CRITICAL_SECTION_END(&s_info.event_list_lock);
-
-				if (write(s_info.evt_pipe[PIPE_WRITE], &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
-					ErrPrint("Unable to send an event: %s\n", strerror(errno));
-					return LB_STATUS_ERROR_IO;
-				}
-
-				/* Take a breathe */
-				pthread_yield();
-			} else {
-				ErrPrint("Heap: %s\n", strerror(errno));
-			}
-
-			if (s_info.event_data.device < 0) {
-				s_info.event_data.x = -1;
-				s_info.event_data.y = -1;
-				s_info.event_data.slot = -1;
+			ret = push_event_item();
+			if (ret < 0) {
+				return ret;
 			}
 			break;
 		/*
@@ -183,6 +188,7 @@ static inline int processing_input_event(struct input_event *event)
 		s_info.event_data.keycode = event->value;
 		break;
 	case EV_REL:
+		DbgPrint("EV_REL: 0x%X\n", event->value);
 		break;
 	case EV_ABS:
 		switch (event->code) {
@@ -216,27 +222,32 @@ static inline int processing_input_event(struct input_event *event)
 		case ABS_MT_WIDTH_MINOR:
 			s_info.event_data.width.minor = event->value;
 			break;
+		case ABS_MT_ORIENTATION:
+			DbgPrint("Oritentation: %d (%dx%d)\n",
+							event->value,
+							s_info.event_data.x,
+							s_info.event_data.y);
+			s_info.event_data.orientation = event->value;
+			break;
+		case ABS_MT_PRESSURE:
+			DbgPrint("Pressure: %d (%dx%d)\n", event->value,
+							s_info.event_data.x,
+							s_info.event_data.y);
+			s_info.event_data.pressure = event->value;
+			break;
 		default:
 			DbgPrint("EV_ABS, 0x%x\n", event->code);
 			break;
 		}
 		break;
 	case EV_MSC:
-		break;
 	case EV_SW:
-		break;
 	case EV_LED:
-		break;
 	case EV_SND:
-		break;
 	case EV_REP:
-		break;
 	case EV_FF:
-		break;
 	case EV_PWR:
-		break;
 	case EV_FF_STATUS:
-		break;
 	default:
 		DbgPrint("0x%X, 0x%X\n", event->type, event->code);
 		break;
@@ -315,6 +326,8 @@ static inline void clear_all_listener_list(void)
 {
 	struct event_listener *listener;
 	enum event_state next_state;
+	struct event_data event_data;
+	struct event_data *p_event_data;
 	Eina_List *l;
 	Eina_List *n;
 
@@ -325,12 +338,16 @@ static inline void clear_all_listener_list(void)
 		EINA_LIST_FOREACH_SAFE(s_info.event_listener_list, l, n, listener) {
 			switch (listener->state) {
 			case EVENT_STATE_ACTIVATE:
+				p_event_data = &s_info.event_data;
 				next_state = EVENT_STATE_ACTIVATED;
 				break;
 			case EVENT_STATE_ACTIVATED:
+				p_event_data = &s_info.event_data;
 				next_state = EVENT_STATE_DEACTIVATE;
 				break;
 			case EVENT_STATE_DEACTIVATE:
+				memcpy(&event_data, &s_info.event_data, sizeof(event_data));
+				p_event_data = &event_data;
 				next_state = EVENT_STATE_DEACTIVATED;
 				break;
 			case EVENT_STATE_DEACTIVATED:
@@ -340,7 +357,7 @@ static inline void clear_all_listener_list(void)
 				continue;
 			}
 
-			if (listener->event_cb(listener->state, &s_info.event_data, listener->cbdata) < 0) {
+			if (listener->event_cb(listener->state, p_event_data, listener->cbdata) < 0) {
 				if (eina_list_data_find(s_info.event_listener_list, listener)) {
 					s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
 					DbgFree(listener);
@@ -348,6 +365,9 @@ static inline void clear_all_listener_list(void)
 				}
 			}
 
+			/*!
+			 * Changing state of listener will affect to the event collecting thread.
+			 */
 			listener->state = next_state;
 		}
 	}
@@ -420,6 +440,10 @@ static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 
 				cur_state = listener->state;
 				next_state = EVENT_STATE_DEACTIVATED;
+
+				s_info.event_data.x = -1;
+				s_info.event_data.y = -1;
+				s_info.event_data.slot = -1;
 				break;
 			case EVENT_STATE_ACTIVATED:
 				cur_state = listener->state;
@@ -610,15 +634,17 @@ HAPI int event_deactivate(int (*event_cb)(enum event_state state, struct event_d
 	void *ret;
 	char event_ch = EVENT_CH;
 	struct event_listener *listener = NULL;
+	struct event_listener *item;
 	Eina_List *l;
 	int keep_thread = 0;
 
-	EINA_LIST_FOREACH(s_info.event_listener_list, l, listener) {
-		if (listener->event_cb == event_cb && listener->cbdata == data) {
-			listener->state = EVENT_STATE_DEACTIVATE;
+	EINA_LIST_FOREACH(s_info.event_listener_list, l, item) {
+		if (item->event_cb == event_cb && item->cbdata == data) {
+			item->state = EVENT_STATE_DEACTIVATE;
+			listener = item;
 		}
 
-		keep_thread += (listener->state == EVENT_STATE_ACTIVATE || listener->state == EVENT_STATE_ACTIVATED);
+		keep_thread += (item->state == EVENT_STATE_ACTIVATE || item->state == EVENT_STATE_ACTIVATED);
 	}
 
 	if (!listener) {
@@ -662,9 +688,6 @@ HAPI int event_deactivate(int (*event_cb)(enum event_state state, struct event_d
 		clear_all_listener_list();
 	}
 
-	s_info.event_data.x = -1;
-	s_info.event_data.y = -1;
-	s_info.event_data.slot = -1;
 	return LB_STATUS_SUCCESS;
 }
 
