@@ -275,12 +275,14 @@ static Eina_Bool signal_cb(void *data, Ecore_Fd_Handler *handler)
 	fd = ecore_main_fd_handler_fd_get(handler);
 	if (fd < 0) {
 		ErrPrint("Unable to get FD\n");
+		ecore_main_fd_handler_del(handler);
 		return ECORE_CALLBACK_CANCEL;
 	}
 
 	size = read(fd, &fdsi, sizeof(fdsi));
 	if (size != sizeof(fdsi)) {
 		ErrPrint("Unable to get siginfo: %s\n", strerror(errno));
+		ecore_main_fd_handler_del(handler);
 		return ECORE_CALLBACK_CANCEL;
 	}
 

@@ -1565,7 +1565,7 @@ HAPI int package_is_enabled(const char *appid)
 
 	ret = ail_get_appinfo(appid, &ai);
 	if (ret != AIL_ERROR_OK) {
-		ErrPrint("Unable to get appinfo: %d\n", ret);
+		ErrPrint("Unable to get appinfo (%s): %d\n", appid, ret);
 		return 0;
 	}
 
