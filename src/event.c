@@ -37,6 +37,7 @@
 #include "event.h"
 
 #define EVENT_CH	'e'
+#define EVENT_EXIT	'x'
 
 #if !defined(ABS_MT_TOOL_X)
 #define ABS_MT_TOOL_X           0x3c    /* Center X tool position */
@@ -61,10 +62,15 @@ static struct info {
 
 	Eina_List *event_listener_list;
 	Eina_List *reactivate_list;
+
+	int event_handler_activated;
 } s_info = {
+	.event_handler_activated = 0,
 	.event_list = NULL,
 	.handle = -1,
 	.event_handler = NULL,
+	.evt_pipe = { -1, -1 },
+	.tcb_pipe = { -1, -1 },
 
 	.event_data = {
 		.x = -1,
@@ -94,6 +100,7 @@ struct event_listener {
 };
 
 static int activate_thread(void);
+static int event_control_fini(void);
 
 HAPI int event_init(void)
 {
@@ -109,6 +116,9 @@ HAPI int event_init(void)
 HAPI int event_fini(void)
 {
 	int ret;
+
+	event_control_fini();
+
 	ret = pthread_mutex_destroy(&s_info.event_list_lock);
 	if (ret != 0) {
 		ErrPrint("Mutex destroy failed: %s\n", strerror(ret));
@@ -265,6 +275,7 @@ static void *event_thread_main(void *data)
 	int offset = 0;
 	int readsize = 0;
 	int fd;
+	char event_ch;
 
 	DbgPrint("Initiated\n");
 
@@ -308,8 +319,6 @@ static void *event_thread_main(void *data)
 		}
 
 		if (FD_ISSET(s_info.tcb_pipe[PIPE_READ], &set)) {
-			char event_ch;
-
 			if (read(s_info.tcb_pipe[PIPE_READ], &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
 				ErrPrint("Unable to read TCB_PIPE: %s\n", strerror(errno));
 			}
@@ -317,6 +326,11 @@ static void *event_thread_main(void *data)
 			ret = LB_STATUS_ERROR_CANCEL;
 			break;
 		}
+	}
+
+	event_ch = EVENT_EXIT;
+	if (write(s_info.evt_pipe[PIPE_WRITE], &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
+		ErrPrint("Unable to send an event: %s\n", strerror(errno));
 	}
 
 	return (void *)ret;
@@ -330,9 +344,6 @@ static inline void clear_all_listener_list(void)
 	struct event_data *p_event_data;
 	Eina_List *l;
 	Eina_List *n;
-
-	s_info.event_handler = NULL;
-	CLOSE_PIPE(s_info.evt_pipe);
 
 	while (s_info.event_listener_list) {
 		EINA_LIST_FOREACH_SAFE(s_info.event_listener_list, l, n, listener) {
@@ -394,6 +405,38 @@ static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 	if (read(fd, &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
 		ErrPrint("Unable to read event ch: %s\n", strerror(errno));
 		return ECORE_CALLBACK_CANCEL;
+	}
+
+	if (event_ch == EVENT_EXIT) {
+		/*!
+		 * If the master gets event exit from evt_pipe,
+		 * The event item list should be empty.
+		 */
+		if (!s_info.event_list) {
+			/* This callback must has to clear all listeners in this case */
+			ecore_main_fd_handler_del(s_info.event_handler);
+			s_info.event_handler = NULL;
+			clear_all_listener_list();
+
+			DbgPrint("reactivate_list: %p\n", s_info.reactivate_list);
+
+			EINA_LIST_FREE(s_info.reactivate_list, listener) {
+				s_info.event_listener_list = eina_list_append(s_info.event_listener_list, listener);
+			}
+
+			if (s_info.event_listener_list) {
+				if (activate_thread() < 0) {
+					EINA_LIST_FREE(s_info.event_listener_list, listener) {
+						(void)listener->event_cb(EVENT_STATE_ERROR, NULL, listener->cbdata);
+					}
+				}
+			}
+
+			DbgPrint("Event read callback finshed\n");
+			return ECORE_CALLBACK_CANCEL;
+		} else {
+			ErrPrint("Something goes wrong, the event_list is not flushed\n");
+		}
 	}
 
 	CRITICAL_SECTION_BEGIN(&s_info.event_list_lock);
@@ -479,31 +522,17 @@ static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 		DbgFree(item);
 	}
 
-	if (s_info.handle < 0 && !s_info.event_list) {
-		/* This callback must has to clear all listeners in this case */
-		clear_all_listener_list();
-
-		EINA_LIST_FREE(s_info.reactivate_list, listener) {
-			s_info.event_listener_list = eina_list_append(s_info.event_listener_list, listener);
-		}
-
-		if (s_info.event_listener_list) {
-			if (activate_thread() < 0) {
-				EINA_LIST_FREE(s_info.event_listener_list, listener) {
-					(void)listener->event_cb(EVENT_STATE_ERROR, NULL, listener->cbdata);
-				}
-			}
-		}
-
-		return ECORE_CALLBACK_CANCEL;
-	}
-
 	return ECORE_CALLBACK_RENEW;
 }
 
-static int activate_thread(void)
+static int event_control_init(void)
 {
 	int status;
+
+	DbgPrint("Initializing event controller\n");
+	if (s_info.handle != -1) {
+		return LB_STATUS_SUCCESS;
+	}
 
 	s_info.handle = open(INPUT_PATH, O_RDONLY);
 	if (s_info.handle < 0) {
@@ -540,35 +569,73 @@ static int activate_thread(void)
 		return LB_STATUS_ERROR_FAULT;
 	}
 
+	return LB_STATUS_SUCCESS;
+}
+
+/*!
+ * This function must has to be called after event collecting thread is terminated
+ */
+static int event_control_fini(void)
+{
+	DbgPrint("Finalizing event controller\n");
+	if (s_info.handle != -1) {
+		if (close(s_info.handle) < 0) {
+			ErrPrint("Unable to release the fd: %s\n", strerror(errno));
+		}
+
+		s_info.handle = -1;
+	}
+
+	if (!eina_list_count(s_info.event_list)) {
+		if (s_info.event_handler) {
+			ecore_main_fd_handler_del(s_info.event_handler);
+			s_info.event_handler = NULL;
+		}
+		clear_all_listener_list();
+	}
+
+	CLOSE_PIPE(s_info.tcb_pipe);
+	CLOSE_PIPE(s_info.evt_pipe);
+
+	return LB_STATUS_SUCCESS;
+}
+
+static int activate_thread(void)
+{
+	int ret;
+
+	ret = event_control_init();
+	if (ret != LB_STATUS_SUCCESS) {
+		return ret;
+	}
+
+	if (s_info.event_handler_activated) {
+		ErrPrint("Event handler is already activated\n");
+		return LB_STATUS_ERROR_ALREADY;
+	}
+
+	if (s_info.event_handler) {
+		ErrPrint("Event handler is already registered\n");
+		return LB_STATUS_ERROR_ALREADY;
+	}
+
+	DbgPrint("EVT_PIPE[PIPE_READ]: %d\n", s_info.evt_pipe[PIPE_READ]);
 	s_info.event_handler = ecore_main_fd_handler_add(s_info.evt_pipe[PIPE_READ], ECORE_FD_READ, event_read_cb, NULL, NULL, NULL);
 	if (!s_info.event_handler) {
-		if (close(s_info.handle) < 0) {
-			ErrPrint("Failed to close handle: %s\n", strerror(errno));
-		}
-		s_info.handle = -1;
-
-		CLOSE_PIPE(s_info.tcb_pipe);
-		CLOSE_PIPE(s_info.evt_pipe);
+		ErrPrint("Failed to add monitor for EVT READ\n");
 		return LB_STATUS_ERROR_FAULT;
 	}
 
-	status = pthread_create(&s_info.tid, NULL, event_thread_main, NULL);
-	if (status != 0) {
-		ErrPrint("Failed to initiate the thread: %s\n", strerror(status));
+	ret = pthread_create(&s_info.tid, NULL, event_thread_main, NULL);
+	if (ret != 0) {
+		ErrPrint("Failed to initiate the thread: %s\n", strerror(ret));
 		ecore_main_fd_handler_del(s_info.event_handler);
 		s_info.event_handler = NULL;
-
-		if (close(s_info.handle) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
-		}
-		s_info.handle = -1;
-
-		CLOSE_PIPE(s_info.tcb_pipe);
-		CLOSE_PIPE(s_info.evt_pipe);
 		return LB_STATUS_ERROR_FAULT;
 	}
 
 	DbgPrint("Event handler activated\n");
+	s_info.event_handler_activated = 1;
 	return LB_STATUS_SUCCESS;
 }
 
@@ -602,7 +669,7 @@ HAPI int event_activate(int x, int y, int (*event_cb)(enum event_state state, st
 	listener->x = x;
 	listener->y = y;
 
-	if (s_info.handle < 0) {
+	if (!s_info.event_handler_activated) {
 		/*!
 		 * \note
 		 * We don't need to lock to access event_list here.
@@ -652,7 +719,7 @@ HAPI int event_deactivate(int (*event_cb)(enum event_state state, struct event_d
 		return LB_STATUS_ERROR_NOT_EXIST;
 	}
 
-	if (s_info.handle < 0) {
+	if (s_info.event_handler_activated == 0) {
 		ErrPrint("Event handler is not actiavated\n");
 		DbgFree(listener);
 		return LB_STATUS_SUCCESS;
@@ -674,19 +741,7 @@ HAPI int event_deactivate(int (*event_cb)(enum event_state state, struct event_d
 		DbgPrint("Thread returns: %p\n", ret);
 	}
 
-	if (close(s_info.handle) < 0) {
-		ErrPrint("Unable to release the fd: %s\n", strerror(errno));
-	}
-
-	s_info.handle = -1;
-	DbgPrint("Event handler deactivated\n");
-
-	CLOSE_PIPE(s_info.tcb_pipe);
-
-	if (!eina_list_count(s_info.event_list)) {
-		ecore_main_fd_handler_del(s_info.event_handler);
-		clear_all_listener_list();
-	}
+	s_info.event_handler_activated = 0;
 
 	return LB_STATUS_SUCCESS;
 }
