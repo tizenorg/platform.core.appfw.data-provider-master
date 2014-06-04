@@ -199,6 +199,41 @@ static void _handler_update(struct tcb *tcb, struct packet *packet, void *data)
 	}
 }
 
+static void _handler_load_noti_by_tag(struct tcb *tcb, struct packet *packet, void *data)
+{
+	int ret = 0, ret_p = 0;
+	char* tag;
+	char* pkgname;
+	struct packet *packet_reply = NULL;
+	notification_h noti = NULL;
+
+	noti = notification_create(NOTIFICATION_TYPE_NOTI);
+	if (noti != NULL) {
+		if (packet_get(packet, "ss", &pkgname, &tag) == 2) {
+			ret = notification_noti_get_by_tag(noti, pkgname, tag);
+			packet_reply = notification_ipc_make_reply_packet_from_noti(noti, packet);
+			if (packet_reply) {
+				if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0) {
+					ErrPrint("failed to send reply packet: %d\n", ret_p);
+				}
+				packet_destroy(packet_reply);
+			} else {
+				ErrPrint("failed to create a reply packet\n");
+			}
+
+			if (ret != NOTIFICATION_ERROR_NONE) {
+				ErrPrint("failed to load_noti_by_tag : %d\n", ret);
+				notification_free(noti);
+				return ;
+			}
+		} else {
+			ErrPrint("Failed to create the packet");
+		}
+		notification_free(noti);
+	}
+}
+
+
 static void _handler_refresh(struct tcb *tcb, struct packet *packet, void *data)
 {
 	int ret = 0;
@@ -551,6 +586,13 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 			.handler = _handler_update,
 			.rule = "data-provider-master::notification.client",
 			.access = "w",
+			.handler_access_error = _permission_check_common,
+		},
+		{
+			.cmd = "load_noti_by_tag",
+			.handler = _handler_load_noti_by_tag,
+			.rule = "data-provider-master::notification.client",
+			.access = "r",
 			.handler_access_error = _permission_check_common,
 		},
 		{
