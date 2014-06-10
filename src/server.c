@@ -407,7 +407,7 @@ static int key_event_lb_route_cb(enum event_state state, struct event_data *even
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	packet = packet_create_noack(cmdstr, "ssdi", package_name(pkg), instance_id(inst), util_timestamp(), event_info->keycode);
+	packet = packet_create_noack(cmdstr, "ssdi", package_name(pkg), instance_id(inst), event_info->tv, event_info->keycode);
 	if (!packet) {
 		return LB_STATUS_ERROR_FAULT;
 	}
@@ -447,7 +447,7 @@ static int mouse_event_lb_route_cb(enum event_state state, struct event_data *ev
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	packet = packet_create_noack(cmdstr, "ssdii", package_name(pkg), instance_id(inst), util_timestamp(), event_info->x, event_info->y);
+	packet = packet_create_noack(cmdstr, "ssdii", package_name(pkg), instance_id(inst), event_info->tv, event_info->x, event_info->y);
 	if (!packet) {
 		return LB_STATUS_ERROR_FAULT;
 	}
@@ -472,7 +472,7 @@ static int key_event_lb_consume_cb(enum event_state state, struct event_data *ev
 		return LB_STATUS_ERROR_FAULT;
 	}
 
-	timestamp = util_timestamp();
+	timestamp = event_info->tv;
 
 	switch (state) {
 	case EVENT_STATE_ACTIVATE:
@@ -512,7 +512,7 @@ static int mouse_event_lb_consume_cb(enum event_state state, struct event_data *
 		return LB_STATUS_ERROR_FAULT;
 	}
 
-	timestamp = util_timestamp();
+	timestamp = event_info->tv;
 
 	switch (state) {
 	case EVENT_STATE_ACTIVATE:
@@ -566,7 +566,7 @@ static int key_event_pd_route_cb(enum event_state state, struct event_data *even
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	packet = packet_create_noack(cmdstr, "ssdi", package_name(pkg), instance_id(inst), util_timestamp(), event_info->keycode);
+	packet = packet_create_noack(cmdstr, "ssdi", package_name(pkg), instance_id(inst), event_info->tv, event_info->keycode);
 	if (!packet) {
 		return LB_STATUS_ERROR_FAULT;
 	}
@@ -606,7 +606,7 @@ static int mouse_event_pd_route_cb(enum event_state state, struct event_data *ev
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	packet = packet_create_noack(cmdstr, "ssdii", package_name(pkg), instance_id(inst), util_timestamp(), event_info->x, event_info->y);
+	packet = packet_create_noack(cmdstr, "ssdii", package_name(pkg), instance_id(inst), event_info->tv, event_info->x, event_info->y);
 	if (!packet) {
 		return LB_STATUS_ERROR_FAULT;
 	}
@@ -631,7 +631,7 @@ static int key_event_pd_consume_cb(enum event_state state, struct event_data *ev
 		return LB_STATUS_ERROR_FAULT;
 	}
 
-	timestamp = util_timestamp();
+	timestamp = event_info->tv;
 
 	switch (state) {
 	case EVENT_STATE_ACTIVATE:
@@ -671,7 +671,7 @@ static int mouse_event_pd_consume_cb(enum event_state state, struct event_data *
 		return LB_STATUS_ERROR_FAULT;
 	}
 
-	timestamp = util_timestamp();
+	timestamp = event_info->tv;
 
 	switch (state) {
 	case EVENT_STATE_ACTIVATE:

@@ -31,6 +31,7 @@ struct event_data {
 	int distance;	/* Hovering */
 	int orientation;
 	int pressure;
+	int updated; /* Timestamp is updated */
 #if defined(_USE_ECORE_TIME_GET)
 	double tv;
 #else
