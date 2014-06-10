@@ -385,29 +385,14 @@ static inline void clear_all_listener_list(void)
 			case EVENT_STATE_ACTIVATE:
 				p_event_data = &s_info.event_data;
 				next_state = EVENT_STATE_ACTIVATED;
-#if defined(_USE_ECORE_TIME_GET)
-				DbgPrint("[32m*ACTIVATE[0m %dx%d (%d)\n", p_event_data->x, p_event_data->y, p_event_data->pressure, p_event_data->tv);
-#else
-				DbgPrint("[32m*ACTIVATE[0m %dx%d (%lu.%lu)\n", p_event_data->x, p_event_data->y, p_event_data->pressure, p_event_data->tv.tv_sec, p_event_data->tv.tv_usec);
-#endif
 				break;
 			case EVENT_STATE_ACTIVATED:
 				p_event_data = &s_info.event_data;
 				next_state = EVENT_STATE_DEACTIVATE;
-#if defined(_USE_ECORE_TIME_GET)
-				DbgPrint("[32m*ACTIVATED[0m %dx%d (%d)\n", p_event_data->x, p_event_data->y, p_event_data->pressure, p_event_data->tv);
-#else
-				DbgPrint("[32m*ACTIVATED[0m %dx%d (%lu.%lu)\n", p_event_data->x, p_event_data->y, p_event_data->pressure, p_event_data->tv.tv_sec, p_event_data->tv.tv_usec);
-#endif
 				break;
 			case EVENT_STATE_DEACTIVATE:
 				memcpy(&event_data, &s_info.event_data, sizeof(event_data));
 				p_event_data = &event_data;
-#if defined(_USE_ECORE_TIME_GET)
-				DbgPrint("[32m*DEACTIVATE[0m %dx%d (%d)\n", p_event_data->x, p_event_data->y, p_event_data->pressure, p_event_data->tv);
-#else
-				DbgPrint("[32m*DEACTIVATE[0m %dx%d (%lu.%lu)\n", p_event_data->x, p_event_data->y, p_event_data->pressure, p_event_data->tv.tv_sec, p_event_data->tv.tv_usec);
-#endif
 				next_state = EVENT_STATE_DEACTIVATED;
 				break;
 			case EVENT_STATE_DEACTIVATED:
@@ -797,7 +782,6 @@ HAPI int event_deactivate(int (*event_cb)(enum event_state state, struct event_d
 
 	EINA_LIST_FOREACH(s_info.event_listener_list, l, item) {
 		if (item->event_cb == event_cb && item->cbdata == data) {
-			item->state = EVENT_STATE_DEACTIVATE;
 			if (item->state == EVENT_STATE_ACTIVATE) {
 				/* This listener doesn't get any move event,
 				 * In this case we should check the pressure value,
@@ -805,6 +789,7 @@ HAPI int event_deactivate(int (*event_cb)(enum event_state state, struct event_d
 				 */
 				DbgPrint(">>>>>> Needs to emulate toe MOVE event\n");
 			}
+			item->state = EVENT_STATE_DEACTIVATE;
 			listener = item;
 		}
 
