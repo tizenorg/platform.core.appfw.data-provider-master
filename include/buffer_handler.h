@@ -140,6 +140,27 @@ extern int buffer_handler_pixmap_release_buffer(void *canvas);
 
 /*!
  * \brief
+ * \param[in] info
+ * \return int
+ */
+extern int buffer_handler_stride(struct buffer_info *info);
+
+/*!
+ * \brief
+ * \param[in] info
+ * \return int
+ */
+extern int buffer_handler_pixels(struct buffer_info *info);
+
+/*!
+ * \brief
+ * \param[in] info
+ * \return int
+ */
+extern int buffer_handler_auto_align(void);
+
+/*!
+ * \brief
  * \return int
  */
 extern int buffer_handler_init(void);

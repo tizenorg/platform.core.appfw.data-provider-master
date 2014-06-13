@@ -65,6 +65,7 @@ struct buffer_info
 	int w;
 	int h;
 	int pixel_size;
+	int auto_align;
 	int is_loaded;
 
 	struct inst_info *inst;
@@ -860,7 +861,7 @@ HAPI int buffer_handler_destroy(struct buffer_info *info)
 	return LB_STATUS_SUCCESS;
 }
 
-HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buffer_type type, int w, int h, int pixel_size)
+HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buffer_type type, int w, int h, int pixel_size, int auto_align)
 {
 	struct buffer_info *info;
 
@@ -914,6 +915,7 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buff
 	info->inst = inst;
 	info->buffer = NULL;
 	info->data = NULL;
+	info->auto_align = auto_align;
 
 	return info;
 }
