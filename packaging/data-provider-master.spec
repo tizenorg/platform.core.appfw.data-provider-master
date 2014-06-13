@@ -40,6 +40,7 @@ BuildRequires: pkgconfig(com-core)
 BuildRequires: pkgconfig(libxml-2.0)
 BuildRequires: pkgconfig(pkgmgr)
 
+# This will not be works, I know. But...
 %if "%{sec_product_feature_livebox}" != "0"
 BuildRequires: pkgconfig(livebox-service)
 %endif
@@ -50,6 +51,7 @@ BuildRequires: pkgconfig(badge)
 BuildRequires: pkgconfig(badge-service)
 BuildRequires: pkgconfig(shortcut)
 BuildRequires: pkgconfig(security-server)
+BuildRequires: sec-product-features
 Requires(post): sys-assert
 Requires(post): dbus
 
