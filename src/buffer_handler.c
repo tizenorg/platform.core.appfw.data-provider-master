@@ -181,12 +181,12 @@ static int create_lock_file(struct buffer_info *info)
 	return LB_STATUS_SUCCESS;
 }
 
-static int do_buffer_lock(struct buffer_info *buffer)
+static int do_buffer_lock(struct buffer_info *info)
 {
 	struct flock flock;
 	int ret;
 
-	if (buffer->lock_fd < 0) {
+	if (info->lock_fd < 0) {
 		return LB_STATUS_SUCCESS;
 	}
 
@@ -197,7 +197,7 @@ static int do_buffer_lock(struct buffer_info *buffer)
 	flock.l_pid = getpid();
 
 	do {
-		ret = fcntl(buffer->lock_fd, F_SETLKW, &flock);
+		ret = fcntl(info->lock_fd, F_SETLKW, &flock);
 		if (ret < 0) {
 			ret = errno;
 			ErrPrint("fcntl: %s\n", strerror(errno));
@@ -207,12 +207,12 @@ static int do_buffer_lock(struct buffer_info *buffer)
 	return LB_STATUS_SUCCESS;
 }
 
-static int do_buffer_unlock(struct buffer_info *buffer)
+static int do_buffer_unlock(struct buffer_info *info)
 {
 	struct flock flock;
 	int ret;
 
-	if (buffer->lock_fd < 0) {
+	if (info->lock_fd < 0) {
 		return LB_STATUS_SUCCESS;
 	}
 
@@ -223,7 +223,7 @@ static int do_buffer_unlock(struct buffer_info *buffer)
 	flock.l_pid = getpid();
 
 	do {
-		ret = fcntl(buffer->lock_fd, F_SETLKW, &flock);
+		ret = fcntl(info->lock_fd, F_SETLKW, &flock);
 		if (ret < 0) {
 			ret = errno;
 			ErrPrint("fcntl: %s\n", strerror(errno));
@@ -340,16 +340,16 @@ static inline int create_gem(struct buffer *buffer)
 		return LB_STATUS_ERROR_FAULT;
 	}
 
-	if (gem->dri2_buffer->pitch != gem->w * gem->depth) {
+	if (AUTO_ALIGN && gem->dri2_buffer->pitch != gem->w * gem->depth) {
 		gem->compensate_data = calloc(1, gem->w * gem->h * gem->depth);
 		if (!gem->compensate_data) {
 			ErrPrint("Failed to allocate heap\n");
 		}
 	}
 
-	DbgPrint("dri2_buffer: %p, name: %p, %dx%d, pitch: %d, buf_count: %d, depth: %d, compensate: %p\n",
+	DbgPrint("dri2_buffer: %p, name: %p, %dx%d, pitch: %d, buf_count: %d, depth: %d, compensate: %p (%d)\n",
 				gem->dri2_buffer, gem->dri2_buffer->name, gem->w, gem->h,
-				gem->dri2_buffer->pitch, gem->buf_count, gem->depth, gem->compensate_data);
+				gem->dri2_buffer->pitch, gem->buf_count, gem->depth, gem->compensate_data, AUTO_ALIGN);
 
 	return LB_STATUS_SUCCESS;
 }
@@ -994,7 +994,9 @@ EAPI void *buffer_handler_pixmap_ref(struct buffer_info *info)
 		}
 
 		if (need_gem) {
-			create_gem(buffer);
+			if (create_gem(buffer) < 0) {
+				/* okay, something goes wrong */
+			}
 		}
 
 	} else if (buffer->state != CREATED || buffer->type != BUFFER_TYPE_PIXMAP) {
@@ -1604,6 +1606,10 @@ EAPI int buffer_handler_raw_close(struct buffer *buffer)
 {
 	int ret;
 
+	if (!buffer || buffer->state != CREATED) {
+		return LB_STATUS_ERROR_INVALID;
+	}
+
 	switch (buffer->type) {
 	case BUFFER_TYPE_SHM:
 		ret = raw_close_shm(buffer);
@@ -1622,30 +1628,99 @@ EAPI int buffer_handler_raw_close(struct buffer *buffer)
 	return ret;
 }
 
-EAPI int buffer_handler_lock(struct buffer_info *buffer)
+EAPI int buffer_handler_lock(struct buffer_info *info)
 {
-	if (buffer->type == BUFFER_TYPE_PIXMAP) {
+	if (!info) {
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	if (info->type == BUFFER_TYPE_PIXMAP) {
 		return LB_STATUS_SUCCESS;
 	}
 
-	if (buffer->type == BUFFER_TYPE_FILE) {
+	if (info->type == BUFFER_TYPE_FILE) {
 		return LB_STATUS_SUCCESS;
 	}
 
-	return do_buffer_lock(buffer);
+	return do_buffer_lock(info);
 }
 
-EAPI int buffer_handler_unlock(struct buffer_info *buffer)
+EAPI int buffer_handler_unlock(struct buffer_info *info)
 {
-	if (buffer->type == BUFFER_TYPE_PIXMAP) {
+	if (!info) {
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	if (info->type == BUFFER_TYPE_PIXMAP) {
 		return LB_STATUS_SUCCESS;
 	}
 
-	if (buffer->type == BUFFER_TYPE_FILE) {
+	if (info->type == BUFFER_TYPE_FILE) {
 		return LB_STATUS_SUCCESS;
 	}
 
-	return do_buffer_unlock(buffer);
+	return do_buffer_unlock(info);
+}
+
+EAPI int buffer_handler_pixels(struct buffer_info *info)
+{
+	if (!info) {
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	return info->pixel_size;
+}
+
+EAPI int buffer_handler_auto_align(void)
+{
+	return AUTO_ALIGN;
+}
+
+EAPI int buffer_handler_stride(struct buffer_info *info)
+{
+	struct buffer *buffer;
+	struct gem_data *gem;
+	int stride;
+
+	if (!info) {
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	switch (info->type) {
+	case BUFFER_TYPE_FILE:
+	case BUFFER_TYPE_SHM:
+		stride = info->w * info->pixel_size;
+		break;
+	case BUFFER_TYPE_PIXMAP:
+		buffer = info->buffer;
+		if (!buffer) {
+			stride = LB_STATUS_ERROR_INVALID;
+			break;
+		}
+
+		gem = (struct gem_data *)buffer->data;
+		if (!gem) {
+			stride = LB_STATUS_ERROR_INVALID;
+			break;
+		}
+
+		if (!gem->dri2_buffer) {
+			/*
+			 * Uhm...
+			 */
+			ErrPrint("dri2_buffer info is not ready yet!\n");
+			stride = LB_STATUS_ERROR_INVALID;
+			break;
+		}
+
+		stride = gem->dri2_buffer->pitch;
+		break;
+	default:
+		stride = LB_STATUS_ERROR_INVALID;
+		break;
+	}
+
+	return stride;
 }
 
 /*!
@@ -1654,25 +1729,25 @@ EAPI int buffer_handler_unlock(struct buffer_info *buffer)
  * Plugin cannot access the user data
  */
 
-HAPI int buffer_handler_set_data(struct buffer_info *buffer, void *data)
+HAPI int buffer_handler_set_data(struct buffer_info *info, void *data)
 {
-	if (!buffer) {
+	if (!info) {
 		ErrPrint("Invalid handle\n");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	buffer->data = data;
+	info->data = data;
 	return LB_STATUS_SUCCESS;
 }
 
-HAPI void *buffer_handler_data(struct buffer_info *buffer)
+HAPI void *buffer_handler_data(struct buffer_info *info)
 {
-	if (!buffer) {
+	if (!info) {
 		ErrPrint("Invalid handle\n");
 		return NULL;
 	}
 
-	return buffer->data;
+	return info->data;
 }
 
 HAPI int buffer_handler_destroy(struct buffer_info *info)

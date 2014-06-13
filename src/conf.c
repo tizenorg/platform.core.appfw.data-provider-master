@@ -83,6 +83,7 @@ static const double CONF_DEFAULT_SCALE_WIDTH_FACTOR = 1.0f;
 static const double CONF_DEFAULT_SCALE_HEIGHT_FACTOR = 1.0f;
 static const double CONF_DEFAULT_PD_REQUEST_TIMEOUT = 5.0f;
 static const int CONF_DEFAULT_PIXELS = sizeof(int);
+static const int CONF_DEFAULT_AUTO_ALIGN = 1;
 
 int errno;
 
@@ -107,6 +108,11 @@ static void emergency_disk_handler(char *buffer)
 	if (!g_conf.emergency_disk) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 	}
+}
+
+static void auto_align_handler(char *buffer)
+{
+	g_conf.auto_align = !strcasecmp(buffer, "true");
 }
 
 static void services_handler(char *buffer)
@@ -439,6 +445,7 @@ HAPI void conf_init(void)
 	g_conf.provider_method = (char *)CONF_DEFAULT_PROVIDER_METHOD;
 	g_conf.emergency_disk = (char *)CONF_DEFAULT_EMERGENCY_DISK;
 	g_conf.services = (char *)CONF_DEFAULT_SERVICES;
+	g_conf.auto_align = CONF_DEFAULT_AUTO_ALIGN;
 }
 
 HAPI int conf_loader(void)
@@ -587,6 +594,10 @@ HAPI int conf_loader(void)
 		{
 			.name = "services",
 			.handler = services_handler,
+		},
+		{
+			.name = "auto_align",
+			.handler = auto_align_handler,
 		},
 		{
 			.name = "use_xmonitor",
@@ -828,6 +839,7 @@ HAPI void conf_reset(void)
 	g_conf.pd_request_timeout = CONF_DEFAULT_PD_REQUEST_TIMEOUT;
 	g_conf.premultiplied = CONF_DEFAULT_PREMULTIPLIED;
 	g_conf.default_conf.pixels = CONF_DEFAULT_PIXELS;
+	g_conf.auto_align = CONF_DEFAULT_AUTO_ALIGN;
 
 	if (g_conf.default_conf.script != CONF_DEFAULT_SCRIPT_TYPE) {
 		DbgFree(g_conf.default_conf.script);

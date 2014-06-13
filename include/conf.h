@@ -95,6 +95,7 @@ struct conf {
 
 	char *emergency_disk;
 	char *services;
+	int auto_align;
 };
 
 extern struct conf g_conf;
@@ -192,6 +193,7 @@ extern void conf_init(void);
 #endif
 
 #define USE_XMONITOR		g_conf.use_xmonitor
+#define AUTO_ALIGN		g_conf.auto_align
 
 #define HAPI __attribute__((visibility("hidden")))
 /*!
