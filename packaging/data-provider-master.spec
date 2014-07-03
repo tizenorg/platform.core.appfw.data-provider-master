@@ -2,14 +2,13 @@
 
 Name: data-provider-master
 Summary: Master service provider for liveboxes
-Version: 0.44.4
+Version: 0.44.5
 Release: 1
 Group: HomeTF/Livebox
 License: Flora
 Source0: %{name}-%{version}.tar.gz
 Source1001: %{name}.manifest
 BuildRequires: cmake, gettext-tools, smack, coreutils
-BuildRequires: pkgconfig(ail)
 BuildRequires: pkgconfig(dlog)
 BuildRequires: pkgconfig(aul)
 BuildRequires: pkgconfig(vconf)
@@ -39,6 +38,7 @@ BuildRequires: pkgconfig(eina)
 BuildRequires: pkgconfig(com-core)
 BuildRequires: pkgconfig(libxml-2.0)
 BuildRequires: pkgconfig(pkgmgr)
+BuildRequires: pkgconfig(pkgmgr-info)
 
 # This will not be works, I know. But...
 %if "%{sec_product_feature_livebox}" != "0"

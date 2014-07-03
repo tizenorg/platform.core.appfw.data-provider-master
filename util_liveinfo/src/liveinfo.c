@@ -63,6 +63,7 @@ struct package {
 
 struct instance {
 	char *id;
+	char *buf_id;
 	char *cluster;
 	char *category;
 	double period;
@@ -205,6 +206,7 @@ static void inst_del_cb(struct node *node)
 	}
 
 	free(info->id);
+	free(info->buf_id);
 	free(info->cluster);
 	free(info->category);
 	free(info->state);
@@ -270,7 +272,7 @@ static void ls(void)
 
 			info = node_data(node);
 
-			printf(" %5.2f %6s %10s %10s %4dx%-4d ", info->period, info->state, info->cluster, info->category, info->width, info->height);
+			printf(" %5.2f %s %6s %10s %10s %4dx%-4d ", info->period, info->buf_id, info->state, info->cluster, info->category, info->width, info->height);
 			snprintf(buf, sizeof(buf), "/opt/usr/share/live_magazine/reader/%s", node_name(node));
 			if (lstat(buf, &stat) < 0) {
 				printf("%3d ERR ", errno);
@@ -1433,8 +1435,10 @@ static void processing_line_buffer(const char *buffer)
 	char pkgname[256];
 	char abi[256];
 	char inst_id[4096];
+	char buf_id[256];
 	char cluster[256];
 	char category[256];
+	char str_period[64];
 	char state[10];
 	int refcnt;
 	int fault_count;
@@ -1570,10 +1574,12 @@ static void processing_line_buffer(const char *buffer)
 		slaveinfo->ttl = ttl;
 		break;
 	case INST_LIST:
-		if (sscanf(buffer, "%[^ ] %[^ ] %[^ ] %lf %[^ ] %d %d", inst_id, cluster, category, &period, state, &width, &height) != 7) {
+		if (sscanf(buffer, "%[^ ] %[^ ] %[^ ] %[^ ] %[^ ] %[^ ] %d %d", inst_id, buf_id, cluster, category, str_period, state, &width, &height) != 8) {
 			printf("Invalid format : [%s]\n", buffer);
 			return;
 		}
+
+		period = strtod(str_period, NULL);
 
 		for (i = strlen(inst_id); i > 0 && inst_id[i] != '/'; i--);
 		i += (inst_id[i] == '/');
@@ -1601,6 +1607,7 @@ static void processing_line_buffer(const char *buffer)
 		node_set_age(node, s_info.age);
 
 		free(instinfo->id);
+		free(instinfo->buf_id);
 		free(instinfo->cluster);
 		free(instinfo->category);
 		free(instinfo->state);
@@ -1623,6 +1630,10 @@ static void processing_line_buffer(const char *buffer)
 		instinfo->state = strdup(state);
 		if (!instinfo->state) {
 			printf("Error: %s\n", strerror(errno));
+		}
+
+		if (strlen(buf_id)) {
+			instinfo->buf_id = strdup(buf_id);
 		}
 
 		instinfo->period = period;

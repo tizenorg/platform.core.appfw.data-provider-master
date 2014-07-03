@@ -7662,8 +7662,9 @@ static Eina_Bool inst_list_cb(void *info)
 
 	inst_list = package_instance_list(pkg);
 	EINA_LIST_FOREACH(inst_list, l, inst) {
-		fprintf(fp, "%s %s %s %lf %s %d %d\n",
+		fprintf(fp, "%s %s %s %s %lf %s %d %d\n",
 			instance_id(inst),
+			buffer_handler_id(instance_lb_buffer(inst)),
 			instance_cluster(inst),
 			instance_category(inst),
 			instance_period(inst),
