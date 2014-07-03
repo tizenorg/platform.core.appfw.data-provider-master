@@ -3,7 +3,6 @@ PROJECT(data-provider-master C)
 
 INCLUDE(FindPkgConfig)
 pkg_check_modules(pkg REQUIRED
-	ail
 	dlog
 	aul
 	vconf
@@ -22,6 +21,7 @@ pkg_check_modules(pkg REQUIRED
 	badge-service
 	libsmack
 	shortcut
+	pkgmgr-info
 )
 
 IF (LIVEBOX)

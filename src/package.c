@@ -25,6 +25,7 @@
 #include <packet.h>
 #include <livebox-errno.h>
 #include <livebox-service.h>
+#include <pkgmgr-info.h>
 #include <ail.h>
 
 #include "critical_log.h"
@@ -1559,22 +1560,23 @@ HAPI int const package_fault_count(struct pkg_info *info)
 
 HAPI int package_is_enabled(const char *appid)
 {
-	ail_appinfo_h ai;
+	pkgmgrinfo_appinfo_h handle;
 	bool enabled;
 	int ret;
 
-	ret = ail_get_appinfo(appid, &ai);
-	if (ret != AIL_ERROR_OK) {
-		ErrPrint("Unable to get appinfo (%s): %d\n", appid, ret);
+	ret = pkgmgrinfo_appinfo_get_appinfo(appid, &handle);
+	if (ret != PMINFO_R_OK) {
+		ErrPrint("Failed to get info\n");
 		return 0;
 	}
 
-	if (ail_appinfo_get_bool(ai, AIL_PROP_X_SLP_ENABLED_BOOL, &enabled) != AIL_ERROR_OK) {
+	ret = pkgmgrinfo_appinfo_is_enabled(handle, &enabled);
+	if (ret != PMINFO_R_OK) {
+		ErrPrint("Failed to get info\n");
 		enabled = false;
 	}
 
-	ail_destroy_appinfo(ai);
-
+	pkgmgrinfo_appinfo_destroy_appinfo(handle);
 	return enabled == true;
 }
 
