@@ -52,5 +52,6 @@ extern int event_fini(void);
 extern int event_activate(int x, int y, int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data);
 extern int event_deactivate(int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data);
 extern int event_is_activated(void);
+extern int event_reset_cbdata(int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data, void *new_data);
 
 /* End of a file */

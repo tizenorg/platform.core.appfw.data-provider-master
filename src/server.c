@@ -383,6 +383,11 @@ static int key_event_lb_route_cb(enum event_state state, struct event_data *even
 	struct packet *packet;
 	const char *cmdstr;
 
+	if (!inst) {
+		DbgPrint("Instance is deleted.\n");
+		return LB_STATUS_ERROR_INVALID;
+	}
+
 	pkg = instance_package(inst);
 	if (!pkg) {
 		return LB_STATUS_ERROR_INVALID;
@@ -422,6 +427,11 @@ static int mouse_event_lb_route_cb(enum event_state state, struct event_data *ev
 	struct slave_node *slave;
 	struct packet *packet;
 	const char *cmdstr;
+
+	if (!inst) {
+		DbgPrint("Instance is deleted.\n");
+		return LB_STATUS_ERROR_INVALID;
+	}
 
 	pkg = instance_package(inst);
 	if (!pkg) {
@@ -542,6 +552,11 @@ static int key_event_pd_route_cb(enum event_state state, struct event_data *even
 	struct packet *packet;
 	const char *cmdstr;
 
+	if (!inst) {
+		DbgPrint("Instance is deleted.\n");
+		return LB_STATUS_ERROR_INVALID;
+	}
+
 	pkg = instance_package(inst);
 	if (!pkg) {
 		return LB_STATUS_ERROR_INVALID;
@@ -581,6 +596,11 @@ static int mouse_event_pd_route_cb(enum event_state state, struct event_data *ev
 	struct slave_node *slave;
 	struct packet *packet;
 	const char *cmdstr;
+
+	if (!inst) {
+		DbgPrint("Instance is deleted.\n");
+		return LB_STATUS_ERROR_INVALID;
+	}
 
 	pkg = instance_package(inst);
 	if (!pkg) {
@@ -1687,7 +1707,16 @@ out:
 
 static int inst_del_cb(struct inst_info *inst, void *data)
 {
+	/*
+	 * If you deactivate the event thread,
+	 * It will calls event callbacks.
+	 * And the event callbacks will try to access the "inst"
+	 */
 	(void)event_deactivate(data, inst);
+	
+	/* Reset callback data after delete the instance */
+	(void)event_reset_cbdata(data, inst, NULL);
+
 	return -1; /* Delete this callback */
 }
 
