@@ -980,6 +980,22 @@ HAPI int event_deactivate(int (*event_cb)(enum event_state state, struct event_d
 	return LB_STATUS_SUCCESS;
 }
 
+HAPI int event_reset_cbdata(int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data, void *new_data)
+{
+	struct event_listener *item;
+	Eina_List *l;
+	int updated = 0;
+
+	EINA_LIST_FOREACH(s_info.event_listener_list, l, item) {
+		if (item->event_cb == event_cb && item->cbdata == data) {
+			item->cbdata = new_data;
+			updated++;
+		}
+	}
+
+	return updated;
+}
+
 HAPI int event_is_activated(void)
 {
 	return s_info.handle >= 0;
