@@ -70,7 +70,7 @@ static struct info {
 
 #define DEFAULT_CMD_TTL 3
 
-static inline void prepend_command(struct command *command);
+static void prepend_command(struct command *command);
 
 static inline struct command *create_command(struct slave_node *slave, const char *pkgname, struct packet *packet)
 {
@@ -251,7 +251,7 @@ errout:
 	return ECORE_CALLBACK_RENEW;
 }
 
-static inline void prepend_command(struct command *command)
+static void prepend_command(struct command *command)
 {
 	s_info.command_list = eina_list_prepend(s_info.command_list, command);
 
@@ -267,7 +267,7 @@ static inline void prepend_command(struct command *command)
 	}
 }
 
-static inline void push_command(struct command *command)
+static void push_command(struct command *command)
 {
 	s_info.command_list = eina_list_append(s_info.command_list, command);
 
