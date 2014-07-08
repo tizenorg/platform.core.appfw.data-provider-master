@@ -7400,6 +7400,65 @@ out:
 	return result;
 }
 
+static struct packet *service_instance_count(pid_t pid, int handle, const struct packet *packet)
+{
+	struct packet *result;
+	struct pkg_info *pkg;
+	double timestamp;
+	const char *pkgname;
+	const char *cluster;
+	const char *category;
+	Eina_List *pkg_list;
+	Eina_List *l;
+	Eina_List *inst_list;
+	Eina_List *inst_l;
+	struct inst_info *inst;
+	int ret;
+
+	ret = packet_get(packet, "sssd", &pkgname, &cluster, &category, &timestamp);
+	if (ret != 4) {
+		ErrPrint("Invalid packet\n");
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	pkg_list = (Eina_List *)package_list();
+
+	ret = 0;
+	EINA_LIST_FOREACH(pkg_list, l, pkg) {
+		if (pkgname && pkgname[0]) {
+			if (strcmp(package_name(pkg), pkgname)) {
+				continue;
+			}
+		}
+
+		inst_list = package_instance_list(pkg);
+		EINA_LIST_FOREACH(inst_list, inst_l, inst) {
+			if (cluster && cluster[0]) {
+				if (strcmp(instance_cluster(inst), cluster)) {
+					continue;
+				}
+			}
+
+			if (category && category[0]) {
+				if (strcmp(instance_category(inst), category)) {
+					continue;
+				}
+			}
+
+			ret++;
+		}
+	}
+	
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result) {
+		ErrPrint("Failed to create a packet\n");
+	}
+
+	return result;
+}
+
 static struct packet *service_change_period(pid_t pid, int handle, const struct packet *packet)
 {
 	struct inst_info *inst;
@@ -8371,6 +8430,10 @@ static struct method s_service_table[] = {
 	{
 		.cmd = "service_change_period",
 		.handler = service_change_period,
+	},
+	{
+		.cmd = "service_inst_cnt",
+		.handler = service_instance_count,
 	},
 	{
 		.cmd = NULL,
