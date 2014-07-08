@@ -222,7 +222,7 @@ static int viewer_deactivated_cb(struct client_node *client, void *data)
 	inst->client_list = eina_list_remove(inst->client_list, client);
 	if (!inst->client_list && !inst->client) {
 		DbgPrint("Has no clients\n");
-		instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
+		instance_destroy(inst, INSTANCE_DESTROY_FAULT);
 	}
 
 	instance_unref(inst);
@@ -527,7 +527,7 @@ static int instance_broadcast_deleted_event(struct inst_info *inst, int reason)
 static int client_deactivated_cb(struct client_node *client, void *data)
 {
 	struct inst_info *inst = data;
-	instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
+	instance_destroy(inst, INSTANCE_DESTROY_FAULT);
 	return LB_STATUS_SUCCESS;
 }
 
