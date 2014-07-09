@@ -154,6 +154,7 @@ enum lb_type {
 	LB_TYPE_FILE,
 	LB_TYPE_TEXT,
 	LB_TYPE_BUFFER,
+	LB_TYPE_ELEMENTARY
 };
 
 enum pd_type {
@@ -161,6 +162,7 @@ enum pd_type {
 	PD_TYPE_SCRIPT,
 	PD_TYPE_TEXT,
 	PD_TYPE_BUFFER,
+	PD_TYPE_ELEMENTARY
 };
 
 struct livebox {
@@ -2109,6 +2111,8 @@ static inline void update_box(struct livebox *livebox, xmlNodePtr node)
 				livebox->lb_type = LB_TYPE_BUFFER;
 			} else if (!xmlStrcasecmp(type, (const xmlChar *)"script")) {
 				livebox->lb_type = LB_TYPE_SCRIPT;
+			} else if (!xmlStrcasecmp(type, (const xmlChar *)"elm")) {
+				livebox->lb_type = LB_TYPE_ELEMENTARY;
 			} else { /* Default */
 				livebox->lb_type = LB_TYPE_FILE;
 			}
@@ -2432,6 +2436,8 @@ static inline void update_pd(struct livebox *livebox, xmlNodePtr node)
 			livebox->pd_type = PD_TYPE_TEXT;
 		} else if (!xmlStrcasecmp(type, (const xmlChar *)"buffer")) {
 			livebox->pd_type = PD_TYPE_BUFFER;
+		} else if (!xmlStrcasecmp(type, (const xmlChar *)"elm")) {
+			livebox->pd_type = PD_TYPE_ELEMENTARY;
 		} else {
 			livebox->pd_type = PD_TYPE_SCRIPT;
 		}
