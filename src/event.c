@@ -89,6 +89,7 @@ struct event_listener {
 	int (*event_cb)(enum event_state state, struct event_data *event, void *data);
 	void *cbdata;
 
+	enum event_state prev_state;
 	enum event_state state;
 
 #if defined(_USE_ECORE_TIME_GET)
@@ -391,7 +392,6 @@ static void processing_ev_abs(struct input_event *event)
 		break;
 #endif
 	default:
-		DbgPrint("EV_ABS, 0x%x\n", event->code);
 		break;
 	}
 
@@ -471,8 +471,6 @@ static void *event_thread_main(void *data)
 	int fd;
 	char event_ch;
 
-	DbgPrint("Initiated\n");
-
 	while (1) {
 		FD_ZERO(&set);
 		FD_SET(s_info.handle, &set);
@@ -542,8 +540,12 @@ static inline void clear_all_listener_list(void)
 	Eina_List *l;
 	Eina_List *n;
 
+	DbgPrint("event listeners: %d\n", eina_list_count(s_info.event_listener_list));
 	while (s_info.event_listener_list) {
 		EINA_LIST_FOREACH_SAFE(s_info.event_listener_list, l, n, listener) {
+
+			DbgPrint("listener[%p] prev[%x] state[%x]\n", listener, listener->prev_state, listener->state);
+
 			switch (listener->state) {
 			case EVENT_STATE_ACTIVATE:
 				p_event_data = &s_info.event_data;
@@ -556,7 +558,15 @@ static inline void clear_all_listener_list(void)
 			case EVENT_STATE_DEACTIVATE:
 				memcpy(&event_data, &s_info.event_data, sizeof(event_data));
 				p_event_data = &event_data;
-				next_state = EVENT_STATE_DEACTIVATED;
+
+				if (listener->prev_state == EVENT_STATE_ACTIVATE) {
+					/* There is no move event. we have to emulate it */
+					DbgPrint ("Let's emulate move event (%dx%d)\n", p_event_data->x, p_event_data->y);
+					listener->state = EVENT_STATE_ACTIVATED;
+					next_state = EVENT_STATE_DEACTIVATE;
+				} else {
+					next_state = EVENT_STATE_DEACTIVATED;
+				}
 				break;
 			case EVENT_STATE_DEACTIVATED:
 			default:
@@ -576,6 +586,7 @@ static inline void clear_all_listener_list(void)
 			/*!
 			 * Changing state of listener will affect to the event collecting thread.
 			 */
+			listener->prev_state = listener->state;
 			listener->state = next_state;
 		}
 	}
@@ -659,8 +670,6 @@ static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 			s_info.event_handler = NULL;
 			clear_all_listener_list();
 
-			DbgPrint("reactivate_list: %p\n", s_info.reactivate_list);
-
 			EINA_LIST_FREE(s_info.reactivate_list, listener) {
 				s_info.event_listener_list = eina_list_append(s_info.event_listener_list, listener);
 			}
@@ -673,7 +682,7 @@ static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 				}
 			}
 
-			DbgPrint("Event read callback finshed\n");
+			DbgPrint("Event read callback finshed (%p)\n", s_info.event_listener_list);
 			return ECORE_CALLBACK_CANCEL;
 		} else {
 			ErrPrint("Something goes wrong, the event_list is not flushed\n");
@@ -687,58 +696,62 @@ static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 	}
 	CRITICAL_SECTION_END(&s_info.event_list_lock);
 
-	if (item) {
-		EINA_LIST_FOREACH_SAFE(s_info.event_listener_list, l, n, listener) {
-			switch (listener->state) {
-			case EVENT_STATE_ACTIVATE:
-				if (compare_timestamp(listener, item) > 0) {
-					continue;
-				}
-				next_state = EVENT_STATE_ACTIVATED;
-				break;
-			case EVENT_STATE_DEACTIVATE:
-				if (compare_timestamp(listener, item) < 0) {
-					/* Consuming all events occurred while activating this listener */
-					listener->state = EVENT_STATE_ACTIVATED;
-					if (invoke_event_cb(listener, item) == 1) {
-						/* listener is deleted */
-						continue;
-					}
+	if (!item) {
+		ErrPrint("There is no remained event\n");
+		return ECORE_CALLBACK_RENEW;
+	}
 
-					listener->state = EVENT_STATE_DEACTIVATE;
-				}
-				next_state = EVENT_STATE_DEACTIVATED;
-				//s_info.event_data.x = -1;
-				//s_info.event_data.y = -1;
-				//s_info.event_data.slot = -1;
-				break;
-			case EVENT_STATE_ACTIVATED:
-				if (compare_timestamp(listener, item) > 0) {
-					continue;
-				}
-				next_state = listener->state;
-				break;
-			case EVENT_STATE_DEACTIVATED:
-			default:
-				/* Remove this from the list */
-				/* Check the item again. the listener can be deleted from the callback */
-				if (eina_list_data_find(s_info.event_listener_list, listener)) {
-					s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
-					DbgFree(listener);
-				}
-
+	EINA_LIST_FOREACH_SAFE(s_info.event_listener_list, l, n, listener) {
+		switch (listener->state) {
+		case EVENT_STATE_ACTIVATE:
+			if (compare_timestamp(listener, item) > 0) {
 				continue;
 			}
+			next_state = EVENT_STATE_ACTIVATED;
+			break;
+		case EVENT_STATE_DEACTIVATE:
+			if (compare_timestamp(listener, item) < 0) {
+				/* Consuming all events occurred while activating this listener */
+				listener->prev_state = listener->state;
+				listener->state = EVENT_STATE_ACTIVATED;
+				if (invoke_event_cb(listener, item) == 1) {
+					/* listener is deleted */
+					continue;
+				}
 
-			if (invoke_event_cb(listener, item) == 1) {
-				continue;
+				listener->prev_state = listener->state;
+				listener->state = EVENT_STATE_DEACTIVATE;
 			}
 
-			listener->state = next_state;
+			/* Do not terminate this listener, until this mets EVENT_EXIT */
+			continue;
+		case EVENT_STATE_ACTIVATED:
+			if (compare_timestamp(listener, item) > 0) {
+				continue;
+			}
+			next_state = listener->state;
+			break;
+		case EVENT_STATE_DEACTIVATED:
+		default:
+			/* Remove this from the list */
+			/* Check the item again. the listener can be deleted from the callback */
+			if (eina_list_data_find(s_info.event_listener_list, listener)) {
+				s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
+				DbgFree(listener);
+			}
+
+			continue;
 		}
 
-		DbgFree(item);
+		if (invoke_event_cb(listener, item) == 1) {
+			continue;
+		}
+
+		listener->prev_state = listener->state;
+		listener->state = next_state;
 	}
+
+	DbgFree(item);
 
 	return ECORE_CALLBACK_RENEW;
 }
@@ -901,11 +914,13 @@ HAPI int event_activate(int x, int y, int (*event_cb)(enum event_state state, st
 		DbgFree(listener);
 		return LB_STATUS_ERROR_FAULT;
 	}
+	DbgPrint("Activated at: %lu sec %lu msec\n", listener->tv.tv_sec, listener->tv.tv_usec);
 	/* NEED TO DO COMPENSATION (DELAY) */
 #endif
 
 	listener->event_cb = event_cb;
 	listener->cbdata = data;
+	listener->prev_state = EVENT_STATE_DEACTIVATED;
 	listener->state = EVENT_STATE_ACTIVATE;
 	listener->x = x;
 	listener->y = y;
@@ -945,13 +960,7 @@ HAPI int event_deactivate(int (*event_cb)(enum event_state state, struct event_d
 
 	EINA_LIST_FOREACH(s_info.event_listener_list, l, item) {
 		if (item->event_cb == event_cb && item->cbdata == data) {
-			if (item->state == EVENT_STATE_ACTIVATE) {
-				/* This listener doesn't get any move event,
-				 * In this case we should check the pressure value,
-				 * And emulate the move event
-				 */
-				DbgPrint(">>>>>> Needs to emulate toe MOVE event\n");
-			}
+			item->prev_state = item->state;
 			item->state = EVENT_STATE_DEACTIVATE;
 			listener = item;
 		}
