@@ -25,6 +25,7 @@
 #include <dlog.h>
 #include <livebox-errno.h>
 #include <livebox-service.h>
+#include <livebox-service_product.h>
 
 #include "util.h"
 #include "debug.h"
