@@ -29,9 +29,10 @@
 #include <security-server.h>
 
 #include <vconf.h>
+#include <notification.h>
+#include <notification_internal.h>
 #include <notification_ipc.h>
 #include <notification_noti.h>
-#include <notification_error.h>
 #include <notification_setting_service.h>
 
 #include "service_common.h"
