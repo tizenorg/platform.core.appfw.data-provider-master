@@ -1070,11 +1070,9 @@ HAPI void package_set_pd_type(struct pkg_info *info, enum pd_type type)
  * Add the instance to the package info.
  * If a package has no slave, assign a new slave.
  */
-static inline int assign_new_slave(struct pkg_info *info)
+static inline int assign_new_slave(const char *slave_pkgname, struct pkg_info *info)
 {
 	char *s_name;
-	char *s_pkgname;
-	const char *tmp;
 
 	s_name = util_slavename();
 	if (!s_name) {
@@ -1082,29 +1080,10 @@ static inline int assign_new_slave(struct pkg_info *info)
 		return LB_STATUS_ERROR_FAULT;
 	}
 
-	tmp = abi_find_slave(info->abi);
-	if (!tmp) {
-		DbgFree(s_name);
-		ErrPrint("Failed to find a proper pkgname of a slave\n");
-		return LB_STATUS_ERROR_INVALID;
-	}
-
-	s_pkgname = util_replace_string(tmp, REPLACE_TAG_APPID, info->lbid);
-	if (!s_pkgname) {
-		DbgPrint("Failed to get replaced string\n");
-		s_pkgname = strdup(tmp);
-		if (!s_pkgname) {
-			ErrPrint("Heap: %s\n", strerror(errno));
-			DbgFree(s_name);
-			return LB_STATUS_ERROR_MEMORY;
-		}
-	}
-
-	DbgPrint("New slave[%s] is assigned for %s (using %s / abi[%s])\n", s_name, info->lbid, s_pkgname, info->abi);
-	info->slave = slave_create(s_name, info->secured, info->abi, s_pkgname, info->network);
+	DbgPrint("New slave[%s] is assigned for %s (using %s / abi[%s])\n", s_name, info->lbid, slave_pkgname, info->abi);
+	info->slave = slave_create(s_name, info->secured, info->abi, slave_pkgname, info->network);
 
 	DbgFree(s_name);
-	DbgFree(s_pkgname);
 
 	if (!info->slave) {
 		/*!
@@ -1126,16 +1105,24 @@ static inline int assign_new_slave(struct pkg_info *info)
 HAPI int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 {
 	if (!info->inst_list) {
-		info->slave = slave_find_available(info->abi, info->secured, info->network);
+		char *slave_pkgname;
 
+		slave_pkgname = slave_package_name(info->abi, info->lbid);
+		if (!slave_pkgname) {
+			return LB_STATUS_ERROR_MEMORY;
+		}
+
+		info->slave = slave_find_available(slave_pkgname, info->abi, info->secured, info->network);
 		if (!info->slave) {
 			int ret;
 
-			ret = assign_new_slave(info);
+			ret = assign_new_slave(slave_pkgname, info);
+			DbgFree(slave_pkgname);
 			if (ret < 0) {
 				return ret;
 			}
 		} else {
+			DbgFree(slave_pkgname);
 			DbgPrint("Slave %s is used for %s\n", slave_name(info->slave), info->lbid);
 		}
 
