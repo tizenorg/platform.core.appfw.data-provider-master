@@ -975,6 +975,7 @@ HAPI int event_deactivate(int (*event_cb)(enum event_state state, struct event_d
 
 	if (s_info.event_handler_activated == 0) {
 		ErrPrint("Event handler is not actiavated\n");
+		s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
 		DbgFree(listener);
 		return LB_STATUS_SUCCESS;
 	}
