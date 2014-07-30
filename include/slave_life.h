@@ -169,7 +169,7 @@ extern int slave_set_pid(struct slave_node *slave, pid_t pid);
 extern void slave_load_package(struct slave_node *slave);
 extern void slave_unload_package(struct slave_node *slave);
 extern int const slave_loaded_package(struct slave_node *slave);
-extern struct slave_node *slave_find_available(const char *abi, int secured, int network);
+extern struct slave_node *slave_find_available(const char *slave_pkgname, const char *abi, int secured, int network);
 
 extern double const slave_ttl(const struct slave_node *slave);
 
@@ -212,4 +212,5 @@ extern int slave_activate_all(void);
 extern void slave_set_control_option(struct slave_node *slave, int ctrl);
 extern int slave_control_option(struct slave_node *slave);
 
+extern char *slave_package_name(const char *abi, const char *lbid);
 /* End of a file */

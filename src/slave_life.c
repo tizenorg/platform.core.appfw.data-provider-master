@@ -1255,7 +1255,7 @@ HAPI struct slave_node *slave_find_by_name(const char *name)
 	return NULL;
 }
 
-HAPI struct slave_node *slave_find_available(const char *abi, int secured, int network)
+HAPI struct slave_node *slave_find_available(const char *slave_pkgname, const char *abi, int secured, int network)
 {
 	Eina_List *l;
 	struct slave_node *slave;
@@ -1279,6 +1279,10 @@ HAPI struct slave_node *slave_find_available(const char *abi, int secured, int n
 		}
 
 		if (strcasecmp(slave->abi, abi)) {
+			continue;
+		}
+
+		if (strcasecmp(slave->pkgname, slave_pkgname)) {
 			continue;
 		}
 
@@ -1336,6 +1340,30 @@ HAPI struct slave_node *slave_find_by_rpc_handle(int handle)
 
 	/* Not found */
 	return NULL;
+}
+
+HAPI char *slave_package_name(const char *abi, const char *lbid)
+{
+	char *s_pkgname;
+	const char *tmp;
+
+	tmp = abi_find_slave(abi);
+	if (!tmp) {
+		ErrPrint("Failed to find a proper pkgname of a slave\n");
+		return NULL;
+	}
+
+	s_pkgname = util_replace_string(tmp, REPLACE_TAG_APPID, lbid);
+	if (!s_pkgname) {
+		DbgPrint("Failed to get replaced string\n");
+		s_pkgname = strdup(tmp);
+		if (!s_pkgname) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			return NULL;
+		}
+	}
+
+	return s_pkgname;
 }
 
 HAPI void slave_load_package(struct slave_node *slave)
