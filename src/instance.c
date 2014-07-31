@@ -1763,22 +1763,33 @@ HAPI int instance_pd_update_end(struct inst_info *inst)
 	return CLIENT_SEND_EVENT(inst, packet);
 }
 
+HAPI void instance_extra_info_updated_by_instance(struct inst_info *inst)
+{
+	struct packet *packet;
+
+	packet = packet_create_noack("extra_info", "ssssssd", package_name(inst->info), inst->id,
+								inst->content, inst->title,
+								inst->icon, inst->name,
+								inst->lb.priority);
+	if (!packet) {
+		ErrPrint("Failed to create param (%s - %s)\n", package_name(inst->info), inst->id);
+		return;
+	}
+
+	(void)CLIENT_SEND_EVENT(inst, packet);
+}
+
 HAPI void instance_lb_updated_by_instance(struct inst_info *inst, const char *safe_file)
 {
 	struct packet *packet;
-	const char *id;
+	const char *id = NULL;
 	enum lb_type lb_type;
-	const char *title;
-	const char *content;
-	const char *icon;
-	const char *name;
 
 	if (inst->client && inst->visible != LB_SHOW) {
 		if (inst->visible == LB_HIDE) {
 			DbgPrint("Ignore update event %s(HIDE)\n", inst->id);
 			return;
 		}
-		DbgPrint("Livebox(%s) is PAUSED. But content is updated.\n", inst->id);
 	}
 
 	lb_type = package_lb_type(inst->info);
@@ -1786,37 +1797,11 @@ HAPI void instance_lb_updated_by_instance(struct inst_info *inst, const char *sa
 		id = script_handler_buffer_id(inst->lb.canvas.script);
 	} else if (lb_type == LB_TYPE_BUFFER) {
 		id = buffer_handler_id(inst->lb.canvas.buffer);
-	} else {
-		id = "";
 	}
 
-	if (inst->content) {
-		content = inst->content;
-	} else {
-		content = "";
-	}
-
-	if (inst->title) {
-		title = inst->title;
-	} else {
-		title = "";
-	}
-
-	if (inst->icon) {
-		icon = inst->icon;
-	} else {
-		icon = "";
-	}
-
-	if (inst->name) {
-		name = inst->name;
-	} else {
-		name = "";
-	}
-
-	packet = packet_create_noack("lb_updated", "sssiidsssss",
-			package_name(inst->info), inst->id, id,
-			inst->lb.width, inst->lb.height, inst->lb.priority, content, title, safe_file, icon, name);
+	packet = packet_create_noack("lb_updated", "ssssii",
+			package_name(inst->info), inst->id, id, safe_file,
+			inst->lb.width, inst->lb.height);
 	if (!packet) {
 		ErrPrint("Failed to create param (%s - %s)\n", package_name(inst->info), inst->id);
 		return;
