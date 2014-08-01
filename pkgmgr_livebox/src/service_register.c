@@ -1967,7 +1967,8 @@ static inline void update_launch(struct livebox *livebox, xmlNodePtr node)
 static inline void update_category(struct livebox *livebox, xmlNodePtr node)
 {
 	xmlChar *category;
-	category = xmlNodeGetContent(node);
+
+	category = xmlGetProp(node, (const xmlChar *)"name");
 	if (!category) {
 		DbgPrint("Has no valid category\n");
 		return;
