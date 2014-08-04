@@ -7480,7 +7480,7 @@ static struct packet *service_instance_count(pid_t pid, int handle, const struct
 			ret++;
 		}
 	}
-	
+
 out:
 	result = packet_create_reply(packet, "i", ret);
 	if (!result) {
