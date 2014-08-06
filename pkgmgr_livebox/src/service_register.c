@@ -38,7 +38,7 @@
 #define ErrPrintWithConsole(format, arg...)	do { fprintf(stderr, "[%s/%s:%d] " format, basename(__FILE__), __func__, __LINE__, ##arg); SECURE_LOGE("[[32m%s/%s[0m:%d] " format, basename(__FILE__), __func__, __LINE__, ##arg); } while (0)
 #endif
 
-#define CUR_VER 3
+#define CUR_VER 4
 #define DEFAULT_CATEGORY	"http://tizen.org/category/default"
 
 /*!
@@ -64,12 +64,12 @@
  *
  *
  * provider
- * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+---------+---------+--------+--------+-------+
- * | pkgid | network | abi | secured | box_type | box_src | box_group | pd_type | pd_src | pd_group | libexec | timeout | period | script | pinup |
- * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+---------+---------+--------+--------+-------+
- * |   -   |    -    |  -  |    -    |     -    |    -    |     -     |    -    |    -   |     -    |     -   |    -    |    -   |    -   |   -   |
- * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+---------+---------+--------+--------+-------+
- * CREATE TABLE provider ( pkgid TEXT PRIMARY KEY NOT NULL, network INTEGER, abi TEXT, secured INTEGER, box_type INTEGER, box_src TEXT, box_group TEXT, pd_type TEXT, pd_src TEXT, pd_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid))
+ * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+---------+---------+--------+--------+-------+-----------------------+
+ * | pkgid | network | abi | secured | box_type | box_src | box_group | pd_type | pd_src | pd_group | libexec | timeout | period | script | pinup | count(from ver 4) |
+ * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+---------+---------+--------+--------+-------+-----------------------+
+ * |   -   |    -    |  -  |    -    |     -    |    -    |     -     |    -    |    -   |     -    |     -   |    -    |    -   |    -   |   -   |           -           |
+ * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+---------+---------+--------+--------+-------+-----------------------+
+ * CREATE TABLE provider ( pkgid TEXT PRIMARY KEY NOT NULL, network INTEGER, abi TEXT, secured INTEGER, box_type INTEGER, box_src TEXT, box_group TEXT, pd_type TEXT, pd_src TEXT, pd_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, count INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid))
  *
  * = box_type = { text | buffer | script | image }
  * = pd_type = { text | buffer | script }
@@ -185,6 +185,7 @@ struct livebox {
 	int pinup; /* Is this support the pinup feature? */
 	int primary; /* Is this primary livebox? */
 	int nodisplay;
+	int count; /* Max count of instances */
 
 	int default_mouse_event; /* Mouse event processing option for livebox */
 	int default_touch_effect;
@@ -424,6 +425,33 @@ static void upgrade_pkgmap_for_category(void)
 
 /*!
  * \note
+ * From version 3 to 4
+ * "provider" table should have "count" column.
+ * "count" will be used for limiting creatable count of instances for each livebox.
+ * Every livebox developer should describe their max count of creatable instances.
+ */
+static void upgrade_to_version_4(void)
+{
+	char *err;
+	static const char *ddl;
+
+	/*
+	 * Step 1
+	 * Create a new column for count to provider table.
+	 */
+	ddl = "ALTER TABLE provider ADD COLUMN count INTEGER DEFAULT 0";
+	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
+		ErrPrint("Failed to execute the DDL (%s)\n", err);
+		return;
+	}
+
+	if (sqlite3_changes(s_info.handle) == 0) {
+		ErrPrint("No changes to DB\n");
+	}
+}
+
+/*!
+ * \note
  * From version 2 to 3
  * mouse_event is deleted from client table
  * mouse_event is added to box_size table
@@ -552,6 +580,8 @@ static void do_upgrade_db_schema(void)
 		upgrade_pkgmap_for_category();
 	case 2:
 		upgrade_to_version_3();
+	case 3:
+		upgrade_to_version_4();
 	default:
 		/* Need to update version */
 		DbgPrint("Old version: %d\n", version);
@@ -685,6 +715,7 @@ static inline int db_create_provider(void)
 		"abi TEXT, secured INTEGER, box_type INTEGER, " \
 		"box_src TEXT, box_group TEXT, pd_type INTEGER, " \
 		"pd_src TEXT, pd_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, "\
+		"count INTEGER, "\
 		"FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
 
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
@@ -762,7 +793,7 @@ static int db_insert_provider(struct livebox *livebox)
 		script = "edje";
 	}
 
-	dml = "INSERT INTO provider ( pkgid, network, abi, secured, box_type, box_src, box_group, pd_type, pd_src, pd_group, libexec, timeout, period, script, pinup ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	dml = "INSERT INTO provider ( pkgid, network, abi, secured, box_type, box_src, box_group, pd_type, pd_src, pd_group, libexec, timeout, period, script, pinup, count ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
@@ -867,6 +898,13 @@ static int db_insert_provider(struct livebox *livebox)
 	}
 
 	ret = sqlite3_bind_int(stmt, 15, livebox->pinup);
+	if (ret != SQLITE_OK) {
+		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_int(stmt, 16, livebox->count);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -2707,6 +2745,14 @@ static int do_install(xmlNodePtr node, const char *appid)
 	}
 
 	livebox->pkgid = pkgid;
+
+	if (xmlHasProp(node, (const xmlChar *)"count")) {
+		tmp = xmlGetProp(node, (const xmlChar *)"count");
+		if (sscanf((const char *)tmp, "%d", &livebox->count) != 1) {
+			ErrPrint("Invalid syntax: %s\n", (const char *)tmp);
+		}
+		xmlFree(tmp);
+	}
 
 	if (xmlHasProp(node, (const xmlChar *)"primary")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"primary");

@@ -6839,18 +6839,15 @@ out:
 	return NULL;
 }
 
-static struct packet *slave_updated(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, filename, width, height, priority, ret */
+static struct packet *slave_extra_info(pid_t pid, int handle, const struct packet *packet)
 {
 	struct slave_node *slave;
 	const char *pkgname;
-	const char *safe_filename;
 	const char *id;
 	const char *content_info;
 	const char *title;
 	const char *icon;
 	const char *name;
-	int w;
-	int h;
 	double priority;
 	int ret;
 	struct inst_info *inst;
@@ -6861,12 +6858,9 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssiidsssss", &pkgname, &id,
-						&w, &h, &priority,
-						&content_info, &title,
-						&safe_filename, &icon, &name);
-	if (ret != 10) {
-		ErrPrint("Parameter is not matched\n");
+	ret = packet_get(packet, "ssssssd", &pkgname, &id, &content_info, &title, &icon, &name, &priority);
+	if (ret != 7) {
+		ErrPrint("Parameter is not matchd\n");
 		goto out;
 	}
 
@@ -6879,6 +6873,43 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 
 		instance_set_lb_info(inst, priority, content_info, title);
 		instance_set_alt_info(inst, icon, name);
+		instance_extra_info_updated_by_instance(inst);
+		slave_give_more_ttl(slave);
+	}
+
+out:
+	return NULL;
+}
+
+static struct packet *slave_updated(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, filename, width, height, ret */
+{
+	struct slave_node *slave;
+	const char *pkgname;
+	const char *safe_filename;
+	const char *id;
+	int w;
+	int h;
+	int ret;
+	struct inst_info *inst;
+
+	slave = slave_find_by_pid(pid);
+	if (!slave) {
+		ErrPrint("Slave %d is not exists\n", pid);
+		goto out;
+	}
+
+	ret = packet_get(packet, "sssii", &pkgname, &id, &safe_filename, &w, &h);
+	if (ret != 5) {
+		ErrPrint("Parameter is not matched\n");
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, NULL);
+	if (ret == (int)LB_STATUS_SUCCESS) {
+		if (instance_state(inst) == INST_DESTROYED) {
+			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
+			goto out;
+		}
 
 		switch (package_lb_type(instance_package(inst))) {
 		case LB_TYPE_SCRIPT:
@@ -7449,7 +7480,7 @@ static struct packet *service_instance_count(pid_t pid, int handle, const struct
 			ret++;
 		}
 	}
-	
+
 out:
 	result = packet_create_reply(packet, "i", ret);
 	if (!result) {
@@ -8452,11 +8483,15 @@ static struct method s_slave_table[] = {
 	},
 	{
 		.cmd = "updated",
-		.handler = slave_updated, /* slave_name, pkgname, filename, width, height, priority, ret */
+		.handler = slave_updated, /* slave_name, pkgname, filename, width, height, ret */
 	},
 	{
 		.cmd = "desc_updated",
 		.handler = slave_desc_updated, /* slave_name, pkgname, filename, decsfile, ret */
+	},
+	{
+		.cmd = "extra_info",
+		.handler = slave_extra_info, /* slave_name, pkgname, filename, priority, content_info, title, icon, name */
 	},
 	{
 		.cmd = "deleted",
