@@ -60,6 +60,7 @@
 #include "badge_service.h"
 
 #if defined(FLOG)
+#define TMP_LOG_FILE "/tmp/live.log"
 FILE *__file_log_fp;
 #endif
 
@@ -331,10 +332,34 @@ int main(int argc, char *argv[])
 	sigset_t mask;
 	Ecore_Fd_Handler *signal_handler = NULL;
 
-#if defined(HAVE_LIVEBOX)
+#if defined(FLOG)
+	__file_log_fp = fopen(TMP_LOG_FILE, "w+t");
+	if (!__file_log_fp) {
+		__file_log_fp = fdopen(1, "w+t");
+	}
+#endif
+
+	/* appcore_agent_terminate */
+	if (ecore_init() <= 0) {
+		return -EFAULT;
+	}
+
+	if (util_screen_init() <= 0) {
+		ecore_shutdown();
+		return -EFAULT;
+	}
+
 	conf_init();
 	conf_loader();
-#endif
+
+	/*!
+	 * How could we care this return values?
+	 * Is there any way to print something on the screen?
+	 */
+	ret = critical_log_init(util_basename(argv[0]));
+	if (ret < 0) {
+		ErrPrint("Failed to init the critical log\n");
+	}
 
 	/*!
 	 * \note
@@ -351,28 +376,6 @@ int main(int argc, char *argv[])
 	}
 
 	util_setup_log_disk();
-
-	/*!
-	 * How could we care this return values?
-	 * Is there any way to print something on the screen?
-	 */
-	ret = critical_log_init(util_basename(argv[0]));
-	if (ret < 0) {
-		ErrPrint("Failed to init the critical log\n");
-	}
-
-#if defined(FLOG)
-	__file_log_fp = fopen("/tmp/live.log", "w+t");
-	if (!__file_log_fp) {
-		__file_log_fp = fdopen(1, "w+t");
-	}
-#endif
-	/* appcore_agent_terminate */
-	if (ecore_init() <= 0) {
-		CRITICAL_LOG("Failed to initiate ecore\n");
-		critical_log_fini();
-		return -EFAULT;
-	}
 
 	sigemptyset(&mask);
 
@@ -402,13 +405,6 @@ int main(int argc, char *argv[])
 	} else {
 		signal_handler = ecore_main_fd_handler_add(ret, ECORE_FD_READ, signal_cb, NULL, NULL, NULL);
 		CRITICAL_LOG("Signal handler initiated: %d\n", ret);
-	}
-
-	if (util_screen_init() <= 0) {
-		CRITICAL_LOG("Failed to ecore x init\n");
-		ecore_shutdown();
-		critical_log_fini();
-		return -EFAULT;
 	}
 
 	ecore_app_args_set(argc, (const char **)argv);

@@ -7,12 +7,13 @@
 	<label xml:lang="en_US">Sample</label>
 	<label xml:lang="ko_KR">Hangul</label>
 	<content>Content information</content>
+	<category name="http://tizen.org/dynamicbox/default"></category>
 
 	<launch>com.samsung.nicesj</launch>
 
 	<setup>com.samsung.nicesj</setup>
 
-	<box type="image" mouse_event="false">
+	<box type="image" mouse_event="false" count="0">
 		<size touch_effect="true" preview="ABSPATH">1x1</size>
 		<size touch_effect="true" preview="ABSPATH">2x1</size>
 		<size touch_effect="true" need_frame="true">2x2</size>
