@@ -154,14 +154,26 @@ static void com_core_thread_handler(char *buffer)
 static void base_width_handler(char *buffer)
 {
 	if (sscanf(buffer, "%d", &g_conf.base_width) != 1) {
-		ErrPrint("Failed to parse the base_width\n");
+		if (!strncasecmp(buffer, "screen", strlen("screen"))) {
+			int h;
+
+			util_screen_size_get(&g_conf.base_width, &h);
+			DbgPrint("Base width: %d\n", g_conf.base_width);
+		} else {
+			ErrPrint("Failed to parse the base_width\n");
+		}
 	}
 }
 
 static void base_height_handler(char *buffer)
 {
 	if (sscanf(buffer, "%d", &g_conf.base_height) != 1) {
-		ErrPrint("Failed to parse the base_height\n");
+		if (!strncasecmp(buffer, "screen", strlen("screen"))) {
+			int w;
+			util_screen_size_get(&w, &g_conf.base_height);
+		} else {
+			ErrPrint("Failed to parse the base_height\n");
+		}
 	}
 }
 
