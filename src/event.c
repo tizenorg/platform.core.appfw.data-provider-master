@@ -176,14 +176,24 @@ static void update_timestamp(struct input_event *event)
 	 * Input event uses MONOTONIC CLOCK TIME
 	 * So this case will not be work correctly.
 	 */
-	memcpy(&s_info.event_data.tv, &event->time, sizeof(event->time));
+	if (USE_EVENT_TIME) {
+		memcpy(&s_info.event_data.tv, &event->time, sizeof(event->time));
+	} else {
+		if (gettimeofday(&s_info.event_data.tv, NULL) < 0) {
+			ErrPrint("gettimeofday: %s\n", strerror(errno));
+		}
+	}
 #else
 	/*
 	 * Input event uses timeval instead of timespec,
 	 * but its value is same as MONOTIC CLOCK TIME
 	 * So we should handles it properly.
 	 */
-	s_info.event_data.tv = (double)event->time.tv_sec + (double)event->time.tv_usec / 1000000.0f;
+	if (USE_EVENT_TIME) {
+		s_info.event_data.tv = (double)event->time.tv_sec + (double)event->time.tv_usec / 1000000.0f;
+	} else {
+		s_info.event_data.tv = ecore_time_get();
+	}
 #endif
 	s_info.timestamp_updated = 1;
 }
