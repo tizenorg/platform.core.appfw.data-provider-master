@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h> // access
 
 #include <dlog.h>
 #if defined(HAVE_LIVEBOX)
@@ -85,6 +86,8 @@ static const double CONF_DEFAULT_PD_REQUEST_TIMEOUT = 5.0f;
 static const int CONF_DEFAULT_PIXELS = sizeof(int);
 static const int CONF_DEFAULT_AUTO_ALIGN = 1;
 static const int CONF_DEFAULT_USE_EVENT_TIME = 1;
+
+#define CONF_PATH_FORMAT "/usr/share/data-provider-master/%dx%d/conf.ini"
 
 int errno;
 
@@ -467,8 +470,46 @@ HAPI void conf_init(void)
 	g_conf.use_event_time = CONF_DEFAULT_USE_EVENT_TIME;
 }
 
+/*
+ * Find proper configuration and install(link) it to conf path.
+ */
+static char *conf_path(void)
+{
+	int w;
+	int h;
+	char *path;
+	int length;
+
+	if (util_screen_size_get(&w, &h) != LB_STATUS_SUCCESS) {
+		return NULL;
+	}
+
+	length = strlen(CONF_PATH_FORMAT) + 12;	// 12 == RESERVED SPACE
+	path = calloc(1, length);
+	if (!path) {
+		ErrPrint("calloc: %s\n", strerror(errno));
+		return NULL;
+	}
+
+	snprintf(path, length, CONF_PATH_FORMAT, w, h);
+	DbgPrint("Selected conf file: %s\n", path);
+	if (access(path, F_OK) != 0) {
+		ErrPrint("Fallback to default, access: %s\n", strerror(errno));
+		strncpy(path, DEFAULT_MASTER_CONF, length);
+		if (access(path, F_OK) != 0) {
+			ErrPrint("Serious error - there is no conf file, use default setting: %s\n", strerror(errno));
+			DbgFree(path);
+			path = NULL;
+		}
+	}
+
+	return path;
+}
+
+
 HAPI int conf_loader(void)
 {
+	char *conf_file;
 	FILE *fp;
 	int c;
 	enum state {
@@ -660,7 +701,13 @@ HAPI int conf_loader(void)
 		},
 	};
 
-	fp = fopen(DEFAULT_MASTER_CONF, "rt");
+	conf_file = conf_path();
+	if (!conf_file) {
+		return LB_STATUS_ERROR_IO;
+	}
+
+	fp = fopen(conf_file, "rt");
+	DbgFree(conf_file);
 	if (!fp) {
 		ErrPrint("Error: %s\n", strerror(errno));
 		return LB_STATUS_ERROR_IO;
