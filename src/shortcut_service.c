@@ -139,7 +139,7 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 			ret = security_server_check_privilege_by_sockfd(tcb_fd(tcb), "data-provider-master::shortcut.livebox", "w");
 			if (ret == SECURITY_SERVER_API_ERROR_ACCESS_DENIED) {
 				ErrPrint("SMACK:Access denied\n");
-				send_reply_packet(tcb, packet, SHORTCUT_ERROR_PERMISSION);
+				send_reply_packet(tcb, packet, SHORTCUT_ERROR_PERMISSION_DENIED);
 				break;
 			}
 
@@ -147,7 +147,7 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 			ret = security_server_check_privilege_by_sockfd(tcb_fd(tcb), "data-provider-master::shortcut.shortcut", "w");
 			if (ret == SECURITY_SERVER_API_ERROR_ACCESS_DENIED) {
 				ErrPrint("SMACK:Access denied\n");
-				send_reply_packet(tcb, packet, SHORTCUT_ERROR_PERMISSION);
+				send_reply_packet(tcb, packet, SHORTCUT_ERROR_PERMISSION_DENIED);
 				break;
 			}
 		}

@@ -127,7 +127,7 @@ static void _handler_insert_badge(struct tcb *tcb, struct packet *packet, void *
 		if (pkgname != NULL && writable_pkg != NULL && caller != NULL) {
 			ret = badge_db_insert(pkgname, writable_pkg, caller);
 		} else {
-			ret = BADGE_ERROR_INVALID_DATA;
+			ret = BADGE_ERROR_INVALID_PARAMETER;
 		}
 
 		packet_reply = packet_create_reply(packet, "i", ret);
@@ -177,7 +177,7 @@ static void _handler_delete_badge(struct tcb *tcb, struct packet *packet, void *
 				ret = badge_db_delete(pkgname, caller);
 			}
 		} else {
-			ret = BADGE_ERROR_INVALID_DATA;
+			ret = BADGE_ERROR_INVALID_PARAMETER;
 		}
 
 		packet_reply = packet_create_reply(packet, "i", ret);
@@ -224,7 +224,7 @@ static void _handler_set_badge_count(struct tcb *tcb, struct packet *packet, voi
 		if (pkgname != NULL && caller != NULL) {
 			ret = badge_db_set_count(pkgname, caller, count);
 		} else {
-			ret = BADGE_ERROR_INVALID_DATA;
+			ret = BADGE_ERROR_INVALID_PARAMETER;
 		}
 
 		packet_reply = packet_create_reply(packet, "i", ret);
@@ -271,7 +271,7 @@ static void _handler_set_display_option(struct tcb *tcb, struct packet *packet, 
 		if (pkgname != NULL && caller != NULL) {
 			ret = badge_db_set_display_option(pkgname, caller, is_display);
 		} else {
-			ret = BADGE_ERROR_INVALID_DATA;
+			ret = BADGE_ERROR_INVALID_PARAMETER;
 		}
 
 		packet_reply = packet_create_reply(packet, "i", ret);
@@ -320,7 +320,7 @@ static void _handler_set_setting_property(struct tcb *tcb, struct packet *packet
 		if (pkgname != NULL && property != NULL && value != NULL) {
 			ret = badge_setting_db_set(pkgname, property, value);
 		} else {
-			ret = BADGE_ERROR_INVALID_DATA;
+			ret = BADGE_ERROR_INVALID_PARAMETER;
 		}
 
 		packet_reply = packet_create_reply(packet, "ii", ret, ret);
@@ -374,7 +374,7 @@ static void _handler_get_setting_property(struct tcb *tcb, struct packet *packet
 		if (pkgname != NULL && property != NULL) {
 			ret = badge_setting_db_get(pkgname, property, &value);
 		} else {
-			ret = BADGE_ERROR_INVALID_DATA;
+			ret = BADGE_ERROR_INVALID_PARAMETER;
 		}
 
 		packet_reply = packet_create_reply(packet, "is", ret, value);
