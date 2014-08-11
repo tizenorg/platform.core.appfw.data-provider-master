@@ -567,6 +567,31 @@ static inline void invoke_delete_callbacks(struct inst_info *inst)
 	inst->in_event_process &= ~INST_EVENT_PROCESS_DELETE;
 }
 
+HAPI int instance_event_callback_is_added(struct inst_info *inst, enum instance_event type, int (*event_cb)(struct inst_info *inst, void *data), void *data)
+{
+	struct event_item *item;
+	Eina_List *l;
+
+	if (!event_cb) {
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	switch (type) {
+	case INSTANCE_EVENT_DESTROY:
+		EINA_LIST_FOREACH(inst->delete_event_list, l, item) {
+			if (item->event_cb == event_cb && item->data == data) {
+				return 1;
+			}
+		}
+
+		break;
+	default:
+		return LB_STATUS_ERROR_INVALID;
+	}
+
+	return 0;
+}
+
 HAPI int instance_event_callback_add(struct inst_info *inst, enum instance_event type, int (*event_cb)(struct inst_info *inst, void *data), void *data)
 {
 	struct event_item *item;

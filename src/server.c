@@ -1707,6 +1707,8 @@ out:
 
 static int inst_del_cb(struct inst_info *inst, void *data)
 {
+	int ret;
+
 	/*
 	 * If you deactivate the event thread,
 	 * It will calls event callbacks.
@@ -1714,8 +1716,9 @@ static int inst_del_cb(struct inst_info *inst, void *data)
 	 */
 	(void)event_deactivate(data, inst);
 	
-	/* Reset callback data after delete the instance */
-	(void)event_reset_cbdata(data, inst, NULL);
+	/* Reset callback data to prevent accessing inst from event callback */
+	ret = event_reset_cbdata(data, inst, NULL);
+	DbgPrint("Instance delete callback called: %s (%d)\n", instance_id(inst), ret);
 
 	return -1; /* Delete this callback */
 }
@@ -1754,13 +1757,17 @@ static struct packet *client_pd_key_set(pid_t pid, int handle, const struct pack
 
 	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
 		ret = event_activate(0, 0, key_event_pd_route_cb, inst);
-		if (ret == 0) {
-			instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_pd_route_cb);
+		if (ret == LB_STATUS_SUCCESS) {
+			if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_pd_route_cb) <= 0) {
+				instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_pd_route_cb);
+			}
 		}
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		ret = event_activate(0, 0, key_event_pd_consume_cb, inst);
-		if (ret == 0) {
-			instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_pd_consume_cb);
+		if (ret == LB_STATUS_SUCCESS) {
+			if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_pd_consume_cb) <= 0) {
+				instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_pd_consume_cb);
+			}
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -1809,14 +1816,20 @@ static struct packet *client_pd_key_unset(pid_t pid, int handle, const struct pa
 
 	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
 		ret = event_deactivate(key_event_pd_route_cb, inst);
+		/*
+		 * This delete callback will be removed when the instance will be destroyed.
 		if (ret == 0) {
 			instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_pd_route_cb);
 		}
+		*/
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		ret = event_deactivate(key_event_pd_consume_cb, inst);
+		/*
+		 * This delete callback will be removed when the instance will be destroyed.
 		if (ret == 0) {
 			instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_pd_consume_cb);
 		}
+		*/
 	} else {
 		ErrPrint("Unsupported package\n");
 		ret = LB_STATUS_ERROR_INVALID;
@@ -1864,13 +1877,17 @@ static struct packet *client_lb_key_set(pid_t pid, int handle, const struct pack
 
 	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
 		ret = event_activate(0, 0, key_event_lb_route_cb, inst);
-		if (ret == 0) {
-			instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_lb_route_cb);
+		if (ret == LB_STATUS_SUCCESS) {
+			if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_lb_route_cb) <= 0) {
+				instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_lb_route_cb);
+			}
 		}
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		ret = event_activate(0, 0, key_event_lb_consume_cb, inst);
-		if (ret == 0) {
-			instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_lb_consume_cb);
+		if (ret == LB_STATUS_SUCCESS) {
+			if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_lb_consume_cb) <= 0) {
+				instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_lb_consume_cb);
+			}
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -1919,14 +1936,20 @@ static struct packet *client_lb_key_unset(pid_t pid, int handle, const struct pa
 
 	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
 		ret = event_deactivate(key_event_lb_route_cb, inst);
+		/*
+		 * This delete callback will be removed when the instance will be destroyed.
 		if (ret == 0) {
 			instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_lb_route_cb);
 		}
+		*/
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		ret = event_deactivate(key_event_lb_consume_cb, inst);
+		/*
+		 * This delete callback will be removed when the instance will be destroyed.
 		if (ret == 0) {
 			instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_lb_consume_cb);
 		}
+		*/
 	} else {
 		ErrPrint("Unsupported package\n");
 		ret = LB_STATUS_ERROR_INVALID;
@@ -1974,13 +1997,17 @@ static struct packet *client_lb_mouse_set(pid_t pid, int handle, const struct pa
 
 	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
 		ret = event_activate(x, y, mouse_event_lb_route_cb, inst);
-		if (ret == 0) {
-			instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_lb_route_cb);
+		if (ret == LB_STATUS_SUCCESS) {
+			if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_lb_route_cb) <= 0) {
+				instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_lb_route_cb);
+			}
 		}
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		ret = event_activate(x, y, mouse_event_lb_consume_cb, inst);
-		if (ret == 0) {
-			instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_lb_consume_cb);
+		if (ret == LB_STATUS_SUCCESS) {
+			if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_lb_consume_cb) <= 0) {
+				instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_lb_consume_cb);
+			}
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -2023,14 +2050,20 @@ static struct packet *client_lb_mouse_unset(pid_t pid, int handle, const struct 
 
 	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
 		ret = event_deactivate(mouse_event_lb_route_cb, inst);
+		/*
+		 * This delete callback will be removed when the instance will be destroyed.
 		if (ret == 0) {
 			instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_lb_route_cb);
 		}
+		*/
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		ret = event_deactivate(mouse_event_lb_consume_cb, inst);
+		/*
+		 * This delete callback will be removed when the instance will be destroyed.
 		if (ret == 0) {
 			instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_lb_consume_cb);
 		}
+		*/
 	} else {
 		ErrPrint("Unsupported package\n");
 		ret = LB_STATUS_ERROR_INVALID;
@@ -2072,13 +2105,17 @@ static struct packet *client_pd_mouse_set(pid_t pid, int handle, const struct pa
 
 	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
 		ret = event_activate(x, y, mouse_event_pd_route_cb, inst);
-		if (ret == 0) {
-			instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_pd_route_cb);
+		if (ret == LB_STATUS_SUCCESS) {
+			if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_pd_route_cb) <= 0) {
+				instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_pd_route_cb);
+			}
 		}
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		ret = event_activate(x, y, mouse_event_pd_consume_cb, inst);
-		if (ret == 0) {
-			instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_pd_consume_cb);
+		if (ret == LB_STATUS_SUCCESS) {
+			if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_pd_consume_cb) <= 0) {
+				instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_pd_consume_cb);
+			}
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -2562,14 +2599,20 @@ static struct packet *client_pd_mouse_unset(pid_t pid, int handle, const struct 
 
 	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
 		ret = event_deactivate(mouse_event_pd_route_cb, inst);
+		/*
+		 * This delete callback will be removed when the instance will be destroyed.
 		if (ret == 0) {
 			instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_pd_route_cb);
 		}
+		*/
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		ret = event_deactivate(mouse_event_pd_consume_cb, inst);
+		/*
+		 * This delete callback will be removed when the instance will be destroyed.
 		if (ret == 0) {
 			instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_pd_consume_cb);
 		}
+		*/
 	} else {
 		ErrPrint("Unsupported package\n");
 		ret = LB_STATUS_ERROR_INVALID;
