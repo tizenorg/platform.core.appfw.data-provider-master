@@ -56,6 +56,14 @@
 #define LAZY_PD_OPEN_TAG "lazy,pd,open"
 #define LAZY_PD_CLOSE_TAG "lazy,pd,close"
 
+#define ACCESS_TYPE_DOWN 0
+#define ACCESS_TYPE_MOVE 1
+#define ACCESS_TYPE_UP 2
+#define ACCESS_TYPE_CUR 0
+#define ACCESS_TYPE_NEXT 1
+#define ACCESS_TYPE_PREV 2
+#define ACCESS_TYPE_OFF 3
+
 static struct info {
 	int info_fd;
 	int client_fd;
@@ -68,6 +76,12 @@ static struct info {
 	.service_fd = -1,
 	.slave_fd = -1,
 	.remote_client_fd = -1,
+};
+
+struct access_info {
+	int x;
+	int y;
+	int type;
 };
 
 /* Share this with provider */
@@ -86,6 +100,88 @@ struct deleted_item {
 	struct client_node *client;
 	struct inst_info *inst;
 };
+
+static Eina_Bool lazy_key_status_cb(void *data)
+{
+	struct event_cbdata *cbdata = data;
+
+	if (instance_unref(cbdata->inst)) {
+		instance_send_key_status(cbdata->inst, cbdata->status);
+	} else {
+		DbgPrint("Skip sending key status (%d)\n", cbdata->status);
+	}
+	/*!
+	 * If instance_unref returns NULL,
+	 * The instance is destroyed. it means, we don't need to send event to the viewer
+	 */
+	DbgFree(cbdata);
+	return ECORE_CALLBACK_CANCEL;
+}
+
+static Eina_Bool lazy_access_status_cb(void *data)
+{
+	struct event_cbdata *cbdata = data;
+
+	if (instance_unref(cbdata->inst)) {
+		instance_send_access_status(cbdata->inst, cbdata->status);
+	} else {
+		DbgPrint("Skip sending access status (%d)\n", cbdata->status);
+	}
+	/*!
+	 * If instance_unref returns NULL,
+	 * The instance is destroyed. it means, we don't need to send event to the viewer
+	 */
+	DbgFree(cbdata);
+	return ECORE_CALLBACK_CANCEL;
+}
+
+int send_delayed_key_status(struct inst_info *inst, int ret)
+{
+	struct event_cbdata *cbdata;
+	return ret;
+
+	cbdata = malloc(sizeof(*cbdata));
+	if (!cbdata) {
+		ret = LB_STATUS_ERROR_MEMORY;
+	} else {
+		cbdata->inst = instance_ref(inst);
+		cbdata->status = ret;
+
+		if (!ecore_timer_add(DELAY_TIME, lazy_key_status_cb, cbdata)) {
+			(void)instance_unref(cbdata->inst);
+			DbgFree(cbdata);
+			ret = LB_STATUS_ERROR_FAULT;
+		} else {
+			ret = LB_STATUS_SUCCESS;
+		}
+	}
+
+	return ret;
+}
+
+int send_delayed_access_status(struct inst_info *inst, int ret)
+{
+	struct event_cbdata *cbdata;
+	int ret;
+
+	cbdata = malloc(sizeof(*cbdata));
+	if (!cbdata) {
+		ret = LB_STATUS_ERROR_MEMORY;
+	} else {
+		cbdata->inst = instance_ref(inst);
+		cbdata->status = ret;
+
+		if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
+			(void)instance_unref(cbdata->inst);
+			DbgFree(cbdata);
+			ret = LB_STATUS_ERROR_FAULT;
+		} else {
+			ret = LB_STATUS_SUCCESS;
+		}
+	}
+
+	return ret;
+}
 
 static int forward_lb_event_packet(const struct pkg_info *pkg, struct inst_info *inst, const struct packet *packet)
 {
@@ -141,7 +237,7 @@ out:
 	return ret;
 }
 
-static int forward_pd_access_packet(const struct pkg_info *pkg, struct inst_info *inst, const char *command, double timestamp, int x, int y)
+static int forward_pd_access_packet(const struct pkg_info *pkg, struct inst_info *inst, const char *command, double timestamp, struct access_info *event)
 {
 	int ret;
 	struct buffer_info *buffer;
@@ -162,7 +258,7 @@ static int forward_pd_access_packet(const struct pkg_info *pkg, struct inst_info
 		goto out;
 	}
 
-	p = packet_create_noack(command, "ssdii", package_name(pkg), instance_id(inst), timestamp, x, y);
+	p = packet_create_noack(command, "ssdiii", package_name(pkg), instance_id(inst), timestamp, event->x, event->y, event->type);
 	ret = slave_rpc_request_only(slave, package_name(pkg), p, 0);
 
 out:
@@ -251,40 +347,6 @@ static int forward_lb_key_packet(const struct pkg_info *pkg, struct inst_info *i
 
 out:
 	return ret;
-}
-
-static Eina_Bool lazy_key_status_cb(void *data)
-{
-	struct event_cbdata *cbdata = data;
-
-	if (instance_unref(cbdata->inst)) {
-		instance_send_key_status(cbdata->inst, cbdata->status);
-	} else {
-		DbgPrint("Skip sending key status (%d)\n", cbdata->status);
-	}
-	/*!
-	 * If instance_unref returns NULL,
-	 * The instance is destroyed. it means, we don't need to send event to the viewer
-	 */
-	DbgFree(cbdata);
-	return ECORE_CALLBACK_CANCEL;
-}
-
-static Eina_Bool lazy_access_status_cb(void *data)
-{
-	struct event_cbdata *cbdata = data;
-
-	if (instance_unref(cbdata->inst)) {
-		instance_send_access_status(cbdata->inst, cbdata->status);
-	} else {
-		DbgPrint("Skip sending access status (%d)\n", cbdata->status);
-	}
-	/*!
-	 * If instance_unref returns NULL,
-	 * The instance is destroyed. it means, we don't need to send event to the viewer
-	 */
-	DbgFree(cbdata);
-	return ECORE_CALLBACK_CANCEL;
 }
 
 static int slave_fault_open_script_cb(struct slave_node *slave, void *data)
@@ -2841,7 +2903,7 @@ out:
 	return NULL;
 }
 
-static struct packet *client_pd_access_action_up(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_pd_access_action(pid_t pid, int handle, const struct packet *packet)
 {
 	struct packet *result;
 	struct client_node *client;
@@ -2849,8 +2911,7 @@ static struct packet *client_pd_access_action_up(pid_t pid, int handle, const st
 	const char *id;
 	int ret;
 	double timestamp;
-	int x;
-	int y;
+	struct access_info event;
 	struct inst_info *inst = NULL;
 	const struct pkg_info *pkg = NULL;
 
@@ -2861,8 +2922,8 @@ static struct packet *client_pd_access_action_up(pid_t pid, int handle, const st
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
+	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
 		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
@@ -2874,9 +2935,10 @@ static struct packet *client_pd_access_action_up(pid_t pid, int handle, const st
 	}
 
 	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
-		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
+		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
+		int type;
 
 		script = instance_pd_script(inst);
 		if (!script) {
@@ -2884,26 +2946,10 @@ static struct packet *client_pd_access_action_up(pid_t pid, int handle, const st
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x, y, 0);
+		script_handler_update_pointer(script, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_ACTION, timestamp);
 		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
+			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -2919,7 +2965,7 @@ out:
 	return result;
 }
 
-static struct packet *client_pd_access_action_down(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_pd_access_scroll(pid_t pid, int handle, const struct packet *packet)
 {
 	struct packet *result;
 	struct client_node *client;
@@ -2927,8 +2973,7 @@ static struct packet *client_pd_access_action_down(pid_t pid, int handle, const 
 	const char *id;
 	int ret;
 	double timestamp;
-	int x;
-	int y;
+	struct access_info event;
 	struct inst_info *inst = NULL;
 	const struct pkg_info *pkg = NULL;
 
@@ -2939,8 +2984,8 @@ static struct packet *client_pd_access_action_down(pid_t pid, int handle, const 
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
+	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
 		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
@@ -2952,7 +2997,7 @@ static struct packet *client_pd_access_action_down(pid_t pid, int handle, const 
 	}
 
 	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
-		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
+		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 
@@ -2962,104 +3007,379 @@ static struct packet *client_pd_access_action_down(pid_t pid, int handle, const 
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x, y, 1);
-		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_ACTION, timestamp);
-		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
-		}
-	} else {
-		ErrPrint("Unsupported package\n");
-		ret = LB_STATUS_ERROR_INVALID;
-	}
-
-out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result) {
-		ErrPrint("Failed to create a reply packet\n");
-	}
-
-	return result;
-}
-
-static struct packet *client_pd_access_scroll_down(pid_t pid, int handle, const struct packet *packet)
-{
-	struct packet *result;
-	struct client_node *client;
-	const char *pkgname;
-	const char *id;
-	int ret;
-	double timestamp;
-	int x;
-	int y;
-	struct inst_info *inst = NULL;
-	const struct pkg_info *pkg = NULL;
-
-	client = client_find_by_rpc_handle(handle);
-	if (!client) {
-		ErrPrint("Client %d is not exists\n", pid);
-		ret = LB_STATUS_ERROR_NOT_EXIST;
-		goto out;
-	}
-
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
-		ErrPrint("Invalid parameter\n");
-		ret = LB_STATUS_ERROR_INVALID;
-		goto out;
-	}
-
-	ret = validate_request(pkgname, id, &inst, &pkg);
-	if (ret != LB_STATUS_SUCCESS) {
-		goto out;
-	}
-
-	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
-		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
-	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
-		struct script_info *script;
-
-		script = instance_pd_script(inst);
-		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		script_handler_update_pointer(script, x, y, 1);
+		script_handler_update_pointer(script, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_SCROLL, timestamp);
 		if (ret >= 0) {
-			struct event_cbdata *cbdata;
+			ret = send_delayed_access_status(inst, ret);
+		}
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = LB_STATUS_ERROR_INVALID;
+	}
 
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result) {
+		ErrPrint("Failed to create a reply packet\n");
+	}
 
-				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
+	return result;
+}
+
+static struct packet *client_pd_access_value_change(pid_t pid, int handle, const struct packet *packet)
+{
+	struct packet *result;
+	struct client_node *client;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	double timestamp;
+	struct access_info event;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
+	if (ret != 6) {
+		ErrPrint("Invalid parameter\n");
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	if (ret != LB_STATUS_SUCCESS) {
+		goto out;
+	}
+
+	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
+		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
+	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
+		struct script_info *script;
+
+		script = instance_pd_script(inst);
+		if (!script) {
+			ret = LB_STATUS_ERROR_FAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, event.x, event.y, event.type);
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_VALUE_CHANGE, timestamp);
+		if (ret >= 0) {
+			ret = send_delayed_access_status(inst, ret);
+		}
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = LB_STATUS_ERROR_INVALID;
+	}
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result) {
+		ErrPrint("Failed to create a reply packet\n");
+	}
+
+	return result;
+}
+
+static struct packet *client_pd_access_mouse(pid_t pid, int handle, const struct packet *packet)
+{
+	struct packet *result;
+	struct client_node *client;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	double timestamp;
+	struct access_info event;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
+	if (ret != 6) {
+		ErrPrint("Invalid parameter\n");
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	if (ret != LB_STATUS_SUCCESS) {
+		goto out;
+	}
+
+	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
+		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
+	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
+		struct script_info *script;
+
+		script = instance_pd_script(inst);
+		if (!script) {
+			ret = LB_STATUS_ERROR_FAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, event.x, event.y, event.type);
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_MOUSE, timestamp);
+		if (ret >= 0) {
+			ret = send_delayed_access_status(inst, ret);
+		}
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = LB_STATUS_ERROR_INVALID;
+	}
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result) {
+		ErrPrint("Failed to create a reply packet\n");
+	}
+
+	return result;
+}
+
+static struct packet *client_pd_access_back(pid_t pid, int handle, const struct packet *packet)
+{
+	struct packet *result;
+	struct client_node *client;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	double timestamp;
+	struct access_info event;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
+	if (ret != 6) {
+		ErrPrint("Invalid parameter\n");
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	if (ret != LB_STATUS_SUCCESS) {
+		goto out;
+	}
+
+	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
+		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
+	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
+		struct script_info *script;
+
+		script = instance_pd_script(inst);
+		if (!script) {
+			ret = LB_STATUS_ERROR_FAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, event.x, event.y, event.type);
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_BACK, timestamp);
+		if (ret >= 0) {
+			ret = send_delayed_access_status(inst, ret);
+		}
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = LB_STATUS_ERROR_INVALID;
+	}
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result) {
+		ErrPrint("Failed to create a reply packet\n");
+	}
+
+	return result;
+}
+
+static struct packet *client_pd_access_over(pid_t pid, int handle, const struct packet *packet)
+{
+	struct packet *result;
+	struct client_node *client;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	double timestamp;
+	struct event_info event;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
+	if (ret != 6) {
+		ErrPrint("Invalid parameter\n");
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	if (ret != LB_STATUS_SUCCESS) {
+		goto out;
+	}
+
+	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
+		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
+	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
+		struct script_info *script;
+
+		script = instance_pd_script(inst);
+		if (!script) {
+			ret = LB_STATUS_ERROR_FAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, event.x, event.y, event.type);
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_OVER, timestamp);
+		if (ret >= 0) {
+			ret = send_delayed_access_status(inst, ret);
+		}
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = LB_STATUS_ERROR_INVALID;
+	}
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result) {
+		ErrPrint("Failed to create a reply packet\n");
+	}
+
+	return result;
+}
+
+static struct packet *client_pd_access_read(pid_t pid, int handle, const struct packet *packet)
+{
+	struct packet *result;
+	struct client_node *client;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	double timestamp;
+	struct access_info event;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
+	if (ret != 6) {
+		ErrPrint("Invalid parameter\n");
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	if (ret != LB_STATUS_SUCCESS) {
+		goto out;
+	}
+
+	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
+		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
+	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
+		struct script_info *script;
+
+		script = instance_pd_script(inst);
+		if (!script) {
+			ret = LB_STATUS_ERROR_FAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, event.x, event.y, event.type);
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_READ, timestamp);
+		if (ret >= 0) {
+			ret = send_delayed_access_status(inst, ret);
+		}
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = LB_STATUS_ERROR_INVALID;
+	}
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result) {
+		ErrPrint("Failed to create a reply packet\n");
+	}
+
+	return result;
+}
+
+static struct packet *client_pd_access_enable(pid_t pid, int handle, const struct packet *packet)
+{
+	struct packet *result;
+	struct client_node *client;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	double timestamp;
+	struct access_info event;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
+	if (ret != 6) {
+		ErrPrint("Invalid parameter\n");
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	if (ret != LB_STATUS_SUCCESS) {
+		goto out;
+	}
+
+	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
+		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
+	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
+		struct script_info *script;
+		int type;
+
+		script = instance_pd_script(inst);
+		if (!script) {
+			ret = LB_STATUS_ERROR_FAULT;
+			goto out;
+		}
+
+		type = (event.type == 0) ? LB_SCRIPT_ACCESS_DISABLE : LB_SCRIPT_ACCESS_ENABLE;
+
+		script_handler_update_pointer(script, event.x, event.y, event.type);
+		ret = script_handler_feed_event(script, type, timestamp);
+		if (ret >= 0) {
+			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -3231,83 +3551,6 @@ out:
 	return result;
 }
 
-static struct packet *client_pd_access_unhighlight(pid_t pid, int handle, const struct packet *packet)
-{
-	struct packet *result;
-	struct client_node *client;
-	const char *pkgname;
-	const char *id;
-	int x;
-	int y;
-	struct inst_info *inst = NULL;
-	const struct pkg_info *pkg = NULL;
-	int ret;
-	double timestamp;
-
-	client = client_find_by_rpc_handle(handle);
-	if (!client) {
-		ErrPrint("Client %d is not exists\n", pid);
-		ret = LB_STATUS_ERROR_NOT_EXIST;
-		goto out;
-	}
-
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
-		ErrPrint("Invalid parameter\n");
-		ret = LB_STATUS_ERROR_INVALID;
-		goto out;
-	}
-
-	ret = validate_request(pkgname, id, &inst, &pkg);
-	if (ret != LB_STATUS_SUCCESS) {
-		goto out;
-	}
-
-	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
-		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
-	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
-		struct script_info *script;
-
-		script = instance_pd_script(inst);
-		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		script_handler_update_pointer(script, x, y, -1);
-		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_UNHIGHLIGHT, timestamp);
-		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
-		}
-	} else {
-		ErrPrint("Unsupported package\n");
-		ret = LB_STATUS_ERROR_INVALID;
-	}
-out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result) {
-		ErrPrint("Failed to create a reply packet\n");
-	}
-
-	return result;
-}
-
 static struct packet *client_pd_access_hl(pid_t pid, int handle, const struct packet *packet)
 {
 	struct packet *result;
@@ -3316,8 +3559,7 @@ static struct packet *client_pd_access_hl(pid_t pid, int handle, const struct pa
 	const char *id;
 	int ret;
 	double timestamp;
-	int x;
-	int y;
+	struct access_info event;
 	struct inst_info *inst = NULL;
 	const struct pkg_info *pkg = NULL;
 
@@ -3328,8 +3570,8 @@ static struct packet *client_pd_access_hl(pid_t pid, int handle, const struct pa
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
+	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
 		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
@@ -3341,9 +3583,10 @@ static struct packet *client_pd_access_hl(pid_t pid, int handle, const struct pa
 	}
 
 	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
-		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
+		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
+		int type;
 
 		script = instance_pd_script(inst);
 		if (!script) {
@@ -3351,26 +3594,28 @@ static struct packet *client_pd_access_hl(pid_t pid, int handle, const struct pa
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x, y, -1);
-		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_HIGHLIGHT, timestamp);
+		switch (event.type) {
+		case ACCESS_TYPE_CUR:
+			type = LB_SCRIPT_ACCESS_HIGHLIGHT;
+			break;
+		case ACCESS_TYPE_NEXT:
+			type = LB_SCRIPT_ACCESS_HIGHLIGHT_NEXT;
+			break;
+		case ACCESS_TYPE_PREV:
+			type = LB_SCRIPT_ACCESS_HIGHLIGHT_PREV;
+			break;
+		case ACCESS_TYPE_OFF:
+			type = LB_SCRIPT_ACCESS_UNHIGHLIGHT;
+			break;
+		default:
+			ret = LB_STATUS_ERROR_INVALID;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, event.x, event.y, event.type);
+		ret = script_handler_feed_event(script, type, timestamp);
 		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
+			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -3555,8 +3800,7 @@ static struct packet *client_pd_access_activate(pid_t pid, int handle, const str
 	const char *id;
 	int ret;
 	double timestamp;
-	int x;
-	int y;
+	struct access_info event;
 	struct inst_info *inst = NULL;
 	const struct pkg_info *pkg = NULL;
 
@@ -3567,8 +3811,8 @@ static struct packet *client_pd_access_activate(pid_t pid, int handle, const str
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
+	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
 		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
@@ -3580,7 +3824,7 @@ static struct packet *client_pd_access_activate(pid_t pid, int handle, const str
 	}
 
 	if (package_pd_type(pkg) == PD_TYPE_BUFFER) {
-		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
+		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
 
@@ -3590,26 +3834,10 @@ static struct packet *client_pd_access_activate(pid_t pid, int handle, const str
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x, y, -1);
+		script_handler_update_pointer(script, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_ACTIVATE, timestamp);
 		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
+			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -3670,23 +3898,7 @@ static struct packet *client_pd_key_focus_in(pid_t pid, int handle, const struct
 		script_handler_update_keycode(script, keycode);
 		ret = script_handler_feed_event(script, LB_SCRIPT_KEY_FOCUS_IN, timestamp);
 		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_key_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
+			ret = send_delayed_key_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -3747,23 +3959,7 @@ static struct packet *client_pd_key_focus_out(pid_t pid, int handle, const struc
 		script_handler_update_keycode(script, keycode);
 		ret = script_handler_feed_event(script, LB_SCRIPT_KEY_FOCUS_OUT, timestamp);
 		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_key_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
+			ret = send_delayed_key_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -3824,23 +4020,7 @@ static struct packet *client_pd_key_down(pid_t pid, int handle, const struct pac
 		script_handler_update_keycode(script, keycode);
 		ret = script_handler_feed_event(script, LB_SCRIPT_KEY_DOWN, timestamp);
 		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_key_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
+			ret = send_delayed_key_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -3959,23 +4139,7 @@ static struct packet *client_pd_key_up(pid_t pid, int handle, const struct packe
 		script_handler_update_keycode(script, keycode);
 		ret = script_handler_feed_event(script, LB_SCRIPT_KEY_UP, timestamp);
 		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_key_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
+			ret = send_delayed_key_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -3999,8 +4163,7 @@ static struct packet *client_lb_access_hl(pid_t pid, int handle, const struct pa
 	const char *id;
 	int ret;
 	double timestamp;
-	int x;
-	int y;
+	struct access_info event;
 	struct inst_info *inst = NULL;
 	const struct pkg_info *pkg = NULL;
 
@@ -4011,8 +4174,8 @@ static struct packet *client_lb_access_hl(pid_t pid, int handle, const struct pa
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
@@ -4024,9 +4187,10 @@ static struct packet *client_lb_access_hl(pid_t pid, int handle, const struct pa
 	}
 
 	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
-		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
+		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
+		int type;
 
 		script = instance_lb_script(inst);
 		if (!script) {
@@ -4034,26 +4198,28 @@ static struct packet *client_lb_access_hl(pid_t pid, int handle, const struct pa
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x, y, -1);
-		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_HIGHLIGHT, timestamp);
+		switch (event.type) {
+		case ACCESS_TYPE_CUR:
+			type = LB_SCRIPT_ACCESS_HIGHLIGHT;
+			break;
+		case ACCESS_TYPE_NEXT:
+			type = LB_SCRIPT_ACCESS_HIGHLIGHT_NEXT;
+			break;
+		case ACCESS_TYPE_PREV:
+			type = LB_SCRIPT_ACCESS_HIGHLIGHT_PREV;
+			break;
+		case ACCESS_TYPE_OFF:
+			type = LB_SCRIPT_ACCESS_UNHIGHLIGHT;
+			break;
+		default:
+			ret = LB_STATUS_ERROR_INVALID;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, event.x, event.y, event.type);
+		ret = script_handler_feed_event(script, type, timestamp);
 		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
+			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -4069,163 +4235,7 @@ out:
 	return result;
 }
 
-static struct packet *client_lb_access_hl_prev(pid_t pid, int handle, const struct packet *packet)
-{
-	struct packet *result;
-	struct client_node *client;
-	const char *pkgname;
-	const char *id;
-	int ret;
-	double timestamp;
-	int x;
-	int y;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
-
-	client = client_find_by_rpc_handle(handle);
-	if (!client) {
-		ErrPrint("Client %d is not exists\n", pid);
-		ret = LB_STATUS_ERROR_NOT_EXIST;
-		goto out;
-	}
-
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
-		ErrPrint("Parameter is not matched\n");
-		ret = LB_STATUS_ERROR_INVALID;
-		goto out;
-	}
-
-	ret = validate_request(pkgname, id, &inst, &pkg);
-	if (ret != LB_STATUS_SUCCESS) {
-		goto out;
-	}
-
-	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
-		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
-	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
-		struct script_info *script;
-
-		script = instance_lb_script(inst);
-		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		script_handler_update_pointer(script, x, y, -1);
-		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_HIGHLIGHT_PREV, timestamp);
-		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
-		}
-	} else {
-		ErrPrint("Unsupported package\n");
-		ret = LB_STATUS_ERROR_INVALID;
-	}
-
-out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result) {
-		ErrPrint("Failed to create a reply packet\n");
-	}
-
-	return result;
-}
-
-static struct packet *client_lb_access_hl_next(pid_t pid, int handle, const struct packet *packet)
-{
-	struct packet *result;
-	struct client_node *client;
-	const char *pkgname;
-	const char *id;
-	int ret;
-	double timestamp;
-	int x;
-	int y;
-	struct inst_info *inst = NULL;
-	const struct pkg_info *pkg = NULL;
-
-	client = client_find_by_rpc_handle(handle);
-	if (!client) {
-		ErrPrint("Client %d is not exists\n", pid);
-		ret = LB_STATUS_ERROR_NOT_EXIST;
-		goto out;
-	}
-
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
-		ErrPrint("Parameter is not matched\n");
-		ret = LB_STATUS_ERROR_INVALID;
-		goto out;
-	}
-
-	ret = validate_request(pkgname, id, &inst, &pkg);
-	if (ret != LB_STATUS_SUCCESS) {
-		goto out;
-	}
-
-	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
-		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
-	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
-		struct script_info *script;
-
-		script = instance_lb_script(inst);
-		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		script_handler_update_pointer(script, x, y, -1);
-		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_HIGHLIGHT_NEXT, timestamp);
-		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
-		}
-	} else {
-		ErrPrint("Unsupported package\n");
-		ret = LB_STATUS_ERROR_INVALID;
-	}
-
-out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result) {
-		ErrPrint("Failed to create a reply packet\n");
-	}
-
-	return result;
-}
-
-static struct packet *client_lb_access_action_up(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_lb_access_action(pid_t pid, int handle, const struct packet *packet)
 {
 	struct packet *result;
 	struct client_node *client;
@@ -4235,8 +4245,7 @@ static struct packet *client_lb_access_action_up(pid_t pid, int handle, const st
 	double timestamp;
 	struct inst_info *inst = NULL;
 	const struct pkg_info *pkg = NULL;
-	int x;
-	int y;
+	struct access_info event;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -4245,8 +4254,8 @@ static struct packet *client_lb_access_action_up(pid_t pid, int handle, const st
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
@@ -4258,7 +4267,7 @@ static struct packet *client_lb_access_action_up(pid_t pid, int handle, const st
 	}
 
 	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
-		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
+		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
 		/*!
 		 * Enen if it fails to send packet,
 		 * The packet will be unref'd
@@ -4274,26 +4283,10 @@ static struct packet *client_lb_access_action_up(pid_t pid, int handle, const st
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x, y, 0);
+		script_handler_update_pointer(script, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_ACTION, timestamp);
 		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
+			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -4309,169 +4302,7 @@ out:
 	return result;
 }
 
-static struct packet *client_lb_access_action_down(pid_t pid, int handle, const struct packet *packet)
-{
-	struct packet *result;
-	struct client_node *client;
-	const char *pkgname;
-	const char *id;
-	int ret;
-	double timestamp;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
-	int x;
-	int y;
-
-	client = client_find_by_rpc_handle(handle);
-	if (!client) {
-		ErrPrint("Client %d is not exist\n", pid);
-		ret = LB_STATUS_ERROR_NOT_EXIST;
-		goto out;
-	}
-
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
-		ErrPrint("Parameter is not matched\n");
-		ret = LB_STATUS_ERROR_INVALID;
-		goto out;
-	}
-
-	ret = validate_request(pkgname, id, &inst, &pkg);
-	if (ret != LB_STATUS_SUCCESS) {
-		goto out;
-	}
-
-	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
-		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
-		/*!
-		 * Enen if it fails to send packet,
-		 * The packet will be unref'd
-		 * So we don't need to check the ret value.
-		 */
-	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
-		struct script_info *script;
-
-		script = instance_lb_script(inst);
-		if (!script) {
-			ErrPrint("Instance has no script\n");
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		script_handler_update_pointer(script, x, y, 1);
-		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_ACTION, timestamp);
-		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
-		}
-	} else {
-		ErrPrint("Unsupported package\n");
-		ret = LB_STATUS_ERROR_INVALID;
-	}
-
-out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result) {
-		ErrPrint("Failed to create a reply packet\n");
-	}
-
-	return result;
-}
-
-static struct packet *client_lb_access_unhighlight(pid_t pid, int handle, const struct packet *packet)
-{
-	struct packet *result;
-	struct client_node *client;
-	const char *pkgname;
-	const char *id;
-	int ret;
-	double timestamp;
-	int x;
-	int y;
-	struct inst_info *inst = NULL;
-	const struct pkg_info *pkg = NULL;
-
-	client = client_find_by_rpc_handle(handle);
-	if (!client) {
-		ErrPrint("Client %d is not exists\n", pid);
-		ret = LB_STATUS_ERROR_NOT_EXIST;
-		goto out;
-	}
-
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
-		ErrPrint("Parameter is not matched\n");
-		ret = LB_STATUS_ERROR_INVALID;
-		goto out;
-	}
-
-	ret = validate_request(pkgname, id, &inst, &pkg);
-	if (ret != LB_STATUS_SUCCESS) {
-		goto out;
-	}
-
-	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
-		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
-	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
-		struct script_info *script;
-
-		script = instance_lb_script(inst);
-		if (!script) {
-			ret = LB_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		script_handler_update_pointer(script, x, y, -1);
-		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_UNHIGHLIGHT, timestamp);
-		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
-		}
-	} else {
-		ErrPrint("Unsupported package\n");
-		ret = LB_STATUS_ERROR_INVALID;
-	}
-
-out:
-	result = packet_create_reply(packet, "i", ret);
-	if (!result) {
-		ErrPrint("Failed to create a reply packet\n");
-	}
-
-	return result;
-}
-
-static struct packet *client_lb_access_scroll_down(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_lb_access_scroll(pid_t pid, int handle, const struct packet *packet)
 {
 	struct packet *result;
 	struct client_node *client;
@@ -4481,8 +4312,7 @@ static struct packet *client_lb_access_scroll_down(pid_t pid, int handle, const 
 	double timestamp;
 	struct inst_info *inst = NULL;
 	const struct pkg_info *pkg = NULL;
-	int x;
-	int y;
+	struct access_info event;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -4491,8 +4321,8 @@ static struct packet *client_lb_access_scroll_down(pid_t pid, int handle, const 
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.info);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
@@ -4504,7 +4334,7 @@ static struct packet *client_lb_access_scroll_down(pid_t pid, int handle, const 
 	}
 
 	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
-		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
+		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
 		/*!
 		 * Enen if it fails to send packet,
 		 * The packet will be unref'd
@@ -4520,26 +4350,10 @@ static struct packet *client_lb_access_scroll_down(pid_t pid, int handle, const 
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x, y, 1);
+		script_handler_update_pointer(script, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_SCROLL, timestamp);
 		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
+			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -4555,7 +4369,7 @@ out:
 	return result;
 }
 
-static struct packet *client_lb_access_scroll_move(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_lb_access_value_change(pid_t pid, int handle, const struct packet *packet)
 {
 	struct packet *result;
 	struct client_node *client;
@@ -4565,8 +4379,7 @@ static struct packet *client_lb_access_scroll_move(pid_t pid, int handle, const 
 	double timestamp;
 	struct inst_info *inst = NULL;
 	const struct pkg_info *pkg = NULL;
-	int x;
-	int y;
+	struct access_info event;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -4575,8 +4388,8 @@ static struct packet *client_lb_access_scroll_move(pid_t pid, int handle, const 
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.info);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
@@ -4588,7 +4401,7 @@ static struct packet *client_lb_access_scroll_move(pid_t pid, int handle, const 
 	}
 
 	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
-		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
+		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
 		/*!
 		 * Enen if it fails to send packet,
 		 * The packet will be unref'd
@@ -4604,26 +4417,10 @@ static struct packet *client_lb_access_scroll_move(pid_t pid, int handle, const 
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x, y, -1);
-		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_SCROLL, timestamp);
+		script_handler_update_pointer(script, event.x, event.y, event.type);
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_VALUE_CHANGE, timestamp);
 		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
+			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -4639,7 +4436,7 @@ out:
 	return result;
 }
 
-static struct packet *client_lb_access_scroll_up(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_lb_access_mouse(pid_t pid, int handle, const struct packet *packet)
 {
 	struct packet *result;
 	struct client_node *client;
@@ -4647,10 +4444,9 @@ static struct packet *client_lb_access_scroll_up(pid_t pid, int handle, const st
 	const char *id;
 	int ret;
 	double timestamp;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
-	int x;
-	int y;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
+	struct access_info event;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -4659,8 +4455,8 @@ static struct packet *client_lb_access_scroll_up(pid_t pid, int handle, const st
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
@@ -4672,7 +4468,7 @@ static struct packet *client_lb_access_scroll_up(pid_t pid, int handle, const st
 	}
 
 	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
-		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
+		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
 		/*!
 		 * Enen if it fails to send packet,
 		 * The packet will be unref'd
@@ -4688,26 +4484,281 @@ static struct packet *client_lb_access_scroll_up(pid_t pid, int handle, const st
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x, y, 0);
-		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_SCROLL, timestamp);
+		script_handler_update_pointer(script, event.x, event.y, event.type);
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_MOUSE, timestamp);
 		if (ret >= 0) {
-			struct event_cbdata *cbdata;
+			ret = send_delayed_access_status(inst, ret);
+		}
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = LB_STATUS_ERROR_INVALID;
+	}
 
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result) {
+		ErrPrint("Failed to create a reply packet\n");
+	}
 
-				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
+	return result;
+}
+
+static struct packet *client_lb_access_back(pid_t pid, int handle, const struct packet *packet)
+{
+	struct packet *result;
+	struct client_node *client;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	double timestamp;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
+	struct access_info event;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exist\n", pid);
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
+	if (ret != 6) {
+		ErrPrint("Parameter is not matched\n");
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	if (ret != LB_STATUS_SUCCESS) {
+		goto out;
+	}
+
+	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
+		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
+		/*!
+		 * Enen if it fails to send packet,
+		 * The packet will be unref'd
+		 * So we don't need to check the ret value.
+		 */
+	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
+		struct script_info *script;
+
+		script = instance_lb_script(inst);
+		if (!script) {
+			ErrPrint("Instance has no script\n");
+			ret = LB_STATUS_ERROR_FAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, event.x, event.y, event.type);
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_BACK, timestamp);
+		if (ret >= 0) {
+			ret = send_delayed_access_status(inst, ret);
+		}
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = LB_STATUS_ERROR_INVALID;
+	}
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result) {
+		ErrPrint("Failed to create a reply packet\n");
+	}
+
+	return result;
+}
+
+static struct packet *client_lb_access_over(pid_t pid, int handle, const struct packet *packet)
+{
+	struct packet *result;
+	struct client_node *client;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	double timestamp;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
+	struct access_info event;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exist\n", pid);
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
+	if (ret != 6) {
+		ErrPrint("Parameter is not matched\n");
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	if (ret != LB_STATUS_SUCCESS) {
+		goto out;
+	}
+
+	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
+		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
+		/*!
+		 * Enen if it fails to send packet,
+		 * The packet will be unref'd
+		 * So we don't need to check the ret value.
+		 */
+	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
+		struct script_info *script;
+
+		script = instance_lb_script(inst);
+		if (!script) {
+			ErrPrint("Instance has no script\n");
+			ret = LB_STATUS_ERROR_FAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, event.x, event.y, event.type);
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_OVER, timestamp);
+		if (ret >= 0) {
+			ret = send_delayed_access_status(inst, ret);
+		}
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = LB_STATUS_ERROR_INVALID;
+	}
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result) {
+		ErrPrint("Failed to create a reply packet\n");
+	}
+
+	return result;
+}
+
+static struct packet *client_lb_access_read(pid_t pid, int handle, const struct packet *packet)
+{
+	struct packet *result;
+	struct client_node *client;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	double timestamp;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
+	struct access_info event;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exist\n", pid);
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
+	if (ret != 6) {
+		ErrPrint("Parameter is not matched\n");
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	if (ret != LB_STATUS_SUCCESS) {
+		goto out;
+	}
+
+	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
+		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
+		/*!
+		 * Enen if it fails to send packet,
+		 * The packet will be unref'd
+		 * So we don't need to check the ret value.
+		 */
+	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
+		struct script_info *script;
+
+		script = instance_lb_script(inst);
+		if (!script) {
+			ErrPrint("Instance has no script\n");
+			ret = LB_STATUS_ERROR_FAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, event.x, event.y, event.type);
+		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_READ, timestamp);
+		if (ret >= 0) {
+			ret = send_delayed_access_status(inst, ret);
+		}
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = LB_STATUS_ERROR_INVALID;
+	}
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result) {
+		ErrPrint("Failed to create a reply packet\n");
+	}
+
+	return result;
+}
+
+static struct packet *client_lb_access_enable(pid_t pid, int handle, const struct packet *packet)
+{
+	struct packet *result;
+	struct client_node *client;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	double timestamp;
+	struct inst_info *inst = NULL;
+	const struct pkg_info *pkg = NULL;
+	struct access_info event;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exist\n", pid);
+		ret = LB_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
+	if (ret != 6) {
+		ErrPrint("Parameter is not matched\n");
+		ret = LB_STATUS_ERROR_INVALID;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	if (ret != LB_STATUS_SUCCESS) {
+		goto out;
+	}
+
+	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
+		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
+		/*!
+		 * Enen if it fails to send packet,
+		 * The packet will be unref'd
+		 * So we don't need to check the ret value.
+		 */
+	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
+		struct script_info *script;
+		int type;
+
+		script = instance_lb_script(inst);
+		if (!script) {
+			ErrPrint("Instance has no script\n");
+			ret = LB_STATUS_ERROR_FAULT;
+			goto out;
+		}
+
+		type = (event.type == 0) ? LB_SCRIPT_ACCESS_DISABLE : LB_SCRIPT_ACCESS_ENABLE;
+
+		script_handler_update_pointer(script, event.x, event.y, event.type);
+		ret = script_handler_feed_event(script, type, timestamp);
+		if (ret >= 0) {
+			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -4731,8 +4782,7 @@ static struct packet *client_lb_access_activate(pid_t pid, int handle, const str
 	const char *id;
 	int ret;
 	double timestamp;
-	int x;
-	int y;
+	struct access_info event;
 	struct inst_info *inst = NULL;
 	const struct pkg_info *pkg = NULL;
 
@@ -4743,8 +4793,8 @@ static struct packet *client_lb_access_activate(pid_t pid, int handle, const str
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
@@ -4756,7 +4806,7 @@ static struct packet *client_lb_access_activate(pid_t pid, int handle, const str
 	}
 
 	if (package_lb_type(pkg) == LB_TYPE_BUFFER) {
-		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, x, y);
+		ret = forward_lb_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
 	} else if (package_lb_type(pkg) == LB_TYPE_SCRIPT) {
 		struct script_info *script;
 
@@ -4767,26 +4817,10 @@ static struct packet *client_lb_access_activate(pid_t pid, int handle, const str
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x, y, -1);
+		script_handler_update_pointer(script, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, LB_SCRIPT_ACCESS_ACTIVATE, timestamp);
 		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
+			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -4847,23 +4881,7 @@ static struct packet *client_lb_key_down(pid_t pid, int handle, const struct pac
 		script_handler_update_keycode(script, keycode);
 		ret = script_handler_feed_event(script, LB_SCRIPT_KEY_DOWN, timestamp);
 		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_key_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
+			ret = send_delayed_key_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -4924,23 +4942,7 @@ static struct packet *client_lb_key_focus_in(pid_t pid, int handle, const struct
 		script_handler_update_keycode(script, keycode);
 		ret = script_handler_feed_event(script, LB_SCRIPT_KEY_FOCUS_IN, timestamp);
 		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_key_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
+			ret = send_delayed_key_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -5001,23 +5003,7 @@ static struct packet *client_lb_key_focus_out(pid_t pid, int handle, const struc
 		script_handler_update_keycode(script, keycode);
 		ret = script_handler_feed_event(script, LB_SCRIPT_KEY_FOCUS_OUT, timestamp);
 		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_key_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
+			ret = send_delayed_key_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -5078,23 +5064,7 @@ static struct packet *client_lb_key_up(pid_t pid, int handle, const struct packe
 		script_handler_update_keycode(script, keycode);
 		ret = script_handler_feed_event(script, LB_SCRIPT_KEY_UP, timestamp);
 		if (ret >= 0) {
-			struct event_cbdata *cbdata;
-
-			cbdata = malloc(sizeof(*cbdata));
-			if (!cbdata) {
-				ret = LB_STATUS_ERROR_MEMORY;
-			} else {
-				cbdata->inst = instance_ref(inst);
-				cbdata->status = ret;
-
-				if (!ecore_timer_add(DELAY_TIME, lazy_key_status_cb, cbdata)) {
-					(void)instance_unref(cbdata->inst);
-					DbgFree(cbdata);
-					ret = LB_STATUS_ERROR_FAULT;
-				} else {
-					ret = LB_STATUS_SUCCESS;
-				}
-			}
+			ret = send_delayed_key_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
@@ -8349,40 +8319,40 @@ static struct method s_client_table[] = {
 		.handler = client_pd_access_hl,
 	},
 	{
-		.cmd = "pd_access_hl_prev",
-		.handler = client_pd_access_hl_prev,
-	},
-	{
-		.cmd = "pd_access_hl_next",
-		.handler = client_pd_access_hl_next,
-	},
-	{
 		.cmd = "pd_access_activate",
 		.handler = client_pd_access_activate,
 	},
 	{
-		.cmd = "pd_access_action_up",
-		.handler = client_pd_access_action_up,
+		.cmd = "pd_access_action",
+		.handler = client_pd_access_action,
 	},
 	{
-		.cmd = "pd_access_action_down",
-		.handler = client_pd_access_action_down,
+		.cmd = "pd_access_scroll",
+		.handler = client_pd_access_scroll,
 	},
 	{
-		.cmd = "pd_access_unhighlight",
-		.handler = client_pd_access_unhighlight,
+		.cmd = "pd_access_value_change",
+		.handler = client_pd_access_value_change,
 	},
 	{
-		.cmd = "pd_access_scroll_down",
-		.handler = client_pd_access_scroll_down,
+		.cmd = "pd_access_mouse",
+		.handler = client_pd_access_mouse,
 	},
 	{
-		.cmd = "pd_access_scroll_move",
-		.handler = client_pd_access_scroll_move,
+		.cmd = "pd_access_back",
+		.handler = client_pd_access_back,
 	},
 	{
-		.cmd = "pd_access_scroll_up",
-		.handler = client_pd_access_scroll_up,
+		.cmd = "pd_access_over",
+		.handler = client_pd_access_over,
+	},
+	{
+		.cmd = "pd_access_read",
+		.handler = client_pd_access_read,
+	},
+	{
+		.cmd = "pd_access_enable",
+		.handler = client_pd_access_enable,
 	},
 
 	{
@@ -8390,40 +8360,40 @@ static struct method s_client_table[] = {
 		.handler = client_lb_access_hl,
 	},
 	{
-		.cmd = "lb_access_hl_prev",
-		.handler = client_lb_access_hl_prev,
-	},
-	{
-		.cmd = "lb_access_hl_next",
-		.handler = client_lb_access_hl_next,
-	},
-	{
 		.cmd = "lb_access_activate",
 		.handler = client_lb_access_activate,
 	},
 	{
-		.cmd = "lb_access_action_up",
-		.handler = client_lb_access_action_up,
+		.cmd = "lb_access_action",
+		.handler = client_lb_access_action,
 	},
 	{
-		.cmd = "lb_access_action_down",
-		.handler = client_lb_access_action_down,
+		.cmd = "lb_access_scroll",
+		.handler = client_lb_access_scroll,
 	},
 	{
-		.cmd = "lb_access_unhighlight",
-		.handler = client_lb_access_unhighlight,
+		.cmd = "lb_access_value_change",
+		.handler = client_lb_access_value_change,
 	},
 	{
-		.cmd = "lb_access_scroll_down",
-		.handler = client_lb_access_scroll_down,
+		.cmd = "lb_access_mouse",
+		.handler = client_lb_access_mouse,
 	},
 	{
-		.cmd = "lb_access_scroll_move",
-		.handler = client_lb_access_scroll_move,
+		.cmd = "lb_access_back",
+		.handler = client_lb_access_back,
 	},
 	{
-		.cmd = "lb_access_scroll_up",
-		.handler = client_lb_access_scroll_up,
+		.cmd = "lb_access_over",
+		.handler = client_lb_access_over,
+	},
+	{
+		.cmd = "lb_access_read",
+		.handler = client_lb_access_read,
+	},
+	{
+		.cmd = "lb_access_enable",
+		.handler = client_lb_access_enable,
 	},
 
 	{
