@@ -138,7 +138,6 @@ static Eina_Bool lazy_access_status_cb(void *data)
 int send_delayed_key_status(struct inst_info *inst, int ret)
 {
 	struct event_cbdata *cbdata;
-	return ret;
 
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
@@ -162,7 +161,6 @@ int send_delayed_key_status(struct inst_info *inst, int ret)
 int send_delayed_access_status(struct inst_info *inst, int ret)
 {
 	struct event_cbdata *cbdata;
-	int ret;
 
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
@@ -265,7 +263,7 @@ out:
 	return ret;
 }
 
-static int forward_lb_access_packet(const struct pkg_info *pkg, struct inst_info *inst, const char *command, double timestamp, int x, int y)
+static int forward_lb_access_packet(const struct pkg_info *pkg, struct inst_info *inst, const char *command, double timestamp, struct access_info *event)
 {
 	int ret;
 	struct buffer_info *buffer;
@@ -286,7 +284,7 @@ static int forward_lb_access_packet(const struct pkg_info *pkg, struct inst_info
 		goto out;
 	}
 
-	p = packet_create_noack(command, "ssdii", package_name(pkg), instance_id(inst), timestamp, x, y);
+	p = packet_create_noack(command, "ssdiii", package_name(pkg), instance_id(inst), timestamp, event->x, event->y, event->type);
 	ret = slave_rpc_request_only(slave, package_name(pkg), p, 0);
 
 out:
@@ -2938,7 +2936,6 @@ static struct packet *client_pd_access_action(pid_t pid, int handle, const struc
 		ret = forward_pd_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
 	} else if (package_pd_type(pkg) == PD_TYPE_SCRIPT) {
 		struct script_info *script;
-		int type;
 
 		script = instance_pd_script(inst);
 		if (!script) {
@@ -3217,7 +3214,7 @@ static struct packet *client_pd_access_over(pid_t pid, int handle, const struct 
 	const char *id;
 	int ret;
 	double timestamp;
-	struct event_info event;
+	struct access_info event;
 	struct inst_info *inst = NULL;
 	const struct pkg_info *pkg = NULL;
 
@@ -4004,7 +4001,7 @@ static struct packet *client_lb_access_scroll(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.info);
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = LB_STATUS_ERROR_INVALID;
@@ -4071,7 +4068,7 @@ static struct packet *client_lb_access_value_change(pid_t pid, int handle, const
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.info);
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = LB_STATUS_ERROR_INVALID;
