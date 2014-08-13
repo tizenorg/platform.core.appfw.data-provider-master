@@ -683,6 +683,7 @@ static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 			EINA_LIST_FREE(s_info.reactivate_list, listener) {
 				s_info.event_listener_list = eina_list_append(s_info.event_listener_list, listener);
 			}
+			DbgPrint("Reactivate: %p\n", s_info.event_listener_list);
 
 			if (s_info.event_listener_list) {
 				if (activate_thread() < 0) {
@@ -970,16 +971,24 @@ HAPI int event_deactivate(int (*event_cb)(enum event_state state, struct event_d
 
 	EINA_LIST_FOREACH(s_info.event_listener_list, l, item) {
 		if (item->event_cb == event_cb && item->cbdata == data) {
-			item->prev_state = item->state;
-			item->state = EVENT_STATE_DEACTIVATE;
-			listener = item;
+			switch (item->state) {
+			case EVENT_STATE_ACTIVATE:
+			case EVENT_STATE_ACTIVATED:
+				item->prev_state = item->state;
+				item->state = EVENT_STATE_DEACTIVATE;
+				listener = item;
+				break;
+			default:
+				/* Item is already deactivated */
+				break;
+			}
 		}
 
 		keep_thread += (item->state == EVENT_STATE_ACTIVATE || item->state == EVENT_STATE_ACTIVATED);
 	}
 
 	if (!listener) {
-		ErrPrint("Listener is not registered\n");
+		ErrPrint("Listener is not registered or already deactivated\n");
 		return LB_STATUS_ERROR_NOT_EXIST;
 	}
 
@@ -1007,6 +1016,13 @@ HAPI int event_reset_cbdata(int (*event_cb)(enum event_state state, struct event
 	int updated = 0;
 
 	EINA_LIST_FOREACH(s_info.event_listener_list, l, item) {
+		if (item->event_cb == event_cb && item->cbdata == data) {
+			item->cbdata = new_data;
+			updated++;
+		}
+	}
+
+	EINA_LIST_FOREACH(s_info.reactivate_list, l, item) {
 		if (item->event_cb == event_cb && item->cbdata == data) {
 			item->cbdata = new_data;
 			updated++;
