@@ -106,8 +106,8 @@ export LIVEBOX_SHM="${LIVEBOX_SHM}.360x480"
 export LIVEBOX_SHM="${LIVEBOX_SHM}.320x480"
 %endif
 
-%if "%{sec_product_feature_display_resolution}" == "800x480"
-export LIVEBOX_SHM="${LIVEBOX_SHM}.800x480"
+%if "%{sec_product_feature_display_resolution}" == "480x800"
+export LIVEBOX_SHM="${LIVEBOX_SHM}.480x800"
 %endif
 
 %if "%{sec_product_feature_livebox}" == "0"
