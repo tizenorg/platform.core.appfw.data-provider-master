@@ -94,6 +94,7 @@ struct inst_info {
 	enum instance_state requested_state; /*!< Only ACTIVATED | DESTROYED is acceptable */
 	enum instance_destroy_type destroy_type;
 	int changing_state;
+	int unicast_delete_event;
 
 	char *id;
 	double timestamp;
@@ -478,6 +479,7 @@ static int instance_broadcast_created_event(struct inst_info *inst)
 		return LB_STATUS_ERROR_FAULT;
 	}
 
+	inst->unicast_delete_event = 0;
 	return CLIENT_SEND_EVENT(inst, packet);
 }
 
@@ -840,6 +842,7 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 		return NULL;
 	}
 
+	inst->unicast_delete_event = 1;
 	inst->state = INST_INIT;
 	inst->requested_state = INST_INIT;
 	instance_ref(inst);
@@ -938,7 +941,11 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 			instance_reactivate(inst);
 			break;
 		case INST_DESTROYED:
-			instance_broadcast_deleted_event(inst, ret);
+			if (inst->unicast_delete_event) {
+				instance_unicast_deleted_event(inst, NULL, ret);
+			} else {
+				instance_broadcast_deleted_event(inst, ret);
+			}
 			instance_state_reset(inst);
 			instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
 		default:
@@ -979,7 +986,10 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 	}
 
 out:
-	inst->changing_state = 0;
+	inst->changing_state--;
+	if (inst->changing_state < 0) {
+		ErrPrint("Changing state is not correct: %d\n", inst->changing_state);
+	}
 	instance_unref(inst);
 }
 
@@ -1139,7 +1149,10 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 	}
 
 out:
-	inst->changing_state = 0;
+	inst->changing_state--;
+	if (inst->changing_state < 0) {
+		ErrPrint("Changing state is not correct: %d\n", inst->changing_state);
+	}
 	instance_unref(inst);
 }
 
@@ -1206,8 +1219,9 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 
 		switch (inst->requested_state) {
 		case INST_DESTROYED:
-			instance_unicast_deleted_event(inst, NULL, ret);
-			instance_state_reset(inst);
+			/**
+			 * In this case, we should destroy the instance.
+			 */
 			instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
 			break;
 		case INST_ACTIVATED:
@@ -1267,7 +1281,10 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 	}
 
 out:
-	inst->changing_state = 0;
+	inst->changing_state--;
+	if (inst->changing_state < 0) {
+		ErrPrint("Changing state is not correct: %d\n", inst->changing_state);
+	}
 	instance_unref(inst);
 }
 
@@ -1344,7 +1361,7 @@ HAPI int instance_destroy(struct inst_info *inst, enum instance_destroy_type typ
 	inst->destroy_type = type;
 	inst->requested_state = INST_DESTROYED;
 	inst->state = INST_REQUEST_TO_DESTROY;
-	inst->changing_state = 1;
+	inst->changing_state++;
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, deactivate_cb, instance_ref(inst), 0);
 }
 
@@ -1387,7 +1404,7 @@ HAPI int instance_reload(struct inst_info *inst, enum instance_destroy_type type
 	inst->destroy_type = type;
 	inst->requested_state = INST_ACTIVATED;
 	inst->state = INST_REQUEST_TO_DESTROY;
-	inst->changing_state = 1;
+	inst->changing_state++;
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, deactivate_cb, instance_ref(inst), 0);
 }
 
@@ -1563,7 +1580,7 @@ HAPI int instance_reactivate(struct inst_info *inst)
 
 	inst->requested_state = INST_ACTIVATED;
 	inst->state = INST_REQUEST_TO_REACTIVATE;
-	inst->changing_state = 1;
+	inst->changing_state++;
 
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, reactivate_cb, instance_ref(inst), 1);
 }
@@ -1629,7 +1646,7 @@ HAPI int instance_activate(struct inst_info *inst)
 
 	inst->state = INST_REQUEST_TO_ACTIVATE;
 	inst->requested_state = INST_ACTIVATED;
-	inst->changing_state = 1;
+	inst->changing_state++;
 
 	/*!
 	 * \note
@@ -2749,14 +2766,18 @@ HAPI int instance_destroyed(struct inst_info *inst, int reason)
 	switch (inst->state) {
 	case INST_INIT:
 	case INST_REQUEST_TO_ACTIVATE:
-		/*!
-		 * \note
-		 * No other clients know the existence of this instance,
-		 * only who added this knows it.
-		 * So send deleted event to only it.
-		 */
-		DbgPrint("Send deleted event - unicast - %p\n", inst->client);
-		instance_unicast_deleted_event(inst, NULL, reason);
+		if (inst->unicast_delete_event) {
+			/*!
+			 * \note
+			 * No other clients know the existence of this instance,
+			 * only who added this knows it.
+			 * So send deleted event to only it.
+			 */
+			DbgPrint("Send deleted event - unicast - %p\n", inst->client);
+			instance_unicast_deleted_event(inst, NULL, reason);
+		} else {
+			instance_broadcast_deleted_event(inst, reason);
+		}
 		instance_state_reset(inst);
 		instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
 		break;
@@ -2783,7 +2804,7 @@ HAPI int instance_recover_state(struct inst_info *inst)
 {
 	int ret = 0;
 
-	if (inst->changing_state) {
+	if (inst->changing_state > 0) {
 		DbgPrint("Doesn't need to recover the state\n");
 		return LB_STATUS_SUCCESS;
 	}
