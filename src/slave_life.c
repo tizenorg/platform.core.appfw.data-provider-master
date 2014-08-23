@@ -492,7 +492,7 @@ static Eina_Bool relaunch_timer_cb(void *data)
 
 			invoke_slave_fault_handler(slave);
 		} else {
-			//bundle_add(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
+			bundle_add(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
 			bundle_add(param, BUNDLE_SLAVE_NAME, slave_name(slave));
 			bundle_add(param, BUNDLE_SLAVE_SECURED, slave->secured ? "true" : "false");
 			bundle_add(param, BUNDLE_SLAVE_ABI, slave->abi);
@@ -583,7 +583,7 @@ HAPI int slave_activate(struct slave_node *slave)
 			return LB_STATUS_ERROR_FAULT;
 		}
 
-		//bundle_add(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
+		bundle_add(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
 		bundle_add(param, BUNDLE_SLAVE_NAME, slave_name(slave));
 		bundle_add(param, BUNDLE_SLAVE_SECURED, slave->secured ? "true" : "false");
 		bundle_add(param, BUNDLE_SLAVE_ABI, slave->abi);
