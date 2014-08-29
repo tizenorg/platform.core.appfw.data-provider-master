@@ -86,6 +86,7 @@ static const double CONF_DEFAULT_PD_REQUEST_TIMEOUT = 5.0f;
 static const int CONF_DEFAULT_PIXELS = sizeof(int);
 static const int CONF_DEFAULT_AUTO_ALIGN = 1;
 static const int CONF_DEFAULT_USE_EVENT_TIME = 1;
+static const int CONF_DEFAULT_CHECK_LCD = 1;
 
 #define CONF_PATH_FORMAT "/usr/share/data-provider-master/%dx%d/conf.ini"
 
@@ -112,6 +113,11 @@ static void emergency_disk_handler(char *buffer)
 	if (!g_conf.emergency_disk) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 	}
+}
+
+static void check_lcd_handler(char *buffer)
+{
+	g_conf.check_lcd = !strcasecmp(buffer, "true");
 }
 
 static void use_event_time_handler(char *buffer)
@@ -468,6 +474,7 @@ HAPI void conf_init(void)
 	g_conf.services = (char *)CONF_DEFAULT_SERVICES;
 	g_conf.auto_align = CONF_DEFAULT_AUTO_ALIGN;
 	g_conf.use_event_time = CONF_DEFAULT_USE_EVENT_TIME;
+	g_conf.check_lcd = CONF_DEFAULT_CHECK_LCD;
 }
 
 /*
@@ -662,6 +669,10 @@ HAPI int conf_loader(void)
 		{
 			.name = "use_event_time",
 			.handler = use_event_time_handler,
+		},
+		{
+			.name = "check_lcd",
+			.handler = check_lcd_handler,
 		},
 		{
 			.name = "use_xmonitor",
@@ -911,6 +922,7 @@ HAPI void conf_reset(void)
 	g_conf.default_conf.pixels = CONF_DEFAULT_PIXELS;
 	g_conf.auto_align = CONF_DEFAULT_AUTO_ALIGN;
 	g_conf.use_event_time = CONF_DEFAULT_USE_EVENT_TIME;
+	g_conf.check_lcd = CONF_DEFAULT_CHECK_LCD;
 
 	if (g_conf.default_conf.script != CONF_DEFAULT_SCRIPT_TYPE) {
 		DbgFree(g_conf.default_conf.script);
