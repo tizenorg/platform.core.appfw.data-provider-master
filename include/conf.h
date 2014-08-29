@@ -97,6 +97,7 @@ struct conf {
 	char *services;
 	int auto_align;
 	int use_event_time;
+	int check_lcd;
 };
 
 extern struct conf g_conf;
@@ -196,6 +197,7 @@ extern void conf_init(void);
 #define USE_XMONITOR		g_conf.use_xmonitor
 #define AUTO_ALIGN		g_conf.auto_align
 #define USE_EVENT_TIME		g_conf.use_event_time
+#define CHECK_LCD		g_conf.check_lcd
 
 #define HAPI __attribute__((visibility("hidden")))
 /*!

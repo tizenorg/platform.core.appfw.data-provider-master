@@ -69,6 +69,11 @@ HAPI int setting_is_lcd_off(void)
 {
 	int state;
 
+	if (!CHECK_LCD) {
+		/* Always turned on */
+		return 0;
+	}
+
 	if (vconf_get_int(VCONFKEY_PM_STATE, &state) != 0) {
 		ErrPrint("Idle lock state is not valid\n");
 		state = VCONFKEY_PM_STATE_NORMAL; /* UNLOCK */
