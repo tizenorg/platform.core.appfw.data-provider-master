@@ -37,6 +37,7 @@
 #include "package.h"
 #include "conf.h"
 #include "critical_log.h"
+#include "provider_cmd_list.h"
 
 static struct info {
 	Eina_List *call_list;
@@ -115,12 +116,13 @@ static char *check_log_file(struct slave_node *slave)
 HAPI void fault_unicast_info(struct client_node *client, const char *pkgname, const char *filename, const char *func)
 {
 	struct packet *packet;
+	unsigned int cmd = CMD_FAULT_PACKAGE;
 
 	if (!client || !pkgname || !filename || !func) {
 		return;
 	}
 
-	packet = packet_create_noack("fault_package", "sss", pkgname, filename, func);
+	packet = packet_create_noack((const char *)&cmd, "sss", pkgname, filename, func);
 	if (!packet) {
 		return;
 	}
@@ -131,8 +133,9 @@ HAPI void fault_unicast_info(struct client_node *client, const char *pkgname, co
 HAPI void fault_broadcast_info(const char *pkgname, const char *filename, const char *func)
 {
 	struct packet *packet;
+	unsigned int cmd = CMD_FAULT_PACKAGE;
 
-	packet = packet_create_noack("fault_package", "sss", pkgname, filename, func);
+	packet = packet_create_noack((const char *)&cmd, "sss", pkgname, filename, func);
 	if (!packet) {
 		ErrPrint("Failed to create a param\n");
 		return;
