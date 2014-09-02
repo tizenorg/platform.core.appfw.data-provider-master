@@ -1561,7 +1561,7 @@ HAPI int instance_reactivate(struct inst_info *inst)
 		break;
 	}
 
-	packet = packet_create((const char *)&cmd, "sssiidssiisii",
+	packet = packet_create((const char *)&cmd, "sssiidssiisiis",
 			package_name(inst->info),
 			inst->id,
 			inst->content,
@@ -1573,7 +1573,8 @@ HAPI int instance_reactivate(struct inst_info *inst)
 			inst->lb.width, inst->lb.height,
 			package_abi(inst->info),
 			inst->scroll_locked,
-			inst->active_update);
+			inst->active_update,
+			client_direct_addr(inst->client));
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return LB_STATUS_ERROR_FAULT;
@@ -1628,7 +1629,7 @@ HAPI int instance_activate(struct inst_info *inst)
 		break;
 	}
 
-	packet = packet_create((const char *)&cmd, "sssiidssisii",
+	packet = packet_create((const char *)&cmd, "sssiidssisiis",
 			package_name(inst->info),
 			inst->id,
 			inst->content,
@@ -1640,7 +1641,8 @@ HAPI int instance_activate(struct inst_info *inst)
 			!!inst->client,
 			package_abi(inst->info),
 			inst->lb.width,
-			inst->lb.height);
+			inst->lb.height,
+			client_direct_addr(inst->client));
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return LB_STATUS_ERROR_FAULT;

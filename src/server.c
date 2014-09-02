@@ -777,6 +777,7 @@ static struct packet *client_acquire(pid_t pid, int handle, const struct packet 
 {
 	struct client_node *client;
 	struct packet *result;
+	const char *direct_addr;
 	double timestamp;
 	int ret;
 
@@ -787,7 +788,7 @@ static struct packet *client_acquire(pid_t pid, int handle, const struct packet 
 		goto out;
 	}
 
-	if (packet_get(packet, "d", &timestamp) != 1) {
+	if (packet_get(packet, "ds", &timestamp, &direct_addr) != 2) {
 		ErrPrint("Invalid arguemnt\n");
 		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
@@ -798,7 +799,7 @@ static struct packet *client_acquire(pid_t pid, int handle, const struct packet 
 	 * \note
 	 * client_create will invoke the client created callback
 	 */
-	client = client_create(pid, handle);
+	client = client_create(pid, handle, direct_addr);
 	if (!client) {
 		ErrPrint("Failed to create a new client for %d\n", pid);
 		ret = LB_STATUS_ERROR_FAULT;

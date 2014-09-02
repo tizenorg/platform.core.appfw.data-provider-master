@@ -16,6 +16,11 @@
 
 #include <stdio.h>
 #include <errno.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/smack.h>
 
 #include <Eina.h>
 #include <Ecore.h>
@@ -96,6 +101,7 @@ struct client_node {
 	Eina_List *subscribe_list;
 
 	int faulted;
+	char *direct_addr;
 };
 
 static inline void invoke_global_destroyed_cb(struct client_node *client)
@@ -234,6 +240,11 @@ static inline void destroy_client_data(struct client_node *client)
 		s_info.nr_of_paused_clients--;
 	}
 
+	if (client->direct_addr) {
+		(void)unlink(client->direct_addr);
+		DbgFree(client->direct_addr);
+	}
+
 	s_info.client_list = eina_list_remove(s_info.client_list, client);
 	DbgFree(client);
 
@@ -245,7 +256,7 @@ static inline void destroy_client_data(struct client_node *client)
 	xmonitor_handle_state_changes();
 }
 
-static inline struct client_node *create_client_data(pid_t pid)
+static inline struct client_node *create_client_data(pid_t pid, const char *direct_addr)
 {
 	struct client_node *client;
 
@@ -257,6 +268,13 @@ static inline struct client_node *create_client_data(pid_t pid)
 
 	client->pid = pid;
 	client->refcnt = 1;
+
+	if (direct_addr && direct_addr[0]) {
+		client->direct_addr = strdup(direct_addr);
+		if (!client->direct_addr) {
+			ErrPrint("Failed to allocate direct_addr (%s)\n", direct_addr);
+		}
+	}
 
 	s_info.client_list = eina_list_append(s_info.client_list, client);
 
@@ -293,7 +311,7 @@ static Eina_Bool created_cb(void *data)
  * So we just create its ADT in this function.
  * And invoke the global created event & activated event callbacks
  */
-HAPI struct client_node *client_create(pid_t pid, int handle)
+HAPI struct client_node *client_create(pid_t pid, int handle, const char *direct_addr)
 {
 	struct client_node *client;
 	int ret;
@@ -304,7 +322,7 @@ HAPI struct client_node *client_create(pid_t pid, int handle)
 		return client;
 	}
 
-	client = create_client_data(pid);
+	client = create_client_data(pid, direct_addr);
 	if (!client) {
 		ErrPrint("Failed to create a new client (%d)\n", pid);
 		return NULL;
@@ -865,6 +883,11 @@ HAPI int client_broadcast(struct inst_info *inst, struct packet *packet)
 
 	packet_unref(packet);
 	return LB_STATUS_SUCCESS;
+}
+
+HAPI const char *client_direct_addr(const struct client_node *client)
+{
+	return client ? client->direct_addr : NULL;
 }
 
 /* End of a file */
