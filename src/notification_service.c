@@ -152,7 +152,6 @@ static void _handler_insert_noti(struct tcb *tcb, struct packet *packet, notific
 	noti = notification_create(NOTIFICATION_TYPE_NOTI);
 	if (noti != NULL) {
 		if (notification_ipc_make_noti_from_packet(noti, packet) == NOTIFICATION_ERROR_NONE) {
-			ErrPrint("hyun");
 			_handler_insert_noti(tcb, packet, noti, data);
 		} else {
 			ErrPrint("Failed to create the packet");
@@ -203,7 +202,6 @@ static void _handler_update(struct tcb *tcb, struct packet *packet, void *data)
 	noti = notification_create(NOTIFICATION_TYPE_NOTI);
 	if (noti != NULL) {
 		if (notification_ipc_make_noti_from_packet(noti, packet) == NOTIFICATION_ERROR_NONE) {
-			ErrPrint("hyun");
 			_handler_update_noti(tcb, packet, noti, data);
 		} else {
 			ErrPrint("Failed to create the packet");
@@ -610,7 +608,7 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 			.cmd = "add_noti",
 			.handler = _handler_check_noti_by_tag,
 			.rule = "data-provider-master::notification.client",
-			.access = "rw",
+			.access = "w",
 			.handler_access_error = _permission_check_common,
 		},
 		{
