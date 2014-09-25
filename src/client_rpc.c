@@ -23,7 +23,7 @@
 #include <dlog.h>
 #include <com-core_packet.h>
 #include <packet.h>
-#include <livebox-errno.h>
+#include <dynamicbox_errno.h>
 
 #include "client_life.h"
 #include "instance.h"
@@ -165,13 +165,13 @@ HAPI int client_rpc_async_request(struct client_node *client, struct packet *pac
 	struct client_rpc *rpc;
 
 	if (!client || !packet) {
-		return LB_STATUS_ERROR_INVALID;
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	if (client_is_faulted(client)) {
 		ErrPrint("Client[%p] is faulted\n", client);
 		packet_unref(packet);
-		return LB_STATUS_ERROR_FAULT;
+		return DBOX_STATUS_ERROR_FAULT;
 	}
 
 	rpc = client_data(client, RPC_TAG);
@@ -182,12 +182,12 @@ HAPI int client_rpc_async_request(struct client_node *client, struct packet *pac
 	command = create_command(client, packet);
 	if (!command) {
 		packet_unref(packet);
-		return LB_STATUS_ERROR_MEMORY;
+		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	push_command(command);
 	packet_unref(packet);
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 static int deactivated_cb(struct client_node *client, void *data)
@@ -200,7 +200,7 @@ static int deactivated_cb(struct client_node *client, void *data)
 	rpc = client_data(client, RPC_TAG);
 	if (!rpc) {
 		ErrPrint("client is not valid\n");
-		return LB_STATUS_SUCCESS;
+		return DBOX_STATUS_ERROR_NONE;
 	}
 
 	DbgPrint("Reset handle for %d\n", client_pid(client));
@@ -215,7 +215,7 @@ static int deactivated_cb(struct client_node *client, void *data)
 	}
 	DbgPrint("End: Destroying command\n");
 
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI int client_rpc_init(struct client_node *client, int handle)
@@ -226,7 +226,7 @@ HAPI int client_rpc_init(struct client_node *client, int handle)
 	rpc = calloc(1, sizeof(*rpc));
 	if (!rpc) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return LB_STATUS_ERROR_MEMORY;
+		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	ret = client_set_data(client, RPC_TAG, rpc);
@@ -259,12 +259,12 @@ HAPI int client_rpc_fini(struct client_node *client)
 
 	rpc = client_del_data(client, RPC_TAG);
 	if (!rpc) {
-		return LB_STATUS_ERROR_INVALID;
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, deactivated_cb, NULL);
 	DbgFree(rpc);
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI int client_rpc_handle(struct client_node *client)
@@ -274,7 +274,7 @@ HAPI int client_rpc_handle(struct client_node *client)
 	rpc = client_data(client, RPC_TAG);
 	if (!rpc) {
 		DbgPrint("Client has no RPC\n");
-		return LB_STATUS_ERROR_INVALID;
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	return rpc->handle;

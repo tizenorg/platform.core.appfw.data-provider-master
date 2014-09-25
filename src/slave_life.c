@@ -31,7 +31,8 @@
 #include <bundle.h>
 
 #include <packet.h>
-#include <livebox-errno.h>
+#include <dynamicbox_errno.h>
+#include <dynamicbox_cmd_list.h>
 
 #include "critical_log.h"
 #include "slave_life.h"
@@ -44,7 +45,6 @@
 #include "util.h"
 #include "abi.h"
 #include "xmonitor.h"
-#include "provider_cmd_list.h"
 
 #define BUNDLE_SLAVE_SVC_OP_TYPE "__APP_SVC_OP_TYPE__"
 #define APP_CONTROL_OPERATION_MAIN "http://tizen.org/appcontrol/operation/main"
@@ -55,7 +55,7 @@ struct slave_node {
 	char *name;
 	char *abi;
 	char *pkgname;
-	int secured;	/* Only A package(livebox) is loaded for security requirements */
+	int secured;	/* Only A package(dynamicbox) is loaded for security requirements */
 	int refcnt;
 	int fault_count;
 	int critical_fault_count;
@@ -131,7 +131,7 @@ static Eina_Bool slave_ttl_cb(void *data)
 	/*!
 	 * \note
 	 * ttl_timer must has to be set to NULL before deactivate the slave
-	 * It will be used for making decision of the expired TTL timer or the fault of a livebox.
+	 * It will be used for making decision of the expired TTL timer or the fault of a dynamicbox.
 	 */
 	slave->ttl_timer = NULL;
 
@@ -150,13 +150,13 @@ static Eina_Bool slave_ttl_cb(void *data)
 static inline int xmonitor_pause_cb(void *data)
 {
 	slave_pause(data);
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 static inline int xmonitor_resume_cb(void *data)
 {
 	slave_resume(data);
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 static inline struct slave_node *create_slave_node(const char *name, int is_secured, const char *abi, const char *pkgname, int network)
@@ -565,10 +565,10 @@ HAPI int slave_activate(struct slave_node *slave)
 		} else if (slave_state(slave) == SLAVE_REQUEST_TO_TERMINATE || slave_state(slave) == SLAVE_REQUEST_TO_DISCONNECT) {
 			slave_set_reactivation(slave, 1);
 		}
-		return LB_STATUS_ERROR_ALREADY;
+		return DBOX_STATUS_ERROR_ALREADY;
 	} else if (slave_state(slave) == SLAVE_REQUEST_TO_LAUNCH) {
 		DbgPrint("Slave is already launched: but the AUL is timed out\n");
-		return LB_STATUS_ERROR_ALREADY;
+		return DBOX_STATUS_ERROR_ALREADY;
 	}
 
 	if (DEBUG_MODE) {
@@ -581,7 +581,7 @@ HAPI int slave_activate(struct slave_node *slave)
 		param = bundle_create();
 		if (!param) {
 			ErrPrint("Failed to create a bundle\n");
-			return LB_STATUS_ERROR_FAULT;
+			return DBOX_STATUS_ERROR_FAULT;
 		}
 
 		bundle_add(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
@@ -613,7 +613,7 @@ HAPI int slave_activate(struct slave_node *slave)
 			if (!slave->relaunch_timer) {
 				CRITICAL_LOG("Failed to register a relaunch timer (%s)\n", slave_name(slave));
 				slave->pid = (pid_t)-1;
-				return LB_STATUS_ERROR_FAULT;
+				return DBOX_STATUS_ERROR_FAULT;
 			}
 			/* Try again after a few secs later */
 			break;
@@ -638,7 +638,7 @@ HAPI int slave_activate(struct slave_node *slave)
 	 */
 	(void)slave_ref(slave);
 
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI int slave_give_more_ttl(struct slave_node *slave)
@@ -646,22 +646,22 @@ HAPI int slave_give_more_ttl(struct slave_node *slave)
 	double delay;
 
 	if (!slave->secured || !slave->ttl_timer) {
-		return LB_STATUS_ERROR_INVALID;
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	delay = SLAVE_TTL - ecore_timer_pending_get(slave->ttl_timer);
 	ecore_timer_delay(slave->ttl_timer, delay);
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI int slave_freeze_ttl(struct slave_node *slave)
 {
 	if (!slave->secured || !slave->ttl_timer) {
-		return LB_STATUS_ERROR_INVALID;
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	ecore_timer_freeze(slave->ttl_timer);
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI int slave_thaw_ttl(struct slave_node *slave)
@@ -669,14 +669,14 @@ HAPI int slave_thaw_ttl(struct slave_node *slave)
 	double delay;
 
 	if (!slave->secured || !slave->ttl_timer) {
-		return LB_STATUS_ERROR_INVALID;
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	ecore_timer_thaw(slave->ttl_timer);
 
 	delay = SLAVE_TTL - ecore_timer_pending_get(slave->ttl_timer);
 	ecore_timer_delay(slave->ttl_timer, delay);
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI int slave_activated(struct slave_node *slave)
@@ -720,7 +720,7 @@ HAPI int slave_activated(struct slave_node *slave)
 		slave->relaunch_timer = NULL;
 	}
 
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 static inline int invoke_deactivate_cb(struct slave_node *slave)
@@ -903,7 +903,7 @@ HAPI struct slave_node *slave_deactivated(struct slave_node *slave)
 
 		DbgPrint("Need to reactivate a slave\n");
 		ret = slave_activate(slave);
-		if (ret < 0 && ret != LB_STATUS_ERROR_ALREADY) {
+		if (ret < 0 && ret != DBOX_STATUS_ERROR_ALREADY) {
 			ErrPrint("Failed to reactivate a slave\n");
 		}
 	} else if (slave_loaded_instance(slave) == 0) {
@@ -1032,7 +1032,7 @@ HAPI int slave_event_callback_add(struct slave_node *slave, enum slave_event eve
 	ev = calloc(1, sizeof(*ev));
 	if (!ev) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return LB_STATUS_ERROR_MEMORY;
+		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	ev->slave = slave;
@@ -1078,10 +1078,10 @@ HAPI int slave_event_callback_add(struct slave_node *slave, enum slave_event eve
 		break;
 	default:
 		DbgFree(ev);
-		return LB_STATUS_ERROR_INVALID;
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI int slave_event_callback_del(struct slave_node *slave, enum slave_event event, int (*cb)(struct slave_node *, void *), void *data)
@@ -1100,7 +1100,7 @@ HAPI int slave_event_callback_del(struct slave_node *slave, enum slave_event eve
 					slave->event_deactivate_list = eina_list_remove(slave->event_deactivate_list, ev);
 					DbgFree(ev);
 				}
-				return LB_STATUS_SUCCESS;
+				return DBOX_STATUS_ERROR_NONE;
 			}
 		}
 		break;
@@ -1113,7 +1113,7 @@ HAPI int slave_event_callback_del(struct slave_node *slave, enum slave_event eve
 					slave->event_delete_list = eina_list_remove(slave->event_delete_list, ev);
 					DbgFree(ev);
 				}
-				return LB_STATUS_SUCCESS;
+				return DBOX_STATUS_ERROR_NONE;
 			}
 		}
 		break;
@@ -1126,7 +1126,7 @@ HAPI int slave_event_callback_del(struct slave_node *slave, enum slave_event eve
 					slave->event_activate_list = eina_list_remove(slave->event_activate_list, ev);
 					DbgFree(ev);
 				}
-				return LB_STATUS_SUCCESS;
+				return DBOX_STATUS_ERROR_NONE;
 			}
 		}
 		break;
@@ -1139,7 +1139,7 @@ HAPI int slave_event_callback_del(struct slave_node *slave, enum slave_event eve
 					slave->event_pause_list = eina_list_remove(slave->event_pause_list, ev);
 					DbgFree(ev);
 				}
-				return LB_STATUS_SUCCESS;
+				return DBOX_STATUS_ERROR_NONE;
 			}
 		}
 		break;
@@ -1152,7 +1152,7 @@ HAPI int slave_event_callback_del(struct slave_node *slave, enum slave_event eve
 					slave->event_resume_list = eina_list_remove(slave->event_resume_list, ev);
 					DbgFree(ev);
 				}
-				return LB_STATUS_SUCCESS;
+				return DBOX_STATUS_ERROR_NONE;
 			}
 		}
 		break;
@@ -1165,15 +1165,15 @@ HAPI int slave_event_callback_del(struct slave_node *slave, enum slave_event eve
 					slave->event_fault_list = eina_list_remove(slave->event_fault_list, ev);
 					DbgFree(ev);
 				}
-				return LB_STATUS_SUCCESS;
+				return DBOX_STATUS_ERROR_NONE;
 			}
 		}
 		break;
 	default:
-		return LB_STATUS_ERROR_INVALID;
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
-	return LB_STATUS_ERROR_NOT_EXIST;
+	return DBOX_STATUS_ERROR_NOT_EXIST;
 }
 
 HAPI int slave_set_data(struct slave_node *slave, const char *tag, void *data)
@@ -1183,19 +1183,19 @@ HAPI int slave_set_data(struct slave_node *slave, const char *tag, void *data)
 	priv = calloc(1, sizeof(*priv));
 	if (!priv) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return LB_STATUS_ERROR_MEMORY;
+		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	priv->tag = strdup(tag);
 	if (!priv->tag) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		DbgFree(priv);
-		return LB_STATUS_ERROR_MEMORY;
+		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	priv->data = data;
 	slave->data_list = eina_list_append(slave->data_list, priv);
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI void *slave_del_data(struct slave_node *slave, const char *tag)
@@ -1445,13 +1445,13 @@ HAPI const pid_t const slave_pid(const struct slave_node *slave)
 HAPI int slave_set_pid(struct slave_node *slave, pid_t pid)
 {
 	if (!slave) {
-		return LB_STATUS_ERROR_INVALID;
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	DbgPrint("Slave PID is updated to %d from %d\n", pid, slave_pid(slave));
 
 	slave->pid = pid;
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 static inline void invoke_resumed_cb(struct slave_node *slave)
@@ -1551,10 +1551,10 @@ HAPI int slave_resume(struct slave_node *slave)
 	case SLAVE_REQUEST_TO_LAUNCH:
 	case SLAVE_REQUEST_TO_TERMINATE:
 	case SLAVE_TERMINATED:
-		return LB_STATUS_ERROR_INVALID;
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
 	case SLAVE_RESUMED:
 	case SLAVE_REQUEST_TO_RESUME:
-		return LB_STATUS_SUCCESS;
+		return DBOX_STATUS_ERROR_NONE;
 	default:
 		break;
 	}
@@ -1564,7 +1564,7 @@ HAPI int slave_resume(struct slave_node *slave)
 	packet = packet_create((const char *)&cmd, "d", timestamp);
 	if (!packet) {
 		ErrPrint("Failed to prepare param\n");
-		return LB_STATUS_ERROR_FAULT;
+		return DBOX_STATUS_ERROR_FAULT;
 	}
 
 	slave->state = SLAVE_REQUEST_TO_RESUME;
@@ -1582,10 +1582,10 @@ HAPI int slave_pause(struct slave_node *slave)
 	case SLAVE_REQUEST_TO_LAUNCH:
 	case SLAVE_REQUEST_TO_TERMINATE:
 	case SLAVE_TERMINATED:
-		return LB_STATUS_ERROR_INVALID;
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
 	case SLAVE_PAUSED:
 	case SLAVE_REQUEST_TO_PAUSE:
-		return LB_STATUS_SUCCESS;
+		return DBOX_STATUS_ERROR_NONE;
 	default:
 		break;
 	}
@@ -1595,7 +1595,7 @@ HAPI int slave_pause(struct slave_node *slave)
 	packet = packet_create((const char *)&cmd, "d", timestamp);
 	if (!packet) {
 		ErrPrint("Failed to prepare param\n");
-		return LB_STATUS_ERROR_FAULT;
+		return DBOX_STATUS_ERROR_FAULT;
 	}
 
 	slave->state = SLAVE_REQUEST_TO_PAUSE;

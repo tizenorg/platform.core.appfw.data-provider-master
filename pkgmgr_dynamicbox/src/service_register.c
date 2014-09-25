@@ -28,7 +28,7 @@
 #include <libxml/tree.h>
 #include <dlog.h>
 
-#include <livebox-service.h>
+#include <dynamicbox_service.h>
 
 #include "dlist.h"
 
@@ -138,7 +138,7 @@
 #undef LOG_TAG
 #endif
 
-#define LOG_TAG "PKGMGR_LIVEBOX"
+#define LOG_TAG "PKGMGR_DYNAMICBOX"
 
 int errno;
 
@@ -148,24 +148,24 @@ struct i18n {
 	xmlChar *icon;
 };
 
-enum lb_type {
-	LB_TYPE_NONE = 0x0,
-	LB_TYPE_SCRIPT,
-	LB_TYPE_FILE,
-	LB_TYPE_TEXT,
-	LB_TYPE_BUFFER,
-	LB_TYPE_ELEMENTARY
+enum dbox_type {
+	DBOX_TYPE_NONE = 0x0,
+	DBOX_TYPE_SCRIPT,
+	DBOX_TYPE_FILE,
+	DBOX_TYPE_TEXT,
+	DBOX_TYPE_BUFFER,
+	DBOX_TYPE_ELEMENTARY
 };
 
-enum pd_type {
-	PD_TYPE_NONE = 0x0,
-	PD_TYPE_SCRIPT,
-	PD_TYPE_TEXT,
-	PD_TYPE_BUFFER,
-	PD_TYPE_ELEMENTARY
+enum gbar_type {
+	GBAR_TYPE_NONE = 0x0,
+	GBAR_TYPE_SCRIPT,
+	GBAR_TYPE_TEXT,
+	GBAR_TYPE_BUFFER,
+	GBAR_TYPE_ELEMENTARY
 };
 
-struct livebox {
+struct dynamicbox {
 	xmlChar *pkgid;
 	int secured;
 	int network;
@@ -183,28 +183,28 @@ struct livebox {
 	xmlChar *category; /* Category of this box */
 
 	int pinup; /* Is this support the pinup feature? */
-	int primary; /* Is this primary livebox? */
+	int primary; /* Is this primary dynamicbox? */
 	int nodisplay;
 	int count; /* Max count of instances */
 
-	int default_mouse_event; /* Mouse event processing option for livebox */
+	int default_mouse_event; /* Mouse event processing option for dynamicbox */
 	int default_touch_effect;
 	int default_need_frame;
 
-	enum lb_type lb_type;
-	xmlChar *lb_src;
-	xmlChar *lb_group;
+	enum dbox_type dbox_type;
+	xmlChar *dbox_src;
+	xmlChar *dbox_group;
 	int size_list; /* 1x1, 2x1, 2x2, 4x1, 4x2, 4x3, 4x4 */
 
-	xmlChar *preview[NR_OF_SIZE_LIST];
-	int touch_effect[NR_OF_SIZE_LIST]; /* Touch effect of a livebox */
-	int need_frame[NR_OF_SIZE_LIST]; /* Box needs frame which should be cared by viewer */
-	int mouse_event[NR_OF_SIZE_LIST];
+	xmlChar *preview[DBOX_NR_OF_SIZE_LIST];
+	int touch_effect[DBOX_NR_OF_SIZE_LIST]; /* Touch effect of a dynamicbox */
+	int need_frame[DBOX_NR_OF_SIZE_LIST]; /* Box needs frame which should be cared by viewer */
+	int mouse_event[DBOX_NR_OF_SIZE_LIST];
 
-	enum pd_type pd_type;
-	xmlChar *pd_src;
-	xmlChar *pd_group;
-	xmlChar *pd_size; /* Default PD size */
+	enum gbar_type gbar_type;
+	xmlChar *gbar_src;
+	xmlChar *gbar_group;
+	xmlChar *gbar_size; /* Default PD size */
 
 	struct dlist *i18n_list;
 	struct dlist *group_list;
@@ -226,7 +226,7 @@ static struct {
 	const char *dbfile;
 	sqlite3 *handle;
 } s_info = {
-	.dbfile = "/opt/dbspace/.livebox.db",
+	.dbfile = "/opt/dbspace/.dynamicbox.db",
 	.handle = NULL,
 };
 
@@ -427,8 +427,8 @@ static void upgrade_pkgmap_for_category(void)
  * \note
  * From version 3 to 4
  * "provider" table should have "count" column.
- * "count" will be used for limiting creatable count of instances for each livebox.
- * Every livebox developer should describe their max count of creatable instances.
+ * "count" will be used for limiting creatable count of instances for each dynamicbox.
+ * Every dynamicbox developer should describe their max count of creatable instances.
  */
 static void upgrade_to_version_4(void)
 {
@@ -762,20 +762,20 @@ out:
 	sqlite3_finalize(stmt);
 	return ret;
 }
-static int db_insert_provider(struct livebox *livebox)
+static int db_insert_provider(struct dynamicbox *dynamicbox)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
-	char *abi = (char *)livebox->abi;
-	char *box_src = (char *)livebox->lb_src;
-	char *box_group = (char *)livebox->lb_group;
-	char *pd_src = (char *)livebox->pd_src;
-	char *pd_group = (char *)livebox->pd_group;
-	char *libexec = (char *)livebox->libexec;
-	char *timeout = (char *)livebox->timeout;
-	char *period = (char *)livebox->period;
-	char *script = (char *)livebox->script;
+	char *abi = (char *)dynamicbox->abi;
+	char *box_src = (char *)dynamicbox->dbox_src;
+	char *box_group = (char *)dynamicbox->dbox_group;
+	char *gbar_src = (char *)dynamicbox->gbar_src;
+	char *gbar_group = (char *)dynamicbox->gbar_group;
+	char *libexec = (char *)dynamicbox->libexec;
+	char *timeout = (char *)dynamicbox->timeout;
+	char *period = (char *)dynamicbox->period;
+	char *script = (char *)dynamicbox->script;
 
 	if (!abi) {
 		abi = "c";
@@ -800,14 +800,14 @@ static int db_insert_provider(struct livebox *livebox)
 		return -EIO;
 	}
 
-	ret = sqlite3_bind_text(stmt, 1, (char *)livebox->pkgid, -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 1, (char *)dynamicbox->pkgid, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_int(stmt, 2, livebox->network);
+	ret = sqlite3_bind_int(stmt, 2, dynamicbox->network);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -820,14 +820,14 @@ static int db_insert_provider(struct livebox *livebox)
 		ret = -EIO;
 		goto out;
 	}
-	ret = sqlite3_bind_int(stmt, 4, livebox->secured);
+	ret = sqlite3_bind_int(stmt, 4, dynamicbox->secured);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_int(stmt, 5, livebox->lb_type);
+	ret = sqlite3_bind_int(stmt, 5, dynamicbox->dbox_type);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -848,21 +848,21 @@ static int db_insert_provider(struct livebox *livebox)
 		goto out;
 	}
 
-	ret = sqlite3_bind_int(stmt, 8, livebox->pd_type);
+	ret = sqlite3_bind_int(stmt, 8, dynamicbox->gbar_type);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 9, pd_src, -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 9, gbar_src, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 10, pd_group, -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 10, gbar_group, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -897,14 +897,14 @@ static int db_insert_provider(struct livebox *livebox)
 		goto out;
 	}
 
-	ret = sqlite3_bind_int(stmt, 15, livebox->pinup);
+	ret = sqlite3_bind_int(stmt, 15, dynamicbox->pinup);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_int(stmt, 16, livebox->count);
+	ret = sqlite3_bind_int(stmt, 16, dynamicbox->count);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -944,7 +944,7 @@ static inline int db_create_client(void)
 	return 0;
 }
 
-static inline int db_insert_client(struct livebox *livebox)
+static inline int db_insert_client(struct dynamicbox *dynamicbox)
 {
 	static const char *dml;
 	int ret;
@@ -957,56 +957,56 @@ static inline int db_insert_client(struct livebox *livebox)
 		return -EIO;
 	}
 
-	ret = sqlite3_bind_text(stmt, 1, (char *)livebox->pkgid, -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 1, (char *)dynamicbox->pkgid, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 2, (char *)livebox->icon, -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 2, (char *)dynamicbox->icon, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 3, (char *)livebox->name, -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 3, (char *)dynamicbox->name, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 4, (char *)livebox->auto_launch, -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 4, (char *)dynamicbox->auto_launch, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 5, (char *)livebox->pd_size, -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 5, (char *)dynamicbox->gbar_size, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 6, (char *)livebox->content, -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 6, (char *)dynamicbox->content, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_int(stmt, 7, livebox->nodisplay);
+	ret = sqlite3_bind_int(stmt, 7, dynamicbox->nodisplay);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 8, (char *)livebox->setup, -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 8, (char *)dynamicbox->setup, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -1809,7 +1809,7 @@ static inline int validate_pkgid(const char *appid, const char *pkgid)
 	return 1 || !strncmp(appid, pkgid, strlen(appid));
 }
 
-static int livebox_destroy(struct livebox *livebox)
+static int dynamicbox_destroy(struct dynamicbox *dynamicbox)
 {
 	struct dlist *l;
 	struct dlist *n;
@@ -1819,46 +1819,46 @@ static int livebox_destroy(struct livebox *livebox)
 	struct dlist *il;
 	struct dlist *in;
 
-	xmlFree(livebox->auto_launch);
-	xmlFree(livebox->pkgid);
-	xmlFree(livebox->abi);
-	xmlFree(livebox->name);
-	xmlFree(livebox->icon);
-	xmlFree(livebox->lb_src);
-	xmlFree(livebox->lb_group);
-	xmlFree(livebox->pd_src);
-	xmlFree(livebox->pd_group);
-	xmlFree(livebox->pd_size);
-	xmlFree(livebox->libexec);
-	xmlFree(livebox->script);
-	xmlFree(livebox->period);
-	xmlFree(livebox->content);
-	xmlFree(livebox->setup);
-	xmlFree(livebox->category);
-	xmlFree(livebox->preview[0]); /* 1x1 */
-	xmlFree(livebox->preview[1]); /* 2x1 */
-	xmlFree(livebox->preview[2]); /* 2x2 */
-	xmlFree(livebox->preview[3]); /* 4x1 */
-	xmlFree(livebox->preview[4]); /* 4x2 */
-	xmlFree(livebox->preview[5]); /* 4x3 */
-	xmlFree(livebox->preview[6]); /* 4x4 */
-	xmlFree(livebox->preview[7]); /* 4x5 */
-	xmlFree(livebox->preview[8]); /* 4x6 */
-	xmlFree(livebox->preview[9]); /* easy 1x1 */
-	xmlFree(livebox->preview[10]); /* easy 3x1 */
-	xmlFree(livebox->preview[11]); /* easy 3x3 */
-	xmlFree(livebox->preview[12]); /* full */
+	xmlFree(dynamicbox->auto_launch);
+	xmlFree(dynamicbox->pkgid);
+	xmlFree(dynamicbox->abi);
+	xmlFree(dynamicbox->name);
+	xmlFree(dynamicbox->icon);
+	xmlFree(dynamicbox->dbox_src);
+	xmlFree(dynamicbox->dbox_group);
+	xmlFree(dynamicbox->gbar_src);
+	xmlFree(dynamicbox->gbar_group);
+	xmlFree(dynamicbox->gbar_size);
+	xmlFree(dynamicbox->libexec);
+	xmlFree(dynamicbox->script);
+	xmlFree(dynamicbox->period);
+	xmlFree(dynamicbox->content);
+	xmlFree(dynamicbox->setup);
+	xmlFree(dynamicbox->category);
+	xmlFree(dynamicbox->preview[0]); /* 1x1 */
+	xmlFree(dynamicbox->preview[1]); /* 2x1 */
+	xmlFree(dynamicbox->preview[2]); /* 2x2 */
+	xmlFree(dynamicbox->preview[3]); /* 4x1 */
+	xmlFree(dynamicbox->preview[4]); /* 4x2 */
+	xmlFree(dynamicbox->preview[5]); /* 4x3 */
+	xmlFree(dynamicbox->preview[6]); /* 4x4 */
+	xmlFree(dynamicbox->preview[7]); /* 4x5 */
+	xmlFree(dynamicbox->preview[8]); /* 4x6 */
+	xmlFree(dynamicbox->preview[9]); /* easy 1x1 */
+	xmlFree(dynamicbox->preview[10]); /* easy 3x1 */
+	xmlFree(dynamicbox->preview[11]); /* easy 3x3 */
+	xmlFree(dynamicbox->preview[12]); /* full */
 
-	dlist_foreach_safe(livebox->i18n_list, l, n, i18n) {
-		livebox->i18n_list = dlist_remove(livebox->i18n_list, l);
+	dlist_foreach_safe(dynamicbox->i18n_list, l, n, i18n) {
+		dynamicbox->i18n_list = dlist_remove(dynamicbox->i18n_list, l);
 		xmlFree(i18n->name);
 		xmlFree(i18n->icon);
 		xmlFree(i18n->lang);
 		free(i18n);
 	}
 
-	dlist_foreach_safe(livebox->group_list, l, n, group) {
-		livebox->group_list = dlist_remove(livebox->group_list, l);
+	dlist_foreach_safe(dynamicbox->group_list, l, n, group) {
+		dynamicbox->group_list = dlist_remove(dynamicbox->group_list, l);
 		DbgPrint("Release %s/%s\n", group->cluster, group->category);
 
 		if (group->ctx_item) {
@@ -1877,11 +1877,11 @@ static int livebox_destroy(struct livebox *livebox)
 		free(group);
 	}
 
-	free(livebox);
+	free(dynamicbox);
 	return 0;
 }
 
-static inline void update_i18n_name(struct livebox *livebox, xmlNodePtr node)
+static inline void update_i18n_name(struct dynamicbox *dynamicbox, xmlNodePtr node)
 {
 	struct i18n *i18n;
 	struct dlist *l;
@@ -1896,16 +1896,16 @@ static inline void update_i18n_name(struct livebox *livebox, xmlNodePtr node)
 
 	lang = xmlNodeGetLang(node);
 	if (!lang) {
-		if (livebox->name) {
-			DbgPrint("Override default name: %s\n", livebox->name);
-			xmlFree(livebox->name);
+		if (dynamicbox->name) {
+			DbgPrint("Override default name: %s\n", dynamicbox->name);
+			xmlFree(dynamicbox->name);
 		}
 
-		livebox->name = name;
+		dynamicbox->name = name;
 		return;
 	}
 
-	dlist_foreach(livebox->i18n_list, l, i18n) {
+	dlist_foreach(dynamicbox->i18n_list, l, i18n) {
 		if (!xmlStrcasecmp(i18n->lang, lang)) {
 			if (i18n->name) {
 				DbgPrint("Override name: %s\n", i18n->name);
@@ -1928,10 +1928,10 @@ static inline void update_i18n_name(struct livebox *livebox, xmlNodePtr node)
 	i18n->name = name;
 	i18n->lang = lang;
 	DbgPrint("Label[%s] - [%s] added\n", i18n->lang, i18n->name);
-	livebox->i18n_list = dlist_append(livebox->i18n_list, i18n);
+	dynamicbox->i18n_list = dlist_append(dynamicbox->i18n_list, i18n);
 }
 
-static inline void update_i18n_icon(struct livebox *livebox, xmlNodePtr node)
+static inline void update_i18n_icon(struct dynamicbox *dynamicbox, xmlNodePtr node)
 {
 	struct i18n *i18n;
 	struct dlist *l;
@@ -1946,16 +1946,16 @@ static inline void update_i18n_icon(struct livebox *livebox, xmlNodePtr node)
 
 	lang = xmlNodeGetLang(node);
 	if (!lang) {
-		if (livebox->icon) {
-			DbgPrint("Override default icon: %s\n", livebox->icon);
-			xmlFree(livebox->icon);
+		if (dynamicbox->icon) {
+			DbgPrint("Override default icon: %s\n", dynamicbox->icon);
+			xmlFree(dynamicbox->icon);
 		}
 
-		livebox->icon = icon;
+		dynamicbox->icon = icon;
 		return;
 	}
 
-	dlist_foreach(livebox->i18n_list, l, i18n) {
+	dlist_foreach(dynamicbox->i18n_list, l, i18n) {
 		if (!xmlStrcasecmp(i18n->lang, lang)) {
 			if (i18n->icon) {
 				DbgPrint("Override icon %s for %s\n", i18n->icon, i18n->name);
@@ -1978,10 +1978,10 @@ static inline void update_i18n_icon(struct livebox *livebox, xmlNodePtr node)
 	i18n->icon = icon;
 	i18n->lang = lang;
 	DbgPrint("Icon[%s] - [%s] added\n", i18n->lang, i18n->icon);
-	livebox->i18n_list = dlist_append(livebox->i18n_list, i18n);
+	dynamicbox->i18n_list = dlist_append(dynamicbox->i18n_list, i18n);
 }
 
-static inline void update_launch(struct livebox *livebox, xmlNodePtr node)
+static inline void update_launch(struct dynamicbox *dynamicbox, xmlNodePtr node)
 {
 	xmlChar *launch;
 
@@ -1991,18 +1991,18 @@ static inline void update_launch(struct livebox *livebox, xmlNodePtr node)
 		return;
 	}
 
-	if (livebox->auto_launch) {
-		xmlFree(livebox->auto_launch);
+	if (dynamicbox->auto_launch) {
+		xmlFree(dynamicbox->auto_launch);
 	}
 
-	livebox->auto_launch = xmlStrdup(launch);
-	if (!livebox->auto_launch) {
+	dynamicbox->auto_launch = xmlStrdup(launch);
+	if (!dynamicbox->auto_launch) {
 		ErrPrint("Failed to duplicate string: %s\n", (char *)launch);
 		return;
 	}
 }
 
-static inline void update_category(struct livebox *livebox, xmlNodePtr node)
+static inline void update_category(struct dynamicbox *dynamicbox, xmlNodePtr node)
 {
 	xmlChar *category;
 
@@ -2012,18 +2012,18 @@ static inline void update_category(struct livebox *livebox, xmlNodePtr node)
 		return;
 	}
 
-	if (livebox->category) {
-		xmlFree(livebox->category);
+	if (dynamicbox->category) {
+		xmlFree(dynamicbox->category);
 	}
 
-	livebox->category = xmlStrdup(category);
-	if (!livebox->category) {
+	dynamicbox->category = xmlStrdup(category);
+	if (!dynamicbox->category) {
 		ErrPrint("Failed to duplicate string: %s\n", (char *)category);
 		return;
 	}
 }
 
-static inline void update_ui_appid(struct livebox *livebox, xmlNodePtr node)
+static inline void update_ui_appid(struct dynamicbox *dynamicbox, xmlNodePtr node)
 {
 	xmlChar *uiapp;
 	uiapp = xmlNodeGetContent(node);
@@ -2032,18 +2032,18 @@ static inline void update_ui_appid(struct livebox *livebox, xmlNodePtr node)
 		return;
 	}
 
-	if (livebox->uiapp) {
-		xmlFree(livebox->uiapp);
+	if (dynamicbox->uiapp) {
+		xmlFree(dynamicbox->uiapp);
 	}
 
-	livebox->uiapp = xmlStrdup(uiapp);
-	if (!livebox->uiapp) {
+	dynamicbox->uiapp = xmlStrdup(uiapp);
+	if (!dynamicbox->uiapp) {
 		ErrPrint("Failed to duplicate string: %s\n", (char *)uiapp);
 		return;
 	}
 }
 
-static inline void update_setup(struct livebox *livebox, xmlNodePtr node)
+static inline void update_setup(struct dynamicbox *dynamicbox, xmlNodePtr node)
 {
 	xmlChar *setup;
 	setup = xmlNodeGetContent(node);
@@ -2052,18 +2052,18 @@ static inline void update_setup(struct livebox *livebox, xmlNodePtr node)
 		return;
 	}
 
-	if (livebox->setup) {
-		xmlFree(livebox->setup);
+	if (dynamicbox->setup) {
+		xmlFree(dynamicbox->setup);
 	}
 
-	livebox->setup = xmlStrdup(setup);
-	if (!livebox->setup) {
+	dynamicbox->setup = xmlStrdup(setup);
+	if (!dynamicbox->setup) {
 		ErrPrint("Failed to duplicate string: %s\n", (char *)setup);
 		return;
 	}
 }
 
-static inline void update_content(struct livebox *livebox, xmlNodePtr node)
+static inline void update_content(struct dynamicbox *dynamicbox, xmlNodePtr node)
 {
 	xmlChar *content;
 	content = xmlNodeGetContent(node);
@@ -2072,21 +2072,21 @@ static inline void update_content(struct livebox *livebox, xmlNodePtr node)
 		return;
 	}
 
-	if (livebox->content) {
-		xmlFree(livebox->content);
+	if (dynamicbox->content) {
+		xmlFree(dynamicbox->content);
 	}
 
-	livebox->content = xmlStrdup(content);
-	if (!livebox->content) {
+	dynamicbox->content = xmlStrdup(content);
+	if (!dynamicbox->content) {
 		ErrPrint("Failed to duplicate string: %s\n", (char *)content);
 		return;
 	}
 }
 
-static void update_size_info(struct livebox *livebox, int idx, xmlNodePtr node)
+static void update_size_info(struct dynamicbox *dynamicbox, int idx, xmlNodePtr node)
 {
 	if (xmlHasProp(node, (const xmlChar *)"preview")) {
-		livebox->preview[idx] = xmlGetProp(node, (const xmlChar *)"preview");
+		dynamicbox->preview[idx] = xmlGetProp(node, (const xmlChar *)"preview");
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"need_frame")) {
@@ -2094,13 +2094,13 @@ static void update_size_info(struct livebox *livebox, int idx, xmlNodePtr node)
 
 		need_frame = xmlGetProp(node, (const xmlChar *)"need_frame");
 		if (need_frame) {
-			livebox->need_frame[idx] = !xmlStrcasecmp(need_frame, (const xmlChar *)"true");
+			dynamicbox->need_frame[idx] = !xmlStrcasecmp(need_frame, (const xmlChar *)"true");
 			xmlFree(need_frame);
 		} else {
-			livebox->need_frame[idx] = livebox->default_need_frame;
+			dynamicbox->need_frame[idx] = dynamicbox->default_need_frame;
 		}
 	} else {
-		livebox->need_frame[idx] = livebox->default_need_frame;
+		dynamicbox->need_frame[idx] = dynamicbox->default_need_frame;
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"touch_effect")) {
@@ -2108,13 +2108,13 @@ static void update_size_info(struct livebox *livebox, int idx, xmlNodePtr node)
 
 		touch_effect = xmlGetProp(node, (const xmlChar *)"touch_effect");
 		if (touch_effect) {
-			livebox->touch_effect[idx] = !xmlStrcasecmp(touch_effect, (const xmlChar *)"true");
+			dynamicbox->touch_effect[idx] = !xmlStrcasecmp(touch_effect, (const xmlChar *)"true");
 			xmlFree(touch_effect);
 		} else {
-			livebox->touch_effect[idx] = livebox->default_touch_effect;
+			dynamicbox->touch_effect[idx] = dynamicbox->default_touch_effect;
 		}
 	} else {
-		livebox->touch_effect[idx] = livebox->default_touch_effect;
+		dynamicbox->touch_effect[idx] = dynamicbox->default_touch_effect;
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"mouse_event")) {
@@ -2122,38 +2122,38 @@ static void update_size_info(struct livebox *livebox, int idx, xmlNodePtr node)
 
 		mouse_event = xmlGetProp(node, (const xmlChar *)"mouse_event");
 		if (mouse_event) {
-			livebox->mouse_event[idx] = !xmlStrcasecmp(mouse_event, (const xmlChar *)"true");
+			dynamicbox->mouse_event[idx] = !xmlStrcasecmp(mouse_event, (const xmlChar *)"true");
 			xmlFree(mouse_event);
 		} else {
-			livebox->mouse_event[idx] = livebox->default_mouse_event;
+			dynamicbox->mouse_event[idx] = dynamicbox->default_mouse_event;
 		}
 	} else {
-		livebox->mouse_event[idx] = livebox->default_mouse_event;
+		dynamicbox->mouse_event[idx] = dynamicbox->default_mouse_event;
 	}
 }
 
-static inline void update_box(struct livebox *livebox, xmlNodePtr node)
+static inline void update_box(struct dynamicbox *dynamicbox, xmlNodePtr node)
 {
 	if (!xmlHasProp(node, (const xmlChar *)"type")) {
-		livebox->lb_type = LB_TYPE_FILE;
+		dynamicbox->dbox_type = DBOX_TYPE_FILE;
 	} else {
 		xmlChar *type;
 
 		type = xmlGetProp(node, (const xmlChar *)"type");
 		if (!type) {
 			ErrPrint("Type is NIL\n");
-			livebox->lb_type = LB_TYPE_FILE;
+			dynamicbox->dbox_type = DBOX_TYPE_FILE;
 		} else {
 			if (!xmlStrcasecmp(type, (const xmlChar *)"text")) {
-				livebox->lb_type = LB_TYPE_TEXT;
+				dynamicbox->dbox_type = DBOX_TYPE_TEXT;
 			} else if (!xmlStrcasecmp(type, (const xmlChar *)"buffer")) {
-				livebox->lb_type = LB_TYPE_BUFFER;
+				dynamicbox->dbox_type = DBOX_TYPE_BUFFER;
 			} else if (!xmlStrcasecmp(type, (const xmlChar *)"script")) {
-				livebox->lb_type = LB_TYPE_SCRIPT;
+				dynamicbox->dbox_type = DBOX_TYPE_SCRIPT;
 			} else if (!xmlStrcasecmp(type, (const xmlChar *)"elm")) {
-				livebox->lb_type = LB_TYPE_ELEMENTARY;
+				dynamicbox->dbox_type = DBOX_TYPE_ELEMENTARY;
 			} else { /* Default */
-				livebox->lb_type = LB_TYPE_FILE;
+				dynamicbox->dbox_type = DBOX_TYPE_FILE;
 			}
 
 			xmlFree(type);
@@ -2161,46 +2161,46 @@ static inline void update_box(struct livebox *livebox, xmlNodePtr node)
 	}
 
 	if (!xmlHasProp(node, (const xmlChar *)"mouse_event")) {
-		livebox->default_mouse_event = 0;
+		dynamicbox->default_mouse_event = 0;
 	} else {
 		xmlChar *mouse_event;
 
 		mouse_event = xmlGetProp(node, (const xmlChar *)"mouse_event");
 		if (!mouse_event) {
 			ErrPrint("mouse_event is NIL\n");
-			livebox->default_mouse_event = 0;
+			dynamicbox->default_mouse_event = 0;
 		} else {
-			livebox->default_mouse_event = !xmlStrcasecmp(mouse_event, (const xmlChar *)"true");
+			dynamicbox->default_mouse_event = !xmlStrcasecmp(mouse_event, (const xmlChar *)"true");
 			xmlFree(mouse_event);
 		}
 	}
 
 	if (!xmlHasProp(node, (const xmlChar *)"touch_effect")) {
-		livebox->default_touch_effect = 1;
+		dynamicbox->default_touch_effect = 1;
 	} else {
 		xmlChar *touch_effect;
 
 		touch_effect = xmlGetProp(node, (const xmlChar *)"touch_effect");
 		if (!touch_effect) {
 			ErrPrint("default touch_effect is NIL\n");
-			livebox->default_touch_effect = 1;
+			dynamicbox->default_touch_effect = 1;
 		} else {
-			livebox->default_touch_effect = !xmlStrcasecmp(touch_effect, (const xmlChar *)"true");
+			dynamicbox->default_touch_effect = !xmlStrcasecmp(touch_effect, (const xmlChar *)"true");
 			xmlFree(touch_effect);
 		}
 	}
 
 	if (!xmlHasProp(node, (const xmlChar *)"need_frame")) {
-		livebox->default_need_frame = 0;
+		dynamicbox->default_need_frame = 0;
 	} else {
 		xmlChar *need_frame;
 
 		need_frame = xmlGetProp(node, (const xmlChar *)"need_frame");
 		if (!need_frame) {
 			ErrPrint("default need_frame is NIL\n");
-			livebox->default_need_frame = 0;
+			dynamicbox->default_need_frame = 0;
 		} else {
-			livebox->default_need_frame = !xmlStrcasecmp(need_frame, (const xmlChar *)"true");
+			dynamicbox->default_need_frame = !xmlStrcasecmp(need_frame, (const xmlChar *)"true");
 			xmlFree(need_frame);
 		}
 	}
@@ -2228,62 +2228,62 @@ static inline void update_box(struct livebox *livebox, xmlNodePtr node)
 
 			if (!xmlStrcasecmp(size, (const xmlChar *)"1x1")) {
 				if (is_easy) {
-					livebox->size_list |= LB_SIZE_TYPE_EASY_1x1;
-					update_size_info(livebox, 9, node);
+					dynamicbox->size_list |= DBOX_SIZE_TYPE_EASY_1x1;
+					update_size_info(dynamicbox, 9, node);
 				} else {
-					livebox->size_list |= LB_SIZE_TYPE_1x1;
-					update_size_info(livebox, 0, node);
+					dynamicbox->size_list |= DBOX_SIZE_TYPE_1x1;
+					update_size_info(dynamicbox, 0, node);
 				}
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"3x1")) {
 				if (is_easy) {
-					livebox->size_list |= LB_SIZE_TYPE_EASY_3x1;
-					update_size_info(livebox, 10, node);
+					dynamicbox->size_list |= DBOX_SIZE_TYPE_EASY_3x1;
+					update_size_info(dynamicbox, 10, node);
 				} else {
 					ErrPrint("Invalid size tag (%s)\n", size);
 				}
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"3x3")) {
 				if (is_easy) {
-					livebox->size_list |= LB_SIZE_TYPE_EASY_3x3;
-					update_size_info(livebox, 11, node);
+					dynamicbox->size_list |= DBOX_SIZE_TYPE_EASY_3x3;
+					update_size_info(dynamicbox, 11, node);
 				} else {
 					ErrPrint("Invalid size tag (%s)\n", size);
 				}
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"2x1")) {
-				livebox->size_list |= LB_SIZE_TYPE_2x1;
-				update_size_info(livebox, 1, node);
+				dynamicbox->size_list |= DBOX_SIZE_TYPE_2x1;
+				update_size_info(dynamicbox, 1, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"2x2")) {
-				livebox->size_list |= LB_SIZE_TYPE_2x2;
-				update_size_info(livebox, 2, node);
+				dynamicbox->size_list |= DBOX_SIZE_TYPE_2x2;
+				update_size_info(dynamicbox, 2, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x1")) {
-				livebox->size_list |= LB_SIZE_TYPE_4x1;
-				update_size_info(livebox, 3, node);
+				dynamicbox->size_list |= DBOX_SIZE_TYPE_4x1;
+				update_size_info(dynamicbox, 3, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x2")) {
-				livebox->size_list |= LB_SIZE_TYPE_4x2;
-				update_size_info(livebox, 4, node);
+				dynamicbox->size_list |= DBOX_SIZE_TYPE_4x2;
+				update_size_info(dynamicbox, 4, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x3")) {
-				livebox->size_list |= LB_SIZE_TYPE_4x3;
-				update_size_info(livebox, 5, node);
+				dynamicbox->size_list |= DBOX_SIZE_TYPE_4x3;
+				update_size_info(dynamicbox, 5, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x4")) {
-				livebox->size_list |= LB_SIZE_TYPE_4x4;
-				update_size_info(livebox, 6, node);
+				dynamicbox->size_list |= DBOX_SIZE_TYPE_4x4;
+				update_size_info(dynamicbox, 6, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x5")) {
-				livebox->size_list |= LB_SIZE_TYPE_4x5;
-				update_size_info(livebox, 7, node);
+				dynamicbox->size_list |= DBOX_SIZE_TYPE_4x5;
+				update_size_info(dynamicbox, 7, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x6")) {
-				livebox->size_list |= LB_SIZE_TYPE_4x6;
-				update_size_info(livebox, 8, node);
+				dynamicbox->size_list |= DBOX_SIZE_TYPE_4x6;
+				update_size_info(dynamicbox, 8, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"21x21")) {
-				livebox->size_list |= LB_SIZE_TYPE_EASY_1x1;
-				update_size_info(livebox, 9, node);
+				dynamicbox->size_list |= DBOX_SIZE_TYPE_EASY_1x1;
+				update_size_info(dynamicbox, 9, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"23x21")) {
-				livebox->size_list |= LB_SIZE_TYPE_EASY_3x1;
-				update_size_info(livebox, 10, node);
+				dynamicbox->size_list |= DBOX_SIZE_TYPE_EASY_3x1;
+				update_size_info(dynamicbox, 10, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"23x23")) {
-				livebox->size_list |= LB_SIZE_TYPE_EASY_3x3;
-				update_size_info(livebox, 11, node);
+				dynamicbox->size_list |= DBOX_SIZE_TYPE_EASY_3x3;
+				update_size_info(dynamicbox, 11, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"0x0")) {
-				livebox->size_list |= LB_SIZE_TYPE_0x0;
-				update_size_info(livebox, 12, node);
+				dynamicbox->size_list |= DBOX_SIZE_TYPE_0x0;
+				update_size_info(dynamicbox, 12, node);
 			} else {
 				ErrPrint("Invalid size tag (%s)\n", size);
 			}
@@ -2303,12 +2303,12 @@ static inline void update_box(struct livebox *livebox, xmlNodePtr node)
 				continue;
 			}
 
-			if (livebox->lb_src) {
-				DbgPrint("Override lb src: %s\n", livebox->lb_src);
-				xmlFree(livebox->lb_src);
+			if (dynamicbox->dbox_src) {
+				DbgPrint("Override lb src: %s\n", dynamicbox->dbox_src);
+				xmlFree(dynamicbox->dbox_src);
 			}
 
-			livebox->lb_src = src;
+			dynamicbox->dbox_src = src;
 
 			if (xmlHasProp(node, (const xmlChar *)"group")) {
 				xmlChar *group;
@@ -2316,19 +2316,19 @@ static inline void update_box(struct livebox *livebox, xmlNodePtr node)
 				if (!group) {
 					ErrPrint("Group is NIL\n");
 				} else {
-					if (livebox->lb_group) {
-						DbgPrint("Override lb group: %s\n", livebox->lb_group);
-						xmlFree(livebox->lb_group);
+					if (dynamicbox->dbox_group) {
+						DbgPrint("Override lb group: %s\n", dynamicbox->dbox_group);
+						xmlFree(dynamicbox->dbox_group);
 					}
 
-					livebox->lb_group = group;
+					dynamicbox->dbox_group = group;
 				}
 			}
 		}
 	}
 }
 
-static inline void update_group(struct livebox *livebox, xmlNodePtr node)
+static inline void update_group(struct dynamicbox *dynamicbox, xmlNodePtr node)
 {
 	xmlNodePtr cluster;
 	xmlNodePtr category;
@@ -2394,7 +2394,7 @@ static inline void update_group(struct livebox *livebox, xmlNodePtr node)
 			}
 
 			group->category = category_name;
-			livebox->group_list = dlist_append(livebox->group_list, group);
+			dynamicbox->group_list = dlist_append(dynamicbox->group_list, group);
 
 			if (!xmlHasProp(category, (const xmlChar *)"context")) {
 				DbgPrint("%s, %s has no ctx info\n", group->cluster, group->category);
@@ -2458,10 +2458,10 @@ static inline void update_group(struct livebox *livebox, xmlNodePtr node)
 	}
 }
 
-static inline void update_pd(struct livebox *livebox, xmlNodePtr node)
+static inline void update_pd(struct dynamicbox *dynamicbox, xmlNodePtr node)
 {
 	if (!xmlHasProp(node, (const xmlChar *)"type")) {
-		livebox->pd_type = PD_TYPE_SCRIPT;
+		dynamicbox->gbar_type = GBAR_TYPE_SCRIPT;
 	} else {
 		xmlChar *type;
 
@@ -2472,13 +2472,13 @@ static inline void update_pd(struct livebox *livebox, xmlNodePtr node)
 		}
 
 		if (!xmlStrcasecmp(type, (const xmlChar *)"text")) {
-			livebox->pd_type = PD_TYPE_TEXT;
+			dynamicbox->gbar_type = GBAR_TYPE_TEXT;
 		} else if (!xmlStrcasecmp(type, (const xmlChar *)"buffer")) {
-			livebox->pd_type = PD_TYPE_BUFFER;
+			dynamicbox->gbar_type = GBAR_TYPE_BUFFER;
 		} else if (!xmlStrcasecmp(type, (const xmlChar *)"elm")) {
-			livebox->pd_type = PD_TYPE_ELEMENTARY;
+			dynamicbox->gbar_type = GBAR_TYPE_ELEMENTARY;
 		} else {
-			livebox->pd_type = PD_TYPE_SCRIPT;
+			dynamicbox->gbar_type = GBAR_TYPE_SCRIPT;
 		}
 
 		xmlFree(type);
@@ -2494,11 +2494,11 @@ static inline void update_pd(struct livebox *livebox, xmlNodePtr node)
 				continue;
 			}
 
-			if (livebox->pd_size) {
-				DbgPrint("Override pd size: %s\n", livebox->pd_size);
-				xmlFree(livebox->pd_size);
+			if (dynamicbox->gbar_size) {
+				DbgPrint("Override pd size: %s\n", dynamicbox->gbar_size);
+				xmlFree(dynamicbox->gbar_size);
 			}
-			livebox->pd_size = size;
+			dynamicbox->gbar_size = size;
 		} else if (!xmlStrcasecmp(node->name, (const xmlChar *)"script")) {
 			xmlChar *src;
 
@@ -2513,12 +2513,12 @@ static inline void update_pd(struct livebox *livebox, xmlNodePtr node)
 				continue;
 			}
 
-			if (livebox->pd_src) {
-				DbgPrint("Overide PD src: %s\n", livebox->pd_src);
-				xmlFree(livebox->pd_src);
+			if (dynamicbox->gbar_src) {
+				DbgPrint("Overide PD src: %s\n", dynamicbox->gbar_src);
+				xmlFree(dynamicbox->gbar_src);
 			}
 
-			livebox->pd_src = src;
+			dynamicbox->gbar_src = src;
 
 			if (xmlHasProp(node, (const xmlChar *)"group")) {
 				xmlChar *group;
@@ -2526,19 +2526,19 @@ static inline void update_pd(struct livebox *livebox, xmlNodePtr node)
 				if (!group) {
 					ErrPrint("Group is NIL\n");
 				} else {
-					if (livebox->pd_group) {
-						DbgPrint("Override PD group : %s\n", livebox->pd_group);
-						xmlFree(livebox->pd_group);
+					if (dynamicbox->gbar_group) {
+						DbgPrint("Override PD group : %s\n", dynamicbox->gbar_group);
+						xmlFree(dynamicbox->gbar_group);
 					}
 
-					livebox->pd_group = group;
+					dynamicbox->gbar_group = group;
 				}
 			}
 		}
 	}
 }
 
-static int db_insert_livebox(struct livebox *livebox, const char *appid)
+static int db_insert_dynamicbox(struct dynamicbox *dynamicbox, const char *appid)
 {
 	struct dlist *l;
 	struct dlist *il;
@@ -2549,126 +2549,126 @@ static int db_insert_livebox(struct livebox *livebox, const char *appid)
 	struct option *option;
 
 	begin_transaction();
-	ret = db_insert_pkgmap(appid, (char *)livebox->pkgid, (char *)livebox->uiapp, livebox->primary, (char *)livebox->category);
+	ret = db_insert_pkgmap(appid, (char *)dynamicbox->pkgid, (char *)dynamicbox->uiapp, dynamicbox->primary, (char *)dynamicbox->category);
 	if (ret < 0) {
 		goto errout;
 	}
 
-	ret = db_insert_provider(livebox);
+	ret = db_insert_provider(dynamicbox);
 	if (ret < 0) {
 		goto errout;
 	}
 
-	ret = db_insert_client(livebox);
+	ret = db_insert_client(dynamicbox);
 	if (ret < 0) {
 		goto errout;
 	}
 
-	dlist_foreach(livebox->i18n_list, l, i18n) {
-		ret = db_insert_i18n((char *)livebox->pkgid, (char *)i18n->lang, (char *)i18n->name, (char *)i18n->icon);
+	dlist_foreach(dynamicbox->i18n_list, l, i18n) {
+		ret = db_insert_i18n((char *)dynamicbox->pkgid, (char *)i18n->lang, (char *)i18n->name, (char *)i18n->icon);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (livebox->size_list & LB_SIZE_TYPE_1x1) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_1x1, (char *)livebox->preview[0], livebox->touch_effect[0], livebox->need_frame[0], livebox->mouse_event[0]);
+	if (dynamicbox->size_list & DBOX_SIZE_TYPE_1x1) {
+		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_1x1, (char *)dynamicbox->preview[0], dynamicbox->touch_effect[0], dynamicbox->need_frame[0], dynamicbox->mouse_event[0]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (livebox->size_list & LB_SIZE_TYPE_2x1) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_2x1, (char *)livebox->preview[1], livebox->touch_effect[1], livebox->need_frame[1], livebox->mouse_event[1]);
+	if (dynamicbox->size_list & DBOX_SIZE_TYPE_2x1) {
+		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_2x1, (char *)dynamicbox->preview[1], dynamicbox->touch_effect[1], dynamicbox->need_frame[1], dynamicbox->mouse_event[1]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (livebox->size_list & LB_SIZE_TYPE_2x2) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_2x2, (char *)livebox->preview[2], livebox->touch_effect[2], livebox->need_frame[2], livebox->mouse_event[2]);
+	if (dynamicbox->size_list & DBOX_SIZE_TYPE_2x2) {
+		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_2x2, (char *)dynamicbox->preview[2], dynamicbox->touch_effect[2], dynamicbox->need_frame[2], dynamicbox->mouse_event[2]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (livebox->size_list & LB_SIZE_TYPE_4x1) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_4x1, (char *)livebox->preview[3], livebox->touch_effect[3], livebox->need_frame[3], livebox->mouse_event[3]);
+	if (dynamicbox->size_list & DBOX_SIZE_TYPE_4x1) {
+		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_4x1, (char *)dynamicbox->preview[3], dynamicbox->touch_effect[3], dynamicbox->need_frame[3], dynamicbox->mouse_event[3]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (livebox->size_list & LB_SIZE_TYPE_4x2) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_4x2, (char *)livebox->preview[4], livebox->touch_effect[4], livebox->need_frame[4], livebox->mouse_event[4]);
+	if (dynamicbox->size_list & DBOX_SIZE_TYPE_4x2) {
+		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_4x2, (char *)dynamicbox->preview[4], dynamicbox->touch_effect[4], dynamicbox->need_frame[4], dynamicbox->mouse_event[4]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (livebox->size_list & LB_SIZE_TYPE_4x3) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_4x3, (char *)livebox->preview[5], livebox->touch_effect[5], livebox->need_frame[5], livebox->mouse_event[5]);
+	if (dynamicbox->size_list & DBOX_SIZE_TYPE_4x3) {
+		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_4x3, (char *)dynamicbox->preview[5], dynamicbox->touch_effect[5], dynamicbox->need_frame[5], dynamicbox->mouse_event[5]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (livebox->size_list & LB_SIZE_TYPE_4x4) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_4x4, (char *)livebox->preview[6], livebox->touch_effect[6], livebox->need_frame[6], livebox->mouse_event[6]);
+	if (dynamicbox->size_list & DBOX_SIZE_TYPE_4x4) {
+		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_4x4, (char *)dynamicbox->preview[6], dynamicbox->touch_effect[6], dynamicbox->need_frame[6], dynamicbox->mouse_event[6]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (livebox->size_list & LB_SIZE_TYPE_4x5) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_4x5, (char *)livebox->preview[7], livebox->touch_effect[7], livebox->need_frame[7], livebox->mouse_event[7]);
+	if (dynamicbox->size_list & DBOX_SIZE_TYPE_4x5) {
+		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_4x5, (char *)dynamicbox->preview[7], dynamicbox->touch_effect[7], dynamicbox->need_frame[7], dynamicbox->mouse_event[7]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (livebox->size_list & LB_SIZE_TYPE_4x6) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_4x6, (char *)livebox->preview[8], livebox->touch_effect[8], livebox->need_frame[8], livebox->mouse_event[8]);
+	if (dynamicbox->size_list & DBOX_SIZE_TYPE_4x6) {
+		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_4x6, (char *)dynamicbox->preview[8], dynamicbox->touch_effect[8], dynamicbox->need_frame[8], dynamicbox->mouse_event[8]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (livebox->size_list & LB_SIZE_TYPE_EASY_1x1) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_EASY_1x1, (char *)livebox->preview[9], livebox->touch_effect[9], livebox->need_frame[9], livebox->mouse_event[9]);
+	if (dynamicbox->size_list & DBOX_SIZE_TYPE_EASY_1x1) {
+		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_EASY_1x1, (char *)dynamicbox->preview[9], dynamicbox->touch_effect[9], dynamicbox->need_frame[9], dynamicbox->mouse_event[9]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (livebox->size_list & LB_SIZE_TYPE_EASY_3x1) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_EASY_3x1, (char *)livebox->preview[10], livebox->touch_effect[10], livebox->need_frame[10], livebox->mouse_event[10]);
+	if (dynamicbox->size_list & DBOX_SIZE_TYPE_EASY_3x1) {
+		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_EASY_3x1, (char *)dynamicbox->preview[10], dynamicbox->touch_effect[10], dynamicbox->need_frame[10], dynamicbox->mouse_event[10]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (livebox->size_list & LB_SIZE_TYPE_EASY_3x3) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_EASY_3x3, (char *)livebox->preview[11], livebox->touch_effect[11], livebox->need_frame[11], livebox->mouse_event[11]);
+	if (dynamicbox->size_list & DBOX_SIZE_TYPE_EASY_3x3) {
+		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_EASY_3x3, (char *)dynamicbox->preview[11], dynamicbox->touch_effect[11], dynamicbox->need_frame[11], dynamicbox->mouse_event[11]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (livebox->size_list & LB_SIZE_TYPE_0x0) {
-		ret = db_insert_box_size((char *)livebox->pkgid, LB_SIZE_TYPE_0x0, (char *)livebox->preview[12], livebox->touch_effect[12], livebox->need_frame[12], livebox->mouse_event[12]);
+	if (dynamicbox->size_list & DBOX_SIZE_TYPE_0x0) {
+		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_0x0, (char *)dynamicbox->preview[12], dynamicbox->touch_effect[12], dynamicbox->need_frame[12], dynamicbox->mouse_event[12]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	dlist_foreach(livebox->group_list, l, group) {
+	dlist_foreach(dynamicbox->group_list, l, group) {
 		/* group ID "id" */
 		id = db_get_group_id((char *)group->cluster, (char *)group->category);
 		if (id < 0) {
 			int ret;
 			
-			ret = db_insert_group((char *)livebox->pkgid, (char *)group->cluster, (char *)group->category);
+			ret = db_insert_group((char *)dynamicbox->pkgid, (char *)group->cluster, (char *)group->category);
 			if (ret < 0) {
 				ErrPrint("[%s]-[%s] is not exists\n", group->cluster, group->category);
 				continue;
@@ -2687,19 +2687,19 @@ static int db_insert_livebox(struct livebox *livebox, const char *appid)
 			continue;
 		}
 
-		ret = db_insert_groupmap(id, (char *)livebox->pkgid, (char *)group->ctx_item);
+		ret = db_insert_groupmap(id, (char *)dynamicbox->pkgid, (char *)group->ctx_item);
 		if (ret < 0) {
 			goto errout;
 		}
 
 		/* REUSE "id" from here , option ID */
-		id = db_get_option_id(id, (char *)livebox->pkgid, (char *)group->ctx_item);
+		id = db_get_option_id(id, (char *)dynamicbox->pkgid, (char *)group->ctx_item);
 		if (id < 0) {
 			goto errout;
 		}
 
 		dlist_foreach(group->option_list, il, option) {
-			ret = db_insert_option((char *)livebox->pkgid, id, (char *)option->key, (char *)option->value);
+			ret = db_insert_option((char *)dynamicbox->pkgid, id, (char *)option->key, (char *)option->value);
 			if (ret < 0) {
 				goto errout;
 			}
@@ -2707,19 +2707,19 @@ static int db_insert_livebox(struct livebox *livebox, const char *appid)
 	}
 
 	commit_transaction();
-	livebox_destroy(livebox);
+	dynamicbox_destroy(dynamicbox);
 	return 0;
 
 errout:
 	ErrPrint("ROLLBACK\n");
 	rollback_transaction();
-	livebox_destroy(livebox);
+	dynamicbox_destroy(dynamicbox);
 	return ret;
 }
 
 static int do_install(xmlNodePtr node, const char *appid)
 {
-	struct livebox *livebox;
+	struct dynamicbox *dynamicbox;
 	xmlChar *pkgid;
 	xmlChar *tmp;
 
@@ -2737,18 +2737,18 @@ static int do_install(xmlNodePtr node, const char *appid)
 
 	DbgPrint("appid: %s\n", (char *)pkgid);
 
-	livebox = calloc(1, sizeof(*livebox));
-	if (!livebox) {
+	dynamicbox = calloc(1, sizeof(*dynamicbox));
+	if (!dynamicbox) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		xmlFree(pkgid);
 		return -ENOMEM;
 	}
 
-	livebox->pkgid = pkgid;
+	dynamicbox->pkgid = pkgid;
 
 	if (xmlHasProp(node, (const xmlChar *)"count")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"count");
-		if (sscanf((const char *)tmp, "%d", &livebox->count) != 1) {
+		if (sscanf((const char *)tmp, "%d", &dynamicbox->count) != 1) {
 			ErrPrint("Invalid syntax: %s\n", (const char *)tmp);
 		}
 		xmlFree(tmp);
@@ -2756,97 +2756,97 @@ static int do_install(xmlNodePtr node, const char *appid)
 
 	if (xmlHasProp(node, (const xmlChar *)"primary")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"primary");
-		livebox->primary = !xmlStrcasecmp(tmp, (const xmlChar *)"true");
+		dynamicbox->primary = !xmlStrcasecmp(tmp, (const xmlChar *)"true");
 		xmlFree(tmp);
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"script")) {
-		livebox->script = xmlGetProp(node, (const xmlChar *)"script");
-		if (!livebox->script) {
+		dynamicbox->script = xmlGetProp(node, (const xmlChar *)"script");
+		if (!dynamicbox->script) {
 			ErrPrint("script is NIL\n");
 		}
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"nodisplay")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"nodisplay");
-		livebox->nodisplay = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
+		dynamicbox->nodisplay = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
 		xmlFree(tmp);
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"pinup")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"pinup");
-		livebox->pinup = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
+		dynamicbox->pinup = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
 		xmlFree(tmp);
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"period")) {
-		livebox->period = xmlGetProp(node, (const xmlChar *)"period");
-		if (!livebox->period) {
+		dynamicbox->period = xmlGetProp(node, (const xmlChar *)"period");
+		if (!dynamicbox->period) {
 			ErrPrint("Period is NIL\n");
 		}
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"timeout")) {
-		livebox->timeout = xmlGetProp(node, (const xmlChar *)"timeout");
-		if (!livebox->timeout) {
+		dynamicbox->timeout = xmlGetProp(node, (const xmlChar *)"timeout");
+		if (!dynamicbox->timeout) {
 			ErrPrint("Timeout is NIL\n");
 		}
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"secured")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"secured");
-		livebox->secured = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
+		dynamicbox->secured = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
 		xmlFree(tmp);
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"network")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"network");
-		livebox->network = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
+		dynamicbox->network = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
 		xmlFree(tmp);
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"abi")) {
-		livebox->abi = xmlGetProp(node, (const xmlChar *)"abi");
-		if (!livebox->abi) {
+		dynamicbox->abi = xmlGetProp(node, (const xmlChar *)"abi");
+		if (!dynamicbox->abi) {
 			ErrPrint("ABI is NIL\n");
-			livebox_destroy(livebox);
+			dynamicbox_destroy(dynamicbox);
 			return -EFAULT;
 		}
 	} else {
-		livebox->abi = xmlStrdup((const xmlChar *)"c");
-		if (!livebox->abi) {
+		dynamicbox->abi = xmlStrdup((const xmlChar *)"c");
+		if (!dynamicbox->abi) {
 			ErrPrint("Heap: %s\n", strerror(errno));
-			livebox_destroy(livebox);
+			dynamicbox_destroy(dynamicbox);
 			return -ENOMEM;
 		}
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"libexec")) {
-		livebox->libexec = xmlGetProp(node, (const xmlChar *)"libexec");
-		if (!livebox->libexec) {
+		dynamicbox->libexec = xmlGetProp(node, (const xmlChar *)"libexec");
+		if (!dynamicbox->libexec) {
 			ErrPrint("libexec is NIL\n");
-			livebox_destroy(livebox);
+			dynamicbox_destroy(dynamicbox);
 			return -EFAULT;
 		}
-	} else if (!xmlStrcasecmp(livebox->abi, (const xmlChar *)"c") || !xmlStrcasecmp(livebox->abi, (const xmlChar *)"cpp")) {
+	} else if (!xmlStrcasecmp(dynamicbox->abi, (const xmlChar *)"c") || !xmlStrcasecmp(dynamicbox->abi, (const xmlChar *)"cpp")) {
 		char *filename;
 		int len;
 
-		len = strlen((char *)livebox->pkgid) + strlen("/libexec/liblive-.so") + 1;
+		len = strlen((char *)dynamicbox->pkgid) + strlen("/libexec/liblive-.so") + 1;
 
 		filename = malloc(len);
 		if (!filename) {
-			livebox_destroy(livebox);
+			dynamicbox_destroy(dynamicbox);
 			return -ENOMEM;
 		}
 
-		snprintf(filename, len, "/libexec/liblive-%s.so", livebox->pkgid);
-		livebox->libexec = xmlStrdup((xmlChar *)filename);
+		snprintf(filename, len, "/libexec/liblive-%s.so", dynamicbox->pkgid);
+		dynamicbox->libexec = xmlStrdup((xmlChar *)filename);
 		DbgPrint("Use the default libexec: %s\n", filename);
 		free(filename);
 
-		if (!livebox->libexec) {
-			livebox_destroy(livebox);
+		if (!dynamicbox->libexec) {
+			dynamicbox_destroy(dynamicbox);
 			return -ENOMEM;
 		}
 	}
@@ -2858,57 +2858,57 @@ static int do_install(xmlNodePtr node, const char *appid)
 
 		DbgPrint("Nodename: %s\n", node->name);
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"label")) {
-			update_i18n_name(livebox, node);
+			update_i18n_name(dynamicbox, node);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"icon")) {
-			update_i18n_icon(livebox, node);
+			update_i18n_icon(dynamicbox, node);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"box")) {
-			update_box(livebox, node);
+			update_box(dynamicbox, node);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"pd")) {
-			update_pd(livebox, node);
+			update_pd(dynamicbox, node);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"group")) {
-			update_group(livebox, node);
+			update_group(dynamicbox, node);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"content")) {
-			update_content(livebox, node);
+			update_content(dynamicbox, node);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"setup")) {
-			update_setup(livebox, node);
+			update_setup(dynamicbox, node);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"launch")) {
-			update_launch(livebox, node);
+			update_launch(dynamicbox, node);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"ui-appid")) {
-			update_ui_appid(livebox, node);
+			update_ui_appid(dynamicbox, node);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"category")) {
-			update_category(livebox, node);
+			update_category(dynamicbox, node);
 			continue;
 		}
 	}
 
-	return db_insert_livebox(livebox, appid);
+	return db_insert_dynamicbox(dynamicbox, appid);
 }
 
 static inline int do_uninstall(xmlNodePtr node, const char *appid)
@@ -3125,7 +3125,7 @@ int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *appid)
 
 	for (node = node->children; node; node = node->next) {
 		DbgPrint("node->name: %s\n", node->name);
-		if (!xmlStrcasecmp(node->name, (const xmlChar *)"livebox")) {
+		if (!xmlStrcasecmp(node->name, (const xmlChar *)"dynamicbox")) {
 			ret = do_install(node, appid);
 			if (ret < 0) {
 				DbgPrint("Returns: %d\n", ret);
@@ -3187,7 +3187,7 @@ int PKGMGR_PARSER_PLUGIN_UPGRADE(xmlDocPtr docPtr, const char *appid)
 	}
 
 	for (node = node->children; node; node = node->next) {
-		if (!xmlStrcasecmp(node->name, (const xmlChar *)"livebox")) {
+		if (!xmlStrcasecmp(node->name, (const xmlChar *)"dynamicbox")) {
 			ret = do_install(node, appid);
 			if (ret < 0) {
 				DbgPrint("Returns: %d\n", ret);

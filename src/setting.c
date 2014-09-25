@@ -38,7 +38,7 @@
 #include "critical_log.h"
 
 #if defined(HAVE_LIVEBOX)
-#include <livebox-service.h>
+#include <dynamicbox_service.h>
 #include "client_life.h"
 #include "slave_life.h"
 #include "xmonitor.h"

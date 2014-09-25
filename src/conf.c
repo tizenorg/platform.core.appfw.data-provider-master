@@ -23,7 +23,7 @@
 
 #include <dlog.h>
 #if defined(HAVE_LIVEBOX)
-#include <livebox-errno.h>
+#include <dynamicbox_errno.h>
 #else
 #include "lite-errno.h"
 #endif
@@ -33,7 +33,7 @@
 #include "util.h"
 #include "debug.h"
 
-static const char *CONF_DEFAULT_SERVICES = "[livebox],[shortcut],[notification],[badge],[utility],[file]";
+static const char *CONF_DEFAULT_SERVICES = "[dynamicbox],[shortcut],[notification],[badge],[utility],[file]";
 static const char *CONF_DEFAULT_EMERGENCY_DISK = "source=tmpfs;type=tmpfs;option=size=6M";
 static const char *CONF_DEFAULT_PATH_CONF = "/opt/usr/live/%s/etc/%s.conf";
 static const char *CONF_DEFAULT_PATH_IMAGE = "/opt/usr/share/live_magazine/";
@@ -43,11 +43,11 @@ static const char *CONF_DEFAULT_PATH_ALWAYS = "/opt/usr/share/live_magazine/alwa
 static const char *CONF_DEFAULT_PATH_SCRIPT = "/opt/usr/live/%s/res/script/%s.edj";
 static const char *CONF_DEFAULT_PATH_ROOT = "/opt/usr/live/";
 static const char *CONF_DEFAULT_PATH_SCRIPT_PORT = "/usr/share/data-provider-master/plugin-script/";
-static const char *CONF_DEFAULT_PATH_DB = "/opt/dbspace/.livebox.db";
+static const char *CONF_DEFAULT_PATH_DB = "/opt/dbspace/.dynamicbox.db";
 static const char *CONF_DEFAULT_PATH_INPUT = "/dev/input/event2";
 static const char *CONF_DEFAULT_SCRIPT_TYPE = "edje";
 static const char *CONF_DEFAULT_ABI = "c";
-static const char *CONF_DEFAULT_PD_GROUP = "disclosure";
+static const char *CONF_DEFAULT_GBAR_GROUP = "disclosure";
 static const char *CONF_DEFAULT_LAUNCH_BUNDLE_NAME = "name";
 static const char *CONF_DEFAULT_LAUNCH_BUNDLE_SECURED = "secured";
 static const char *CONF_DEFAULT_LAUNCH_BUNDLE_ABI = "abi";
@@ -82,7 +82,7 @@ static const int CONF_DEFAULT_USE_XMONITOR = 0;
 static const int CONF_DEFAULT_PREMULTIPLIED = 1;
 static const double CONF_DEFAULT_SCALE_WIDTH_FACTOR = 1.0f;
 static const double CONF_DEFAULT_SCALE_HEIGHT_FACTOR = 1.0f;
-static const double CONF_DEFAULT_PD_REQUEST_TIMEOUT = 5.0f;
+static const double CONF_DEFAULT_GBAR_REQUEST_TIMEOUT = 5.0f;
 static const int CONF_DEFAULT_PIXELS = sizeof(int);
 static const int CONF_DEFAULT_AUTO_ALIGN = 1;
 static const int CONF_DEFAULT_USE_EVENT_TIME = 1;
@@ -416,7 +416,7 @@ static void pd_request_timeout_handler(char *buffer)
 	if (sscanf(buffer, "%lf", &g_conf.pd_request_timeout) != 1) {
 		ErrPrint("Failed to parse the request_timeout\n");
 	}
-	DbgPrint("Default PD request timeout: %lf\n", g_conf.pd_request_timeout);
+	DbgPrint("Default GBAR request timeout: %lf\n", g_conf.pd_request_timeout);
 }
 
 HAPI void conf_init(void)
@@ -446,11 +446,11 @@ HAPI void conf_init(void)
 	g_conf.use_xmonitor = CONF_DEFAULT_USE_XMONITOR;
 	g_conf.scale_width_factor = CONF_DEFAULT_SCALE_WIDTH_FACTOR;
 	g_conf.scale_height_factor = CONF_DEFAULT_SCALE_HEIGHT_FACTOR;
-	g_conf.pd_request_timeout = CONF_DEFAULT_PD_REQUEST_TIMEOUT;
+	g_conf.pd_request_timeout = CONF_DEFAULT_GBAR_REQUEST_TIMEOUT;
 	g_conf.premultiplied = CONF_DEFAULT_PREMULTIPLIED;
 	g_conf.default_conf.script = (char *)CONF_DEFAULT_SCRIPT_TYPE;
 	g_conf.default_conf.abi = (char *)CONF_DEFAULT_ABI;
-	g_conf.default_conf.pd_group = (char *)CONF_DEFAULT_PD_GROUP;
+	g_conf.default_conf.pd_group = (char *)CONF_DEFAULT_GBAR_GROUP;
 	g_conf.launch_key.name = (char *)CONF_DEFAULT_LAUNCH_BUNDLE_NAME;
 	g_conf.launch_key.secured = (char *)CONF_DEFAULT_LAUNCH_BUNDLE_SECURED;
 	g_conf.launch_key.abi = (char *)CONF_DEFAULT_LAUNCH_BUNDLE_ABI;
@@ -487,7 +487,7 @@ static char *conf_path(void)
 	char *path;
 	int length;
 
-	if (util_screen_size_get(&w, &h) != LB_STATUS_SUCCESS) {
+	if (util_screen_size_get(&w, &h) != DBOX_STATUS_ERROR_NONE) {
 		return NULL;
 	}
 
@@ -714,14 +714,14 @@ HAPI int conf_loader(void)
 
 	conf_file = conf_path();
 	if (!conf_file) {
-		return LB_STATUS_ERROR_IO;
+		return DBOX_STATUS_ERROR_IO_ERROR;
 	}
 
 	fp = fopen(conf_file, "rt");
 	DbgFree(conf_file);
 	if (!fp) {
 		ErrPrint("Error: %s\n", strerror(errno));
-		return LB_STATUS_ERROR_IO;
+		return DBOX_STATUS_ERROR_IO_ERROR;
 	}
 
 	state = START;
@@ -888,7 +888,7 @@ HAPI int conf_loader(void)
 	if (fclose(fp) != 0) {
 		ErrPrint("fclose: %s\n", strerror(errno));
 	}
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI void conf_reset(void)
@@ -917,7 +917,7 @@ HAPI void conf_reset(void)
 	g_conf.use_xmonitor = CONF_DEFAULT_USE_XMONITOR;
 	g_conf.scale_width_factor = CONF_DEFAULT_SCALE_WIDTH_FACTOR;
 	g_conf.scale_height_factor = CONF_DEFAULT_SCALE_HEIGHT_FACTOR;
-	g_conf.pd_request_timeout = CONF_DEFAULT_PD_REQUEST_TIMEOUT;
+	g_conf.pd_request_timeout = CONF_DEFAULT_GBAR_REQUEST_TIMEOUT;
 	g_conf.premultiplied = CONF_DEFAULT_PREMULTIPLIED;
 	g_conf.default_conf.pixels = CONF_DEFAULT_PIXELS;
 	g_conf.auto_align = CONF_DEFAULT_AUTO_ALIGN;
@@ -934,9 +934,9 @@ HAPI void conf_reset(void)
 		g_conf.default_conf.abi = (char *)CONF_DEFAULT_ABI;
 	}
 
-	if (g_conf.default_conf.pd_group != CONF_DEFAULT_PD_GROUP) {
+	if (g_conf.default_conf.pd_group != CONF_DEFAULT_GBAR_GROUP) {
 		DbgFree(g_conf.default_conf.pd_group);
-		g_conf.default_conf.pd_group = (char *)CONF_DEFAULT_PD_GROUP;
+		g_conf.default_conf.pd_group = (char *)CONF_DEFAULT_GBAR_GROUP;
 	}
 
 	if (g_conf.launch_key.name != CONF_DEFAULT_LAUNCH_BUNDLE_NAME) {

@@ -40,7 +40,7 @@
 #include <com-core_packet.h>
 #include <com-core.h>
 
-#include <livebox-service.h>
+#include <dynamicbox_service.h>
 
 #include <Ecore.h>
 
@@ -432,7 +432,7 @@ static void send_pkg_list(void)
 	s_info.cmd = PKG_LIST;
 	s_info.age++;
 
-	livebox_service_get_pkglist(pkglist_cb, s_info.targetdir);
+	dynamicbox_service_get_pkglist(pkglist_cb, s_info.targetdir);
 }
 
 static void send_inst_delete(void)
@@ -564,7 +564,7 @@ static void send_inst_list(const char *pkgname)
 
 static void help(void)
 {
-	printf("liveinfo - Livebox utility\n");
+	printf("liveinfo - DynamicBox utility\n");
 	printf("------------------------------ [Option] ------------------------------\n");
 	printf("-b Batch mode\n");
 	printf("-x execute command\n");
@@ -701,38 +701,38 @@ static inline int do_stat(const char *cmd)
 
 	switch (type){
 	case PKG:
-		tmp = livebox_service_i18n_name(node_name(node), NULL);
+		tmp = dynamicbox_service_i18n_name(node_name(node), NULL);
 		printf("Name: %s (", tmp);
 		free(tmp);
 
-		i = livebox_service_is_enabled(node_name(node));
+		i = dynamicbox_service_is_enabled(node_name(node));
 		printf("%s)\n", i ? "enabled" : "disabled");
 
-		tmp = livebox_service_i18n_icon(node_name(node), NULL);
+		tmp = dynamicbox_service_i18n_icon(node_name(node), NULL);
 		printf("Icon: %s\n", tmp);
 		free(tmp);
 
-		tmp = livebox_service_provider_name(node_name(node));
+		tmp = dynamicbox_service_provider_name(node_name(node));
 		printf("Provider: %s (content:", tmp);
 		free(tmp);
 
-		tmp = livebox_service_content(node_name(node));
+		tmp = dynamicbox_service_content(node_name(node));
 		printf("%s)\n", tmp);
 		free(tmp);
 
-		tmp = livebox_service_lb_script_path(node_name(node));
+		tmp = dynamicbox_service_dbox_script_path(node_name(node));
 		printf("LB Script: %s (", tmp);
 		free(tmp);
 
-		tmp = livebox_service_lb_script_group(node_name(node));
+		tmp = dynamicbox_service_dbox_script_group(node_name(node));
 		printf("%s)\n", tmp);
 		free(tmp);
 
-		tmp = livebox_service_pd_script_path(node_name(node));
+		tmp = dynamicbox_service_gbar_script_path(node_name(node));
 		printf("PD Script: %s (", tmp);
 		free(tmp);
 
-		tmp = livebox_service_pd_script_group(node_name(node));
+		tmp = dynamicbox_service_gbar_script_group(node_name(node));
 		printf("%s)\n", tmp);
 		free(tmp);
 
@@ -1925,7 +1925,7 @@ int main(int argc, char *argv[])
 
 	com_core_add_event_callback(CONNECTOR_DISCONNECTED, disconnected_cb, NULL);
 	com_core_add_event_callback(CONNECTOR_CONNECTED, connected_cb, NULL);
-	livebox_service_init();
+	dynamicbox_service_init();
 
 	s_info.fd = com_core_packet_client_init(SOCKET_FILE, 0, s_table);
 	if (s_info.fd < 0) {
@@ -1959,7 +1959,7 @@ int main(int argc, char *argv[])
 	ecore_main_loop_begin();
 
 	fini_directory();
-	livebox_service_fini();
+	dynamicbox_service_fini();
 
 	if (s_info.fd > 0) {
 		com_core_packet_client_fini(s_info.fd);

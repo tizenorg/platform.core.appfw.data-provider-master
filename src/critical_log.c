@@ -28,7 +28,7 @@
 #include <dlog.h>
 #include <Eina.h>
 #if defined(HAVE_LIVEBOX)
-#include <livebox-errno.h>
+#include <dynamicbox_errno.h>
 #else
 #include "lite-errno.h"
 #endif
@@ -95,7 +95,7 @@ HAPI int critical_log(const char *func, int line, const char *fmt, ...)
 	int ret;
 
 	if (!s_info.fp) {
-		return LB_STATUS_ERROR_IO;
+		return DBOX_STATUS_ERROR_IO_ERROR;
 	}
 
 	CRITICAL_SECTION_BEGIN(&s_info.cri_lock);
@@ -123,13 +123,13 @@ HAPI int critical_log_init(const char *name)
 	char *filename;
 
 	if (s_info.fp) {
-		return LB_STATUS_SUCCESS;
+		return DBOX_STATUS_ERROR_NONE;
 	}
 
 	s_info.filename = strdup(name);
 	if (!s_info.filename) {
 		ErrPrint("Failed to create a log file\n");
-		return LB_STATUS_ERROR_MEMORY;
+		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	namelen = strlen(name) + strlen(SLAVE_LOG_PATH) + 30;
@@ -139,7 +139,7 @@ HAPI int critical_log_init(const char *name)
 		ErrPrint("Failed to create a log file\n");
 		DbgFree(s_info.filename);
 		s_info.filename = NULL;
-		return LB_STATUS_ERROR_MEMORY;
+		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	snprintf(filename, namelen, "%s/%d_%s.%d", SLAVE_LOG_PATH, s_info.file_id, name, getpid());
@@ -150,11 +150,11 @@ HAPI int critical_log_init(const char *name)
 		DbgFree(s_info.filename);
 		s_info.filename = NULL;
 		DbgFree(filename);
-		return LB_STATUS_ERROR_IO;
+		return DBOX_STATUS_ERROR_IO_ERROR;
 	}
 
 	DbgFree(filename);
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 

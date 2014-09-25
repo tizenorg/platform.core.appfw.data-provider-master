@@ -164,14 +164,14 @@ extern void conf_init(void);
 #define SQLITE_FLUSH_MAX	g_conf.sqlite_flush_max
 #define DBFILE			g_conf.path.db
 
-#define PD_REQUEST_TIMEOUT	g_conf.pd_request_timeout
+#define GBAR_REQUEST_TIMEOUT	g_conf.pd_request_timeout
 
 #define SLAVE_MAX_LOAD		g_conf.slave_max_load
 #define DEFAULT_PING_TIME	g_conf.ping_time
 #define PREMULTIPLIED_COLOR	g_conf.premultiplied
 #define SERVICES		g_conf.services
 
-#define SERVICE_LIVEBOX		"[livebox]"
+#define SERVICE_LIVEBOX		"[dynamicbox]"
 #define SERVICE_NOTIFICATION	"[notification]"
 #define SERVICE_BADGE		"[badge]"
 #define SERVICE_SHORTCUT	"[shortcut]"
