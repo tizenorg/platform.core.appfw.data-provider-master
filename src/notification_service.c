@@ -483,6 +483,29 @@ static void _handler_service_register(struct tcb *tcb, struct packet *packet, vo
 	}
 }
 
+static void _handler_post_toast_message(struct tcb *tcb, struct packet *packet, void *data)
+{
+	int ret = 0, ret_p = 0;
+	struct packet *packet_reply = NULL;
+	char *message = NULL;
+
+	if (packet_get(packet, "s", &message) == 1) {
+		message = _string_get(message);
+
+		ret = notification_noti_post_toast_message(message);
+
+		packet_reply = packet_create_reply(packet, "i", ret);
+		if (packet_reply) {
+			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0) {
+				ErrPrint("failed to send reply packet:%d\n", ret_p);
+			}
+			packet_destroy(packet_reply);
+		} else {
+			ErrPrint("failed to create a reply packet\n");
+		}
+	}
+}
+
 /*!
  * SERVICE PERMISSION CHECK
  */
@@ -603,6 +626,7 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 {
 	int i = 0;
 	const char *command;
+
 	static struct noti_service service_req_table[] = {
 		{
 			.cmd = "add_noti",
@@ -663,6 +687,13 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 		{
 			.cmd = "service_register",
 			.handler = _handler_service_register,
+			.rule = NULL,
+			.access = NULL,
+			.handler_access_error = NULL,
+		},
+		{
+			.cmd = "post_toast",
+			.handler = _handler_post_toast_message,
 			.rule = NULL,
 			.access = NULL,
 			.handler_access_error = NULL,
