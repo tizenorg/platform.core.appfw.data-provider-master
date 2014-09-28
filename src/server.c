@@ -6585,6 +6585,8 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 	const char *id;
 	int w;
 	int h;
+	int x;
+	int y;
 	int ret;
 	struct inst_info *inst;
 
@@ -6594,8 +6596,8 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 		goto out;
 	}
 
-	ret = packet_get(packet, "sssii", &pkgname, &id, &safe_filename, &w, &h);
-	if (ret != 5) {
+	ret = packet_get(packet, "sssiiii", &pkgname, &id, &safe_filename, &x, &y, &w, &h);
+	if (ret != 7) {
 		ErrPrint("Parameter is not matched\n");
 		goto out;
 	}
@@ -6627,8 +6629,7 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 			 * \check
 			 * text format (inst)
 			 */
-			instance_set_dbox_size(inst, w, h);
-			instance_dbox_updated_by_instance(inst, safe_filename);
+			instance_dbox_updated_by_instance(inst, safe_filename, x, y, w, h);
 			break;
 		}
 
@@ -6679,6 +6680,10 @@ static struct packet *slave_desc_updated(pid_t pid, int handle, const struct pac
 	const char *pkgname;
 	const char *id;
 	const char *descfile;
+	int x;
+	int y;
+	int w;
+	int h;
 	int ret;
 	struct inst_info *inst;
 
@@ -6688,8 +6693,8 @@ static struct packet *slave_desc_updated(pid_t pid, int handle, const struct pac
 		goto out;
 	}
 
-	ret = packet_get(packet, "sss", &pkgname, &id, &descfile);
-	if (ret != 3) {
+	ret = packet_get(packet, "sssiiii", &pkgname, &id, &descfile, &x, &y, &w, &h);
+	if (ret != 7) {
 		ErrPrint("Parameter is not matched\n");
 		goto out;
 	}
@@ -6714,7 +6719,7 @@ static struct packet *slave_desc_updated(pid_t pid, int handle, const struct pac
 	case GBAR_TYPE_TEXT:
 		instance_set_gbar_size(inst, 0, 0);
 	case GBAR_TYPE_BUFFER:
-		instance_gbar_updated(pkgname, id, descfile);
+		instance_gbar_updated(pkgname, id, descfile, x, y, w, h);
 		break;
 	default:
 		DbgPrint("Ignore updated DESC(%s)\n", pkgname);

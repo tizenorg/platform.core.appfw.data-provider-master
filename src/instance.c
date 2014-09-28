@@ -1843,7 +1843,7 @@ HAPI void instance_extra_info_updated_by_instance(struct inst_info *inst)
 	(void)CLIENT_SEND_EVENT(inst, packet);
 }
 
-HAPI void instance_dbox_updated_by_instance(struct inst_info *inst, const char *safe_file)
+HAPI void instance_dbox_updated_by_instance(struct inst_info *inst, const char *safe_file, int x, int y, int w, int h)
 {
 	struct packet *packet;
 	const char *id = NULL;
@@ -1864,9 +1864,9 @@ HAPI void instance_dbox_updated_by_instance(struct inst_info *inst, const char *
 		id = buffer_handler_id(inst->dbox.canvas.buffer);
 	}
 
-	packet = packet_create_noack((const char *)&cmd, "ssssii",
+	packet = packet_create_noack((const char *)&cmd, "ssssiiii",
 			package_name(inst->info), inst->id, id, safe_file,
-			inst->dbox.width, inst->dbox.height);
+			x, y, w, h);
 	if (!packet) {
 		ErrPrint("Failed to create param (%s - %s)\n", package_name(inst->info), inst->id);
 		return;
@@ -1895,7 +1895,7 @@ HAPI int instance_hold_scroll(struct inst_info *inst, int hold)
 	return CLIENT_SEND_EVENT(inst, packet);
 }
 
-HAPI void instance_gbar_updated_by_instance(struct inst_info *inst, const char *descfile)
+HAPI void instance_gbar_updated_by_instance(struct inst_info *inst, const char *descfile, int x, int y, int w, int h)
 {
 	struct packet *packet;
 	unsigned int cmd = CMD_GBAR_UPDATED;
@@ -1942,9 +1942,9 @@ HAPI void instance_gbar_updated_by_instance(struct inst_info *inst, const char *
 		break;
 	}
 
-	packet = packet_create_noack((const char *)&cmd, "ssssii",
+	packet = packet_create_noack((const char *)&cmd, "ssssiiii",
 			package_name(inst->info), inst->id, descfile, id,
-			inst->gbar.width, inst->gbar.height);
+			x, y, w, h);
 	if (!packet) {
 		ErrPrint("Failed to create param (%s - %s)\n", package_name(inst->info), inst->id);
 		return;
@@ -1953,7 +1953,7 @@ HAPI void instance_gbar_updated_by_instance(struct inst_info *inst, const char *
 	(void)CLIENT_SEND_EVENT(inst, packet);
 }
 
-HAPI void instance_gbar_updated(const char *pkgname, const char *id, const char *descfile)
+HAPI void instance_gbar_updated(const char *pkgname, const char *id, const char *descfile, int x, int y, int w, int h)
 {
 	struct inst_info *inst;
 
@@ -1962,7 +1962,7 @@ HAPI void instance_gbar_updated(const char *pkgname, const char *id, const char 
 		return;
 	}
 
-	instance_gbar_updated_by_instance(inst, descfile);
+	instance_gbar_updated_by_instance(inst, descfile, x, y, w, h);
 }
 
 HAPI int instance_set_update_mode(struct inst_info *inst, int active_update)
@@ -3211,7 +3211,7 @@ HAPI int instance_client_gbar_created(struct inst_info *inst, int status)
 
 	if (inst->gbar.need_to_send_close_event && inst->gbar.pended_update_cnt) {
 		DbgPrint("Apply pended desc(%d) - %s\n", inst->gbar.pended_update_cnt, inst->gbar.pended_update_desc);
-		instance_gbar_updated_by_instance(inst, inst->gbar.pended_update_desc);
+		instance_gbar_updated_by_instance(inst, inst->gbar.pended_update_desc, 0, 0, inst->gbar.width, inst->gbar.height);
 		inst->gbar.pended_update_cnt = 0;
 		DbgFree(inst->gbar.pended_update_desc);
 		inst->gbar.pended_update_desc = NULL;

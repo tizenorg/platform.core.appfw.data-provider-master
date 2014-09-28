@@ -388,7 +388,7 @@ static int render_post_cb(void *_buffer_handle, void *data)
 	info = instance_dbox_script(inst);
 	if (info && info == data) {
 		buffer_handler_flush(buffer_handle);
-		instance_dbox_updated_by_instance(inst, NULL);
+		instance_dbox_updated_by_instance(inst, NULL, info->x, info->y, info->w, info->h);
 		PERF_MARK("lb,update");
 		return DBOX_STATUS_ERROR_NONE;
 	}
@@ -396,7 +396,7 @@ static int render_post_cb(void *_buffer_handle, void *data)
 	info = instance_gbar_script(inst);
 	if (info && info == data) {
 		buffer_handler_flush(buffer_handle);
-		instance_gbar_updated_by_instance(inst, NULL);
+		instance_gbar_updated_by_instance(inst, NULL, info->x, info->y, info->w, info->h);
 		PERF_MARK("pd,update");
 		return DBOX_STATUS_ERROR_NONE;
 	}
@@ -1186,7 +1186,6 @@ static Eina_Bool apply_changes_cb(void *_data)
 	return ECORE_CALLBACK_RENEW;
 }
 #endif
-
 
 HAPI int script_handler_parse_desc(struct inst_info *inst, const char *filename, int is_pd)
 {
