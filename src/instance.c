@@ -310,7 +310,7 @@ static inline void instance_send_update_mode_event(struct inst_info *inst, int a
 static inline void instance_send_resized_event(struct inst_info *inst, int is_gbar, int w, int h, int status)
 {
 	struct packet *packet;
-	enum dbox_type dbox_type;
+	enum dynamicbox_dbox_type dbox_type;
 	const char *pkgname;
 	const char *id;
 	unsigned int cmd = CMD_SIZE_CHANGED;
@@ -369,8 +369,8 @@ out:
 HAPI int instance_unicast_created_event(struct inst_info *inst, struct client_node *client)
 {
 	struct packet *packet;
-	enum dbox_type dbox_type;
-	enum gbar_type gbar_type;
+	enum dynamicbox_dbox_type dbox_type;
+	enum dynamicbox_gbar_type gbar_type;
 	const char *dbox_file;
 	const char *gbar_file;
 	unsigned int cmd = CMD_CREATED;
@@ -438,8 +438,8 @@ static int update_client_list(struct client_node *client, void *data)
 static int instance_broadcast_created_event(struct inst_info *inst)
 {
 	struct packet *packet;
-	enum dbox_type dbox_type;
-	enum gbar_type gbar_type;
+	enum dynamicbox_dbox_type dbox_type;
+	enum dynamicbox_gbar_type gbar_type;
 	const char *dbox_file;
 	const char *gbar_file;
 	unsigned int cmd = CMD_CREATED;
@@ -664,8 +664,8 @@ HAPI int instance_event_callback_del(struct inst_info *inst, enum instance_event
 static inline void destroy_instance(struct inst_info *inst)
 {
 	struct pkg_info *pkg;
-	enum dbox_type dbox_type;
-	enum gbar_type gbar_type;
+	enum dynamicbox_dbox_type dbox_type;
+	enum dynamicbox_gbar_type gbar_type;
 	struct slave_node *slave;
 	struct event_item *item;
 	struct tag_item *tag_item;
@@ -1007,8 +1007,8 @@ out:
 static void reactivate_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	struct inst_info *inst = data;
-	enum dbox_type dbox_type;
-	enum gbar_type gbar_type;
+	enum dynamicbox_dbox_type dbox_type;
+	enum dynamicbox_gbar_type gbar_type;
 	int ret;
 	const char *content;
 	const char *title;
@@ -1495,8 +1495,8 @@ static inline void release_resource_for_closing_gbar(struct pkg_info *info, stru
 
 HAPI int instance_state_reset(struct inst_info *inst)
 {
-	enum dbox_type dbox_type;
-	enum gbar_type gbar_type;
+	enum dynamicbox_dbox_type dbox_type;
+	enum dynamicbox_gbar_type gbar_type;
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
@@ -1847,7 +1847,7 @@ HAPI void instance_dbox_updated_by_instance(struct inst_info *inst, const char *
 {
 	struct packet *packet;
 	const char *id = NULL;
-	enum dbox_type dbox_type;
+	enum dynamicbox_dbox_type dbox_type;
 	unsigned int cmd = CMD_DBOX_UPDATED;
 
 	if (inst->client && inst->visible != DBOX_SHOW) {

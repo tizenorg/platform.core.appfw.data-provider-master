@@ -33,6 +33,7 @@
 #include <dlog.h>
 #include <packet.h>
 #include <dynamicbox_errno.h>
+#include <dynamicbox_service.h>
 
 #include "slave_life.h"
 #include "slave_rpc.h"

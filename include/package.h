@@ -14,21 +14,6 @@
  * limitations under the License.
  */
 
-enum dbox_type {
-	DBOX_TYPE_NONE = 0x0,
-	DBOX_TYPE_SCRIPT,
-	DBOX_TYPE_FILE,
-	DBOX_TYPE_TEXT,
-	DBOX_TYPE_BUFFER
-};
-
-enum gbar_type {
-	GBAR_TYPE_NONE = 0x0,
-	GBAR_TYPE_SCRIPT,
-	GBAR_TYPE_TEXT,
-	GBAR_TYPE_BUFFER
-};
-
 enum alter_type {
 	ALTER_CREATE,
 	ALTER_DESTROY
@@ -84,8 +69,8 @@ extern int package_set_libexec(struct pkg_info *info, const char *libexec);
 extern void package_set_pinup(struct pkg_info *info, int pinup);
 extern void package_set_auto_launch(struct pkg_info *info, const char *auto_launch);
 extern void package_set_size_list(struct pkg_info *info, unsigned int size_list);
-extern void package_set_dbox_type(struct pkg_info *info, enum dbox_type type);
-extern void package_set_gbar_type(struct pkg_info *info, enum gbar_type type);
+extern void package_set_dbox_type(struct pkg_info *info, enum dynamicbox_dbox_type type);
+extern void package_set_gbar_type(struct pkg_info *info, enum dynamicbox_gbar_type type);
 extern int package_set_dbox_group(struct pkg_info *info, const char *group);
 extern int package_set_dbox_path(struct pkg_info *info, const char *path);
 extern int package_set_gbar_group(struct pkg_info *info, const char *group);
@@ -109,8 +94,8 @@ extern struct pkg_info * const package_ref(struct pkg_info *info);
 extern struct pkg_info * const package_unref(struct pkg_info *info);
 extern const int const package_refcnt(const struct pkg_info *info);
 
-extern const enum gbar_type const package_gbar_type(const struct pkg_info *info);
-extern const enum dbox_type const package_dbox_type(const struct pkg_info *info);
+extern const enum dynamicbox_gbar_type const package_gbar_type(const struct pkg_info *info);
+extern const enum dynamicbox_dbox_type const package_dbox_type(const struct pkg_info *info);
 
 extern int package_add_instance(struct pkg_info *info, struct inst_info *inst);
 extern int package_del_instance(struct pkg_info *info, struct inst_info *inst);

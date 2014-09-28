@@ -44,6 +44,7 @@
 #include <packet.h>
 #include <dynamicbox_errno.h>
 #include <dynamicbox_buffer.h>
+#include <dynamicbox_service.h>
 
 #include "debug.h"
 #include "conf.h"

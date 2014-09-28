@@ -29,6 +29,7 @@
 #include <packet.h>
 #include <com-core_packet.h>
 #include <dynamicbox_errno.h>
+#include <dynamicbox_service.h>
 #include <dynamicbox_cmd_list.h>
 
 #include "debug.h"

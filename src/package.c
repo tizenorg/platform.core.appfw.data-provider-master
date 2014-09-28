@@ -63,7 +63,7 @@ struct pkg_info {
 	char *dbox_id;
 
 	struct {
-		enum dbox_type type;
+		enum dynamicbox_dbox_type type;
 
 		union {
 			struct {
@@ -93,7 +93,7 @@ struct pkg_info {
 	} dbox;
 
 	struct {
-		enum gbar_type type;
+		enum dynamicbox_gbar_type type;
 
 		union {
 			struct {
@@ -1004,12 +1004,12 @@ HAPI const int const package_refcnt(const struct pkg_info *info)
 	return info->refcnt;
 }
 
-HAPI const enum dbox_type package_dbox_type(const struct pkg_info *info)
+HAPI const enum dynamicbox_dbox_type package_dbox_type(const struct pkg_info *info)
 {
 	return info ? info->dbox.type : DBOX_TYPE_NONE;
 }
 
-HAPI void package_set_dbox_type(struct pkg_info *info, enum dbox_type type)
+HAPI void package_set_dbox_type(struct pkg_info *info, enum dynamicbox_dbox_type type)
 {
 	info->dbox.type = type;
 }
@@ -1044,12 +1044,12 @@ HAPI void package_set_network(struct pkg_info *info, int network)
 	info->network = network;
 }
 
-HAPI const enum gbar_type const package_gbar_type(const struct pkg_info *info)
+HAPI const enum dynamicbox_gbar_type const package_gbar_type(const struct pkg_info *info)
 {
 	return info ? info->gbar.type : GBAR_TYPE_NONE;
 }
 
-HAPI void package_set_gbar_type(struct pkg_info *info, enum gbar_type type)
+HAPI void package_set_gbar_type(struct pkg_info *info, enum dynamicbox_gbar_type type)
 {
 	info->gbar.type = type;
 }

@@ -148,23 +148,6 @@ struct i18n {
 	xmlChar *icon;
 };
 
-enum dbox_type {
-	DBOX_TYPE_NONE = 0x0,
-	DBOX_TYPE_SCRIPT,
-	DBOX_TYPE_FILE,
-	DBOX_TYPE_TEXT,
-	DBOX_TYPE_BUFFER,
-	DBOX_TYPE_ELEMENTARY
-};
-
-enum gbar_type {
-	GBAR_TYPE_NONE = 0x0,
-	GBAR_TYPE_SCRIPT,
-	GBAR_TYPE_TEXT,
-	GBAR_TYPE_BUFFER,
-	GBAR_TYPE_ELEMENTARY
-};
-
 struct dynamicbox {
 	xmlChar *pkgid;
 	int secured;
@@ -191,7 +174,7 @@ struct dynamicbox {
 	int default_touch_effect;
 	int default_need_frame;
 
-	enum dbox_type dbox_type;
+	enum dynamicbox_dbox_type dbox_type;
 	xmlChar *dbox_src;
 	xmlChar *dbox_group;
 	int size_list; /* 1x1, 2x1, 2x2, 4x1, 4x2, 4x3, 4x4 */
@@ -201,7 +184,7 @@ struct dynamicbox {
 	int need_frame[DBOX_NR_OF_SIZE_LIST]; /* Box needs frame which should be cared by viewer */
 	int mouse_event[DBOX_NR_OF_SIZE_LIST];
 
-	enum gbar_type gbar_type;
+	enum dynamicbox_gbar_type gbar_type;
 	xmlChar *gbar_src;
 	xmlChar *gbar_group;
 	xmlChar *gbar_size; /* Default PD size */
@@ -2151,7 +2134,7 @@ static inline void update_box(struct dynamicbox *dynamicbox, xmlNodePtr node)
 			} else if (!xmlStrcasecmp(type, (const xmlChar *)"script")) {
 				dynamicbox->dbox_type = DBOX_TYPE_SCRIPT;
 			} else if (!xmlStrcasecmp(type, (const xmlChar *)"elm")) {
-				dynamicbox->dbox_type = DBOX_TYPE_ELEMENTARY;
+				dynamicbox->dbox_type = DBOX_TYPE_UIFW;
 			} else { /* Default */
 				dynamicbox->dbox_type = DBOX_TYPE_FILE;
 			}
@@ -2476,7 +2459,7 @@ static inline void update_pd(struct dynamicbox *dynamicbox, xmlNodePtr node)
 		} else if (!xmlStrcasecmp(type, (const xmlChar *)"buffer")) {
 			dynamicbox->gbar_type = GBAR_TYPE_BUFFER;
 		} else if (!xmlStrcasecmp(type, (const xmlChar *)"elm")) {
-			dynamicbox->gbar_type = GBAR_TYPE_ELEMENTARY;
+			dynamicbox->gbar_type = GBAR_TYPE_UIFW;
 		} else {
 			dynamicbox->gbar_type = GBAR_TYPE_SCRIPT;
 		}

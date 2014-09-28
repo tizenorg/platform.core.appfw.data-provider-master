@@ -33,6 +33,9 @@
 #include <dlog.h>
 
 #if defined(HAVE_LIVEBOX)
+
+#include <dynamicbox_service.h>
+
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"
