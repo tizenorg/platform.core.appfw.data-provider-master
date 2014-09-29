@@ -485,25 +485,23 @@ static void _handler_service_register(struct tcb *tcb, struct packet *packet, vo
 
 static void _handler_post_toast_message(struct tcb *tcb, struct packet *packet, void *data)
 {
-	int ret = 0, ret_p = 0;
+	int ret = 0;
 	struct packet *packet_reply = NULL;
-	char *message = NULL;
 
-	if (packet_get(packet, "s", &message) == 1) {
-		message = _string_get(message);
-
-		ret = notification_noti_post_toast_message(message);
-
-		packet_reply = packet_create_reply(packet, "i", ret);
-		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0) {
-				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			}
-			packet_destroy(packet_reply);
-		} else {
-			ErrPrint("failed to create a reply packet\n");
+	packet_reply = packet_create_reply(packet, "i", ret);
+	if (packet_reply) {
+		if ((ret = service_common_unicast_packet(tcb, packet_reply)) < 0) {
+			ErrPrint("failed to send reply packet:%d\n", ret);
 		}
+		packet_destroy(packet_reply);
+	} else {
+		ErrPrint("failed to create a reply packet\n");
 	}
+
+	if ((ret = service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE)) < 0) {
+		ErrPrint("failed to send a multicast packet:%d\n", ret);
+	}
+
 }
 
 /*!
