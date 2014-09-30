@@ -25,6 +25,7 @@
 #include <packet.h>
 #include <dynamicbox_errno.h>
 #include <dynamicbox_service.h>
+#include <dynamicbox_conf.h>
 #include <pkgmgr-info.h>
 #include <ail.h>
 
@@ -321,13 +322,13 @@ static inline int load_conf(struct pkg_info *info)
 	if (!parser) {
 		info->dbox.size_list = 0x01; /* Default */
 
-		info->script = strdup(DEFAULT_SCRIPT);
+		info->script = strdup(DYNAMICBOX_CONF_DEFAULT_SCRIPT);
 		if (!info->script) {
 			ErrPrint("Heap: %s\n", strerror(errno));
 			return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 		}
 
-		info->abi = strdup(DEFAULT_ABI);
+		info->abi = strdup(DYNAMICBOX_CONF_DEFAULT_ABI);
 		if (!info->abi) {
 			ErrPrint("Heap: %s\n", strerror(errno));
 			DbgFree(info->script);
@@ -335,8 +336,8 @@ static inline int load_conf(struct pkg_info *info)
 			return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 		}
 
-		info->gbar.width = g_conf.width;
-		info->gbar.height = g_conf.height >> 2;
+		info->gbar.width = DYNAMICBOX_CONF_BASE_W;
+		info->gbar.height = DYNAMICBOX_CONF_BASE_H >> 2;
 		info->dbox.pinup = 1;
 		return DBOX_STATUS_ERROR_NONE;
 	}
@@ -408,7 +409,7 @@ static inline int load_conf(struct pkg_info *info)
 	}
 
 	str = parser_script(parser);
-	str = str ? str : DEFAULT_SCRIPT;
+	str = str ? str : DYNAMICBOX_CONF_DEFAULT_SCRIPT;
 	info->script = strdup(str);
 	if (!info->script) {
 		ErrPrint("Heap: %s\n", strerror(errno));
@@ -427,7 +428,7 @@ static inline int load_conf(struct pkg_info *info)
 	}
 
 	str = parser_abi(parser);
-	str = str ? str : DEFAULT_ABI;
+	str = str ? str : DYNAMICBOX_CONF_DEFAULT_ABI;
 	info->abi = strdup(str);
 	if (!info->abi) {
 		ErrPrint("Heap: %s\n", strerror(errno));
@@ -451,8 +452,8 @@ static inline int load_conf(struct pkg_info *info)
 	info->dbox.period = parser_period(parser);
 	if (info->dbox.period < 0.0f) {
 		info->dbox.period = 0.0f;
-	} else if (info->dbox.period > 0.0f && info->dbox.period < MINIMUM_PERIOD) {
-		info->dbox.period = MINIMUM_PERIOD;
+	} else if (info->dbox.period > 0.0f && info->dbox.period < DYNAMICBOX_CONF_MINIMUM_PERIOD) {
+		info->dbox.period = DYNAMICBOX_CONF_MINIMUM_PERIOD;
 	}
 
 	info->dbox.size_list = parser_size(parser);

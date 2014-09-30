@@ -24,6 +24,7 @@
 
 #include <dynamicbox_service.h>
 #include <dynamicbox_errno.h>
+#include <dynamicbox_conf.h>
 
 #include "util.h"
 #include "debug.h"
@@ -171,14 +172,14 @@ HAPI RETURN_TYPE parser_find(const char *pkgname)
 	int len;
 	int ret;
 
-	len = strlen(pkgname) * 2 + strlen(CONF_PATH);
+	len = strlen(pkgname) * 2 + strlen(DYNAMICBOX_CONF_CONF_PATH);
 
 	filename = malloc(len);
 	if (!filename) {
 		return (RETURN_TYPE)0;
 	}
 
-	ret = snprintf(filename, len, CONF_PATH, pkgname, pkgname);
+	ret = snprintf(filename, len, DYNAMICBOX_CONF_CONF_PATH, pkgname, pkgname);
 	if (ret < 0) {
 		DbgFree(filename);
 		return (RETURN_TYPE)0;
@@ -664,7 +665,7 @@ HAPI struct parser *parser_load(const char *pkgname)
 	}
 
 	/* live-, .conf */
-	len = strlen(CONF_PATH) + strlen(pkgname) * 2;
+	len = strlen(DYNAMICBOX_CONF_CONF_PATH) + strlen(pkgname) * 2;
 	item->filename = malloc(len);
 	if (!item->filename) {
 		ErrPrint("Error: %s\n", strerror(errno));
@@ -672,7 +673,7 @@ HAPI struct parser *parser_load(const char *pkgname)
 		return 0;
 	}
 
-	ret = snprintf(item->filename, len, CONF_PATH, pkgname, pkgname);
+	ret = snprintf(item->filename, len, DYNAMICBOX_CONF_CONF_PATH, pkgname, pkgname);
 	if (ret < 0) {
 		ErrPrint("Error: %s\n", strerror(errno));
 		DbgFree(item->filename);

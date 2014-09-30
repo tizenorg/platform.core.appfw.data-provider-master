@@ -29,6 +29,7 @@
 #include <dynamicbox_errno.h>
 #include <dynamicbox_cmd_list.h>
 #include <dynamicbox_buffer.h>
+#include <dynamicbox_conf.h>
 
 #include "conf.h"
 #include "util.h"
@@ -757,14 +758,14 @@ static inline int fork_package(struct inst_info *inst, const char *pkgname)
 		return DBOX_STATUS_ERROR_NOT_EXIST;
 	}
 
-	len = strlen(SCHEMA_FILE "%s%s_%d_%lf.png") + strlen(IMAGE_PATH) + strlen(package_name(info)) + 50;
+	len = strlen(SCHEMA_FILE "%s%s_%d_%lf.png") + strlen(DYNAMICBOX_CONF_IMAGE_PATH) + strlen(package_name(info)) + 50;
 	inst->id = malloc(len);
 	if (!inst->id) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
-	snprintf(inst->id, len, SCHEMA_FILE "%s%s_%d_%lf.png", IMAGE_PATH, package_name(info), client_pid(inst->client), inst->timestamp);
+	snprintf(inst->id, len, SCHEMA_FILE "%s%s_%d_%lf.png", DYNAMICBOX_CONF_IMAGE_PATH, package_name(info), client_pid(inst->client), inst->timestamp);
 
 	instance_set_gbar_size(inst, package_gbar_width(info), package_gbar_height(info));
 
@@ -826,7 +827,7 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 		return NULL;
 	}
 
-	inst->title = strdup(DEFAULT_TITLE); /*!< Use the DEFAULT Title "" */
+	inst->title = strdup(DYNAMICBOX_CONF_DEFAULT_TITLE); /*!< Use the DEFAULT Title "" */
 	if (!inst->title) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		DbgFree(inst->category);
@@ -1205,7 +1206,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 
 	switch (ret) {
 	case 1: /*!< need to create */
-		if (util_free_space(IMAGE_PATH) > MINIMUM_SPACE) {
+		if (util_free_space(DYNAMICBOX_CONF_IMAGE_PATH) > DYNAMICBOX_CONF_MINIMUM_SPACE) {
 			struct inst_info *new_inst;
 			new_inst = instance_create(inst->client, util_timestamp(), package_name(inst->info),
 							inst->content, inst->cluster, inst->category,
@@ -1258,7 +1259,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 					script_handler_load(inst->dbox.canvas.script, 0);
 				}
 			} else if (package_dbox_type(inst->info) == DBOX_TYPE_BUFFER) {
-				instance_create_dbox_buffer(inst, DEFAULT_PIXELS);
+				instance_create_dbox_buffer(inst, DYNAMICBOX_CONF_DEFAULT_PIXELS);
 			}
 
 			if (package_gbar_type(inst->info) == GBAR_TYPE_SCRIPT) {
@@ -1275,7 +1276,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 					ErrPrint("Failed to create GBAR\n");
 				}
 			} else if (package_gbar_type(inst->info) == GBAR_TYPE_BUFFER) {
-				instance_create_gbar_buffer(inst, DEFAULT_PIXELS);
+				instance_create_gbar_buffer(inst, DYNAMICBOX_CONF_DEFAULT_PIXELS);
 			}
 
 			instance_broadcast_created_event(inst);
@@ -2474,8 +2475,8 @@ HAPI int instance_set_period(struct inst_info *inst, double period)
 
 	if (period < 0.0f) { /* Use the default period */
 		period = package_period(inst->info);
-	} else if (period > 0.0f && period < MINIMUM_PERIOD) {
-		period = MINIMUM_PERIOD; /* defined at conf.h */
+	} else if (period > 0.0f && period < DYNAMICBOX_CONF_MINIMUM_PERIOD) {
+		period = DYNAMICBOX_CONF_MINIMUM_PERIOD; /* defined at conf.h */
 	}
 
 	cbdata = malloc(sizeof(*cbdata));
@@ -3267,9 +3268,9 @@ HAPI void *instance_client_list(struct inst_info *inst)
 
 HAPI int instance_init(void)
 {
-	if (!strcasecmp(PROVIDER_METHOD, "shm")) {
+	if (!strcasecmp(DYNAMICBOX_CONF_PROVIDER_METHOD, "shm")) {
 		s_info.env_buf_type = DBOX_FB_TYPE_SHM;
-	} else if (!strcasecmp(PROVIDER_METHOD, "pixmap")) {
+	} else if (!strcasecmp(DYNAMICBOX_CONF_PROVIDER_METHOD, "pixmap")) {
 		s_info.env_buf_type = DBOX_FB_TYPE_PIXMAP;
 	}
 	/* Default method is DBOX_FB_TYPE_FILE */

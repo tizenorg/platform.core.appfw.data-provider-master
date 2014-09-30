@@ -34,6 +34,7 @@
 #include <packet.h>
 #include <dynamicbox_errno.h>
 #include <dynamicbox_service.h>
+#include <dynamicbox_conf.h>
 
 #include "slave_life.h"
 #include "slave_rpc.h"
@@ -175,7 +176,7 @@ static int load_all_ports(void)
 	char *path;
 	int pathlen;
 
-	dir = opendir(SCRIPT_PORT_PATH);
+	dir = opendir(DYNAMICBOX_CONF_SCRIPT_PORT_PATH);
 	if (!dir) {
 		ErrPrint("Error: %s\n", strerror(errno));
 		return DBOX_STATUS_ERROR_IO_ERROR;
@@ -186,7 +187,7 @@ static int load_all_ports(void)
 			continue;
 		}
 
-		pathlen = strlen(ent->d_name) + strlen(SCRIPT_PORT_PATH) + 1;
+		pathlen = strlen(ent->d_name) + strlen(DYNAMICBOX_CONF_SCRIPT_PORT_PATH) + 1;
 		path = malloc(pathlen);
 		if (!path) {
 			ErrPrint("Heap: %s %d\n", strerror(errno), pathlen);
@@ -196,7 +197,7 @@ static int load_all_ports(void)
 			return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 		}
 
-		snprintf(path, pathlen, "%s%s", SCRIPT_PORT_PATH, ent->d_name);
+		snprintf(path, pathlen, "%s%s", DYNAMICBOX_CONF_SCRIPT_PORT_PATH, ent->d_name);
 
 		item = malloc(sizeof(*item));
 		if (!item) {
@@ -312,7 +313,7 @@ static int load_all_ports(void)
 			goto errout;
 		}
 
-		if (item->init(SCALE_WIDTH_FACTOR, PREMULTIPLIED_COLOR) < 0) {
+		if (item->init(DYNAMICBOX_CONF_SCALE_WIDTH_FACTOR, DYNAMICBOX_CONF_PREMULTIPLIED_COLOR) < 0) {
 			ErrPrint("Failed to initialize script engine\n");
 			goto errout;
 		}
@@ -553,7 +554,7 @@ HAPI struct script_info *script_handler_create(struct inst_info *inst, const cha
 		return NULL;
 	}
 
-	info->buffer_handle = buffer_handler_create(inst, s_info.env_buf_type, w, h, DEFAULT_PIXELS);
+	info->buffer_handle = buffer_handler_create(inst, s_info.env_buf_type, w, h, DYNAMICBOX_CONF_DEFAULT_PIXELS);
 	if (!info->buffer_handle) {
 		/* buffer_handler_create will prints some log */
 		DbgFree(info);
@@ -1030,9 +1031,9 @@ free_out:
 
 HAPI int script_init(void)
 {
-	if (!strcasecmp(PROVIDER_METHOD, "shm")) {
+	if (!strcasecmp(DYNAMICBOX_CONF_PROVIDER_METHOD, "shm")) {
 		s_info.env_buf_type = DBOX_FB_TYPE_SHM;
-	} else if (!strcasecmp(PROVIDER_METHOD, "pixmap")) {
+	} else if (!strcasecmp(DYNAMICBOX_CONF_PROVIDER_METHOD, "pixmap")) {
 		s_info.env_buf_type = DBOX_FB_TYPE_PIXMAP;
 	}
 

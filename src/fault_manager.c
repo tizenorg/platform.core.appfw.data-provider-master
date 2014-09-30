@@ -25,6 +25,7 @@
 #include <dlog.h>
 #include <dynamicbox_errno.h>
 #include <dynamicbox_service.h>
+#include <dynamicbox_conf.h>
 #include <dynamicbox_cmd_list.h>
 
 #include "util.h"
@@ -64,7 +65,7 @@ static void clear_log_file(struct slave_node *slave)
 	char filename[BUFSIZ];
 	int ret;
 
-	ret = snprintf(filename, sizeof(filename) - 1, "%s/slave.%d", SLAVE_LOG_PATH, slave_pid(slave));
+	ret = snprintf(filename, sizeof(filename) - 1, "%s/slave.%d", DYNAMICBOX_CONF_LOG_PATH, slave_pid(slave));
 	if (ret == sizeof(filename) - 1) {
 		filename[sizeof(filename) - 1] = '\0';
 		ErrPrint("filename buffer is overflowed\n");
@@ -82,7 +83,7 @@ static char *check_log_file(struct slave_node *slave)
 	FILE *fp;
 	char filename[BUFSIZ];
 
-	snprintf(filename, sizeof(filename), "%s/slave.%d", SLAVE_LOG_PATH, slave_pid(slave));
+	snprintf(filename, sizeof(filename), "%s/slave.%d", DYNAMICBOX_CONF_LOG_PATH, slave_pid(slave));
 	fp = fopen(filename, "rt");
 	if (!fp) {
 		ErrPrint("No log file found [%s]\n", strerror(errno));

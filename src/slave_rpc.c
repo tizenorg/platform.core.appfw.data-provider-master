@@ -31,6 +31,7 @@
 #include <dynamicbox_errno.h>
 #include <dynamicbox_service.h>
 #include <dynamicbox_cmd_list.h>
+#include <dynamicbox_conf.h>
 
 #include "debug.h"
 #include "slave_life.h"
@@ -261,7 +262,7 @@ static void prepend_command(struct command *command)
 		return;
 	}
 
-	s_info.command_consuming_timer = ecore_timer_add(PACKET_TIME, command_consumer_cb, NULL);
+	s_info.command_consuming_timer = ecore_timer_add(DYNAMICBOX_CONF_PACKET_TIME, command_consumer_cb, NULL);
 	if (!s_info.command_consuming_timer) {
 		ErrPrint("Failed to add command consumer\n");
 		s_info.command_list = eina_list_remove(s_info.command_list, command);
@@ -277,7 +278,7 @@ static void push_command(struct command *command)
 		return;
 	}
 
-	s_info.command_consuming_timer = ecore_timer_add(PACKET_TIME, command_consumer_cb, NULL);
+	s_info.command_consuming_timer = ecore_timer_add(DYNAMICBOX_CONF_PACKET_TIME, command_consumer_cb, NULL);
 	if (!s_info.command_consuming_timer) {
 		ErrPrint("Failed to add command consumer\n");
 		s_info.command_list = eina_list_remove(s_info.command_list, command);
@@ -518,7 +519,7 @@ HAPI int slave_rpc_update_handle(struct slave_node *slave, int handle)
 		ecore_timer_del(rpc->pong_timer);
 	}
 
-	rpc->pong_timer = ecore_timer_add(DEFAULT_PING_TIME, ping_timeout_cb, slave);
+	rpc->pong_timer = ecore_timer_add(DYNAMICBOX_CONF_DEFAULT_PING_TIME, ping_timeout_cb, slave);
 	if (!rpc->pong_timer) {
 		ErrPrint("Failed to add ping timer\n");
 	}

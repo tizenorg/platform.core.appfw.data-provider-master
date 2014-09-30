@@ -29,6 +29,7 @@
 #include <db-util.h>
 #include <dynamicbox_errno.h>
 #include <dynamicbox_service.h>
+#include <dynamicbox_conf.h>
 
 #include "debug.h"
 #include "conf.h"
@@ -42,6 +43,9 @@
 #include "io.h"
 
 int errno;
+
+#define MAX_ABI		256
+#define MAX_PKGNAME	512
 
 static struct {
 	sqlite3 *handle;
@@ -709,7 +713,7 @@ HAPI int io_crawling_dynamicboxes(int (*cb)(const char *pkgid, const char *lbid,
 		}
 	}
 
-	dir = opendir(ROOT_PATH);
+	dir = opendir(DYNAMICBOX_CONF_ROOT_PATH);
 	if (!dir) {
 		ErrPrint("Error: %s\n", strerror(errno));
 	} else {
@@ -824,13 +828,13 @@ static inline int db_init(void)
 	int ret;
 	struct stat stat;
 
-	ret = db_util_open_with_options(DBFILE, &s_info.handle, SQLITE_OPEN_READONLY, NULL);
+	ret = db_util_open_with_options(DYNAMICBOX_CONF_DBFILE, &s_info.handle, SQLITE_OPEN_READONLY, NULL);
 	if (ret != SQLITE_OK) {
 		ErrPrint("Failed to open a DB\n");
 		return DBOX_STATUS_ERROR_IO_ERROR;
 	}
 
-	if (lstat(DBFILE, &stat) < 0) {
+	if (lstat(DYNAMICBOX_CONF_DBFILE, &stat) < 0) {
 		db_util_close(s_info.handle);
 		s_info.handle = NULL;
 		ErrPrint("%s\n", strerror(errno));

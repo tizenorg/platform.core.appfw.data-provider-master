@@ -28,6 +28,7 @@
 #include <dynamicbox_errno.h>
 #include <dynamicbox_service.h>
 #include <dynamicbox_cmd_list.h>
+#include <dynamicbox_conf.h>
 #include <dynamicbox_script.h>
 
 #include "critical_log.h"
@@ -1262,14 +1263,14 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		ret = DBOX_STATUS_ERROR_FAULT;
 	} else if (package_is_fault(info)) {
 		ret = DBOX_STATUS_ERROR_FAULT;
-	} else if (util_free_space(IMAGE_PATH) <= MINIMUM_SPACE) {
+	} else if (util_free_space(DYNAMICBOX_CONF_IMAGE_PATH) <= DYNAMICBOX_CONF_MINIMUM_SPACE) {
 		ErrPrint("Not enough space\n");
 		ret = DBOX_STATUS_ERROR_NO_SPACE;
 	} else {
 		struct inst_info *inst;
 
-		if (period > 0.0f && period < MINIMUM_PERIOD) {
-			period = MINIMUM_PERIOD;
+		if (period > 0.0f && period < DYNAMICBOX_CONF_MINIMUM_PERIOD) {
+			period = DYNAMICBOX_CONF_MINIMUM_PERIOD;
 		}
 
 		inst = instance_create(client, timestamp, lbid, content, cluster, category, period, width, height);
@@ -3739,7 +3740,7 @@ static struct packet *client_pause_request(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
-	if (USE_XMONITOR) {
+	if (DYNAMICBOX_CONF_USE_XMONITOR) {
 		DbgPrint("XMONITOR enabled. ignore client paused request\n");
 	} else {
 		xmonitor_pause(client);
@@ -3767,7 +3768,7 @@ static struct packet *client_resume_request(pid_t pid, int handle, const struct 
 		goto out;
 	}
 
-	if (USE_XMONITOR) {
+	if (DYNAMICBOX_CONF_USE_XMONITOR) {
 		DbgPrint("XMONITOR enabled. ignore client resumed request\n");
 	} else {
 		xmonitor_resume(client);
@@ -5189,7 +5190,7 @@ static Eina_Bool pd_open_monitor_cb(void *inst)
 	(void)instance_client_gbar_created(inst, DBOX_STATUS_ERROR_TIMEOUT);
 	(void)instance_del_data(inst, GBAR_OPEN_MONITOR_TAG);
 	(void)instance_unref(inst);
-	ErrPrint("GBAR Open request is timed-out (%lf)\n", GBAR_REQUEST_TIMEOUT);
+	ErrPrint("GBAR Open request is timed-out (%lf)\n", DYNAMICBOX_CONF_GBAR_REQUEST_TIMEOUT);
 	return ECORE_CALLBACK_CANCEL;
 }
 
@@ -5210,7 +5211,7 @@ static Eina_Bool pd_close_monitor_cb(void *inst)
 	(void)instance_client_gbar_destroyed(inst, DBOX_STATUS_ERROR_TIMEOUT);
 	(void)instance_del_data(inst, GBAR_CLOSE_MONITOR_TAG);
 	(void)instance_unref(inst);
-	ErrPrint("GBAR Close request is not processed in %lf seconds\n", GBAR_REQUEST_TIMEOUT);
+	ErrPrint("GBAR Close request is not processed in %lf seconds\n", DYNAMICBOX_CONF_GBAR_REQUEST_TIMEOUT);
 	return ECORE_CALLBACK_CANCEL;
 }
 
@@ -5231,7 +5232,7 @@ static Eina_Bool pd_resize_monitor_cb(void *inst)
 	(void)instance_client_gbar_destroyed(inst, DBOX_STATUS_ERROR_TIMEOUT);
 	(void)instance_del_data(inst, GBAR_RESIZE_MONITOR_TAG);
 	(void)instance_unref(inst);
-	ErrPrint("GBAR Resize request is not processed in %lf seconds\n", GBAR_REQUEST_TIMEOUT);
+	ErrPrint("GBAR Resize request is not processed in %lf seconds\n", DYNAMICBOX_CONF_GBAR_REQUEST_TIMEOUT);
 	return ECORE_CALLBACK_CANCEL;
 }
 
@@ -5315,7 +5316,7 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 					ErrPrint("Unable to send script event for openning GBAR [%s], %d\n", pkgname, tmp_ret);
 				}
 			} else {
-				pd_monitor = ecore_timer_add(GBAR_REQUEST_TIMEOUT, pd_open_monitor_cb, instance_ref(inst));
+				pd_monitor = ecore_timer_add(DYNAMICBOX_CONF_GBAR_REQUEST_TIMEOUT, pd_open_monitor_cb, instance_ref(inst));
 				if (!pd_monitor) {
 					(void)instance_unref(inst);
 					ErrPrint("Failed to create a timer for GBAR Open monitor\n");
@@ -5596,7 +5597,7 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 					}
 				}
 			} else {
-				pd_monitor = ecore_timer_add(GBAR_REQUEST_TIMEOUT, pd_close_monitor_cb, instance_ref(inst));
+				pd_monitor = ecore_timer_add(DYNAMICBOX_CONF_GBAR_REQUEST_TIMEOUT, pd_close_monitor_cb, instance_ref(inst));
 				if (!pd_monitor) {
 					ErrPrint("Failed to add pd close monitor\n");
 					inst = instance_unref(inst);
@@ -5761,7 +5762,7 @@ static struct packet *client_subscribed(pid_t pid, int handle, const struct pack
 	}
 
 	DbgPrint("[%d] cluster[%s] category[%s]\n", pid, cluster, category);
-	if (!strlen(cluster) || !strcasecmp(cluster, DEFAULT_CLUSTER)) {
+	if (!strlen(cluster) || !strcasecmp(cluster, DYNAMICBOX_CONF_DEFAULT_CLUSTER)) {
 		ErrPrint("Invalid cluster name\n");
 		goto out;
 	}
@@ -5803,7 +5804,7 @@ static struct packet *client_delete_cluster(pid_t pid, int handle, const struct 
 
 	DbgPrint("pid[%d] cluster[%s]\n", pid, cluster);
 
-	if (!strlen(cluster) || !strcasecmp(cluster, DEFAULT_CLUSTER)) {
+	if (!strlen(cluster) || !strcasecmp(cluster, DYNAMICBOX_CONF_DEFAULT_CLUSTER)) {
 		ErrPrint("Invalid cluster: %s\n", cluster);
 		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -5840,7 +5841,7 @@ static inline int update_pkg_cb(struct category *category, const char *pkgname, 
 	slave_rpc_request_update(pkgname, "", c_name, s_name, NULL, force);
 
 	/* Just try to create a new package */
-	if (util_free_space(IMAGE_PATH) > MINIMUM_SPACE) {
+	if (util_free_space(DYNAMICBOX_CONF_IMAGE_PATH) > DYNAMICBOX_CONF_MINIMUM_SPACE) {
 		double timestamp;
 		struct inst_info *inst;
 
@@ -5851,7 +5852,7 @@ static inline int update_pkg_cb(struct category *category, const char *pkgname, 
 		 * Because this callback is called by the requests of clients.
 		 * It means. some clients wants to handle this instances ;)
 		 */
-		inst = instance_create(NULL, timestamp, pkgname, "", c_name, s_name, DEFAULT_PERIOD, 0, 0);
+		inst = instance_create(NULL, timestamp, pkgname, "", c_name, s_name, DYNAMICBOX_CONF_DEFAULT_PERIOD, 0, 0);
 		if (!inst) {
 			ErrPrint("Failed to create a new instance\n");
 		}
@@ -5925,7 +5926,7 @@ static struct packet *client_refresh_group(pid_t pid, int handle, const struct p
 
 	DbgPrint("[%d] cluster[%s] category[%s]\n", pid, cluster_id, category_id);
 
-	if (!strlen(cluster_id) || !strcasecmp(cluster_id, DEFAULT_CLUSTER)) {
+	if (!strlen(cluster_id) || !strcasecmp(cluster_id, DYNAMICBOX_CONF_DEFAULT_CLUSTER)) {
 		ErrPrint("Invalid cluster name: %s\n", cluster_id);
 		goto out;
 	}
@@ -5975,7 +5976,7 @@ static struct packet *client_delete_category(pid_t pid, int handle, const struct
 	}
 
 	DbgPrint("pid[%d] cluster[%s] category[%s]\n", pid, cluster, category);
-	if (!strlen(cluster) || !strcasecmp(cluster, DEFAULT_CLUSTER)) {
+	if (!strlen(cluster) || !strcasecmp(cluster, DYNAMICBOX_CONF_DEFAULT_CLUSTER)) {
 		ErrPrint("Invalid cluster: %s\n", cluster);
 		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -6018,7 +6019,7 @@ static struct packet *client_unsubscribed(pid_t pid, int handle, const struct pa
 
 	DbgPrint("[%d] cluster[%s] category[%s]\n", pid, cluster, category);
 
-	if (!strlen(cluster) || !strcasecmp(cluster, DEFAULT_CLUSTER)) {
+	if (!strlen(cluster) || !strcasecmp(cluster, DYNAMICBOX_CONF_DEFAULT_CLUSTER)) {
 		ErrPrint("Invalid cluster name: %s\n", cluster);
 		goto out;
 	}
@@ -6058,7 +6059,7 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 	}
 
 	if (!slave) {
-		if (DEBUG_MODE) {
+		if (DYNAMICBOX_CONF_DEBUG_MODE || g_conf.debug_mode) {
 			char pkgname[pathconf("/", _PC_PATH_MAX)];
 			const char *abi;
 
@@ -6073,7 +6074,7 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 			if (!slave) {
 				abi = abi_find_by_pkgname(pkgname);
 				if (!abi) {
-					abi = DEFAULT_ABI;
+					abi = DYNAMICBOX_CONF_DEFAULT_ABI;
 					DbgPrint("Slave pkgname is invalid, ABI is replaced with '%s'(default)\n", abi);
 				}
 
@@ -6089,7 +6090,7 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 				abi = slave_abi(slave);
 				if (!abi) {
 					ErrPrint("ABI is not valid: %s\n", slavename);
-					abi = DEFAULT_ABI;
+					abi = DYNAMICBOX_CONF_DEFAULT_ABI;
 				}
 			}
 
@@ -6832,7 +6833,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 		ret = buffer_handler_load(info);
 		if (ret == 0) {
 			instance_set_dbox_size(inst, w, h);
-			instance_set_dbox_info(inst, PRIORITY_NO_CHANGE, CONTENT_NO_CHANGE, TITLE_NO_CHANGE);
+			instance_set_dbox_info(inst, DYNAMICBOX_CONF_PRIORITY_NO_CHANGE, DYNAMICBOX_CONF_CONTENT_NO_CHANGE, DYNAMICBOX_CONF_TITLE_NO_CHANGE);
 			id = buffer_handler_id(info);
 		} else {
 			ErrPrint("Failed to load a buffer(%d)\n", ret);
@@ -6974,7 +6975,7 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 		if (ret == (int)DBOX_STATUS_ERROR_NONE) {
 			id = buffer_handler_id(info);
 			instance_set_dbox_size(inst, w, h);
-			instance_set_dbox_info(inst, PRIORITY_NO_CHANGE, CONTENT_NO_CHANGE, TITLE_NO_CHANGE);
+			instance_set_dbox_info(inst, DYNAMICBOX_CONF_PRIORITY_NO_CHANGE, DYNAMICBOX_CONF_CONTENT_NO_CHANGE, DYNAMICBOX_CONF_TITLE_NO_CHANGE);
 		}
 	} else if (type == TYPE_GBAR && package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
 		struct buffer_info *info;
@@ -7078,7 +7079,7 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 			ret = buffer_handler_unload(info);
 
 			if (ret == (int)DBOX_STATUS_ERROR_NONE) {
-				pd_monitor = ecore_timer_add(GBAR_REQUEST_TIMEOUT, pd_resize_monitor_cb, instance_ref(inst));
+				pd_monitor = ecore_timer_add(DYNAMICBOX_CONF_GBAR_REQUEST_TIMEOUT, pd_resize_monitor_cb, instance_ref(inst));
 				if (!pd_monitor) {
 					ErrPrint("Failed to create a timer for GBAR Open monitor\n");
 					inst = instance_unref(inst);
@@ -8270,7 +8271,7 @@ static struct method s_slave_table[] = {
 
 HAPI int server_init(void)
 {
-	com_core_packet_use_thread(COM_CORE_THREAD);
+	com_core_packet_use_thread(DYNAMICBOX_CONF_COM_CORE_THREAD);
 
 	if (unlink(INFO_SOCKET) < 0) {
 		ErrPrint("info socket: %s\n", strerror(errno));

@@ -30,6 +30,7 @@
 #include <Ecore.h>
 #include <dlog.h>
 #include <dynamicbox_errno.h>
+#include <dynamicbox_conf.h>
 
 #if !defined(_USE_ECORE_TIME_GET)
 #define _USE_ECORE_TIME_GET
@@ -176,7 +177,7 @@ static void update_timestamp(struct input_event *event)
 	 * Input event uses MONOTONIC CLOCK TIME
 	 * So this case will not be work correctly.
 	 */
-	if (USE_EVENT_TIME) {
+	if (DYNAMICBOX_CONF_USE_EVENT_TIME) {
 		memcpy(&s_info.event_data.tv, &event->time, sizeof(event->time));
 	} else {
 		if (gettimeofday(&s_info.event_data.tv, NULL) < 0) {
@@ -189,7 +190,7 @@ static void update_timestamp(struct input_event *event)
 	 * but its value is same as MONOTIC CLOCK TIME
 	 * So we should handles it properly.
 	 */
-	if (USE_EVENT_TIME) {
+	if (DYNAMICBOX_CONF_USE_EVENT_TIME) {
 		s_info.event_data.tv = (double)event->time.tv_sec + (double)event->time.tv_usec / 1000000.0f;
 	} else {
 		s_info.event_data.tv = ecore_time_get();
@@ -776,7 +777,7 @@ static int event_control_init(void)
 		return DBOX_STATUS_ERROR_NONE;
 	}
 
-	s_info.handle = open(INPUT_PATH, O_RDONLY);
+	s_info.handle = open(DYNAMICBOX_CONF_INPUT_PATH, O_RDONLY);
 	if (s_info.handle < 0) {
 		ErrPrint("Unable to access the device: %s\n", strerror(errno));
 		return DBOX_STATUS_ERROR_IO_ERROR;

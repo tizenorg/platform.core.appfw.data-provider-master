@@ -32,6 +32,7 @@
 #include <gio/gio.h>
 #include <dlog.h>
 #include <dynamicbox_errno.h>
+#include <dynamicbox_conf.h>
 
 #include "conf.h"
 #include "debug.h"
@@ -72,7 +73,7 @@ static struct info {
 static inline void touch_paused_file(void)
 {
 	int fd;
-	fd = creat(PAUSED_FILE, 0644);
+	fd = creat(DYNAMICBOX_CONF_PAUSED_FILE, 0644);
 	if (fd >= 0) {
 		if (close(fd) < 0) {
 			ErrPrint("close: %s\n", strerror(errno));
@@ -84,7 +85,7 @@ static inline void touch_paused_file(void)
 
 static inline void remove_paused_file(void)
 {
-	if (unlink(PAUSED_FILE) < 0) {
+	if (unlink(DYNAMICBOX_CONF_PAUSED_FILE) < 0) {
 		ErrPrint("Unlink .live.paused: %s\n", strerror(errno));
 	}
 }
@@ -149,7 +150,7 @@ HAPI void xmonitor_handle_state_changes(void)
 
 		touch_paused_file();
 
-		sqlite3_release_memory(SQLITE_FLUSH_MAX);
+		sqlite3_release_memory(DYNAMICBOX_CONF_SQLITE_FLUSH_MAX);
 		malloc_trim(0);
 	} else {
 		remove_paused_file();
@@ -168,7 +169,7 @@ HAPI int xmonitor_update_state(int target_pid)
 	struct client_node *client;
 	int pid;
 
-	if (!USE_XMONITOR || target_pid < 0) {
+	if (!DYNAMICBOX_CONF_USE_XMONITOR || target_pid < 0) {
 		return DBOX_STATUS_ERROR_NONE;
 	}
 
@@ -394,7 +395,7 @@ static inline int enable_xmonitor(void)
 
 HAPI int xmonitor_init(void)
 {
-	if (USE_XMONITOR) {
+	if (DYNAMICBOX_CONF_USE_XMONITOR) {
 		int ret;
 		ret = enable_xmonitor();
 		if (ret < 0) {
@@ -414,7 +415,7 @@ HAPI int xmonitor_init(void)
 
 HAPI void xmonitor_fini(void)
 {
-	if (USE_XMONITOR) {
+	if (DYNAMICBOX_CONF_USE_XMONITOR) {
 		disable_xmonitor();
 	}
 }

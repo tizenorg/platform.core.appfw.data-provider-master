@@ -100,7 +100,6 @@ SET(BUILD_SOURCE
 	src/badge_service.c
 	src/notification_service.c
 	src/service_common.c
-	src/conf.c
 )
 
 IF (LIVEBOX)
@@ -126,6 +125,7 @@ IF (LIVEBOX)
 		src/pkgmgr.c
 		src/event.c
 		src/file_service.c
+		src/conf.c
 	)
 
 	IF (WAYLAND_SUPPORT)

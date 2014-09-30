@@ -32,6 +32,7 @@
 
 #include <packet.h>
 #include <dynamicbox_errno.h>
+#include <dynamicbox_conf.h>
 #include <dynamicbox_cmd_list.h>
 
 #include "critical_log.h"
@@ -197,7 +198,7 @@ static inline struct slave_node *create_slave_node(const char *name, int is_secu
 	slave->pid = (pid_t)-1;
 	slave->state = SLAVE_TERMINATED;
 	slave->network = network;
-	slave->relaunch_count = SLAVE_RELAUNCH_COUNT;
+	slave->relaunch_count = DYNAMICBOX_CONF_SLAVE_RELAUNCH_COUNT;
 
 	xmonitor_add_event_callback(XMONITOR_PAUSED, xmonitor_pause_cb, slave);
 	xmonitor_add_event_callback(XMONITOR_RESUMED, xmonitor_resume_cb, slave);
@@ -432,7 +433,7 @@ static Eina_Bool activate_timer_cb(void *data)
 		}
 	}
 
-	CRITICAL_LOG("Slave is not activated in %lf sec (slave: %s)\n", SLAVE_ACTIVATE_TIME, slave_name(slave));
+	CRITICAL_LOG("Slave is not activated in %lf sec (slave: %s)\n", DYNAMICBOX_CONF_SLAVE_ACTIVATE_TIME, slave_name(slave));
 	slave = slave_deactivated(slave);
 	return ECORE_CALLBACK_CANCEL;
 }
@@ -494,9 +495,9 @@ static Eina_Bool relaunch_timer_cb(void *data)
 			invoke_slave_fault_handler(slave);
 		} else {
 			bundle_add(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
-			bundle_add(param, BUNDLE_SLAVE_NAME, slave_name(slave));
-			bundle_add(param, BUNDLE_SLAVE_SECURED, slave->secured ? "true" : "false");
-			bundle_add(param, BUNDLE_SLAVE_ABI, slave->abi);
+			bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_NAME, slave_name(slave));
+			bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_SECURED, slave->secured ? "true" : "false");
+			bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_ABI, slave->abi);
 
 			slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
 
@@ -571,12 +572,12 @@ HAPI int slave_activate(struct slave_node *slave)
 		return DBOX_STATUS_ERROR_ALREADY;
 	}
 
-	if (DEBUG_MODE) {
+	if (DYNAMICBOX_CONF_DEBUG_MODE || g_conf.debug_mode) {
 		DbgPrint("Debug Mode enabled. name[%s] secured[%d] abi[%s]\n", slave_name(slave), slave->secured, slave->abi);
 	} else {
 		bundle *param;
 
-		slave->relaunch_count = SLAVE_RELAUNCH_COUNT;
+		slave->relaunch_count = DYNAMICBOX_CONF_SLAVE_RELAUNCH_COUNT;
 
 		param = bundle_create();
 		if (!param) {
@@ -585,9 +586,9 @@ HAPI int slave_activate(struct slave_node *slave)
 		}
 
 		bundle_add(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
-		bundle_add(param, BUNDLE_SLAVE_NAME, slave_name(slave));
-		bundle_add(param, BUNDLE_SLAVE_SECURED, slave->secured ? "true" : "false");
-		bundle_add(param, BUNDLE_SLAVE_ABI, slave->abi);
+		bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_NAME, slave_name(slave));
+		bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_SECURED, slave->secured ? "true" : "false");
+		bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_ABI, slave->abi);
 
 		slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
 
@@ -609,7 +610,7 @@ HAPI int slave_activate(struct slave_node *slave)
 		case AUL_R_ECANCELED:		/**< Operation canceled */
 		case AUL_R_ETIMEOUT:		/**< Timeout */
 			CRITICAL_LOG("Try relaunch this soon %s (%d)\n", slave_name(slave), slave->pid);
-			slave->relaunch_timer = ecore_timer_add(SLAVE_RELAUNCH_TIME, relaunch_timer_cb, slave);
+			slave->relaunch_timer = ecore_timer_add(DYNAMICBOX_CONF_SLAVE_RELAUNCH_TIME, relaunch_timer_cb, slave);
 			if (!slave->relaunch_timer) {
 				CRITICAL_LOG("Failed to register a relaunch timer (%s)\n", slave_name(slave));
 				slave->pid = (pid_t)-1;
@@ -624,7 +625,7 @@ HAPI int slave_activate(struct slave_node *slave)
 			break;
 		}
 
-		slave->activate_timer = ecore_timer_add(SLAVE_ACTIVATE_TIME, activate_timer_cb, slave);
+		slave->activate_timer = ecore_timer_add(DYNAMICBOX_CONF_SLAVE_ACTIVATE_TIME, activate_timer_cb, slave);
 		if (!slave->activate_timer) {
 			ErrPrint("Failed to register an activate timer\n");
 		}
@@ -649,7 +650,7 @@ HAPI int slave_give_more_ttl(struct slave_node *slave)
 		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
-	delay = SLAVE_TTL - ecore_timer_pending_get(slave->ttl_timer);
+	delay = DYNAMICBOX_CONF_SLAVE_TTL - ecore_timer_pending_get(slave->ttl_timer);
 	ecore_timer_delay(slave->ttl_timer, delay);
 	return DBOX_STATUS_ERROR_NONE;
 }
@@ -674,7 +675,7 @@ HAPI int slave_thaw_ttl(struct slave_node *slave)
 
 	ecore_timer_thaw(slave->ttl_timer);
 
-	delay = SLAVE_TTL - ecore_timer_pending_get(slave->ttl_timer);
+	delay = DYNAMICBOX_CONF_SLAVE_TTL - ecore_timer_pending_get(slave->ttl_timer);
 	ecore_timer_delay(slave->ttl_timer, delay);
 	return DBOX_STATUS_ERROR_NONE;
 }
@@ -687,9 +688,9 @@ HAPI int slave_activated(struct slave_node *slave)
 		slave_pause(slave);
 	}
 
-	if (slave->secured == 1 && SLAVE_TTL > 0.0f) {
-		DbgPrint("Slave deactivation timer is added (%s - %lf)\n", slave_name(slave), SLAVE_TTL);
-		slave->ttl_timer = ecore_timer_add(SLAVE_TTL, slave_ttl_cb, slave);
+	if (slave->secured == 1 && DYNAMICBOX_CONF_SLAVE_TTL > 0.0f) {
+		DbgPrint("Slave deactivation timer is added (%s - %lf)\n", slave_name(slave), DYNAMICBOX_CONF_SLAVE_TTL);
+		slave->ttl_timer = ecore_timer_add(DYNAMICBOX_CONF_SLAVE_TTL, slave_ttl_cb, slave);
 		if (!slave->ttl_timer) {
 			ErrPrint("Failed to create a TTL timer\n");
 		}
@@ -816,7 +817,7 @@ HAPI struct slave_node *slave_deactivate(struct slave_node *slave, int no_timer)
 		ErrPrint("Terminate timer is already fired (%d)\n", slave->pid);
 	} else if (!no_timer && !slave->secured) {
 		DbgPrint("Fire the terminate timer: %d\n", slave->pid);
-		slave->terminate_timer = ecore_timer_add(SLAVE_ACTIVATE_TIME, terminate_timer_cb, slave);
+		slave->terminate_timer = ecore_timer_add(DYNAMICBOX_CONF_SLAVE_ACTIVATE_TIME, terminate_timer_cb, slave);
 		if (!slave->terminate_timer) {
 			/*!
 			 * \note
@@ -923,6 +924,13 @@ HAPI struct slave_node *slave_deactivated_by_fault(struct slave_node *slave)
 	int ret;
 	int reactivate = 1;
 	int reactivate_instances = 1;
+	int max_load;
+
+	if (g_conf.slave_max_load < 0) {
+		max_load = DYNAMICBOX_CONF_SLAVE_MAX_LOAD;
+	} else {
+		max_load = g_conf.slave_max_load;
+	}
 
 	if (!slave_is_activated(slave)) {
 		DbgPrint("Deactivating in progress\n");
@@ -949,9 +957,10 @@ HAPI struct slave_node *slave_deactivated_by_fault(struct slave_node *slave)
 	double faulted_at;
 
 	faulted_at = ecore_time_get();
-	if (faulted_at - slave->activated_at < MINIMUM_REACTIVATION_TIME) {
+	if (faulted_at - slave->activated_at < DYNAMICBOX_CONF_MINIMUM_REACTIVATION_TIME) {
 		slave->critical_fault_count++;
-		if (!slave_loaded_instance(slave) || slave->critical_fault_count >= SLAVE_MAX_LOAD) {
+
+		if (!slave_loaded_instance(slave) || slave->critical_fault_count >= max_load) {
 			ErrPrint("Reactivation time is too fast and frequently occurred - Stop to auto reactivation\n");
 			reactivate = 0;
 			reactivate_instances = 0;
@@ -972,9 +981,9 @@ HAPI struct slave_node *slave_deactivated_by_fault(struct slave_node *slave)
 		struct timeval rtv;
 
 		timersub(&faulted_at, &slave->activated_at, &rtv);
-		if (rtv.tv_sec < MINIMUM_REACTIVATION_TIME) {
+		if (rtv.tv_sec < DYNAMICBOX_CONF_MINIMUM_REACTIVATION_TIME) {
 			slave->critical_fault_count++;
-			if (!slave_loaded_instance(slave) || slave->critical_fault_count >= SLAVE_MAX_LOAD) {
+			if (!slave_loaded_instance(slave) || slave->critical_fault_count >= max_load) {
 				ErrPrint("Reactivation time is too fast and frequently occurred - Stop to auto reactivation\n");
 				reactivate = 0;
 				reactivate_instances = 0;
@@ -1299,8 +1308,15 @@ HAPI struct slave_node *slave_find_available(const char *slave_pkgname, const ch
 			}
 		} else if (slave->network == network) {
 			DbgPrint("slave[%s] loaded_package[%d] net: [%d]\n", slave_name(slave), slave->loaded_package, slave->network);
-			if (!strcasecmp(abi, DEFAULT_ABI)) {
-				if (slave->loaded_package < SLAVE_MAX_LOAD) {
+			if (!strcasecmp(abi, DYNAMICBOX_CONF_DEFAULT_ABI)) {
+				int max_load;
+				if (g_conf.slave_max_load < 0) {
+					max_load = DYNAMICBOX_CONF_SLAVE_MAX_LOAD;
+				} else {
+					max_load = g_conf.slave_max_load;
+				}
+
+				if (slave->loaded_package < max_load) {
 					return slave;
 				}
 			} else {
@@ -1359,7 +1375,7 @@ HAPI char *slave_package_name(const char *abi, const char *lbid)
 		return NULL;
 	}
 
-	s_pkgname = util_replace_string(tmp, REPLACE_TAG_APPID, lbid);
+	s_pkgname = util_replace_string(tmp, DYNAMICBOX_CONF_REPLACE_TAG_APPID, lbid);
 	if (!s_pkgname) {
 		DbgPrint("Failed to get replaced string\n");
 		s_pkgname = strdup(tmp);

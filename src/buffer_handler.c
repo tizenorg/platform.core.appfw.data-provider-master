@@ -45,6 +45,7 @@
 #include <dynamicbox_errno.h>
 #include <dynamicbox_buffer.h>
 #include <dynamicbox_service.h>
+#include <dynamicbox_conf.h>
 
 #include "debug.h"
 #include "conf.h"
@@ -331,7 +332,7 @@ static inline int create_gem(dynamicbox_fb_t buffer)
 		return DBOX_STATUS_ERROR_FAULT;
 	}
 
-	if (AUTO_ALIGN && gem->dri2_buffer->pitch != gem->w * gem->depth) {
+	if (DYNAMICBOX_CONF_AUTO_ALIGN && gem->dri2_buffer->pitch != gem->w * gem->depth) {
 		gem->compensate_data = calloc(1, gem->w * gem->h * gem->depth);
 		if (!gem->compensate_data) {
 			ErrPrint("Failed to allocate heap\n");
@@ -340,7 +341,7 @@ static inline int create_gem(dynamicbox_fb_t buffer)
 
 	DbgPrint("dri2_buffer: %p, name: %p, %dx%d, pitch: %d, buf_count: %d, depth: %d, compensate: %p (%d)\n",
 				gem->dri2_buffer, gem->dri2_buffer->name, gem->w, gem->h,
-				gem->dri2_buffer->pitch, gem->buf_count, gem->depth, gem->compensate_data, AUTO_ALIGN);
+				gem->dri2_buffer->pitch, gem->buf_count, gem->depth, gem->compensate_data, DYNAMICBOX_CONF_AUTO_ALIGN);
 
 	return DBOX_STATUS_ERROR_NONE;
 }
@@ -514,7 +515,7 @@ static inline int load_file_buffer(struct buffer_info *info)
 	char *new_id;
 	int len;
 
-	len = strlen(IMAGE_PATH) + 40;
+	len = strlen(DYNAMICBOX_CONF_IMAGE_PATH) + 40;
 	new_id = malloc(len);
 	if (!new_id) {
 		ErrPrint("Heap: %s\n", strerror(errno));
@@ -522,7 +523,7 @@ static inline int load_file_buffer(struct buffer_info *info)
 	}
 
 	timestamp = util_timestamp();
-	snprintf(new_id, len, SCHEMA_FILE "%s%lf", IMAGE_PATH, timestamp);
+	snprintf(new_id, len, SCHEMA_FILE "%s%lf", DYNAMICBOX_CONF_IMAGE_PATH, timestamp);
 
 	size = sizeof(*buffer) + info->w * info->h * info->pixel_size;
 	if (!size) {
@@ -1367,7 +1368,7 @@ HAPI int buffer_handler_init(void)
 		return DBOX_STATUS_ERROR_NONE;
 	}
 
-	if (USE_SW_BACKEND) {
+	if (DYNAMICBOX_CONF_USE_SW_BACKEND) {
 		DbgPrint("Fallback to the S/W Backend\n");
 		s_info.evt_base = 0;
 		s_info.err_base = 0;
@@ -1535,7 +1536,7 @@ static inline dynamicbox_fb_t raw_open_pixmap(unsigned int pixmap)
 {
 	dynamicbox_fb_t buffer;
 
-	buffer = calloc(1, sizeof(*buffer) + DEFAULT_PIXELS);
+	buffer = calloc(1, sizeof(*buffer) + DYNAMICBOX_CONF_DEFAULT_PIXELS);
 	if (!buffer) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		return NULL;
@@ -1664,7 +1665,7 @@ EAPI int buffer_handler_pixels(struct buffer_info *info)
 
 EAPI int buffer_handler_auto_align(void)
 {
-	return AUTO_ALIGN;
+	return DYNAMICBOX_CONF_AUTO_ALIGN;
 }
 
 EAPI int buffer_handler_stride(struct buffer_info *info)
@@ -1775,9 +1776,9 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum dyna
 
 	switch (type) {
 	case DBOX_FB_TYPE_SHM:
-		if (pixel_size != DEFAULT_PIXELS) {
-			DbgPrint("SHM only supportes %d bytes pixels (requested: %d)\n", DEFAULT_PIXELS, pixel_size);
-			pixel_size = DEFAULT_PIXELS;
+		if (pixel_size != DYNAMICBOX_CONF_DEFAULT_PIXELS) {
+			DbgPrint("SHM only supportes %d bytes pixels (requested: %d)\n", DYNAMICBOX_CONF_DEFAULT_PIXELS, pixel_size);
+			pixel_size = DYNAMICBOX_CONF_DEFAULT_PIXELS;
 		}
 
 		info->id = strdup(SCHEMA_SHM "-1");
@@ -1788,9 +1789,9 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum dyna
 		}
 		break;
 	case DBOX_FB_TYPE_FILE:
-		if (pixel_size != DEFAULT_PIXELS) {
-			DbgPrint("FILE only supportes %d bytes pixels (requested: %d)\n", DEFAULT_PIXELS, pixel_size);
-			pixel_size = DEFAULT_PIXELS;
+		if (pixel_size != DYNAMICBOX_CONF_DEFAULT_PIXELS) {
+			DbgPrint("FILE only supportes %d bytes pixels (requested: %d)\n", DYNAMICBOX_CONF_DEFAULT_PIXELS, pixel_size);
+			pixel_size = DYNAMICBOX_CONF_DEFAULT_PIXELS;
 		}
 
 		info->id = strdup(SCHEMA_FILE "/tmp/.live.undefined");

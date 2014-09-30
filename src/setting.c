@@ -39,6 +39,7 @@
 
 #if defined(HAVE_LIVEBOX)
 #include <dynamicbox_service.h>
+#include <dynamicbox_conf.h>
 #include "client_life.h"
 #include "slave_life.h"
 #include "xmonitor.h"
@@ -69,7 +70,7 @@ HAPI int setting_is_lcd_off(void)
 {
 	int state;
 
-	if (!CHECK_LCD) {
+	if (!DYNAMICBOX_CONF_CHECK_LCD) {
 		/* Always turned on */
 		return 0;
 	}

@@ -24,6 +24,7 @@
 #include <com-core_packet.h>
 #include <packet.h>
 #include <dynamicbox_errno.h>
+#include <dynamicbox_conf.h>
 
 #include "client_life.h"
 #include "instance.h"
@@ -151,7 +152,7 @@ static inline void push_command(struct command *command)
 		return;
 	}
 
-	s_info.command_consumer = ecore_timer_add(PACKET_TIME, command_consumer_cb, NULL);
+	s_info.command_consumer = ecore_timer_add(DYNAMICBOX_CONF_PACKET_TIME, command_consumer_cb, NULL);
 	if (!s_info.command_consumer) {
 		ErrPrint("Failed to add command consumer\n");
 		s_info.command_list = eina_list_remove(s_info.command_list, command);
