@@ -65,28 +65,28 @@
  *
  * provider
  * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+---------+---------+--------+--------+-------+-----------------------+
- * | pkgid | network | abi | secured | box_type | box_src | box_group | pd_type | pd_src | pd_group | libexec | timeout | period | script | pinup | count(from ver 4) |
+ * | pkgid | network | abi | secured | box_type | box_src | box_group | gbar_type | gbar_src | gbar_group | libexec | timeout | period | script | pinup | count(from ver 4) |
  * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+---------+---------+--------+--------+-------+-----------------------+
  * |   -   |    -    |  -  |    -    |     -    |    -    |     -     |    -    |    -   |     -    |     -   |    -    |    -   |    -   |   -   |           -           |
  * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+---------+---------+--------+--------+-------+-----------------------+
- * CREATE TABLE provider ( pkgid TEXT PRIMARY KEY NOT NULL, network INTEGER, abi TEXT, secured INTEGER, box_type INTEGER, box_src TEXT, box_group TEXT, pd_type TEXT, pd_src TEXT, pd_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, count INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid))
+ * CREATE TABLE provider ( pkgid TEXT PRIMARY KEY NOT NULL, network INTEGER, abi TEXT, secured INTEGER, box_type INTEGER, box_src TEXT, box_group TEXT, gbar_type TEXT, gbar_src TEXT, gbar_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, count INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid))
  *
  * = box_type = { text | buffer | script | image }
- * = pd_type = { text | buffer | script }
+ * = gbar_type = { text | buffer | script }
  * = network = { 1 | 0 }
  * = secured = { 1 | 0 }
  *
  *
  * client
  * +-------+------+---------+-------------+---------+---------+-----------+-------+
- * | pkgid | Icon |  Name   | auto_launch | pd_size | content | nodisplay | setup |
+ * | pkgid | Icon |  Name   | auto_launch | gbar_size | content | nodisplay | setup |
  * +-------+------+---------+-------------+---------+---------+-----------+-------+
  * |   -   |   -  |    -    |      -      |    -    |    -    |     -     |   -   |
  * +-------+------+---------+-------------+---------+---------+-----------+-------+
- * CREATE TABLE client ( pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch TEXT, pd_size TEXT, content TEXT, nodisplay INTEGER, setup TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
+ * CREATE TABLE client ( pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch TEXT, gbar_size TEXT, content TEXT, nodisplay INTEGER, setup TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
  *
  * = auto_launch = UI-APPID
- * = pd_size = WIDTHxHEIGHT
+ * = gbar_size = WIDTHxHEIGHT
  *
  *
  * i18n
@@ -696,8 +696,8 @@ static inline int db_create_provider(void)
 	ddl = "CREATE TABLE provider (" \
 		"pkgid TEXT PRIMARY KEY NOT NULL, network INTEGER, " \
 		"abi TEXT, secured INTEGER, box_type INTEGER, " \
-		"box_src TEXT, box_group TEXT, pd_type INTEGER, " \
-		"pd_src TEXT, pd_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, "\
+		"box_src TEXT, box_group TEXT, gbar_type INTEGER, " \
+		"gbar_src TEXT, gbar_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, "\
 		"count INTEGER, "\
 		"FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
 
@@ -776,7 +776,7 @@ static int db_insert_provider(struct dynamicbox *dynamicbox)
 		script = "edje";
 	}
 
-	dml = "INSERT INTO provider ( pkgid, network, abi, secured, box_type, box_src, box_group, pd_type, pd_src, pd_group, libexec, timeout, period, script, pinup, count ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	dml = "INSERT INTO provider ( pkgid, network, abi, secured, box_type, box_src, box_group, gbar_type, gbar_src, gbar_group, libexec, timeout, period, script, pinup, count ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
@@ -914,7 +914,7 @@ static inline int db_create_client(void)
 
 	ddl = "CREATE TABLE client (" \
 		"pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, " \
-		"auto_launch TEXT, pd_size TEXT, content TEXT, nodisplay INTEGER, setup TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
+		"auto_launch TEXT, gbar_size TEXT, content TEXT, nodisplay INTEGER, setup TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 		ErrPrint("Failed to execute the DDL (%s)\n", err);
 		return -EIO;
@@ -933,7 +933,7 @@ static inline int db_insert_client(struct dynamicbox *dynamicbox)
 	int ret;
 	sqlite3_stmt *stmt;
 
-	dml = "INSERT INTO client ( pkgid, icon, name, auto_launch, pd_size, content, nodisplay, setup ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+	dml = "INSERT INTO client ( pkgid, icon, name, auto_launch, gbar_size, content, nodisplay, setup ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
@@ -2855,7 +2855,7 @@ static int do_install(xmlNodePtr node, const char *appid)
 			continue;
 		}
 
-		if (!xmlStrcasecmp(node->name, (const xmlChar *)"pd")) {
+		if (!xmlStrcasecmp(node->name, (const xmlChar *)"glancebar")) {
 			update_pd(dynamicbox, node);
 			continue;
 		}

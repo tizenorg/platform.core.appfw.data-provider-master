@@ -221,7 +221,7 @@ static int load_abi_table(void)
 
 static inline int build_client_info(struct pkg_info *info)
 {
-	static const char *dml = "SELECT auto_launch, pd_size FROM client WHERE pkgid = ?";
+	static const char *dml = "SELECT auto_launch, gbar_size FROM client WHERE pkgid = ?";
 	sqlite3_stmt *stmt;
 	int width;
 	int height;
@@ -269,7 +269,7 @@ static inline int build_client_info(struct pkg_info *info)
 
 static inline int build_provider_info(struct pkg_info *info)
 {
-	static const char *dml = "SELECT provider.network, provider.abi, provider.secured, provider.box_type, provider.box_src, provider.box_group, provider.pd_type, provider.pd_src, provider.pd_group, provider.libexec, provider.timeout, provider.period, provider.script, provider.pinup, pkgmap.appid FROM provider, pkgmap WHERE pkgmap.pkgid = ? AND provider.pkgid = ?";
+	static const char *dml = "SELECT provider.network, provider.abi, provider.secured, provider.box_type, provider.box_src, provider.box_group, provider.gbar_type, provider.gbar_src, provider.gbar_group, provider.libexec, provider.timeout, provider.period, provider.script, provider.pinup, pkgmap.appid FROM provider, pkgmap WHERE pkgmap.pkgid = ? AND provider.pkgid = ?";
 	sqlite3_stmt *stmt;
 	int ret;
 	const char *tmp;

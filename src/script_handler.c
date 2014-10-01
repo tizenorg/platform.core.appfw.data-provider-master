@@ -501,7 +501,7 @@ HAPI int script_handler_load(struct script_info *info, int is_pd)
 	inst = buffer_handler_instance(info->buffer_handle);
 	if (inst) {
 		script_signal_emit(info->buffer_handle, instance_id(inst),
-				is_pd ? "pd,show" : "lb,show", 0.0f, 0.0f, 0.0f, 0.0f);
+				is_pd ? "gbar,show" : "dbox,show", 0.0f, 0.0f, 0.0f, 0.0f);
 	}
 	buffer_handler_flush(info->buffer_handle);
 	return DBOX_STATUS_ERROR_NONE;
@@ -528,7 +528,7 @@ HAPI int script_handler_unload(struct script_info *info, int is_pd)
 	inst = buffer_handler_instance(info->buffer_handle);
 	if (inst) {
 		script_signal_emit(info->buffer_handle, instance_id(inst),
-				is_pd ? "pd,hide" : "lb,hide", 0.0f, 0.0f, 0.0f, 0.0f);
+				is_pd ? "gbar,hide" : "dbox,hide", 0.0f, 0.0f, 0.0f, 0.0f);
 	}
 
 	if (info->port->unload(info->port_data) < 0) {

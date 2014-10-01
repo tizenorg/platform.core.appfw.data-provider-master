@@ -119,7 +119,7 @@ static int create_lock_file(struct buffer_info *info)
 		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
-	if (script_handler_buffer_info(instance_pd_script(info->inst)) != info && instance_pd_buffer(info->inst) != info) {
+	if (script_handler_buffer_info(instance_gbar_script(info->inst)) != info && instance_gbar_buffer(info->inst) != info) {
 		target[0] = 'l';
 		target[1] = 'b';
 		/* target[2] = '\0'; // We already have this ;) */

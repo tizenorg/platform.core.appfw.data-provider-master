@@ -58,9 +58,9 @@ struct parser {
 	char *dbox_path;
 	char *dbox_group;
 	int pinup;
-	int text_pd;
+	int text_gbar;
 	int text_lb;
-	int buffer_pd;
+	int buffer_gbar;
 	int buffer_lb;
 
 	char *abi;
@@ -151,7 +151,7 @@ HAPI int parser_text_dbox(struct parser *handle)
 
 HAPI int parser_text_gbar(struct parser *handle)
 {
-	return handle->text_pd;
+	return handle->text_gbar;
 }
 
 HAPI int parser_buffer_dbox(struct parser *handle)
@@ -161,7 +161,7 @@ HAPI int parser_buffer_dbox(struct parser *handle)
 
 HAPI int parser_buffer_gbar(struct parser *handle)
 {
-	return handle->buffer_pd;
+	return handle->buffer_gbar;
 }
 
 HAPI RETURN_TYPE parser_find(const char *pkgname)
@@ -452,7 +452,7 @@ static void buffer_gbar_handler(struct parser *item, char *buffer)
 		return;
 	}
 
-	item->buffer_pd = !!atoi(buffer);
+	item->buffer_gbar = !!atoi(buffer);
 }
 
 static void buffer_dbox_handler(struct parser *item, char *buffer)
@@ -470,7 +470,7 @@ static void text_gbar_handler(struct parser *item, char *buffer)
 		return;
 	}
 
-	item->text_pd = !!atoi(buffer);
+	item->text_gbar = !!atoi(buffer);
 }
 
 static void pinup_handler(struct parser *item, char *buffer)
@@ -633,7 +633,7 @@ HAPI struct parser *parser_load(const char *pkgname)
 			.handler = text_dbox_handler,
 		},
 		{
-			.name = "text_pd",
+			.name = "text_gbar",
 			.handler = text_gbar_handler,
 		},
 		{
@@ -641,7 +641,7 @@ HAPI struct parser *parser_load(const char *pkgname)
 			.handler = buffer_dbox_handler,
 		},
 		{
-			.name = "buffer_pd",
+			.name = "buffer_gbar",
 			.handler = buffer_gbar_handler,
 		},
 		{

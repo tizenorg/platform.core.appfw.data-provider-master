@@ -1109,9 +1109,9 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 				/*!
 				 * \note
 				 * In this case, master already loads the GBAR script.
-				 * So just send the pd,show event to the slave again.
+				 * So just send the gbar,show event to the slave again.
 				 */
-				ret = instance_signal_emit(inst, "pd,show", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
+				ret = instance_signal_emit(inst, "gbar,show", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
 			} else if (gbar_type == GBAR_TYPE_BUFFER && inst->gbar.canvas.buffer && inst->gbar.is_opened_for_reactivate) {
 				double x, y;
 
@@ -1129,9 +1129,9 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 
 				/*!
 				 * \note
-				 * In this case, just send the pd,show event for keeping the compatibility
+				 * In this case, just send the gbar,show event for keeping the compatibility
 				 */
-				ret = instance_signal_emit(inst, "pd,show", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
+				ret = instance_signal_emit(inst, "gbar,show", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
 			}
 
 			/*!

@@ -5172,7 +5172,7 @@ out:
 	return NULL;
 }
 
-static Eina_Bool pd_open_monitor_cb(void *inst)
+static Eina_Bool gbar_open_monitor_cb(void *inst)
 {
 	struct pkg_info *pkg;
 
@@ -5194,7 +5194,7 @@ static Eina_Bool pd_open_monitor_cb(void *inst)
 	return ECORE_CALLBACK_CANCEL;
 }
 
-static Eina_Bool pd_close_monitor_cb(void *inst)
+static Eina_Bool gbar_close_monitor_cb(void *inst)
 {
 	struct pkg_info *pkg;
 
@@ -5215,7 +5215,7 @@ static Eina_Bool pd_close_monitor_cb(void *inst)
 	return ECORE_CALLBACK_CANCEL;
 }
 
-static Eina_Bool pd_resize_monitor_cb(void *inst)
+static Eina_Bool gbar_resize_monitor_cb(void *inst)
 {
 	struct pkg_info *pkg;
 
@@ -5245,7 +5245,7 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 	int ret;
 	struct inst_info *inst = NULL;
 	const struct pkg_info *pkg = NULL;
-	Ecore_Timer *pd_monitor;
+	Ecore_Timer *gbar_monitor;
 	double x;
 	double y;
 
@@ -5274,9 +5274,9 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 		ErrPrint("GBAR is already owned\n");
 		ret = DBOX_STATUS_ERROR_ALREADY;
 	} else if (package_gbar_type(instance_package(inst)) == GBAR_TYPE_BUFFER) {
-		pd_monitor = instance_get_data(inst, LAZY_GBAR_CLOSE_TAG);
-		if (pd_monitor) {
-			ecore_timer_del(pd_monitor);
+		gbar_monitor = instance_get_data(inst, LAZY_GBAR_CLOSE_TAG);
+		if (gbar_monitor) {
+			ecore_timer_del(gbar_monitor);
 			/* This timer attribute will be deleted */
 			lazy_gbar_destroyed_cb(inst);
 		}
@@ -5307,7 +5307,7 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 		 */
 		ret = instance_slave_open_gbar(inst, client);
 		if (ret == (int)DBOX_STATUS_ERROR_NONE) {
-			ret = instance_signal_emit(inst, "pd,show", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
+			ret = instance_signal_emit(inst, "gbar,show", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
 			if (ret != DBOX_STATUS_ERROR_NONE) {
 				int tmp_ret;
 
@@ -5316,14 +5316,14 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 					ErrPrint("Unable to send script event for openning GBAR [%s], %d\n", pkgname, tmp_ret);
 				}
 			} else {
-				pd_monitor = ecore_timer_add(DYNAMICBOX_CONF_GBAR_REQUEST_TIMEOUT, pd_open_monitor_cb, instance_ref(inst));
-				if (!pd_monitor) {
+				gbar_monitor = ecore_timer_add(DYNAMICBOX_CONF_GBAR_REQUEST_TIMEOUT, gbar_open_monitor_cb, instance_ref(inst));
+				if (!gbar_monitor) {
 					(void)instance_unref(inst);
 					ErrPrint("Failed to create a timer for GBAR Open monitor\n");
 				} else {
 					struct slave_node *slave;
 
-					(void)instance_set_data(inst, GBAR_OPEN_MONITOR_TAG, pd_monitor);
+					(void)instance_set_data(inst, GBAR_OPEN_MONITOR_TAG, gbar_monitor);
 
 					slave = package_slave(pkg);
 					if (!slave) {
@@ -5352,9 +5352,9 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 		int ix;
 		int iy;
 
-		pd_monitor = instance_get_data(inst, LAZY_GBAR_CLOSE_TAG);
-		if (pd_monitor) {
-			ecore_timer_del(pd_monitor);
+		gbar_monitor = instance_get_data(inst, LAZY_GBAR_CLOSE_TAG);
+		if (gbar_monitor) {
+			ecore_timer_del(gbar_monitor);
 			/* lazy,pd,close will be deleted */
 			lazy_gbar_destroyed_cb(inst);
 		}
@@ -5404,8 +5404,8 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 				 * But I just add it to the tagged-data of the instance.
 				 * Just reserve for future-use.
 				 */
-				pd_monitor = ecore_timer_add(DELAY_TIME, lazy_gbar_created_cb, inst);
-				if (!pd_monitor) {
+				gbar_monitor = ecore_timer_add(DELAY_TIME, lazy_gbar_created_cb, inst);
+				if (!gbar_monitor) {
 					ret = script_handler_unload(instance_gbar_script(inst), 1);
 					ErrPrint("Unload script: %d\n", ret);
 
@@ -5423,7 +5423,7 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 				} else {
 					struct slave_node *slave;
 
-					(void)instance_set_data(inst, LAZY_GBAR_OPEN_TAG, pd_monitor);
+					(void)instance_set_data(inst, LAZY_GBAR_OPEN_TAG, gbar_monitor);
 
 					slave = package_slave(pkg);
 					if (!slave) {
@@ -5468,7 +5468,7 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 	int ret;
 	struct inst_info *inst = NULL;
 	const struct pkg_info *pkg = NULL;
-	Ecore_Timer *pd_monitor;
+	Ecore_Timer *gbar_monitor;
 	struct slave_node *slave;
 
 	DbgPrint("PERF_DBOX\n");
@@ -5508,8 +5508,8 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 		}
 	} else if (package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
 		DbgPrint("Buffer type GBAR\n");
-		pd_monitor = instance_del_data(inst, GBAR_OPEN_MONITOR_TAG);
-		if (pd_monitor) {
+		gbar_monitor = instance_del_data(inst, GBAR_OPEN_MONITOR_TAG);
+		if (gbar_monitor) {
 			ErrPrint("GBAR Open request is found. cancel it [%s]\n", pkgname);
 
 			if (slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_open_buffer_cb, inst) < 0) {
@@ -5534,7 +5534,7 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 				ErrPrint("GBAR client destroy event: %d\n", ret);
 			}
 
-			ret = instance_signal_emit(inst, "pd,hide", instance_id(inst), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0);
+			ret = instance_signal_emit(inst, "gbar,hide", instance_id(inst), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0);
 			if (ret < 0) {
 				ErrPrint("GBAR close signal emit failed: %d\n", ret);
 			}
@@ -5544,7 +5544,7 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 				ErrPrint("GBAR close request failed: %d\n", ret);
 			}
 
-			ecore_timer_del(pd_monitor);
+			ecore_timer_del(gbar_monitor);
 			inst = instance_unref(inst);
 			if (!inst) {
 				DbgPrint("Instance is deleted\n");
@@ -5555,14 +5555,14 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 		} else {
 			int resize_aborted = 0;
 
-			pd_monitor = instance_del_data(inst, GBAR_RESIZE_MONITOR_TAG);
-			if (pd_monitor) {
+			gbar_monitor = instance_del_data(inst, GBAR_RESIZE_MONITOR_TAG);
+			if (gbar_monitor) {
 				ErrPrint("GBAR Resize request is found. clear it [%s]\n", pkgname);
 				if (slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_resize_buffer_cb, inst) < 0) {
 					DbgPrint("Failed to delete a deactivate callback\n");
 				}
 
-				ecore_timer_del(pd_monitor);
+				ecore_timer_del(gbar_monitor);
 
 				inst = instance_unref(inst);
 				if (!inst) {
@@ -5573,7 +5573,7 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 				resize_aborted = 1;
 			}
 
-			ret = instance_signal_emit(inst, "pd,hide", instance_id(inst), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0);
+			ret = instance_signal_emit(inst, "gbar,hide", instance_id(inst), 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0);
 			if (ret < 0) {
 				ErrPrint("GBAR close signal emit failed: %d\n", ret);
 			}
@@ -5582,8 +5582,8 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 			if (ret < 0) {
 				ErrPrint("GBAR close request failed: %d\n", ret);
 			} else if (resize_aborted) {
-				pd_monitor = ecore_timer_add(DELAY_TIME, lazy_gbar_destroyed_cb, instance_ref(inst));
-				if (!pd_monitor) {
+				gbar_monitor = ecore_timer_add(DELAY_TIME, lazy_gbar_destroyed_cb, instance_ref(inst));
+				if (!gbar_monitor) {
 					ErrPrint("Failed to create a timer: %s\n", pkgname);
 					inst = instance_unref(inst);
 					if (!inst) {
@@ -5591,14 +5591,14 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 					}
 				} else {
 					DbgPrint("Resize is aborted\n");
-					(void)instance_set_data(inst, LAZY_GBAR_CLOSE_TAG, pd_monitor);
+					(void)instance_set_data(inst, LAZY_GBAR_CLOSE_TAG, gbar_monitor);
 					if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_close_buffer_cb, inst) < 0) {
 						ErrPrint("Failed to add a slave event callback\n");
 					}
 				}
 			} else {
-				pd_monitor = ecore_timer_add(DYNAMICBOX_CONF_GBAR_REQUEST_TIMEOUT, pd_close_monitor_cb, instance_ref(inst));
-				if (!pd_monitor) {
+				gbar_monitor = ecore_timer_add(DYNAMICBOX_CONF_GBAR_REQUEST_TIMEOUT, gbar_close_monitor_cb, instance_ref(inst));
+				if (!gbar_monitor) {
 					ErrPrint("Failed to add pd close monitor\n");
 					inst = instance_unref(inst);
 					if (!inst) {
@@ -5606,7 +5606,7 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 					}
 				} else {
 					DbgPrint("Add close monitor\n");
-					(void)instance_set_data(inst, GBAR_CLOSE_MONITOR_TAG, pd_monitor);
+					(void)instance_set_data(inst, GBAR_CLOSE_MONITOR_TAG, gbar_monitor);
 					if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_close_buffer_cb, inst) < 0) {
 						ErrPrint("Failed to add SLAVE EVENT callback\n");
 					}
@@ -5616,18 +5616,18 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 			/*!
 			 * \note
 			 * release_buffer will be called by the slave after this routine.
-			 * It will send the "pd_destroyed" event to the client
+			 * It will send the "gbar_destroyed" event to the client
 			 *
 			 * instance_client_gbar_destroyed(inst, DBOX_STATUS_ERROR_NONE);
 			 *
-			 * Or the "pd_close_monitor_cb" or "lazy_gbar_destroyed_cb" will be called.
+			 * Or the "gbar_close_monitor_cb" or "lazy_gbar_destroyed_cb" will be called.
 			 */
 		}
 	} else if (package_gbar_type(pkg) == GBAR_TYPE_SCRIPT) {
 		DbgPrint("Script TYPE GBAR\n");
-		pd_monitor = instance_get_data(inst, LAZY_GBAR_OPEN_TAG);
-		if (pd_monitor) {
-			ecore_timer_del(pd_monitor);
+		gbar_monitor = instance_get_data(inst, LAZY_GBAR_OPEN_TAG);
+		if (gbar_monitor) {
+			ecore_timer_del(gbar_monitor);
 			(void)lazy_gbar_created_cb(inst);
 		}
 
@@ -5659,15 +5659,15 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 			 * Just reserve for future-use.
 			 */
 			DbgPrint("Add lazy GBAR destroy timer\n");
-			pd_monitor = ecore_timer_add(DELAY_TIME, lazy_gbar_destroyed_cb, instance_ref(inst));
-			if (!pd_monitor) {
+			gbar_monitor = ecore_timer_add(DELAY_TIME, lazy_gbar_destroyed_cb, instance_ref(inst));
+			if (!gbar_monitor) {
 				ErrPrint("Failed to create a timer: %s\n", pkgname);
 				inst = instance_unref(inst);
 				if (!inst) {
 					DbgPrint("instance is deleted\n");
 				}
 			} else {
-				(void)instance_set_data(inst, LAZY_GBAR_CLOSE_TAG, pd_monitor);
+				(void)instance_set_data(inst, LAZY_GBAR_CLOSE_TAG, gbar_monitor);
 				if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_close_script_cb, inst) < 0) {
 					ErrPrint("Failed to add a event callback for slave\n");
 				}
@@ -6840,14 +6840,14 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 		}
 	} else if (target == TYPE_GBAR && package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
 		struct buffer_info *info;
-		Ecore_Timer *pd_monitor;
+		Ecore_Timer *gbar_monitor;
 		int is_resize;
 
 		is_resize = 0;
-		pd_monitor = instance_del_data(inst, GBAR_OPEN_MONITOR_TAG);
-		if (!pd_monitor) {
-			pd_monitor = instance_del_data(inst, GBAR_RESIZE_MONITOR_TAG);
-			is_resize = !!pd_monitor;
+		gbar_monitor = instance_del_data(inst, GBAR_OPEN_MONITOR_TAG);
+		if (!gbar_monitor) {
+			gbar_monitor = instance_del_data(inst, GBAR_RESIZE_MONITOR_TAG);
+			is_resize = !!gbar_monitor;
 			if (!is_resize) {
 				/* Invalid request. Reject this */
 				ErrPrint("Invalid request\n");
@@ -6859,7 +6859,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 			slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_open_buffer_cb, inst);
 		}
 
-		ecore_timer_del(pd_monitor);
+		ecore_timer_del(gbar_monitor);
 		inst = instance_unref(inst);
 		if (!inst) {
 			ErrPrint("Instance refcnt is ZERO: %s\n", pkgname);
@@ -7043,10 +7043,10 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 		ret = buffer_handler_unload(info);
 	} else if (type == TYPE_GBAR && package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
 		struct buffer_info *info;
-		Ecore_Timer *pd_monitor;
+		Ecore_Timer *gbar_monitor;
 
-		pd_monitor = instance_del_data(inst, GBAR_CLOSE_MONITOR_TAG);
-		if (!pd_monitor && !package_is_fault(pkg)) {
+		gbar_monitor = instance_del_data(inst, GBAR_CLOSE_MONITOR_TAG);
+		if (!gbar_monitor && !package_is_fault(pkg)) {
 			ErrPrint("Slave requests to release a buffer\n");
 			/*!
 			 * \note
@@ -7079,28 +7079,28 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 			ret = buffer_handler_unload(info);
 
 			if (ret == (int)DBOX_STATUS_ERROR_NONE) {
-				pd_monitor = ecore_timer_add(DYNAMICBOX_CONF_GBAR_REQUEST_TIMEOUT, pd_resize_monitor_cb, instance_ref(inst));
-				if (!pd_monitor) {
+				gbar_monitor = ecore_timer_add(DYNAMICBOX_CONF_GBAR_REQUEST_TIMEOUT, gbar_resize_monitor_cb, instance_ref(inst));
+				if (!gbar_monitor) {
 					ErrPrint("Failed to create a timer for GBAR Open monitor\n");
 					inst = instance_unref(inst);
 					if (!inst) {
 						DbgPrint("Instance is deleted\n");
 					}
 				} else {
-					(void)instance_set_data(inst, GBAR_RESIZE_MONITOR_TAG, pd_monitor);
+					(void)instance_set_data(inst, GBAR_RESIZE_MONITOR_TAG, gbar_monitor);
 					if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_resize_buffer_cb, inst) != DBOX_STATUS_ERROR_NONE) {
 						ErrPrint("Failed to add event handler: %s\n", pkgname);
 					}
 				}
 			}
 		} else {
-			if (pd_monitor) {
+			if (gbar_monitor) {
 				/*!
 				 * \note
-				 * If the instance has pd_monitor, the pd close requested from client via client_destroy_gbar.
+				 * If the instance has gbar_monitor, the pd close requested from client via client_destroy_gbar.
 				 */
 				slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_close_buffer_cb, inst);
-				ecore_timer_del(pd_monitor);
+				ecore_timer_del(gbar_monitor);
 
 				inst = instance_unref(inst);
 				if (!inst) {
@@ -7780,31 +7780,31 @@ out:
 
 static struct method s_info_table[] = {
 	{
-		.cmd = "liveinfo_hello",
+		.cmd = CMD_STR_INFO_HELLO,
 		.handler = liveinfo_hello,
 	},
 	{
-		.cmd = "slave_list",
+		.cmd = CMD_STR_INFO_SLAVE_LIST,
 		.handler = liveinfo_slave_list,
 	},
 	{
-		.cmd = "pkg_list",
+		.cmd = CMD_STR_INFO_PKG_LIST,
 		.handler = liveinfo_pkg_list,
 	},
 	{
-		.cmd = "inst_list",
+		.cmd = CMD_STR_INFO_INST_LIST,
 		.handler = liveinfo_inst_list,
 	},
 	{
-		.cmd = "slave_ctrl",
+		.cmd = CMD_STR_INFO_SLAVE_CTRL,
 		.handler = liveinfo_slave_ctrl,
 	},
 	{
-		.cmd = "pkg_ctrl",
+		.cmd = CMD_STR_INFO_PKG_CTRL,
 		.handler = liveinfo_pkg_ctrl,
 	},
 	{
-		.cmd = "master_ctrl",
+		.cmd = CMD_STR_INFO_MASTER_CTRL,
 		.handler = liveinfo_master_ctrl,
 	},
 	{
@@ -7815,337 +7815,337 @@ static struct method s_info_table[] = {
 
 static struct method s_client_table[] = {
 	{
-		.cmd = "pd_mouse_move",
+		.cmd = CMD_STR_GBAR_MOUSE_MOVE,
 		.handler = client_gbar_mouse_move, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 	},
 	{
-		.cmd = "lb_mouse_move",
+		.cmd = CMD_STR_DBOX_MOUSE_MOVE,
 		.handler = client_dbox_mouse_move, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 	},
 	{
-		.cmd = "pd_mouse_down",
+		.cmd = CMD_STR_GBAR_MOUSE_DOWN,
 		.handler = client_gbar_mouse_down, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
 	},
 	{
-		.cmd = "pd_mouse_up",
+		.cmd = CMD_STR_GBAR_MOUSE_UP,
 		.handler = client_gbar_mouse_up, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 	},
 	{
-		.cmd = "lb_mouse_down",
+		.cmd = CMD_STR_DBOX_MOUSE_DOWN,
 		.handler = client_dbox_mouse_down, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 	},
 	{
-		.cmd = "lb_mouse_up",
+		.cmd = CMD_STR_DBOX_MOUSE_UP,
 		.handler = client_dbox_mouse_up, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 	},
 	{
-		.cmd = "pd_mouse_enter",
+		.cmd = CMD_STR_GBAR_MOUSE_ENTER,
 		.handler = client_gbar_mouse_enter, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
 	},
 	{
-		.cmd = "pd_mouse_leave",
+		.cmd = CMD_STR_GBAR_MOUSE_LEAVE,
 		.handler = client_gbar_mouse_leave, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
 	},
 	{
-		.cmd = "lb_mouse_enter",
+		.cmd = CMD_STR_DBOX_MOUSE_ENTER,
 		.handler = client_dbox_mouse_enter, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 	},
 	{
-		.cmd = "lb_mouse_leave",
+		.cmd = CMD_STR_DBOX_MOUSE_LEAVE,
 		.handler = client_dbox_mouse_leave, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 	},
 	{
-		.cmd = "lb_mouse_on_scroll",
+		.cmd = CMD_STR_DBOX_MOUSE_ON_SCROLL,
 		.handler = client_dbox_mouse_on_scroll,
 	},
 	{
-		.cmd = "lb_mouse_off_scroll",
+		.cmd = CMD_STR_DBOX_MOUSE_OFF_SCROLL,
 		.handler = client_dbox_mouse_off_scroll,
 	},
 	{
-		.cmd = "pd_mouse_on_scroll",
+		.cmd = CMD_STR_GBAR_MOUSE_ON_SCROLL,
 		.handler = client_gbar_mouse_on_scroll,
 	},
 	{
-		.cmd = "pd_mouse_off_scroll",
+		.cmd = CMD_STR_GBAR_MOUSE_OFF_SCROLL,
 		.handler = client_gbar_mouse_off_scroll,
 	},
 	{
-		.cmd = "lb_mouse_on_hold",
+		.cmd = CMD_STR_DBOX_MOUSE_ON_HOLD,
 		.handler = client_dbox_mouse_on_hold,
 	},
 	{
-		.cmd = "lb_mouse_off_hold",
+		.cmd = CMD_STR_DBOX_MOUSE_OFF_HOLD,
 		.handler = client_dbox_mouse_off_hold,
 	},
 	{
-		.cmd = "pd_mouse_on_hold",
+		.cmd = CMD_STR_GBAR_MOUSE_ON_HOLD,
 		.handler = client_gbar_mouse_on_hold,
 	},
 	{
-		.cmd = "pd_mouse_off_hold",
+		.cmd = CMD_STR_GBAR_MOUSE_OFF_HOLD,
 		.handler = client_gbar_mouse_off_hold,
 	},
 	{
-		.cmd = "clicked",
+		.cmd = CMD_STR_CLICKED,
 		.handler = client_clicked, /*!< pid, pkgname, filename, event, timestamp, x, y, ret */
 	},
 	{
-		.cmd = "text_signal",
+		.cmd = CMD_STR_TEXT_SIGNAL,
 		.handler = client_text_signal, /* pid, pkgname, filename, emission, source, s, sy, ex, ey, ret */
 	},
 	{
-		.cmd = "delete",
+		.cmd = CMD_STR_DELETE,
 		.handler = client_delete, /* pid, pkgname, filename, ret */
 	},
 	{
-		.cmd = "resize",
+		.cmd = CMD_STR_RESIZE,
 		.handler = client_resize, /* pid, pkgname, filename, w, h, ret */
 	},
 	{
-		.cmd = "new",
+		.cmd = CMD_STR_NEW,
 		.handler = client_new, /* pid, timestamp, pkgname, content, cluster, category, period, ret */
 	},
 	{
-		.cmd = "set_period",
+		.cmd = CMD_STR_SET_PERIOD,
 		.handler = client_set_period, /* pid, pkgname, filename, period, ret, period */
 	},
 	{
-		.cmd = "change_group",
+		.cmd = CMD_STR_CHANGE_GROUP,
 		.handler = client_change_group, /* pid, pkgname, filename, cluster, category, ret */
 	},
 	{
-		.cmd = "pd_move",
+		.cmd = CMD_STR_GBAR_MOVE,
 		.handler = client_gbar_move, /* pkgname, id, x, y */
 	},
 	{
-		.cmd = "pd_access_hl",
+		.cmd = CMD_STR_GBAR_ACCESS_HL,
 		.handler = client_gbar_access_hl,
 	},
 	{
-		.cmd = "pd_access_activate",
+		.cmd = CMD_STR_GBAR_ACCESS_ACTIVATE,
 		.handler = client_gbar_access_activate,
 	},
 	{
-		.cmd = "pd_access_action",
+		.cmd = CMD_STR_GBAR_ACCESS_ACTION,
 		.handler = client_gbar_access_action,
 	},
 	{
-		.cmd = "pd_access_scroll",
+		.cmd = CMD_STR_GBAR_ACCESS_SCROLL,
 		.handler = client_gbar_access_scroll,
 	},
 	{
-		.cmd = "pd_access_value_change",
+		.cmd = CMD_STR_GBAR_ACCESS_VALUE_CHANGE,
 		.handler = client_gbar_access_value_change,
 	},
 	{
-		.cmd = "pd_access_mouse",
+		.cmd = CMD_STR_GBAR_ACCESS_MOUSE,
 		.handler = client_gbar_access_mouse,
 	},
 	{
-		.cmd = "pd_access_back",
+		.cmd = CMD_STR_GBAR_ACCESS_BACK,
 		.handler = client_gbar_access_back,
 	},
 	{
-		.cmd = "pd_access_over",
+		.cmd = CMD_STR_GBAR_ACCESS_OVER,
 		.handler = client_gbar_access_over,
 	},
 	{
-		.cmd = "pd_access_read",
+		.cmd = CMD_STR_GBAR_ACCESS_READ,
 		.handler = client_gbar_access_read,
 	},
 	{
-		.cmd = "pd_access_enable",
+		.cmd = CMD_STR_GBAR_ACCESS_ENABLE,
 		.handler = client_gbar_access_enable,
 	},
 
 	{
-		.cmd = "lb_access_hl",
+		.cmd = CMD_STR_DBOX_ACCESS_HL,
 		.handler = client_dbox_access_hl,
 	},
 	{
-		.cmd = "lb_access_activate",
+		.cmd = CMD_STR_DBOX_ACCESS_ACTIVATE,
 		.handler = client_dbox_access_activate,
 	},
 	{
-		.cmd = "lb_access_action",
+		.cmd = CMD_STR_DBOX_ACCESS_ACTION,
 		.handler = client_dbox_access_action,
 	},
 	{
-		.cmd = "lb_access_scroll",
+		.cmd = CMD_STR_DBOX_ACCESS_SCROLL,
 		.handler = client_dbox_access_scroll,
 	},
 	{
-		.cmd = "lb_access_value_change",
+		.cmd = CMD_STR_DBOX_ACCESS_VALUE_CHANGE,
 		.handler = client_dbox_access_value_change,
 	},
 	{
-		.cmd = "lb_access_mouse",
+		.cmd = CMD_STR_DBOX_ACCESS_MOUSE,
 		.handler = client_dbox_access_mouse,
 	},
 	{
-		.cmd = "lb_access_back",
+		.cmd = CMD_STR_DBOX_ACCESS_BACK,
 		.handler = client_dbox_access_back,
 	},
 	{
-		.cmd = "lb_access_over",
+		.cmd = CMD_STR_DBOX_ACCESS_OVER,
 		.handler = client_dbox_access_over,
 	},
 	{
-		.cmd = "lb_access_read",
+		.cmd = CMD_STR_DBOX_ACCESS_READ,
 		.handler = client_dbox_access_read,
 	},
 	{
-		.cmd = "lb_access_enable",
+		.cmd = CMD_STR_DBOX_ACCESS_ENABLE,
 		.handler = client_dbox_access_enable,
 	},
 	{
-		.cmd = "lb_key_down",
+		.cmd = CMD_STR_DBOX_KEY_DOWN,
 		.handler = client_dbox_key_down,
 	},
 	{
-		.cmd = "lb_key_up",
+		.cmd = CMD_STR_DBOX_KEY_UP,
 		.handler = client_dbox_key_up,
 	},
 	{
-		.cmd = "lb_key_focus_in",
+		.cmd = CMD_STR_DBOX_KEY_FOCUS_IN,
 		.handler = client_dbox_key_focus_in,
 	},
 	{
-		.cmd = "lb_key_focus_out",
+		.cmd = CMD_STR_DBOX_KEY_FOCUS_OUT,
 		.handler = client_dbox_key_focus_out,
 	},
 	{
-		.cmd = "pd_key_down",
+		.cmd = CMD_STR_GBAR_KEY_DOWN,
 		.handler = client_gbar_key_down,
 	},
 	{
-		.cmd = "pd_key_up",
+		.cmd = CMD_STR_GBAR_KEY_UP,
 		.handler = client_gbar_key_up,
 	},
 	{
-		.cmd = "pd_key_focus_in",
+		.cmd = CMD_STR_GBAR_KEY_FOCUS_IN,
 		.handler = client_gbar_key_focus_in,
 	},
 	{
-		.cmd = "pd_key_focus_out",
+		.cmd = CMD_STR_GBAR_KEY_FOCUS_OUT,
 		.handler = client_gbar_key_focus_out,
 	},
 	{
-		.cmd = "update_mode",
+		.cmd = CMD_STR_UPDATE_MODE,
 		.handler = client_update_mode,
 	},
 	// Cut HERE. Above list must be sync'd with provider list.
 
 	{
-		.cmd = "lb_mouse_set",
+		.cmd = CMD_STR_DBOX_MOUSE_SET,
 		.handler = client_dbox_mouse_set,
 	},
 	{
-		.cmd = "lb_mouse_unset",
+		.cmd = CMD_STR_DBOX_MOUSE_UNSET,
 		.handler = client_dbox_mouse_unset,
 	},
 	{
-		.cmd = "pd_mouse_set",
+		.cmd = CMD_STR_GBAR_MOUSE_SET,
 		.handler = client_gbar_mouse_set,
 	},
 	{
-		.cmd = "pd_mouse_unset",
+		.cmd = CMD_STR_GBAR_MOUSE_UNSET,
 		.handler = client_gbar_mouse_unset,
 	},
 	{
-		.cmd = "change,visibility",
+		.cmd = CMD_STR_CHANGE_VISIBILITY,
 		.handler = client_change_visibility,
 	},
 	{
-		.cmd = "lb_acquire_pixmap",
+		.cmd = CMD_STR_DBOX_ACQUIRE_PIXMAP,
 		.handler = client_dbox_acquire_pixmap,
 	},
 	{
-		.cmd = "lb_release_pixmap",
+		.cmd = CMD_STR_DBOX_RELEASE_PIXMAP,
 		.handler = client_dbox_release_pixmap,
 	},
 	{
-		.cmd = "pd_acquire_pixmap",
+		.cmd = CMD_STR_GBAR_ACQUIRE_PIXMAP,
 		.handler = client_gbar_acquire_pixmap,
 	},
 	{
-		.cmd = "pd_release_pixmap",
+		.cmd = CMD_STR_GBAR_RELEASE_PIXMAP,
 		.handler = client_gbar_release_pixmap,
 	},
 	{
-		.cmd = "acquire",
+		.cmd = CMD_STR_ACQUIRE,
 		.handler = client_acquire, /*!< pid, ret */
 	},
 	{
-		.cmd = "release",
+		.cmd = CMD_STR_RELEASE,
 		.handler = cilent_release, /*!< pid, ret */
 	},
 	{
-		.cmd = "pinup_changed",
+		.cmd = CMD_STR_PINUP_CHANGED,
 		.handler = client_pinup_changed, /* pid, pkgname, filename, pinup, ret */
 	},
 	{
-		.cmd = "create_pd",
+		.cmd = CMD_STR_CREATE_GBAR,
 		.handler = client_create_gbar, /* pid, pkgname, filename, ret */
 	},
 	{
-		.cmd = "destroy_pd",
+		.cmd = CMD_STR_DESTROY_GBAR,
 		.handler = client_destroy_gbar, /* pid, pkgname, filename, ret */
 	},
 	{
-		.cmd = "activate_package",
+		.cmd = CMD_STR_ACTIVATE_PACKAGE,
 		.handler = client_activate_package, /* pid, pkgname, ret */
 	},
 	{
-		.cmd = "subscribe", /* pid, cluster, sub-cluster */
+		.cmd = CMD_STR_SUBSCRIBE, /* pid, cluster, sub-cluster */
 		.handler = client_subscribed,
 	},
 	{
-		.cmd = "unsubscribe", /* pid, cluster, sub-cluster */
+		.cmd = CMD_STR_UNSUBSCRIBE, /* pid, cluster, sub-cluster */
 		.handler = client_unsubscribed,
 	},
 	{
-		.cmd = "delete_cluster",
+		.cmd = CMD_STR_DELETE_CLUSTER,
 		.handler = client_delete_cluster,
 	},
 	{
-		.cmd = "delete_category",
+		.cmd = CMD_STR_DELETE_CATEGORY,
 		.handler = client_delete_category,
 	},
 	{
-		.cmd = "refresh_group",
+		.cmd = CMD_STR_REFRESH_GROUP,
 		.handler = client_refresh_group,
 	},
 	{
-		.cmd = "update",
+		.cmd = CMD_STR_UPDATE,
 		.handler = client_update,
 	},
 
 	{
-		.cmd = "lb_key_set",
+		.cmd = CMD_STR_DBOX_KEY_SET,
 		.handler = client_dbox_key_set,
 	},
 	{
-		.cmd = "lb_key_unset",
+		.cmd = CMD_STR_DBOX_KEY_UNSET,
 		.handler = client_dbox_key_unset,
 	},
 
 	{
-		.cmd = "pd_key_set",
+		.cmd = CMD_STR_GBAR_KEY_SET,
 		.handler = client_gbar_key_set,
 	},
 	{
-		.cmd = "pd_key_unset",
+		.cmd = CMD_STR_GBAR_KEY_UNSET,
 		.handler = client_gbar_key_unset,
 	},
 
 	{
-		.cmd = "client_paused",
+		.cmd = CMD_STR_CLIENT_PAUSED,
 		.handler = client_pause_request,
 	},
 	{
-		.cmd = "client_resumed",
+		.cmd = CMD_STR_CLIENT_RESUMED,
 		.handler = client_resume_request,
 	},
 
@@ -8157,15 +8157,15 @@ static struct method s_client_table[] = {
 
 static struct method s_service_table[] = {
 	{
-		.cmd = "service_update",
+		.cmd = CMD_STR_SERVICE_UPDATE,
 		.handler = service_update,
 	},
 	{
-		.cmd = "service_change_period",
+		.cmd = CMD_STR_SERVICE_CHANGE_PERIOD,
 		.handler = service_change_period,
 	},
 	{
-		.cmd = "service_inst_cnt",
+		.cmd = CMD_STR_SERVICE_INST_CNT,
 		.handler = service_instance_count,
 	},
 	{
@@ -8176,90 +8176,90 @@ static struct method s_service_table[] = {
 
 static struct method s_slave_table[] = {
 	{
-		.cmd = "updated",
+		.cmd = CMD_STR_UPDATED,
 		.handler = slave_updated, /* slave_name, pkgname, filename, width, height, ret */
 	},
 	{
-		.cmd = "desc_updated",
+		.cmd = CMD_STR_DESC_UPDATED,
 		.handler = slave_desc_updated, /* slave_name, pkgname, filename, decsfile, ret */
 	},
 	{
-		.cmd = "extra_info",
+		.cmd = CMD_STR_EXTRA_INFO,
 		.handler = slave_extra_info, /* slave_name, pkgname, filename, priority, content_info, title, icon, name */
 	},
 	{
-		.cmd = "deleted",
+		.cmd = CMD_STR_DELETED,
 		.handler = slave_deleted, /* slave_name, pkgname, filename, ret */
 	},
 	{
-		.cmd = "faulted",
+		.cmd = CMD_STR_FAULTED,
 		.handler = slave_faulted, /* slave_name, pkgname, id, funcname */
 	},
 	{
-		.cmd = "scroll",
+		.cmd = CMD_STR_SCROLL,
 		.handler = slave_hold_scroll, /* slave_name, pkgname, id, seize */
 	},
 
 	{
-		.cmd = "lb_update_begin",
+		.cmd = CMD_STR_DBOX_UPDATE_BEGIN,
 		.handler = slave_dbox_update_begin,
 	},
 	{
-		.cmd = "lb_update_end",
+		.cmd = CMD_STR_DBOX_UPDATE_END,
 		.handler = slave_dbox_update_end,
 	},
 	{
-		.cmd = "pd_update_begin",
+		.cmd = CMD_STR_GBAR_UPDATE_BEGIN,
 		.handler = slave_gbar_update_begin,
 	},
 	{
-		.cmd = "pd_update_end",
+		.cmd = CMD_STR_GBAR_UPDATE_END,
 		.handler = slave_gbar_update_end,
 	},
 
 	{
-		.cmd = "access_status",
+		.cmd = CMD_STR_ACCESS_STATUS,
 		.handler = slave_access_status,
 	},
 	{
-		.cmd = "key_status",
+		.cmd = CMD_STR_KEY_STATUS,
 		.handler = slave_key_status,
 	},
 	{
-		.cmd = "close_pd",
+		.cmd = CMD_STR_CLOSE_GBAR,
 		.handler = slave_close_gbar,
 	},
 
 	{
-		.cmd = "call",
+		.cmd = CMD_STR_CALL,
 		.handler = slave_call, /* slave_name, pkgname, filename, function, ret */
 	},
 	{
-		.cmd = "ret",
+		.cmd = CMD_STR_RET,
 		.handler = slave_ret, /* slave_name, pkgname, filename, function, ret */
 	},
 	{
-		.cmd = "acquire_buffer",
+		.cmd = CMD_STR_ACQUIRE_BUFFER,
 		.handler = slave_acquire_buffer, /* slave_name, id, w, h, size, - out - type, shmid */
 	},
 	{
-		.cmd = "resize_buffer",
+		.cmd = CMD_STR_RESIZE_BUFFER,
 		.handler = slave_resize_buffer,
 	},
 	{
-		.cmd = "release_buffer",
+		.cmd = CMD_STR_RELEASE_BUFFER,
 		.handler = slave_release_buffer, /* slave_name, id - ret */
 	},
 	{
-		.cmd = "hello",
+		.cmd = CMD_STR_HELLO,
 		.handler = slave_hello, /* slave_name, ret */
 	},
 	{
-		.cmd = "ping",
+		.cmd = CMD_STR_PING,
 		.handler = slave_ping, /* slave_name, ret */
 	},
 	{
-		.cmd = "ctrl",
+		.cmd = CMD_STR_CTRL,
 		.handler = slave_ctrl, /* control bits */
 	},
 

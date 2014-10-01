@@ -34,10 +34,10 @@
 		<script src="/opt/usr/apps/com.samsung.myapp/res/script/my.edj" group="my_group" />
 	</box>
 
-	<pd type="script">
+	<glancebar type="script">
 		<size>720x100</size>
 		<script src="/opt/usr/apps/com.samsung.myapp/res/script/mypd.edj" group="group_string" />
-	</pd>
+	</glancebar>
 
 	<group>
 		<cluster name="cluster1">
