@@ -542,6 +542,26 @@ static void *event_thread_main(void *data)
 	return (void *)ret;
 }
 
+static int invoke_event_cb(struct event_listener *listener, struct event_data *item)
+{
+	struct event_data modified_item;
+
+	memcpy(&modified_item, item, sizeof(modified_item));
+
+	modified_item.x -= listener->x;
+	modified_item.y -= listener->y;
+
+	if (listener->event_cb(listener->state, &modified_item, listener->cbdata) < 0) {
+		if (eina_list_data_find(s_info.event_listener_list, listener)) {
+			s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
+			DbgFree(listener);
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
 static inline void clear_all_listener_list(void)
 {
 	struct event_listener *listener;
@@ -586,12 +606,8 @@ static inline void clear_all_listener_list(void)
 				continue;
 			}
 
-			if (listener->event_cb(listener->state, p_event_data, listener->cbdata) < 0) {
-				if (eina_list_data_find(s_info.event_listener_list, listener)) {
-					s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
-					DbgFree(listener);
-					continue;
-				}
+			if (invoke_event_cb(listener, p_event_data)) {
+				continue;
 			}
 
 			/*!
@@ -630,24 +646,6 @@ static int compare_timestamp(struct event_listener *listener, struct event_data 
 	return ret;
 }
 #endif
-
-static int invoke_event_cb(struct event_listener *listener, struct event_data *item)
-{
-	struct event_data modified_item;
-	memcpy(&modified_item, item, sizeof(modified_item));
-	modified_item.x -= listener->x;
-	modified_item.y -= listener->y;
-
-	if (listener->event_cb(listener->state, &modified_item, listener->cbdata) < 0) {
-		if (eina_list_data_find(s_info.event_listener_list, listener)) {
-			s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
-			DbgFree(listener);
-			return 1;
-		}
-	}
-
-	return 0;
-}
 
 static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 {
