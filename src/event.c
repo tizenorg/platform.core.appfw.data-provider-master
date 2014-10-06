@@ -919,14 +919,14 @@ HAPI int event_activate(int x, int y, int (*event_cb)(enum event_state state, st
 
 #if defined(_USE_ECORE_TIME_GET)
 	listener->tv = ecore_time_get() - DELAY_COMPENSATOR; // Let's use the previous event.
-	DbgPrint("Activated at: %lf\n", listener->tv);
+	DbgPrint("Activated at: %lf (%dx%d)\n", listener->tv, x, y);
 #else
 	if (gettimeofday(&listener->tv, NULL) < 0) {
 		ErrPrint("gettimeofday: %s\n", strerror(errno));
 		DbgFree(listener);
 		return DBOX_STATUS_ERROR_FAULT;
 	}
-	DbgPrint("Activated at: %lu sec %lu msec\n", listener->tv.tv_sec, listener->tv.tv_usec);
+	DbgPrint("Activated at: %lu sec %lu msec (%dx%d)\n", listener->tv.tv_sec, listener->tv.tv_usec, x, y);
 	/* NEED TO DO COMPENSATION (DELAY) */
 #endif
 
