@@ -40,6 +40,7 @@
 #include "script_handler.h"
 #include "buffer_handler.h"
 #include "setting.h"
+#include "provider_cmd_list.h"
 
 int errno;
 
@@ -233,8 +234,9 @@ static int viewer_deactivated_cb(struct client_node *client, void *data)
 static int pause_livebox(struct inst_info *inst)
 {
 	struct packet *packet;
+	unsigned int cmd = CMD_LB_PAUSE;
 
-	packet = packet_create_noack("lb_pause", "ss", package_name(inst->info), inst->id);
+	packet = packet_create_noack((const char *)&cmd, "ss", package_name(inst->info), inst->id);
 	if (!packet) {
 		ErrPrint("Failed to create a new packet\n");
 		return LB_STATUS_ERROR_FAULT;
@@ -247,8 +249,9 @@ static int pause_livebox(struct inst_info *inst)
 static int resume_livebox(struct inst_info *inst)
 {
 	struct packet *packet;
+	unsigned int cmd = CMD_LB_RESUME;
 
-	packet = packet_create_noack("lb_resume", "ss", package_name(inst->info), inst->id);
+	packet = packet_create_noack((const char *)&cmd, "ss", package_name(inst->info), inst->id);
 	if (!packet) {
 		ErrPrint("Failed to create a new packet\n");
 		return LB_STATUS_ERROR_FAULT;
@@ -286,6 +289,7 @@ static inline void instance_send_update_mode_event(struct inst_info *inst, int a
 {
 	struct packet *packet;
 	const char *pkgname;
+	unsigned int cmd = CMD_RESULT_UPDATE_MODE;
 
 	if (!inst->info) {
 		ErrPrint("Instance info is not ready to use\n");
@@ -294,7 +298,7 @@ static inline void instance_send_update_mode_event(struct inst_info *inst, int a
 
 	pkgname = package_name(inst->info);
 
-	packet = packet_create_noack("update_mode", "ssii", pkgname, inst->id, status, active_mode);
+	packet = packet_create_noack((const char *)&cmd, "ssii", pkgname, inst->id, status, active_mode);
 	if (packet) {
 		CLIENT_SEND_EVENT(inst, packet);
 	} else {
@@ -308,6 +312,7 @@ static inline void instance_send_resized_event(struct inst_info *inst, int is_pd
 	enum lb_type lb_type;
 	const char *pkgname;
 	const char *id;
+	unsigned int cmd = CMD_SIZE_CHANGED;
 
 	if (!inst->info) {
 		ErrPrint("Instance info is not ready to use\n");
@@ -325,7 +330,7 @@ static inline void instance_send_resized_event(struct inst_info *inst, int is_pd
 		id = "";
 	}
 
-	packet = packet_create_noack("size_changed", "sssiiii", pkgname, inst->id, id, is_pd, w, h, status);
+	packet = packet_create_noack((const char *)&cmd, "sssiiii", pkgname, inst->id, id, is_pd, w, h, status);
 	if (packet) {
 		CLIENT_SEND_EVENT(inst, packet);
 	} else {
@@ -367,6 +372,7 @@ HAPI int instance_unicast_created_event(struct inst_info *inst, struct client_no
 	enum pd_type pd_type;
 	const char *lb_file;
 	const char *pd_file;
+	unsigned int cmd = CMD_CREATED;
 
 	if (!client) {
 		client = inst->client;
@@ -394,7 +400,7 @@ HAPI int instance_unicast_created_event(struct inst_info *inst, struct client_no
 		pd_file = "";
 	}
 
-	packet = packet_create_noack("created", "dsssiiiisssssdiiiiidsi",
+	packet = packet_create_noack((const char *)&cmd, "dsssiiiisssssdiiiiidsi",
 			inst->timestamp,
 			package_name(inst->info), inst->id, inst->content,
 			inst->lb.width, inst->lb.height,
@@ -435,6 +441,7 @@ static int instance_broadcast_created_event(struct inst_info *inst)
 	enum pd_type pd_type;
 	const char *lb_file;
 	const char *pd_file;
+	unsigned int cmd = CMD_CREATED;
 
 	lb_type = package_lb_type(inst->info);
 	pd_type = package_pd_type(inst->info);
@@ -459,7 +466,7 @@ static int instance_broadcast_created_event(struct inst_info *inst)
 		client_browse_list(inst->cluster, inst->category, update_client_list, inst);
 	}
 
-	packet = packet_create_noack("created", "dsssiiiisssssdiiiiidsi", 
+	packet = packet_create_noack((const char *)&cmd, "dsssiiiisssssdiiiiidsi", 
 			inst->timestamp,
 			package_name(inst->info), inst->id, inst->content,
 			inst->lb.width, inst->lb.height,
@@ -486,6 +493,7 @@ static int instance_broadcast_created_event(struct inst_info *inst)
 HAPI int instance_unicast_deleted_event(struct inst_info *inst, struct client_node *client, int reason)
 {
 	struct packet *packet;
+	unsigned int cmd = CMD_DELETED;
 
 	if (!client) {
 		client = inst->client;
@@ -494,7 +502,7 @@ HAPI int instance_unicast_deleted_event(struct inst_info *inst, struct client_no
 		}
 	}
 
-	packet = packet_create_noack("deleted", "ssdi", package_name(inst->info), inst->id, inst->timestamp, reason);
+	packet = packet_create_noack((const char *)&cmd, "ssdi", package_name(inst->info), inst->id, inst->timestamp, reason);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return LB_STATUS_ERROR_FAULT;
@@ -510,8 +518,9 @@ static int instance_broadcast_deleted_event(struct inst_info *inst, int reason)
 	Eina_List *l;
 	Eina_List *n;
 	int ret;
+	unsigned int cmd = CMD_DELETED;
 
-	packet = packet_create_noack("deleted", "ssdi", package_name(inst->info), inst->id, inst->timestamp, reason);
+	packet = packet_create_noack((const char *)&cmd, "ssdi", package_name(inst->info), inst->id, inst->timestamp, reason);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return LB_STATUS_ERROR_FAULT;
@@ -536,13 +545,14 @@ static int client_deactivated_cb(struct client_node *client, void *data)
 static int send_pd_destroyed_to_client(struct inst_info *inst, int status)
 {
 	struct packet *packet;
+	unsigned int cmd = CMD_PD_DESTROYED;
 
 	if (!inst->pd.need_to_send_close_event && status != LB_STATUS_ERROR_FAULT) {
 		ErrPrint("PD is not created\n");
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	packet = packet_create_noack("pd_destroyed", "ssi", package_name(inst->info), inst->id, status);
+	packet = packet_create_noack((const char *)&cmd, "ssi", package_name(inst->info), inst->id, status);
 	if (!packet) {
 		ErrPrint("Failed to create a packet\n");
 		return LB_STATUS_ERROR_FAULT;
@@ -1328,6 +1338,7 @@ HAPI int instance_create_lb_buffer(struct inst_info *inst, int pixels)
 HAPI int instance_destroy(struct inst_info *inst, enum instance_destroy_type type)
 {
 	struct packet *packet;
+	unsigned int cmd = CMD_DELETE;
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
@@ -1352,7 +1363,7 @@ HAPI int instance_destroy(struct inst_info *inst, enum instance_destroy_type typ
 		break;
 	}
 
-	packet = packet_create("delete", "ssi", package_name(inst->info), inst->id, type);
+	packet = packet_create((const char *)&cmd, "ssi", package_name(inst->info), inst->id, type);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return LB_STATUS_ERROR_FAULT;
@@ -1368,6 +1379,7 @@ HAPI int instance_destroy(struct inst_info *inst, enum instance_destroy_type typ
 HAPI int instance_reload(struct inst_info *inst, enum instance_destroy_type type)
 {
 	struct packet *packet;
+	unsigned int cmd = CMD_DELETE;
 	int ret;
 
 	if (!inst) {
@@ -1395,7 +1407,7 @@ HAPI int instance_reload(struct inst_info *inst, enum instance_destroy_type type
 		break;
 	}
 
-	packet = packet_create("delete", "ssi", package_name(inst->info), inst->id, type);
+	packet = packet_create((const char *)&cmd, "ssi", package_name(inst->info), inst->id, type);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return LB_STATUS_ERROR_FAULT;
@@ -1522,6 +1534,7 @@ out:
 HAPI int instance_reactivate(struct inst_info *inst)
 {
 	struct packet *packet;
+	unsigned int cmd = CMD_RENEW;
 	int ret;
 
 	if (!inst) {
@@ -1548,7 +1561,7 @@ HAPI int instance_reactivate(struct inst_info *inst)
 		break;
 	}
 
-	packet = packet_create("renew", "sssiidssiisii",
+	packet = packet_create((const char *)&cmd, "sssiidssiisiis",
 			package_name(inst->info),
 			inst->id,
 			inst->content,
@@ -1560,7 +1573,8 @@ HAPI int instance_reactivate(struct inst_info *inst)
 			inst->lb.width, inst->lb.height,
 			package_abi(inst->info),
 			inst->scroll_locked,
-			inst->active_update);
+			inst->active_update,
+			client_direct_addr(inst->client));
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return LB_STATUS_ERROR_FAULT;
@@ -1588,6 +1602,7 @@ HAPI int instance_reactivate(struct inst_info *inst)
 HAPI int instance_activate(struct inst_info *inst)
 {
 	struct packet *packet;
+	unsigned int cmd = CMD_NEW;
 	int ret;
 
 	if (!inst) {
@@ -1614,7 +1629,7 @@ HAPI int instance_activate(struct inst_info *inst)
 		break;
 	}
 
-	packet = packet_create("new", "sssiidssisii",
+	packet = packet_create((const char *)&cmd, "sssiidssisiis",
 			package_name(inst->info),
 			inst->id,
 			inst->content,
@@ -1626,7 +1641,8 @@ HAPI int instance_activate(struct inst_info *inst)
 			!!inst->client,
 			package_abi(inst->info),
 			inst->lb.width,
-			inst->lb.height);
+			inst->lb.height,
+			client_direct_addr(inst->client));
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return LB_STATUS_ERROR_FAULT;
@@ -1659,6 +1675,7 @@ HAPI int instance_lb_update_begin(struct inst_info *inst, double priority, const
 {
 	struct packet *packet;
 	const char *fbfile;
+	unsigned int cmd = CMD_LB_UPDATE_BEGIN;
 
 	if (!inst->active_update) {
 		ErrPrint("Invalid request [%s]\n", inst->id);
@@ -1685,7 +1702,7 @@ HAPI int instance_lb_update_begin(struct inst_info *inst, double priority, const
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	packet = packet_create_noack("lb_update_begin", "ssdsss", package_name(inst->info), inst->id, priority, content, title, fbfile);
+	packet = packet_create_noack((const char *)&cmd, "ssdsss", package_name(inst->info), inst->id, priority, content, title, fbfile);
 	if (!packet) {
 		ErrPrint("Unable to create a packet\n");
 		return LB_STATUS_ERROR_FAULT;
@@ -1697,6 +1714,7 @@ HAPI int instance_lb_update_begin(struct inst_info *inst, double priority, const
 HAPI int instance_lb_update_end(struct inst_info *inst)
 {
 	struct packet *packet;
+	unsigned int cmd = CMD_LB_UPDATE_END;
 
 	if (!inst->active_update) {
 		ErrPrint("Invalid request [%s]\n", inst->id);
@@ -1721,7 +1739,7 @@ HAPI int instance_lb_update_end(struct inst_info *inst)
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	packet = packet_create_noack("lb_update_end", "ss", package_name(inst->info), inst->id);
+	packet = packet_create_noack((const char *)&cmd, "ss", package_name(inst->info), inst->id);
 	if (!packet) {
 		ErrPrint("Unable to create a packet\n");
 		return LB_STATUS_ERROR_FAULT;
@@ -1734,6 +1752,7 @@ HAPI int instance_pd_update_begin(struct inst_info *inst)
 {
 	struct packet *packet;
 	const char *fbfile;
+	unsigned int cmd = CMD_PD_UPDATE_BEGIN;
 
 	if (!inst->active_update) {
 		ErrPrint("Invalid request [%s]\n", inst->id);
@@ -1760,7 +1779,7 @@ HAPI int instance_pd_update_begin(struct inst_info *inst)
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	packet = packet_create_noack("pd_update_begin", "sss", package_name(inst->info), inst->id, fbfile);
+	packet = packet_create_noack((const char *)&cmd, "sss", package_name(inst->info), inst->id, fbfile);
 	if (!packet) {
 		ErrPrint("Unable to create a packet\n");
 		return LB_STATUS_ERROR_FAULT;
@@ -1772,6 +1791,7 @@ HAPI int instance_pd_update_begin(struct inst_info *inst)
 HAPI int instance_pd_update_end(struct inst_info *inst)
 {
 	struct packet *packet;
+	unsigned int cmd = CMD_PD_UPDATE_END;
 
 	if (!inst->active_update) {
 		ErrPrint("Invalid request [%s]\n", inst->id);
@@ -1796,7 +1816,7 @@ HAPI int instance_pd_update_end(struct inst_info *inst)
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	packet = packet_create_noack("pd_update_end", "ss", package_name(inst->info), inst->id);
+	packet = packet_create_noack((const char *)&cmd, "ss", package_name(inst->info), inst->id);
 	if (!packet) {
 		ErrPrint("Unable to create a packet\n");
 		return LB_STATUS_ERROR_FAULT;
@@ -1808,8 +1828,9 @@ HAPI int instance_pd_update_end(struct inst_info *inst)
 HAPI void instance_extra_info_updated_by_instance(struct inst_info *inst)
 {
 	struct packet *packet;
+	unsigned int cmd = CMD_EXTRA_INFO;
 
-	packet = packet_create_noack("extra_info", "ssssssd", package_name(inst->info), inst->id,
+	packet = packet_create_noack((const char *)&cmd, "ssssssd", package_name(inst->info), inst->id,
 								inst->content, inst->title,
 								inst->icon, inst->name,
 								inst->lb.priority);
@@ -1826,6 +1847,7 @@ HAPI void instance_lb_updated_by_instance(struct inst_info *inst, const char *sa
 	struct packet *packet;
 	const char *id = NULL;
 	enum lb_type lb_type;
+	unsigned int cmd = CMD_LB_UPDATED;
 
 	if (inst->client && inst->visible != LB_SHOW) {
 		if (inst->visible == LB_HIDE) {
@@ -1841,7 +1863,7 @@ HAPI void instance_lb_updated_by_instance(struct inst_info *inst, const char *sa
 		id = buffer_handler_id(inst->lb.canvas.buffer);
 	}
 
-	packet = packet_create_noack("lb_updated", "ssssii",
+	packet = packet_create_noack((const char *)&cmd, "ssssii",
 			package_name(inst->info), inst->id, id, safe_file,
 			inst->lb.width, inst->lb.height);
 	if (!packet) {
@@ -1855,13 +1877,14 @@ HAPI void instance_lb_updated_by_instance(struct inst_info *inst, const char *sa
 HAPI int instance_hold_scroll(struct inst_info *inst, int hold)
 {
 	struct packet *packet;
+	unsigned int cmd = CMD_SCROLL;
 
 	DbgPrint("HOLD: (%s) %d\n", inst->id, hold);
 	if (inst->scroll_locked == hold) {
 		return LB_STATUS_ERROR_ALREADY;
 	}
 
-	packet = packet_create_noack("scroll", "ssi", package_name(inst->info), inst->id, hold);
+	packet = packet_create_noack((const char *)&cmd, "ssi", package_name(inst->info), inst->id, hold);
 	if (!packet) {
 		ErrPrint("Failed to build a packet\n");
 		return LB_STATUS_ERROR_FAULT;
@@ -1874,6 +1897,7 @@ HAPI int instance_hold_scroll(struct inst_info *inst, int hold)
 HAPI void instance_pd_updated_by_instance(struct inst_info *inst, const char *descfile)
 {
 	struct packet *packet;
+	unsigned int cmd = CMD_PD_UPDATED;
 	const char *id;
 
 	if (inst->client && inst->visible != LB_SHOW) {
@@ -1917,7 +1941,7 @@ HAPI void instance_pd_updated_by_instance(struct inst_info *inst, const char *de
 		break;
 	}
 
-	packet = packet_create_noack("pd_updated", "ssssii",
+	packet = packet_create_noack((const char *)&cmd, "ssssii",
 			package_name(inst->info), inst->id, descfile, id,
 			inst->pd.width, inst->pd.height);
 	if (!packet) {
@@ -1944,6 +1968,7 @@ HAPI int instance_set_update_mode(struct inst_info *inst, int active_update)
 {
 	struct packet *packet;
 	struct update_mode_cbdata *cbdata;
+	unsigned int cmd = CMD_UPDATE_MODE;
 
 	if (package_is_fault(inst->info)) {
 		ErrPrint("Fault package [%s]\n", package_name(inst->info));
@@ -1965,7 +1990,7 @@ HAPI int instance_set_update_mode(struct inst_info *inst, int active_update)
 	cbdata->active_update = active_update;
 
 	/* NOTE: param is resued from here */
-	packet = packet_create("update_mode", "ssi", package_name(inst->info), inst->id, active_update);
+	packet = packet_create((const char *)&cmd, "ssi", package_name(inst->info), inst->id, active_update);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		instance_unref(cbdata->inst);
@@ -2070,6 +2095,7 @@ static void pinup_cb(struct slave_node *slave, const struct packet *packet, void
 	struct set_pinup_cbdata *cbdata = data;
 	const char *content;
 	struct packet *result;
+	unsigned int cmd = CMD_RESULT_PINUP;
 	int ret;
 
 	if (!packet) {
@@ -2116,7 +2142,7 @@ out:
 	 * Send PINUP Result to client.
 	 * Client should wait this event.
 	 */
-	result = packet_create_noack("pinup", "iisss", ret, cbdata->inst->is_pinned_up,
+	result = packet_create_noack((const char *)&cmd, "iisss", ret, cbdata->inst->is_pinned_up,
 							package_name(cbdata->inst->info), cbdata->inst->id, cbdata->inst->content);
 	if (result) {
 		(void)CLIENT_SEND_EVENT(cbdata->inst, result);
@@ -2132,6 +2158,7 @@ HAPI int instance_set_pinup(struct inst_info *inst, int pinup)
 {
 	struct set_pinup_cbdata *cbdata;
 	struct packet *packet;
+	unsigned int cmd = CMD_PINUP;
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
@@ -2159,7 +2186,7 @@ HAPI int instance_set_pinup(struct inst_info *inst, int pinup)
 	cbdata->inst = instance_ref(inst);
 	cbdata->pinup = pinup;
 
-	packet = packet_create("pinup", "ssi", package_name(inst->info), inst->id, pinup);
+	packet = packet_create((const char *)&cmd, "ssi", package_name(inst->info), inst->id, pinup);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		instance_unref(cbdata->inst);
@@ -2310,6 +2337,7 @@ HAPI int instance_resize(struct inst_info *inst, int w, int h)
 {
 	struct resize_cbdata *cbdata;
 	struct packet *packet;
+	unsigned int cmd = CMD_RESIZE;
 	int ret;
 
 	if (!inst) {
@@ -2333,7 +2361,7 @@ HAPI int instance_resize(struct inst_info *inst, int w, int h)
 	cbdata->h = h;
 
 	/* NOTE: param is resued from here */
-	packet = packet_create("resize", "ssii", package_name(inst->info), inst->id, w, h);
+	packet = packet_create((const char *)&cmd, "ssii", package_name(inst->info), inst->id, w, h);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		instance_unref(cbdata->inst);
@@ -2348,9 +2376,10 @@ HAPI int instance_resize(struct inst_info *inst, int w, int h)
 
 static void set_period_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
-	int ret;
 	struct period_cbdata *cbdata = data;
+	unsigned int cmd = CMD_PERIOD_CHANGED;
 	struct packet *result;
+	int ret;
 
 	if (!packet) {
 		ret = LB_STATUS_ERROR_FAULT;
@@ -2369,7 +2398,7 @@ static void set_period_cb(struct slave_node *slave, const struct packet *packet,
 	}
 
 out:
-	result = packet_create_noack("period_changed", "idss", ret, cbdata->inst->lb.period, package_name(cbdata->inst->info), cbdata->inst->id);
+	result = packet_create_noack((const char *)&cmd, "idss", ret, cbdata->inst->lb.period, package_name(cbdata->inst->info), cbdata->inst->id);
 	if (result) {
 		(void)CLIENT_SEND_EVENT(cbdata->inst, result);
 	} else {
@@ -2385,8 +2414,9 @@ static Eina_Bool timer_updator_cb(void *data)
 {
 	struct period_cbdata *cbdata = data;
 	struct inst_info *inst;
-	double period;
 	struct packet *result;
+	unsigned int cmd = CMD_PERIOD_CHANGED;
+	double period;
 
 	period = cbdata->period;
 	inst = cbdata->inst;
@@ -2409,7 +2439,7 @@ static Eina_Bool timer_updator_cb(void *data)
 		}
 	}
 
-	result = packet_create_noack("period_changed", "idss", 0, inst->lb.period, package_name(inst->info), inst->id);
+	result = packet_create_noack((const char *)&cmd, "idss", 0, inst->lb.period, package_name(inst->info), inst->id);
 	if (result) {
 		(void)CLIENT_SEND_EVENT(inst, result);
 	} else {
@@ -2429,6 +2459,7 @@ HAPI int instance_set_period(struct inst_info *inst, double period)
 {
 	struct packet *packet;
 	struct period_cbdata *cbdata;
+	unsigned int cmd = CMD_SET_PERIOD;
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
@@ -2469,7 +2500,7 @@ HAPI int instance_set_period(struct inst_info *inst, double period)
 		return LB_STATUS_SUCCESS;
 	}
 
-	packet = packet_create("set_period", "ssd", package_name(inst->info), inst->id, period);
+	packet = packet_create((const char *)&cmd, "ssd", package_name(inst->info), inst->id, period);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		instance_unref(cbdata->inst);
@@ -2483,6 +2514,7 @@ HAPI int instance_set_period(struct inst_info *inst, double period)
 HAPI int instance_clicked(struct inst_info *inst, const char *event, double timestamp, double x, double y)
 {
 	struct packet *packet;
+	unsigned int cmd = CMD_CLICKED;
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
@@ -2495,7 +2527,7 @@ HAPI int instance_clicked(struct inst_info *inst, const char *event, double time
 	}
 
 	/* NOTE: param is resued from here */
-	packet = packet_create_noack("clicked", "sssddd", package_name(inst->info), inst->id, event, timestamp, x, y);
+	packet = packet_create_noack((const char *)&cmd, "sssddd", package_name(inst->info), inst->id, event, timestamp, x, y);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return LB_STATUS_ERROR_FAULT;
@@ -2511,6 +2543,7 @@ HAPI int instance_signal_emit(struct inst_info *inst, const char *signal, const 
 	struct slave_node *slave;
 	struct packet *packet;
 	struct pkg_info *pkg;
+	unsigned int cmd = CMD_SCRIPT;
 
 	pkg = instance_package(inst);
 	pkgname = package_name(pkg);
@@ -2524,7 +2557,7 @@ HAPI int instance_signal_emit(struct inst_info *inst, const char *signal, const 
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	packet = packet_create_noack("script", "ssssddddddi",
+	packet = packet_create_noack((const char *)&cmd, "ssssddddddi",
 			pkgname, id,
 			signal, part,
 			sx, sy, ex, ey,
@@ -2539,6 +2572,7 @@ HAPI int instance_signal_emit(struct inst_info *inst, const char *signal, const 
 HAPI int instance_text_signal_emit(struct inst_info *inst, const char *emission, const char *source, double sx, double sy, double ex, double ey)
 {
 	struct packet *packet;
+	unsigned int cmd = CMD_TEXT_SIGNAL;
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
@@ -2550,7 +2584,7 @@ HAPI int instance_text_signal_emit(struct inst_info *inst, const char *emission,
 		return LB_STATUS_ERROR_FAULT;
 	}
 
-	packet = packet_create_noack("text_signal", "ssssdddd", package_name(inst->info), inst->id, emission, source, sx, sy, ex, ey);
+	packet = packet_create_noack((const char *)&cmd, "ssssdddd", package_name(inst->info), inst->id, emission, source, sx, sy, ex, ey);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return LB_STATUS_ERROR_FAULT;
@@ -2563,6 +2597,7 @@ static void change_group_cb(struct slave_node *slave, const struct packet *packe
 {
 	struct change_group_cbdata *cbdata = data;
 	struct packet *result;
+	unsigned int cmd = CMD_GROUP_CHANGED;
 	int ret;
 
 	if (!packet) {
@@ -2592,7 +2627,7 @@ static void change_group_cb(struct slave_node *slave, const struct packet *packe
 	}
 
 out:
-	result = packet_create_noack("group_changed", "ssiss",
+	result = packet_create_noack((const char *)&cmd, "ssiss",
 				package_name(cbdata->inst->info), cbdata->inst->id, ret,
 				cbdata->inst->cluster, cbdata->inst->category);
 	if (!result) {
@@ -2609,6 +2644,7 @@ HAPI int instance_change_group(struct inst_info *inst, const char *cluster, cons
 {
 	struct packet *packet;
 	struct change_group_cbdata *cbdata;
+	unsigned int cmd = CMD_CHANGE_GROUP;
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
@@ -2643,7 +2679,7 @@ HAPI int instance_change_group(struct inst_info *inst, const char *cluster, cons
 
 	cbdata->inst = instance_ref(inst);
 
-	packet = packet_create("change_group","ssss", package_name(inst->info), inst->id, cluster, category);
+	packet = packet_create((const char *)&cmd, "ssss", package_name(inst->info), inst->id, cluster, category);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		instance_unref(cbdata->inst);
@@ -2952,8 +2988,9 @@ HAPI int instance_forward_packet(struct inst_info *inst, struct packet *packet)
 HAPI int instance_send_key_status(struct inst_info *inst, int status)
 {
 	struct packet *packet;
+	unsigned int cmd = CMD_KEY_STATUS;
 
-	packet = packet_create_noack("key_status", "ssi", package_name(inst->info), inst->id, status);
+	packet = packet_create_noack((const char *)&cmd, "ssi", package_name(inst->info), inst->id, status);
 	if (!packet) {
 		ErrPrint("Failed to build a packet\n");
 		return LB_STATUS_ERROR_FAULT;
@@ -2965,8 +3002,9 @@ HAPI int instance_send_key_status(struct inst_info *inst, int status)
 HAPI int instance_send_access_status(struct inst_info *inst, int status)
 {
 	struct packet *packet;
+	unsigned int cmd = CMD_ACCESS_STATUS;
 
-	packet = packet_create_noack("access_status", "ssi", package_name(inst->info), inst->id, status);
+	packet = packet_create_noack((const char *)&cmd, "ssi", package_name(inst->info), inst->id, status);
 	if (!packet) {
 		ErrPrint("Failed to build a packet\n");
 		return LB_STATUS_ERROR_FAULT;
@@ -2999,6 +3037,7 @@ HAPI int instance_slave_open_pd(struct inst_info *inst, struct client_node *clie
 	struct packet *packet;
 	struct slave_node *slave;
 	const struct pkg_info *info;
+	unsigned int cmd = CMD_PD_SHOW;
 	int ret;
 
 	if (!client) {
@@ -3034,7 +3073,7 @@ HAPI int instance_slave_open_pd(struct inst_info *inst, struct client_node *clie
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	packet = packet_create_noack("pd_show", "ssiidd", pkgname, id, instance_pd_width(inst), instance_pd_height(inst), inst->pd.x, inst->pd.y);
+	packet = packet_create_noack((const char *)&cmd, "ssiidd", pkgname, id, instance_pd_width(inst), instance_pd_height(inst), inst->pd.x, inst->pd.y);
 	if (!packet) {
 		ErrPrint("Failed to create a packet\n");
 		return LB_STATUS_ERROR_FAULT;
@@ -3089,6 +3128,7 @@ HAPI int instance_slave_close_pd(struct inst_info *inst, struct client_node *cli
 	struct packet *packet;
 	struct slave_node *slave;
 	struct pkg_info *pkg;
+	unsigned int cmd = CMD_PD_HIDE;
 	int ret;
 
 	if (inst->pd.owner != client) {
@@ -3116,7 +3156,7 @@ HAPI int instance_slave_close_pd(struct inst_info *inst, struct client_node *cli
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	packet = packet_create_noack("pd_hide", "ssi", pkgname, id, reason);
+	packet = packet_create_noack((const char *)&cmd, "ssi", pkgname, id, reason);
 	if (!packet) {
 		ErrPrint("Failed to create a packet\n");
 		return LB_STATUS_ERROR_FAULT;
@@ -3135,6 +3175,7 @@ HAPI int instance_client_pd_created(struct inst_info *inst, int status)
 {
 	struct packet *packet;
 	const char *buf_id;
+	unsigned int cmd = CMD_PD_CREATED;
 	int ret;
 
 	if (inst->pd.need_to_send_close_event) {
@@ -3157,7 +3198,7 @@ HAPI int instance_client_pd_created(struct inst_info *inst, int status)
 
 	inst->pd.need_to_send_close_event = (status == 0);
 
-	packet = packet_create_noack("pd_created", "sssiii", 
+	packet = packet_create_noack((const char *)&cmd, "sssiii", 
 			package_name(inst->info), inst->id, buf_id,
 			inst->pd.width, inst->pd.height, status);
 	if (!packet) {

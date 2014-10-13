@@ -48,6 +48,7 @@
 #include "liveinfo.h"
 #include "io.h"
 #include "event.h"
+#include "provider_cmd_list.h"
 
 #define PD_OPEN_MONITOR_TAG "pd,open,monitor"
 #define PD_RESIZE_MONITOR_TAG "pd,resize,monitor"
@@ -441,7 +442,7 @@ static int key_event_lb_route_cb(enum event_state state, struct event_data *even
 	const struct pkg_info *pkg;
 	struct slave_node *slave;
 	struct packet *packet;
-	const char *cmdstr;
+	unsigned int cmd;
 
 	if (!inst) {
 		DbgPrint("Instance is deleted.\n");
@@ -460,19 +461,19 @@ static int key_event_lb_route_cb(enum event_state state, struct event_data *even
 
 	switch (state) {
 	case EVENT_STATE_ACTIVATE:
-		cmdstr = "lb_key_down";
+		cmd = CMD_LB_KEY_DOWN;
 		break;
 	case EVENT_STATE_ACTIVATED:
-		cmdstr = "lb_key_down";
+		cmd = CMD_LB_KEY_DOWN;
 		break;
 	case EVENT_STATE_DEACTIVATE:
-		cmdstr = "lb_key_up";
+		cmd = CMD_LB_KEY_UP;
 		break;
 	default:
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	packet = packet_create_noack(cmdstr, "ssdi", package_name(pkg), instance_id(inst), event_info->tv, event_info->keycode);
+	packet = packet_create_noack((const char *)&cmd, "ssdi", package_name(pkg), instance_id(inst), event_info->tv, event_info->keycode);
 	if (!packet) {
 		return LB_STATUS_ERROR_FAULT;
 	}
@@ -486,7 +487,7 @@ static int mouse_event_lb_route_cb(enum event_state state, struct event_data *ev
 	const struct pkg_info *pkg;
 	struct slave_node *slave;
 	struct packet *packet;
-	const char *cmdstr;
+	unsigned int cmd;
 
 	if (!inst) {
 		DbgPrint("Instance is deleted.\n");
@@ -505,19 +506,19 @@ static int mouse_event_lb_route_cb(enum event_state state, struct event_data *ev
 
 	switch (state) {
 	case EVENT_STATE_ACTIVATE:
-		cmdstr = "lb_mouse_down";
+		cmd = CMD_LB_MOUSE_DOWN;
 		break;
 	case EVENT_STATE_ACTIVATED:
-		cmdstr = "lb_mouse_move";
+		cmd = CMD_LB_MOUSE_MOVE;
 		break;
 	case EVENT_STATE_DEACTIVATE:
-		cmdstr = "lb_mouse_up";
+		cmd = CMD_LB_MOUSE_UP;
 		break;
 	default:
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	packet = packet_create_noack(cmdstr, "ssdii", package_name(pkg), instance_id(inst), event_info->tv, event_info->x, event_info->y);
+	packet = packet_create_noack((const char *)&cmd, "ssdii", package_name(pkg), instance_id(inst), event_info->tv, event_info->x, event_info->y);
 	if (!packet) {
 		return LB_STATUS_ERROR_FAULT;
 	}
@@ -610,7 +611,7 @@ static int key_event_pd_route_cb(enum event_state state, struct event_data *even
 	const struct pkg_info *pkg;
 	struct slave_node *slave;
 	struct packet *packet;
-	const char *cmdstr;
+	unsigned int cmd;
 
 	if (!inst) {
 		DbgPrint("Instance is deleted.\n");
@@ -629,19 +630,19 @@ static int key_event_pd_route_cb(enum event_state state, struct event_data *even
 
 	switch (state) {
 	case EVENT_STATE_ACTIVATE:
-		cmdstr = "pd_key_down";
+		cmd = CMD_PD_KEY_DOWN;
 		break;
 	case EVENT_STATE_ACTIVATED:
-		cmdstr = "pd_key_down";
+		cmd = CMD_PD_KEY_DOWN;
 		break;
 	case EVENT_STATE_DEACTIVATE:
-		cmdstr = "pd_key_up";
+		cmd = CMD_PD_KEY_UP;
 		break;
 	default:
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	packet = packet_create_noack(cmdstr, "ssdi", package_name(pkg), instance_id(inst), event_info->tv, event_info->keycode);
+	packet = packet_create_noack((const char *)&cmd, "ssdi", package_name(pkg), instance_id(inst), event_info->tv, event_info->keycode);
 	if (!packet) {
 		return LB_STATUS_ERROR_FAULT;
 	}
@@ -655,7 +656,7 @@ static int mouse_event_pd_route_cb(enum event_state state, struct event_data *ev
 	const struct pkg_info *pkg;
 	struct slave_node *slave;
 	struct packet *packet;
-	const char *cmdstr;
+	unsigned int cmd;
 
 	if (!inst) {
 		DbgPrint("Instance is deleted.\n");
@@ -674,19 +675,19 @@ static int mouse_event_pd_route_cb(enum event_state state, struct event_data *ev
 
 	switch (state) {
 	case EVENT_STATE_ACTIVATE:
-		cmdstr = "pd_mouse_down";
+		cmd = CMD_PD_MOUSE_DOWN;
 		break;
 	case EVENT_STATE_ACTIVATED:
-		cmdstr = "pd_mouse_move";
+		cmd = CMD_PD_MOUSE_MOVE;
 		break;
 	case EVENT_STATE_DEACTIVATE:
-		cmdstr = "pd_mouse_up";
+		cmd = CMD_PD_MOUSE_UP;
 		break;
 	default:
 		return LB_STATUS_ERROR_INVALID;
 	}
 
-	packet = packet_create_noack(cmdstr, "ssdii", package_name(pkg), instance_id(inst), event_info->tv, event_info->x, event_info->y);
+	packet = packet_create_noack((const char *)&cmd, "ssdii", package_name(pkg), instance_id(inst), event_info->tv, event_info->x, event_info->y);
 	if (!packet) {
 		return LB_STATUS_ERROR_FAULT;
 	}
@@ -776,6 +777,7 @@ static struct packet *client_acquire(pid_t pid, int handle, const struct packet 
 {
 	struct client_node *client;
 	struct packet *result;
+	const char *direct_addr;
 	double timestamp;
 	int ret;
 
@@ -786,7 +788,7 @@ static struct packet *client_acquire(pid_t pid, int handle, const struct packet 
 		goto out;
 	}
 
-	if (packet_get(packet, "d", &timestamp) != 1) {
+	if (packet_get(packet, "ds", &timestamp, &direct_addr) != 2) {
 		ErrPrint("Invalid arguemnt\n");
 		ret = LB_STATUS_ERROR_INVALID;
 		goto out;
@@ -797,7 +799,7 @@ static struct packet *client_acquire(pid_t pid, int handle, const struct packet 
 	 * \note
 	 * client_create will invoke the client created callback
 	 */
-	client = client_create(pid, handle);
+	client = client_create(pid, handle, direct_addr);
 	if (!client) {
 		ErrPrint("Failed to create a new client for %d\n", pid);
 		ret = LB_STATUS_ERROR_FAULT;
@@ -7846,22 +7848,6 @@ static struct method s_client_table[] = {
 		.handler = client_lb_mouse_leave, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 	},
 	{
-		.cmd = "lb_mouse_set",
-		.handler = client_lb_mouse_set,
-	},
-	{
-		.cmd = "lb_mouse_unset",
-		.handler = client_lb_mouse_unset,
-	},
-	{
-		.cmd = "pd_mouse_set",
-		.handler = client_pd_mouse_set,
-	},
-	{
-		.cmd = "pd_mouse_unset",
-		.handler = client_pd_mouse_unset,
-	},
-	{
 		.cmd = "lb_mouse_on_scroll",
 		.handler = client_lb_mouse_on_scroll,
 	},
@@ -7894,34 +7880,6 @@ static struct method s_client_table[] = {
 		.handler = client_pd_mouse_off_hold,
 	},
 	{
-		.cmd = "change,visibility",
-		.handler = client_change_visibility,
-	},
-	{
-		.cmd = "lb_acquire_pixmap",
-		.handler = client_lb_acquire_pixmap,
-	},
-	{
-		.cmd = "lb_release_pixmap",
-		.handler = client_lb_release_pixmap,
-	},
-	{
-		.cmd = "pd_acquire_pixmap",
-		.handler = client_pd_acquire_pixmap,
-	},
-	{
-		.cmd = "pd_release_pixmap",
-		.handler = client_pd_release_pixmap,
-	},
-	{
-		.cmd = "acquire",
-		.handler = client_acquire, /*!< pid, ret */
-	},
-	{
-		.cmd = "release",
-		.handler = cilent_release, /*!< pid, ret */
-	},
-	{
 		.cmd = "clicked",
 		.handler = client_clicked, /*!< pid, pkgname, filename, event, timestamp, x, y, ret */
 	},
@@ -7950,50 +7908,9 @@ static struct method s_client_table[] = {
 		.handler = client_change_group, /* pid, pkgname, filename, cluster, category, ret */
 	},
 	{
-		.cmd = "pinup_changed",
-		.handler = client_pinup_changed, /* pid, pkgname, filename, pinup, ret */
-	},
-	{
-		.cmd = "create_pd",
-		.handler = client_create_pd, /* pid, pkgname, filename, ret */
-	},
-	{
 		.cmd = "pd_move",
 		.handler = client_pd_move, /* pkgname, id, x, y */
 	},
-	{
-		.cmd = "destroy_pd",
-		.handler = client_destroy_pd, /* pid, pkgname, filename, ret */
-	},
-	{
-		.cmd = "activate_package",
-		.handler = client_activate_package, /* pid, pkgname, ret */
-	},
-	{
-		.cmd = "subscribe", /* pid, cluster, sub-cluster */
-		.handler = client_subscribed,
-	},
-	{
-		.cmd = "unsubscribe", /* pid, cluster, sub-cluster */
-		.handler = client_unsubscribed,
-	},
-	{
-		.cmd = "delete_cluster",
-		.handler = client_delete_cluster,
-	},
-	{
-		.cmd = "delete_category",
-		.handler = client_delete_category,
-	},
-	{
-		.cmd = "refresh_group",
-		.handler = client_refresh_group,
-	},
-	{
-		.cmd = "update",
-		.handler = client_update,
-	},
-
 	{
 		.cmd = "pd_access_hl",
 		.handler = client_pd_access_hl,
@@ -8075,7 +7992,6 @@ static struct method s_client_table[] = {
 		.cmd = "lb_access_enable",
 		.handler = client_lb_access_enable,
 	},
-
 	{
 		.cmd = "lb_key_down",
 		.handler = client_lb_key_down,
@@ -8093,15 +8009,6 @@ static struct method s_client_table[] = {
 		.handler = client_lb_key_focus_out,
 	},
 	{
-		.cmd = "lb_key_set",
-		.handler = client_lb_key_set,
-	},
-	{
-		.cmd = "lb_key_unset",
-		.handler = client_lb_key_unset,
-	},
-
-	{
 		.cmd = "pd_key_down",
 		.handler = client_pd_key_down,
 	},
@@ -8118,6 +8025,106 @@ static struct method s_client_table[] = {
 		.handler = client_pd_key_focus_out,
 	},
 	{
+		.cmd = "update_mode",
+		.handler = client_update_mode,
+	},
+	// Cut HERE. Above list must be sync'd with provider list.
+
+	{
+		.cmd = "lb_mouse_set",
+		.handler = client_lb_mouse_set,
+	},
+	{
+		.cmd = "lb_mouse_unset",
+		.handler = client_lb_mouse_unset,
+	},
+	{
+		.cmd = "pd_mouse_set",
+		.handler = client_pd_mouse_set,
+	},
+	{
+		.cmd = "pd_mouse_unset",
+		.handler = client_pd_mouse_unset,
+	},
+	{
+		.cmd = "change,visibility",
+		.handler = client_change_visibility,
+	},
+	{
+		.cmd = "lb_acquire_pixmap",
+		.handler = client_lb_acquire_pixmap,
+	},
+	{
+		.cmd = "lb_release_pixmap",
+		.handler = client_lb_release_pixmap,
+	},
+	{
+		.cmd = "pd_acquire_pixmap",
+		.handler = client_pd_acquire_pixmap,
+	},
+	{
+		.cmd = "pd_release_pixmap",
+		.handler = client_pd_release_pixmap,
+	},
+	{
+		.cmd = "acquire",
+		.handler = client_acquire, /*!< pid, ret */
+	},
+	{
+		.cmd = "release",
+		.handler = cilent_release, /*!< pid, ret */
+	},
+	{
+		.cmd = "pinup_changed",
+		.handler = client_pinup_changed, /* pid, pkgname, filename, pinup, ret */
+	},
+	{
+		.cmd = "create_pd",
+		.handler = client_create_pd, /* pid, pkgname, filename, ret */
+	},
+	{
+		.cmd = "destroy_pd",
+		.handler = client_destroy_pd, /* pid, pkgname, filename, ret */
+	},
+	{
+		.cmd = "activate_package",
+		.handler = client_activate_package, /* pid, pkgname, ret */
+	},
+	{
+		.cmd = "subscribe", /* pid, cluster, sub-cluster */
+		.handler = client_subscribed,
+	},
+	{
+		.cmd = "unsubscribe", /* pid, cluster, sub-cluster */
+		.handler = client_unsubscribed,
+	},
+	{
+		.cmd = "delete_cluster",
+		.handler = client_delete_cluster,
+	},
+	{
+		.cmd = "delete_category",
+		.handler = client_delete_category,
+	},
+	{
+		.cmd = "refresh_group",
+		.handler = client_refresh_group,
+	},
+	{
+		.cmd = "update",
+		.handler = client_update,
+	},
+
+	{
+		.cmd = "lb_key_set",
+		.handler = client_lb_key_set,
+	},
+	{
+		.cmd = "lb_key_unset",
+		.handler = client_lb_key_unset,
+	},
+
+	{
 		.cmd = "pd_key_set",
 		.handler = client_pd_key_set,
 	},
@@ -8133,11 +8140,6 @@ static struct method s_client_table[] = {
 	{
 		.cmd = "client_resumed",
 		.handler = client_resume_request,
-	},
-
-	{
-		.cmd = "update_mode",
-		.handler = client_update_mode,
 	},
 
 	{
@@ -8167,14 +8169,6 @@ static struct method s_service_table[] = {
 
 static struct method s_slave_table[] = {
 	{
-		.cmd = "call",
-		.handler = slave_call, /* slave_name, pkgname, filename, function, ret */
-	},
-	{
-		.cmd = "ret",
-		.handler = slave_ret, /* slave_name, pkgname, filename, function, ret */
-	},
-	{
 		.cmd = "updated",
 		.handler = slave_updated, /* slave_name, pkgname, filename, width, height, ret */
 	},
@@ -8189,18 +8183,6 @@ static struct method s_slave_table[] = {
 	{
 		.cmd = "deleted",
 		.handler = slave_deleted, /* slave_name, pkgname, filename, ret */
-	},
-	{
-		.cmd = "acquire_buffer",
-		.handler = slave_acquire_buffer, /* slave_name, id, w, h, size, - out - type, shmid */
-	},
-	{
-		.cmd = "resize_buffer",
-		.handler = slave_resize_buffer,
-	},
-	{
-		.cmd = "release_buffer",
-		.handler = slave_release_buffer, /* slave_name, id - ret */
 	},
 	{
 		.cmd = "faulted",
@@ -8241,6 +8223,26 @@ static struct method s_slave_table[] = {
 		.handler = slave_close_pd,
 	},
 
+	{
+		.cmd = "call",
+		.handler = slave_call, /* slave_name, pkgname, filename, function, ret */
+	},
+	{
+		.cmd = "ret",
+		.handler = slave_ret, /* slave_name, pkgname, filename, function, ret */
+	},
+	{
+		.cmd = "acquire_buffer",
+		.handler = slave_acquire_buffer, /* slave_name, id, w, h, size, - out - type, shmid */
+	},
+	{
+		.cmd = "resize_buffer",
+		.handler = slave_resize_buffer,
+	},
+	{
+		.cmd = "release_buffer",
+		.handler = slave_release_buffer, /* slave_name, id - ret */
+	},
 	{
 		.cmd = "hello",
 		.handler = slave_hello, /* slave_name, ret */

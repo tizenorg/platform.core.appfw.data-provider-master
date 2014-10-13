@@ -1,8 +1,9 @@
 %bcond_with wayland
+%define _repository wearable
 
 Name: data-provider-master
 Summary: Master service provider for liveboxes
-Version: 0.45.7
+Version: 0.46.0
 Release: 1
 Group: HomeTF/Livebox
 License: Flora
@@ -96,18 +97,6 @@ export WEARABLE=On
 export LIVEBOX_SHM="${LIVEBOX_SHM}.mobile"
 export MOBILE=On
 export WEARABLE=Off
-%endif
-
-%if "%{sec_product_feature_display_resolution}" == "360x480"
-export LIVEBOX_SHM="${LIVEBOX_SHM}.360x480"
-%endif
-
-%if "%{sec_product_feature_display_resolution}" == "320x480"
-export LIVEBOX_SHM="${LIVEBOX_SHM}.320x480"
-%endif
-
-%if "%{sec_product_feature_display_resolution}" == "480x800"
-export LIVEBOX_SHM="${LIVEBOX_SHM}.480x800"
 %endif
 
 %if "%{sec_product_feature_livebox}" == "0"

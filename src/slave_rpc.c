@@ -38,6 +38,7 @@
 #include "fault_manager.h"
 #include "util.h"
 #include "conf.h"
+#include "provider_cmd_list.h"
 
 struct slave_rpc {
 	Ecore_Timer *pong_timer;
@@ -650,6 +651,7 @@ HAPI void slave_rpc_request_update(const char *pkgname, const char *id, const ch
 	struct slave_node *slave;
 	struct pkg_info *info;
 	struct packet *packet;
+	unsigned int cmd = CMD_UPDATE_CONTENT;
 
 	info = package_find(pkgname);
 	if (!info) {
@@ -663,7 +665,7 @@ HAPI void slave_rpc_request_update(const char *pkgname, const char *id, const ch
 		return;
 	}
 
-	packet = packet_create_noack("update_content", "sssssi", pkgname, id, cluster, category, content, force);
+	packet = packet_create_noack((const char *)&cmd, "sssssi", pkgname, id, cluster, category, content, force);
 	if (!packet) {
 		ErrPrint("Failed to create a new param\n");
 		return;
@@ -688,8 +690,9 @@ HAPI int slave_rpc_handle(struct slave_node *slave)
 HAPI int slave_rpc_disconnect(struct slave_node *slave)
 {
 	struct packet *packet;
+	unsigned int cmd = CMD_DISCONNECT;
 
-	packet = packet_create_noack("disconnect", "d", util_timestamp());
+	packet = packet_create_noack((const char *)&cmd, "d", util_timestamp());
 	if (!packet) {
 		ErrPrint("Failed to create a packet\n");
 		return LB_STATUS_ERROR_FAULT;

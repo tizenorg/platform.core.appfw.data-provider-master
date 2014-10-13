@@ -44,6 +44,7 @@
 #include "util.h"
 #include "abi.h"
 #include "xmonitor.h"
+#include "provider_cmd_list.h"
 
 #define BUNDLE_SLAVE_SVC_OP_TYPE "__APP_SVC_OP_TYPE__"
 #define APP_CONTROL_OPERATION_MAIN "http://tizen.org/appcontrol/operation/main"
@@ -1543,6 +1544,7 @@ HAPI int slave_resume(struct slave_node *slave)
 {
 	double timestamp;
 	struct packet *packet;
+	unsigned int cmd = CMD_RESUME;
 
 	switch (slave->state) {
 	case SLAVE_REQUEST_TO_DISCONNECT:
@@ -1559,7 +1561,7 @@ HAPI int slave_resume(struct slave_node *slave)
 
 	timestamp = util_timestamp();
 
-	packet = packet_create("resume", "d", timestamp);
+	packet = packet_create((const char *)&cmd, "d", timestamp);
 	if (!packet) {
 		ErrPrint("Failed to prepare param\n");
 		return LB_STATUS_ERROR_FAULT;
@@ -1573,6 +1575,7 @@ HAPI int slave_pause(struct slave_node *slave)
 {
 	double timestamp;
 	struct packet *packet;
+	unsigned int cmd = CMD_PAUSE;
 
 	switch (slave->state) {
 	case SLAVE_REQUEST_TO_DISCONNECT:
@@ -1589,7 +1592,7 @@ HAPI int slave_pause(struct slave_node *slave)
 
 	timestamp = util_timestamp();
 
-	packet = packet_create("pause", "d", timestamp);
+	packet = packet_create((const char *)&cmd, "d", timestamp);
 	if (!packet) {
 		ErrPrint("Failed to prepare param\n");
 		return LB_STATUS_ERROR_FAULT;
