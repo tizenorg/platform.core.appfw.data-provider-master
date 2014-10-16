@@ -1123,10 +1123,10 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 	} else {
 		switch (type) {
 		case DBOX_DELETE_PERMANENTLY:
-			ret = instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
+			ret = instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
 			break;
 		case DBOX_DELETE_TEMPORARY:
-			ret = instance_destroy(inst, INSTANCE_DESTROY_TEMPORARY);
+			ret = instance_destroy(inst, DBOX_DESTROY_TYPE_TEMPORARY);
 			break;
 		default:
 			break;
@@ -7693,7 +7693,7 @@ static struct packet *liveinfo_pkg_ctrl(pid_t pid, int handle, const struct pack
 		if (!inst) {
 			liveinfo_set_data(info, (void *)ENOENT);
 		} else {
-			(void)instance_destroy(inst, INSTANCE_DESTROY_DEFAULT);
+			(void)instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
 			liveinfo_set_data(info, (void *)0);
 		}
 

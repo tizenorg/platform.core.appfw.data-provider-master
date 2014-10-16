@@ -1253,7 +1253,7 @@ static int io_uninstall_cb(const char *pkgid, const char *dbox_id, int prime, vo
 	 */
 	if (info->inst_list) {
 		EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
-			instance_destroy(inst, INSTANCE_DESTROY_UNINSTALL);
+			instance_destroy(inst, DBOX_DESTROY_TYPE_UNINSTALL);
 		}
 	} else {
 		package_destroy(info);
@@ -1297,9 +1297,9 @@ static inline void reload_package_info(struct pkg_info *info)
 			if (instance_period(inst) == old_period) {
 				instance_reload_period(inst, package_period(info));
 			}
-			instance_reload(inst, INSTANCE_DESTROY_UPGRADE);
+			instance_reload(inst, DBOX_DESTROY_TYPE_UPGRADE);
 		} else {
-			instance_destroy(inst, INSTANCE_DESTROY_UNINSTALL);
+			instance_destroy(inst, DBOX_DESTROY_TYPE_UNINSTALL);
 		}
 	}
 }
@@ -1416,7 +1416,7 @@ HAPI int package_fini(void)
 	EINA_LIST_FOREACH_SAFE(s_info.pkg_list, p_l, p_n, info) {
 		EINA_LIST_FOREACH_SAFE(info->inst_list, i_l, i_n, inst) {
 			instance_state_reset(inst);
-			instance_destroy(inst, INSTANCE_DESTROY_TERMINATE);
+			instance_destroy(inst, DBOX_DESTROY_TYPE_TERMINATE);
 		}
 
 		package_destroy(info);
@@ -1579,7 +1579,7 @@ HAPI int package_faulted(struct pkg_info *pkg, int broadcast)
 	DbgPrint("package: %s (forucely faulted %s)\n", package_name(pkg), slave_name(slave));
 	EINA_LIST_FOREACH_SAFE(pkg->inst_list, l, n, inst) {
 		DbgPrint("Destroy instance %p\n", inst);
-		instance_destroy(inst, INSTANCE_DESTROY_FAULT);
+		instance_destroy(inst, DBOX_DESTROY_TYPE_FAULT);
 	}
 
 	return DBOX_STATUS_ERROR_NONE;

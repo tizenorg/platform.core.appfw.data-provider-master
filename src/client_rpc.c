@@ -25,6 +25,7 @@
 #include <packet.h>
 #include <dynamicbox_errno.h>
 #include <dynamicbox_conf.h>
+#include <dynamicbox_service.h>
 
 #include "client_life.h"
 #include "instance.h"

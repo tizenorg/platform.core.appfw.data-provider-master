@@ -94,16 +94,6 @@ enum instance_event {
 	INSTNACE_EVENT_UNKNOWN
 };
 
-enum instance_destroy_type {
-	INSTANCE_DESTROY_DEFAULT = 0x00,
-	INSTANCE_DESTROY_UPGRADE = 0x01,
-	INSTANCE_DESTROY_UNINSTALL = 0x02,
-	INSTANCE_DESTROY_TERMINATE = 0x03,
-	INSTANCE_DESTROY_FAULT = 0x04,
-	INSTANCE_DESTROY_TEMPORARY = 0x05,
-	INSTANCE_DESTROY_UNKNOWN = 0x06
-};
-
 enum instance_state {
 	INST_INIT = 0x0, /*!< Only keeps in the master */
 
@@ -137,8 +127,8 @@ struct script_handle;
 struct client_node;
 
 extern struct inst_info *instance_create(struct client_node *client, double timestamp, const char *pkgname, const char *content, const char *cluster, const char *category, double period, int width, int height);
-extern int instance_destroy(struct inst_info *inst, enum instance_destroy_type type);
-extern int instance_reload(struct inst_info *inst, enum instance_destroy_type type);
+extern int instance_destroy(struct inst_info *inst, dynamicbox_destroy_type_e type);
+extern int instance_reload(struct inst_info *inst, dynamicbox_destroy_type_e type);
 
 extern struct inst_info * instance_ref(struct inst_info *inst);
 extern struct inst_info * instance_unref(struct inst_info *inst);
