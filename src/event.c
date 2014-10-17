@@ -168,6 +168,18 @@ static int push_event_item(void)
 	return LB_STATUS_SUCCESS;
 }
 
+static double kiran_ecore_time_get(void)
+{
+	struct timeval tv;
+
+	if (gettimeofday(&tv, NULL) < 0) {
+		ErrPrint("gettimeofday: %s\n", strerror(errno));
+		return 0.0f;
+	}
+
+	return (double)tv.tv_sec + (double)tv.tv_usec / 1000000.0f;
+}
+
 static void update_timestamp(struct input_event *event)
 {
 #if !defined(_USE_ECORE_TIME_GET)
@@ -192,7 +204,7 @@ static void update_timestamp(struct input_event *event)
 	if (USE_EVENT_TIME) {
 		s_info.event_data.tv = (double)event->time.tv_sec + (double)event->time.tv_usec / 1000000.0f;
 	} else {
-		s_info.event_data.tv = ecore_time_get();
+		s_info.event_data.tv = kiran_ecore_time_get();
 	}
 #endif
 	s_info.timestamp_updated = 1;
@@ -915,7 +927,7 @@ HAPI int event_activate(int x, int y, int (*event_cb)(enum event_state state, st
 	}
 
 #if defined(_USE_ECORE_TIME_GET)
-	listener->tv = ecore_time_get() - DELAY_COMPENSATOR; // Let's use the previous event.
+	listener->tv = kiran_ecore_time_get() - DELAY_COMPENSATOR; // Let's use the previous event.
 	DbgPrint("Activated at: %lf\n", listener->tv);
 #else
 	if (gettimeofday(&listener->tv, NULL) < 0) {
