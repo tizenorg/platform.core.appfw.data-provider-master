@@ -808,7 +808,7 @@ static struct packet *client_acquire(pid_t pid, int handle, const struct packet 
 	}
 
 out:
-	result = packet_create_reply(packet, "i", ret);
+	result = packet_create_reply(packet, "ii", ret, DYNAMICBOX_CONF_EXTRA_BUFFER_COUNT);
 	if (!result) {
 		ErrPrint("Failed to create a packet\n");
 	}
@@ -4771,6 +4771,76 @@ static int release_pixmap_cb(struct client_node *client, void *canvas)
 	return -1; /* Delete this callback */
 }
 
+
+static struct packet *client_dbox_acquire_xpixmap(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+{
+	struct packet *result;
+	const char *pkgname;
+	const char *id;
+	struct client_node *client;
+	struct inst_info *inst;
+	int ret;
+	int pixmap = 0;
+	void *buf_ptr;
+	struct buffer_info *buffer;
+	int idx;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssi", &pkgname, &id, &idx);
+	if (ret != 3) {
+		ErrPrint("Parameter is not matched\n");
+		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		goto out;
+	}
+
+	if (idx >= DYNAMICBOX_CONF_EXTRA_BUFFER_COUNT || idx < 0) {
+		DbgPrint("Index is not valid: %d\n", idx);
+		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, NULL);
+	if (ret != DBOX_STATUS_ERROR_NONE) {
+		goto out;
+	}
+
+	buffer = instance_dbox_extra_buffer(inst, idx);
+	if (!buffer) {
+		ErrPrint("Extra buffer for %d is not available\n", idx);
+		goto out;
+	}
+
+	buf_ptr = buffer_handler_pixmap_ref(buffer);
+	if (!buf_ptr) {
+		ErrPrint("Failed to ref pixmap\n");
+		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, release_pixmap_cb, buf_ptr);
+	if (ret < 0) {
+		ErrPrint("Failed to add a new client deactivate callback\n");
+		buffer_handler_pixmap_unref(buf_ptr);
+	} else {
+		pixmap = buffer_handler_pixmap(buffer);
+		ret = DBOX_STATUS_ERROR_NONE;
+	}
+
+out:
+	result = packet_create_reply(packet, "ii", pixmap, ret);
+	if (!result) {
+		ErrPrint("Failed to create a reply packet\n");
+	}
+
+	return result;
+}
+
 static struct packet *client_dbox_acquire_pixmap(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct packet *result;
@@ -4883,8 +4953,78 @@ static struct packet *client_dbox_release_pixmap(pid_t pid, int handle, const st
 	}
 
 out:
-	/*! \note No reply packet */
+	/**
+	 * @note No reply packet
+	 */
 	return NULL;
+}
+
+static struct packet *client_gbar_acquire_xpixmap(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+{
+	struct packet *result;
+	const char *pkgname;
+	const char *id;
+	struct client_node *client;
+	struct inst_info *inst;
+	int ret;
+	int pixmap = 0;
+	void *buf_ptr;
+	struct buffer_info *buffer;
+	int idx;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ErrPrint("Client %d is not exists\n", pid);
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssi", &pkgname, &id, &idx);
+	if (ret != 3) {
+		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ErrPrint("Parameter is not matched\n");
+		goto out;
+	}
+
+	if (idx >= DYNAMICBOX_CONF_EXTRA_BUFFER_COUNT || idx < 0) {
+		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, NULL);
+	if (ret != DBOX_STATUS_ERROR_NONE) {
+		goto out;
+	}
+
+	buffer = instance_gbar_extra_buffer(inst, idx);
+	if (!buffer) {
+		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	buf_ptr = buffer_handler_pixmap_ref(buffer);
+	if (!buf_ptr) {
+		ErrPrint("Failed to ref pixmap\n");
+		ret = DBOX_STATUS_ERROR_FAULT;
+		goto out;
+	}
+
+	ret = client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, release_pixmap_cb, buf_ptr);
+	if (ret < 0) {
+		ErrPrint("Failed to add a new client deactivate callback\n");
+		buffer_handler_pixmap_unref(buf_ptr);
+	} else {
+		pixmap = buffer_handler_pixmap(buffer);
+		ret = DBOX_STATUS_ERROR_NONE;
+	}
+
+out:
+	result = packet_create_reply(packet, "ii", pixmap, ret);
+	if (!result) {
+		ErrPrint("Failed to create a reply packet\n");
+	}
+
+	return result;
 }
 
 static struct packet *client_gbar_acquire_pixmap(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
@@ -6907,7 +7047,132 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 out:
 	result = packet_create_reply(packet, "is", ret, id);
 	if (!result) {
-		ErrPrint("Failed to create a packet\n");
+		ErrPrint("Failed to create a reply packet\n");
+	}
+
+	return result;
+}
+
+static struct packet *slave_acquire_extra_buffer(pid_t pid, int handle, const struct packet *packet)
+{
+	struct slave_node *slave;
+	struct inst_info *inst;
+	struct packet *result;
+	const struct pkg_info *pkg;
+	const char *pkgname;
+	const char *id;
+	int pixel_size;
+	int target;
+	int idx;
+	int ret;
+	int w;
+	int h;
+
+	slave = slave_find_by_pid(pid);
+	if (!slave) {
+		ErrPrint("Slave %d is not exists\n", pid);
+		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		id = "";
+		goto out;
+	}
+
+	ret = packet_get(packet, "issiiii", &target, &pkgname, &id, &w, &h, &pixel_size, &idx);
+	if (ret != 7) {
+		ErrPrint("Invalid parameters\n");
+		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		id = "";
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	id = "";
+
+	if (ret != DBOX_STATUS_ERROR_NONE) {
+		goto out;
+	}
+
+	ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+
+	if (instance_state(inst) == INST_DESTROYED) {
+		ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
+		goto out;
+	}
+
+	if (target == TYPE_DBOX && package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
+		struct buffer_info *info;
+
+		info = instance_dbox_extra_buffer(inst, idx);
+		if (!info) {
+			if (!instance_create_dbox_extra_buffer(inst, pixel_size, idx)) {
+				ErrPrint("Failed to create a DBOX buffer\n");
+				ret = DBOX_STATUS_ERROR_FAULT;
+				goto out;
+			}
+
+			info = instance_dbox_extra_buffer(inst, idx);
+			if (!info) {
+				ErrPrint("DBOX extra buffer is not valid\n");
+				/*!
+				 * \NOTE
+				 * ret value should not be changed.
+				 */
+				goto out;
+			}
+		}
+
+		ret = buffer_handler_resize(info, w, h);
+		ret = buffer_handler_load(info);
+		if (ret == 0) {
+			/**
+			 * @todo
+			 * Send the extra buffer info to the viewer.
+			 * Then the viewer will try to acquire extra pixmap(aka, resource id) information
+			 */
+			id = buffer_handler_id(info);
+			(void)instance_client_dbox_extra_buffer_created(inst, idx);
+		} else {
+			ErrPrint("Failed to load a buffer(%d)\n", ret);
+		}
+	} else if (target == TYPE_GBAR && package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
+		struct buffer_info *info;
+
+		info = instance_gbar_extra_buffer(inst, idx);
+		if (!info) {
+			if (!instance_create_gbar_extra_buffer(inst, pixel_size, idx)) {
+				ErrPrint("Failed to create a GBAR buffer\n");
+				ret = DBOX_STATUS_ERROR_FAULT;
+				goto out;
+			}
+
+			info = instance_gbar_extra_buffer(inst, idx);
+			if (!info) {
+				ErrPrint("GBAR buffer is not valid\n");
+				/*!
+				 * \NOTE
+				 * ret value should not be changed.
+				 */
+				goto out;
+			}
+		}
+
+		ret = buffer_handler_resize(info, w, h);
+		ret = buffer_handler_load(info);
+		if (ret == 0) {
+			id = buffer_handler_id(info);
+			/**
+			 * @todo
+			 * Send the extra buffer acquired event to the viewer
+			 */
+			(void)instance_client_gbar_extra_buffer_created(inst, idx);
+		} else {
+			ErrPrint("Failed to load a buffer (%d)\n", ret);
+		}
+	}
+
+out:
+	result = packet_create_reply(packet, "is", ret, id);
+	if (!result) {
+		ErrPrint("Failed to create a reply packet\n");
 	}
 
 	return result;
@@ -6944,6 +7209,7 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 
 	ret = validate_request(pkgname, id, &inst, &pkg);
 	id = "";
+
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -7048,8 +7314,8 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 		gbar_monitor = instance_del_data(inst, GBAR_CLOSE_MONITOR_TAG);
 		if (!gbar_monitor && !package_is_fault(pkg)) {
 			ErrPrint("Slave requests to release a buffer\n");
-			/*!
-			 * \note
+			/**
+			 * @note
 			 * In this case just keep going to release buffer,
 			 * Even if a user(client) doesn't wants to destroy the GBAR.
 			 *
@@ -7062,8 +7328,8 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 			 * which will be checked by instance_client_gbar_destroyed function.
 			 */
 
-			/*!
-			 * \note
+			/**
+			 * @note
 			 * provider can try to resize the buffer size.
 			 * in that case, it will release the buffer first.
 			 * Then even though the client doesn't request to close the GBAR,
@@ -7095,8 +7361,8 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 			}
 		} else {
 			if (gbar_monitor) {
-				/*!
-				 * \note
+				/**
+				 * @note
 				 * If the instance has gbar_monitor, the pd close requested from client via client_destroy_gbar.
 				 */
 				slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_close_buffer_cb, inst);
@@ -7109,15 +7375,15 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 					goto out;
 				}
 			} /* else {
-				\note
+				@note
 				This case means that the package is faulted so the service provider tries to release the buffer
 			*/
 
 			info = instance_gbar_buffer(inst);
 			ret = buffer_handler_unload(info);
 
-			/*!
-			 * \note
+			/**
+			 * @note
 			 * Send the GBAR destroyed event to the client
 			 */
 			instance_client_gbar_destroyed(inst, ret);
@@ -7128,6 +7394,60 @@ out:
 	result = packet_create_reply(packet, "i", ret);
 	if (!result) {
 		ErrPrint("Failed to create a packet\n");
+	}
+
+	return result;
+}
+
+static struct packet *slave_release_extra_buffer(pid_t pid, int handle, const struct packet *packet)
+{
+	struct slave_node *slave;
+	struct packet *result;
+	const char *id;
+	struct buffer_info *info = NULL;
+	int ret;
+	int idx;
+	int type;
+	const char *pkgname;
+	struct inst_info *inst;
+	const struct pkg_info *pkg;
+
+	slave = slave_find_by_pid(pid);
+	if (!slave) {
+		ErrPrint("Slave %d is not exists\n", pid);
+		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	if (packet_get(packet, "issi", &type, &pkgname, &id, &idx) != 4) {
+		ErrPrint("Inavlid argument\n");
+		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	if (ret != DBOX_STATUS_ERROR_NONE) {
+		goto out;
+	}
+
+	ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+
+	if (type == TYPE_DBOX && package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
+		info = instance_dbox_extra_buffer(inst, idx);
+		(void)instance_client_dbox_extra_buffer_destroyed(inst, idx);
+	} else if (type == TYPE_GBAR && package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
+		info = instance_gbar_extra_buffer(inst, idx);
+		(void)instance_client_gbar_extra_buffer_destroyed(inst, idx);
+	}
+
+	if (info) {
+		ret = buffer_handler_unload(info);
+	}
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result) {
+		ErrPrint("Failed to create a reply packet\n");
 	}
 
 	return result;
@@ -8148,6 +8468,14 @@ static struct method s_client_table[] = {
 		.cmd = CMD_STR_CLIENT_RESUMED,
 		.handler = client_resume_request,
 	},
+	{
+		.cmd = CMD_STR_DBOX_ACQUIRE_XPIXMAP,
+		.handler = client_dbox_acquire_xpixmap,
+	},
+	{
+		.cmd = CMD_STR_GBAR_ACQUIRE_XPIXMAP,
+		.handler = client_gbar_acquire_xpixmap,
+	},
 
 	{
 		.cmd = NULL,
@@ -8261,6 +8589,15 @@ static struct method s_slave_table[] = {
 	{
 		.cmd = CMD_STR_CTRL,
 		.handler = slave_ctrl, /* control bits */
+	},
+
+	{
+		.cmd = CMD_STR_ACQUIRE_XBUFFER,
+		.handler = slave_acquire_extra_buffer,
+	},
+	{
+		.cmd = CMD_STR_RELEASE_XBUFFER,
+		.handler = slave_release_extra_buffer,
 	},
 
 	{

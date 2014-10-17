@@ -169,7 +169,9 @@ extern struct pkg_info * const instance_package(const struct inst_info *inst);
 extern struct script_info * const instance_dbox_script(const struct inst_info *inst);
 extern struct script_info * const instance_gbar_script(const struct inst_info *inst);
 extern struct buffer_info * const instance_gbar_buffer(const struct inst_info *inst);
+extern struct buffer_info * const instance_gbar_extra_buffer(const struct inst_info *inst, int idx);
 extern struct buffer_info * const instance_dbox_buffer(const struct inst_info *inst);
+extern struct buffer_info * const instance_dbox_extra_buffer(const struct inst_info *inst, int idx);
 extern const char * const instance_id(const struct inst_info *inst);
 extern const char * const instance_content(const struct inst_info *inst);
 extern const char * const instance_category(const struct inst_info *inst);
@@ -193,7 +195,9 @@ extern int instance_unicast_created_event(struct inst_info *inst, struct client_
 extern int instance_unicast_deleted_event(struct inst_info *inst, struct client_node *client, int reason);
 
 extern int instance_create_dbox_buffer(struct inst_info *inst, int pixels);
+extern int instance_create_dbox_extra_buffer(struct inst_info *inst, int pixels, int idx);
 extern int instance_create_gbar_buffer(struct inst_info *inst, int pixels);
+extern int instance_create_gbar_extra_buffer(struct inst_info *inst, int pixels, int idx);
 
 extern void instance_slave_set_gbar_pos(struct inst_info *inst, double x, double y);
 extern void instance_slave_get_gbar_pos(struct inst_info *inst, double *x, double *y);
@@ -224,6 +228,12 @@ extern void instance_extra_info_updated_by_instance(struct inst_info *inst);
  */
 extern int instance_client_gbar_destroyed(struct inst_info *inst, int status);
 extern int instance_client_gbar_created(struct inst_info *inst, int status);
+
+extern int instance_client_gbar_extra_buffer_created(struct inst_info *inst, int idx);
+extern int instance_client_gbar_extra_buffer_destroyed(struct inst_info *inst, int idx);
+
+extern int instance_client_dbox_extra_buffer_created(struct inst_info *inst, int idx);
+extern int instance_client_dbox_extra_buffer_destroyed(struct inst_info *inst, int idx);
 
 extern int instance_send_access_status(struct inst_info *inst, int status);
 extern int instance_send_key_status(struct inst_info *inst, int status);

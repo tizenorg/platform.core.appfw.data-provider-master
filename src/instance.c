@@ -126,6 +126,8 @@ struct inst_info {
 			struct buffer_info *buffer;
 		} canvas;
 
+		struct buffer_info **extra_buffer;
+
 		double period;
 	} dbox;
 
@@ -139,6 +141,8 @@ struct inst_info {
 			struct script_info *script;
 			struct buffer_info *buffer;
 		} canvas;
+
+		struct buffer_info **extra_buffer;
 
 		struct client_node *owner;
 		int is_opened_for_reactivate;
@@ -211,7 +215,6 @@ static inline void timer_freeze(struct inst_info *inst)
 	inst->sleep_at = (double)tv.tv_sec + (double)tv.tv_usec / 1000000.0f;
 #endif
 }
-
 
 static int viewer_deactivated_cb(struct client_node *client, void *data)
 {
@@ -693,6 +696,24 @@ static inline void destroy_instance(struct inst_info *inst)
 		if (buffer_handler_destroy(inst->dbox.canvas.buffer) == (int)DBOX_STATUS_ERROR_NONE) {
 			inst->dbox.canvas.buffer = NULL;
 		}
+
+		if (inst->dbox.extra_buffer) {
+			int i;
+
+			for (i = 0; i < DYNAMICBOX_CONF_EXTRA_BUFFER_COUNT; i++) {
+				if (!inst->dbox.extra_buffer[i]) {
+					continue;
+				}
+
+				(void)buffer_handler_unload(inst->dbox.extra_buffer[i]);
+				if (buffer_handler_destroy(inst->dbox.extra_buffer[i]) == (int)DBOX_STATUS_ERROR_NONE) {
+					inst->dbox.extra_buffer[i] = NULL;
+				}
+			}
+
+			DbgFree(inst->dbox.extra_buffer);
+			inst->dbox.extra_buffer = NULL;
+		}
 	}
 
 	if (gbar_type == GBAR_TYPE_SCRIPT) {
@@ -704,6 +725,23 @@ static inline void destroy_instance(struct inst_info *inst)
 		(void)buffer_handler_unload(inst->gbar.canvas.buffer);
 		if (buffer_handler_destroy(inst->gbar.canvas.buffer) == (int)DBOX_STATUS_ERROR_NONE) {
 			inst->gbar.canvas.buffer = NULL;
+		}
+		if (inst->gbar.extra_buffer) {
+			int i;
+
+			for (i = 0; i < DYNAMICBOX_CONF_EXTRA_BUFFER_COUNT; i++) {
+				if (!inst->gbar.extra_buffer[i]) {
+					continue;
+				}
+
+				(void)buffer_handler_unload(inst->gbar.extra_buffer[i]);
+				if (buffer_handler_destroy(inst->gbar.extra_buffer[i]) == (int)DBOX_STATUS_ERROR_NONE) {
+					inst->gbar.extra_buffer[i] = NULL;
+				}
+			}
+
+			DbgFree(inst->gbar.extra_buffer);
+			inst->gbar.extra_buffer = NULL;
 		}
 	}
 
@@ -725,6 +763,7 @@ static inline void destroy_instance(struct inst_info *inst)
 	EINA_LIST_FREE(inst->delete_event_list, item) {
 		DbgFree(item);
 	}
+
 	DbgFree(inst->icon);
 	DbgFree(inst->name);
 	DbgFree(inst->category);
@@ -857,6 +896,17 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 	inst->unicast_delete_event = 1;
 	inst->state = INST_INIT;
 	inst->requested_state = INST_INIT;
+	if (DYNAMICBOX_CONF_EXTRA_BUFFER_COUNT) {
+		inst->dbox.extra_buffer = calloc(DYNAMICBOX_CONF_EXTRA_BUFFER_COUNT, sizeof(*inst->dbox.extra_buffer));
+		if (!inst->dbox.extra_buffer) {
+			ErrPrint("Failed to allocate buffer for dbox extra buffer\n");
+		}
+
+		inst->gbar.extra_buffer = calloc(DYNAMICBOX_CONF_EXTRA_BUFFER_COUNT, sizeof(*inst->gbar.extra_buffer));
+		if (!inst->gbar.extra_buffer) {
+			ErrPrint("Failed to allocate buffer for gbar extra buffer\n");
+		}
+	}
 	instance_ref(inst);
 
 	if (package_add_instance(inst->info, inst) < 0) {
@@ -1316,6 +1366,26 @@ HAPI int instance_create_gbar_buffer(struct inst_info *inst, int pixels)
 	return !!inst->gbar.canvas.buffer;
 }
 
+HAPI int instance_create_gbar_extra_buffer(struct inst_info *inst, int pixels, int idx)
+{
+	if (!inst->gbar.extra_buffer) {
+		return 0;
+	}
+
+	if (inst->gbar.width == 0 && inst->gbar.height == 0) {
+		instance_set_gbar_size(inst, package_gbar_width(inst->info), package_gbar_height(inst->info));
+	}
+
+	if (!inst->gbar.extra_buffer[idx]) {
+		inst->gbar.extra_buffer[idx] = buffer_handler_create(inst, s_info.env_buf_type, inst->gbar.width, inst->gbar.height, pixels);
+		if (!inst->gbar.extra_buffer[idx]) {
+			ErrPrint("Failed to create GBAR Extra Buffer\n");
+		}
+	}
+
+	return !!inst->gbar.extra_buffer[idx];
+}
+
 HAPI int instance_create_dbox_buffer(struct inst_info *inst, int pixels)
 {
 	if (inst->dbox.width == 0 && inst->dbox.height == 0) {
@@ -1335,6 +1405,26 @@ HAPI int instance_create_dbox_buffer(struct inst_info *inst, int pixels)
 	}
 
 	return !!inst->dbox.canvas.buffer;
+}
+
+HAPI int instance_create_dbox_extra_buffer(struct inst_info *inst, int pixels, int idx)
+{
+	if (!inst->dbox.extra_buffer) {
+		return 0;
+	}
+
+	if (inst->dbox.width == 0 && inst->dbox.height == 0) {
+		dynamicbox_service_get_size(DBOX_SIZE_TYPE_1x1, &inst->dbox.width, &inst->dbox.height);
+	}
+
+	if (!inst->dbox.extra_buffer[idx]) {
+		inst->dbox.extra_buffer[idx] = buffer_handler_create(inst, s_info.env_buf_type, inst->dbox.width, inst->dbox.height, pixels);
+		if (!inst->dbox.extra_buffer[idx]) {
+			ErrPrint("Failed to create DBox Extra buffer\n");
+		}
+	}
+
+	return !!inst->dbox.extra_buffer[idx];
 }
 
 HAPI int instance_destroy(struct inst_info *inst, dynamicbox_destroy_type_e type)
@@ -2764,6 +2854,16 @@ HAPI struct buffer_info *const instance_gbar_buffer(const struct inst_info *inst
 	return (package_gbar_type(inst->info) == GBAR_TYPE_BUFFER) ? inst->gbar.canvas.buffer : NULL;
 }
 
+HAPI struct buffer_info *const instance_dbox_extra_buffer(const struct inst_info *inst, int idx)
+{
+	return (package_dbox_type(inst->info) == DBOX_TYPE_BUFFER) ? (inst->dbox.extra_buffer ? inst->dbox.extra_buffer[idx] : NULL) : NULL;
+}
+
+HAPI struct buffer_info *const instance_gbar_extra_buffer(const struct inst_info *inst, int idx)
+{
+	return (package_gbar_type(inst->info) == GBAR_TYPE_BUFFER) ? (inst->gbar.extra_buffer ? inst->gbar.extra_buffer[idx] : NULL) : NULL;
+}
+
 HAPI const char *const instance_id(const struct inst_info *inst)
 {
 	return inst->id;
@@ -3224,6 +3324,90 @@ HAPI int instance_client_gbar_created(struct inst_info *inst, int status)
 HAPI int instance_client_gbar_destroyed(struct inst_info *inst, int status)
 {
 	return send_gbar_destroyed_to_client(inst, status);
+}
+
+HAPI int instance_client_gbar_extra_buffer_created(struct inst_info *inst, int idx)
+{
+	struct packet *packet;
+	unsigned int cmd = CMD_GBAR_CREATE_XBUF;
+	int pixmap;
+
+	pixmap = buffer_handler_pixmap(inst->gbar.extra_buffer[idx]);
+	if (pixmap == 0) {
+		ErrPrint("Invalid buffer\n");
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+
+	packet = packet_create_noack((const char *)&cmd, "ssii", package_name(inst->info), inst->id, pixmap, idx);
+	if (!packet) {
+		ErrPrint("Failed to create a packet\n");
+		return DBOX_STATUS_ERROR_FAULT;
+	}
+
+	return CLIENT_SEND_EVENT(inst, packet);
+}
+
+HAPI int instance_client_gbar_extra_buffer_destroyed(struct inst_info *inst, int idx)
+{
+	struct packet *packet;
+	unsigned int cmd = CMD_GBAR_DESTROY_XBUF;
+	int pixmap;
+
+	pixmap = buffer_handler_pixmap(inst->gbar.extra_buffer[idx]);
+	if (pixmap == 0) {
+		ErrPrint("Invalid buffer\n");
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+
+	packet = packet_create_noack((const char *)&cmd, "ssii", package_name(inst->info), inst->id, pixmap, idx);
+	if (!packet) {
+		ErrPrint("Failed to create a packet\n");
+		return DBOX_STATUS_ERROR_FAULT;
+	}
+
+	return CLIENT_SEND_EVENT(inst, packet);
+}
+
+HAPI int instance_client_dbox_extra_buffer_created(struct inst_info *inst, int idx)
+{
+	struct packet *packet;
+	unsigned int cmd = CMD_DBOX_CREATE_XBUF;
+	int pixmap;
+
+	pixmap = buffer_handler_pixmap(inst->dbox.extra_buffer[idx]);
+	if (pixmap == 0) {
+		ErrPrint("Invalid buffer\n");
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+
+	packet = packet_create_noack((const char *)&cmd, "ssii", package_name(inst->info), inst->id, pixmap, idx);
+	if (!packet) {
+		ErrPrint("Failed to create a packet\n");
+		return DBOX_STATUS_ERROR_FAULT;
+	}
+
+	return CLIENT_SEND_EVENT(inst, packet);
+}
+
+HAPI int instance_client_dbox_extra_buffer_destroyed(struct inst_info *inst, int idx)
+{
+	struct packet *packet;
+	unsigned int cmd = CMD_DBOX_DESTROY_XBUF;
+	int pixmap;
+
+	pixmap = buffer_handler_pixmap(inst->dbox.extra_buffer[idx]);
+	if (pixmap == 0) {
+		ErrPrint("Invalid buffer\n");
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+
+	packet = packet_create_noack((const char *)&cmd, "ssii", package_name(inst->info), inst->id, pixmap, idx);
+	if (!packet) {
+		ErrPrint("Failed to create a packet\n");
+		return DBOX_STATUS_ERROR_FAULT;
+	}
+
+	return CLIENT_SEND_EVENT(inst, packet);
 }
 
 HAPI int instance_add_client(struct inst_info *inst, struct client_node *client)
