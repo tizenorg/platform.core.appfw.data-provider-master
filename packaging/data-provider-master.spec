@@ -2,7 +2,7 @@
 
 Name: data-provider-master
 Summary: Master service provider for dynamicboxes
-Version: 0.46.0
+Version: 1.0.0
 Release: 1
 Group: HomeTF/DynamicBox
 License: Flora

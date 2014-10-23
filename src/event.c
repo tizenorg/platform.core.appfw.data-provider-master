@@ -169,6 +169,25 @@ static int push_event_item(void)
 	return DBOX_STATUS_ERROR_NONE;
 }
 
+static double current_time_get(void)
+{
+	double ret;
+
+	if (DYNAMICBOX_CONF_USE_GETTIMEOFDAY) {
+		struct timeval tv;
+		if (gettimeofday(&tv, NULL) < 0) {
+			ErrPrint("gettimeofday: %s\n", strerror(errno));
+			ret = ecore_time_get();
+		} else {
+			ret = (double)tv.tv_sec + ((double)tv.tv_usec / 1000000.0f);
+		}
+	} else {
+		ret = ecore_time_get();
+	}
+
+	return ret;
+}
+
 static void update_timestamp(struct input_event *event)
 {
 #if !defined(_USE_ECORE_TIME_GET)
@@ -193,7 +212,7 @@ static void update_timestamp(struct input_event *event)
 	if (DYNAMICBOX_CONF_USE_EVENT_TIME) {
 		s_info.event_data.tv = (double)event->time.tv_sec + (double)event->time.tv_usec / 1000000.0f;
 	} else {
-		s_info.event_data.tv = ecore_time_get();
+		s_info.event_data.tv = current_time_get();
 	}
 #endif
 	s_info.timestamp_updated = 1;
@@ -916,7 +935,7 @@ HAPI int event_activate(int x, int y, int (*event_cb)(enum event_state state, st
 	}
 
 #if defined(_USE_ECORE_TIME_GET)
-	listener->tv = ecore_time_get() - DELAY_COMPENSATOR; // Let's use the previous event.
+	listener->tv = current_time_get() - DELAY_COMPENSATOR; // Let's use the previous event.
 	DbgPrint("Activated at: %lf (%dx%d)\n", listener->tv, x, y);
 #else
 	if (gettimeofday(&listener->tv, NULL) < 0) {
