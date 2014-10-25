@@ -80,8 +80,7 @@ struct buffer_info
 {
 	void *buffer;
 	char *id;
-	char *lock;
-	int lock_fd;
+	dynamicbox_lock_info_t lock_info;
 
 	enum dynamicbox_fb_type type;
 
@@ -107,123 +106,6 @@ static struct {
 	.fd = -1,
 	.pixmap_list = NULL,
 };
-
-static int destroy_lock_file(struct buffer_info *info)
-{
-	if (!info->inst) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	}
-
-	if (!info->lock) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	}
-
-	if (close(info->lock_fd) < 0) {
-		ErrPrint("close: %s\n", strerror(errno));
-	}
-	info->lock_fd = -1;
-
-	if (unlink(info->lock) < 0) {
-		ErrPrint("unlink: %s\n", strerror(errno));
-	}
-
-	DbgFree(info->lock);
-	info->lock = NULL;
-	return DBOX_STATUS_ERROR_NONE;
-}
-
-static int create_lock_file(struct buffer_info *info)
-{
-	const char *id;
-	int len;
-	char *file;
-	char target[3] = "pd";
-
-	if (!info->inst) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	}
-
-	id = instance_id(info->inst);
-	if (!id) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	}
-
-	len = strlen(id);
-	file = malloc(len + 20);
-	if (!file) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
-	}
-
-	if (script_handler_buffer_info(instance_gbar_script(info->inst)) != info && instance_gbar_buffer(info->inst) != info) {
-		target[0] = 'l';
-		target[1] = 'b';
-		/* target[2] = '\0'; // We already have this ;) */
-	}
-
-	snprintf(file, len + 20, "%s.%s.lck", util_uri_to_path(id), target);
-	info->lock_fd = open(file, O_WRONLY|O_CREAT, 0644);
-	if (info->lock_fd < 0) {
-		ErrPrint("open: %s\n", strerror(errno));
-		DbgFree(file);
-		return DBOX_STATUS_ERROR_IO_ERROR;
-	}
-
-	info->lock = file;
-	return DBOX_STATUS_ERROR_NONE;
-}
-
-static int do_buffer_lock(struct buffer_info *info)
-{
-	struct flock flock;
-	int ret;
-
-	if (info->lock_fd < 0) {
-		return DBOX_STATUS_ERROR_NONE;
-	}
-
-	flock.l_type = F_WRLCK;
-	flock.l_whence = SEEK_SET;
-	flock.l_start = 0;
-	flock.l_len = 0;
-	flock.l_pid = getpid();
-
-	do {
-		ret = fcntl(info->lock_fd, F_SETLKW, &flock);
-		if (ret < 0) {
-			ret = errno;
-			ErrPrint("fcntl: %s\n", strerror(errno));
-		}
-	} while (ret == EINTR);
-
-	return DBOX_STATUS_ERROR_NONE;
-}
-
-static int do_buffer_unlock(struct buffer_info *info)
-{
-	struct flock flock;
-	int ret;
-
-	if (info->lock_fd < 0) {
-		return DBOX_STATUS_ERROR_NONE;
-	}
-
-	flock.l_type = F_UNLCK;
-	flock.l_whence = SEEK_SET;
-	flock.l_start = 0;
-	flock.l_len = 0;
-	flock.l_pid = getpid();
-
-	do {
-		ret = fcntl(info->lock_fd, F_SETLKW, &flock);
-		if (ret < 0) {
-			ret = errno;
-			ErrPrint("fcntl: %s\n", strerror(errno));
-		}
-	} while (ret == EINTR);
-
-	return DBOX_STATUS_ERROR_NONE;
-}
 
 static inline dynamicbox_fb_t create_pixmap(struct buffer_info *info)
 {
@@ -662,6 +544,7 @@ static inline int load_pixmap_buffer(struct buffer_info *info)
 EAPI int buffer_handler_load(struct buffer_info *info)
 {
 	int ret;
+	dynamicbox_target_type_e type = DBOX_TYPE_GBAR;
 
 	if (!info) {
 		ErrPrint("buffer handler is nil\n");
@@ -676,11 +559,19 @@ EAPI int buffer_handler_load(struct buffer_info *info)
 	switch (info->type) {
 	case DBOX_FB_TYPE_FILE:
 		ret = load_file_buffer(info);
-		(void)create_lock_file(info);
+
+		if (script_handler_buffer_info(instance_gbar_script(info->inst)) != info && instance_gbar_buffer(info->inst) != info) {
+			type = DBOX_TYPE_DBOX;
+		}
+		info->lock_info = dynamicbox_service_create_lock(instance_id(info->inst), type, DBOX_LOCK_WRITE);
 		break;
 	case DBOX_FB_TYPE_SHM:
 		ret = load_shm_buffer(info);
-		(void)create_lock_file(info);
+
+		if (script_handler_buffer_info(instance_gbar_script(info->inst)) != info && instance_gbar_buffer(info->inst) != info) {
+			type = DBOX_TYPE_DBOX;
+		}
+		info->lock_info = dynamicbox_service_create_lock(instance_id(info->inst), type, DBOX_LOCK_WRITE);
 		break;
 	case DBOX_FB_TYPE_PIXMAP:
 		ret = load_pixmap_buffer(info);
@@ -813,11 +704,13 @@ EAPI int buffer_handler_unload(struct buffer_info *info)
 
 	switch (info->type) {
 	case DBOX_FB_TYPE_FILE:
-		(void)destroy_lock_file(info);
+		dynamicbox_service_destroy_lock(info->lock_info);
+		info->lock_info = NULL;
 		ret = unload_file_buffer(info);
 		break;
 	case DBOX_FB_TYPE_SHM:
-		(void)destroy_lock_file(info);
+		dynamicbox_service_destroy_lock(info->lock_info);
+		info->lock_info = NULL;
 		ret = unload_shm_buffer(info);
 		break;
 	case DBOX_FB_TYPE_PIXMAP:
@@ -1329,11 +1222,11 @@ EAPI void buffer_handler_flush(struct buffer_info *info)
 		}
 
 		size = info->w * info->h * info->pixel_size;
-		do_buffer_lock(info);
+		dynamicbox_service_acquire_lock(info->lock_info);
 		if (write(fd, info->buffer, size) != size) {
 			ErrPrint("Write is not completed: %s\n", strerror(errno));
 		}
-		do_buffer_unlock(info);
+		dynamicbox_service_release_lock(info->lock_info);
 
 		if (close(fd) < 0) {
 			ErrPrint("close: %s\n", strerror(errno));
@@ -1634,7 +1527,7 @@ EAPI int buffer_handler_lock(struct buffer_info *info)
 		return DBOX_STATUS_ERROR_NONE;
 	}
 
-	return do_buffer_lock(info);
+	return dynamicbox_service_acquire_lock(info->lock_info);
 }
 
 EAPI int buffer_handler_unlock(struct buffer_info *info)
@@ -1651,7 +1544,7 @@ EAPI int buffer_handler_unlock(struct buffer_info *info)
 		return DBOX_STATUS_ERROR_NONE;
 	}
 
-	return do_buffer_unlock(info);
+	return dynamicbox_service_release_lock(info->lock_info);
 }
 
 EAPI int buffer_handler_pixels(struct buffer_info *info)
@@ -1815,8 +1708,7 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum dyna
 		return NULL;
 	}
 
-	info->lock = NULL;
-	info->lock_fd = -1;
+	info->lock_info = NULL;
 	info->w = w;
 	info->h = h;
 	info->pixel_size = pixel_size;
