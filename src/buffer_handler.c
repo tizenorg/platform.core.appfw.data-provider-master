@@ -833,67 +833,84 @@ EAPI void *buffer_handler_pixmap_buffer(struct buffer_info *info)
 	return gem->compensate_data ? gem->compensate_data : gem->data;
 }
 
-/*!
- * \return "buffer" object (Not the buffer_info)
+/**
+ * @return "buffer" object (Not the buffer_info)
  */
 EAPI void *buffer_handler_pixmap_ref(struct buffer_info *info)
 {
-	dynamicbox_fb_t buffer;
+    dynamicbox_fb_t buffer;
 
-	if (!info->is_loaded) {
-		ErrPrint("Buffer is not loaded\n");
-		return NULL;
-	}
+    if (!info->is_loaded) {
+	ErrPrint("Buffer is not loaded\n");
+	return NULL;
+    }
 
-	if (info->type != DBOX_FB_TYPE_PIXMAP) {
-		ErrPrint("Buffer type is not matched\n");
-		return NULL;
-	}
+    if (info->type != DBOX_FB_TYPE_PIXMAP) {
+	ErrPrint("Buffer type is not matched\n");
+	return NULL;
+    }
 
-	buffer = info->buffer;
+    buffer = info->buffer;
+    if (!buffer) {
+	int need_gem = 1;
+
+	buffer = create_pixmap(info);
 	if (!buffer) {
-		int need_gem = 1;
-
-		buffer = create_pixmap(info);
-		if (!buffer) {
-			ErrPrint("Failed to create a pixmap\n");
-			return NULL;
-		}
-
-		info->buffer = buffer;
-
-		if (info->inst) {
-			struct pkg_info *pkg;
-
-			if (instance_dbox_buffer(info->inst) == info) {
-				pkg = instance_package(info->inst);
-				if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-					need_gem = 0;
-				}
-			} else if (instance_gbar_buffer(info->inst) == info) {
-				pkg = instance_package(info->inst);
-				if (package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
-					need_gem = 0;
-				}
-			}
-		}
-
-		if (need_gem) {
-			if (create_gem(buffer) < 0) {
-				/* okay, something goes wrong */
-			}
-		}
-
-	} else if (buffer->state != DBOX_FB_STATE_CREATED || buffer->type != DBOX_FB_TYPE_PIXMAP) {
-		ErrPrint("Invalid buffer\n");
-		return NULL;
-	} else if (buffer->refcnt > 0) {
-		buffer->refcnt++;
-		return buffer;
+	    ErrPrint("Failed to create a pixmap\n");
+	    return NULL;
 	}
 
-	s_info.pixmap_list = eina_list_append(s_info.pixmap_list, buffer);
+	info->buffer = buffer;
+
+	if (info->inst) {
+	    struct pkg_info *pkg;
+
+	    pkg = instance_package(info->inst);
+
+	    if (instance_dbox_buffer(info->inst) == info) {
+		if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
+		    need_gem = 0;
+		}
+	    } else if (instance_gbar_buffer(info->inst) == info) {
+		if (package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
+		    need_gem = 0;
+		}
+	    } else {
+		int idx;
+
+		for (idx = 0; idx < DYNAMICBOX_CONF_EXTRA_BUFFER_COUNT; idx++) {
+		    if (instance_dbox_extra_buffer(info->inst, idx) == info) {
+			if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
+			    need_gem = 0;
+			    break;
+			}
+		    }
+
+		    if (instance_gbar_extra_buffer(info->inst, idx) == info) {
+			if (package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
+			    need_gem = 0;
+			    break;
+			}
+		    }
+		}
+	    }
+	}
+
+	if (need_gem) {
+	    if (create_gem(buffer) < 0) {
+		/* okay, something goes wrong */
+	    }
+	}
+    } else if (buffer->state != DBOX_FB_STATE_CREATED || buffer->type != DBOX_FB_TYPE_PIXMAP) {
+	ErrPrint("Invalid buffer\n");
+	return NULL;
+    } else if (buffer->refcnt > 0) {
+	buffer->refcnt++;
 	return buffer;
+    }
+
+    s_info.pixmap_list = eina_list_append(s_info.pixmap_list, buffer);
+    return buffer;
 }
 
 /*!

@@ -7129,6 +7129,7 @@ static struct packet *slave_acquire_extra_buffer(pid_t pid, int handle, const st
 			 * Then the viewer will try to acquire extra pixmap(aka, resource id) information
 			 */
 			id = buffer_handler_id(info);
+			DbgPrint("Extra buffer is loaded: %s\n", id);
 			(void)instance_client_dbox_extra_buffer_created(inst, idx);
 		} else {
 			ErrPrint("Failed to load a buffer(%d)\n", ret);
@@ -7163,6 +7164,7 @@ static struct packet *slave_acquire_extra_buffer(pid_t pid, int handle, const st
 			 * @todo
 			 * Send the extra buffer acquired event to the viewer
 			 */
+			DbgPrint("Extra buffer is loaded: %s\n", id);
 			(void)instance_client_gbar_extra_buffer_created(inst, idx);
 		} else {
 			ErrPrint("Failed to load a buffer (%d)\n", ret);
