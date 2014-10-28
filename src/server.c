@@ -6815,6 +6815,47 @@ out:
 	return NULL;
 }
 
+static struct packet *slave_extra_updated(pid_t pid, int handle, const struct packet *packet)
+{
+	struct slave_node *slave;
+	const char *pkgname;
+	const char *id;
+	int idx;
+	int x;
+	int y;
+	int w;
+	int h;
+	int ret;
+	int is_gbar;
+	struct inst_info *inst;
+
+	slave = slave_find_by_pid(pid);
+	if (!slave) {
+		ErrPrint("Slave %d is not exists\n", pid);
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssiiiiii", &pkgname, &id, &is_gbar, &idx, &x, &y, &w, &h);
+	if (ret != 8) {
+		ErrPrint("Parameter is not matched\n");
+		goto out;
+	}
+
+	ret = validate_request(pkgname, id, &inst, NULL);
+	if (ret != DBOX_STATUS_ERROR_NONE) {
+		goto out;
+	}
+
+	if (instance_state(inst) == INST_DESTROYED) {
+		ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
+		goto out;
+	}
+
+	(void)instance_extra_updated_by_instance(inst, is_gbar, idx, x, y, w, h);
+out:
+	return NULL;
+}
+
 static struct packet *slave_desc_updated(pid_t pid, int handle, const struct packet *packet) /* slave_name, pkgname, filename, decsfile, ret */
 {
 	struct slave_node *slave;
@@ -8512,6 +8553,10 @@ static struct method s_slave_table[] = {
 	{
 		.cmd = CMD_STR_DESC_UPDATED,
 		.handler = slave_desc_updated, /* slave_name, pkgname, filename, decsfile, ret */
+	},
+	{
+		.cmd = CMD_STR_EXTRA_UPDATED,
+		.handler = slave_extra_updated,
 	},
 	{
 		.cmd = CMD_STR_EXTRA_INFO,

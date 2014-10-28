@@ -219,6 +219,7 @@ extern int instance_gbar_update_end(struct inst_info *inst);
 extern void instance_gbar_updated(const char *pkgname, const char *id, const char *descfile, int x, int y, int w, int h);
 extern void instance_dbox_updated_by_instance(struct inst_info *inst, const char *safe_file, int x, int y, int w, int h);
 extern void instance_gbar_updated_by_instance(struct inst_info *inst, const char *descfile, int x, int y, int w, int h);
+extern void instance_extra_updated_by_instance(struct inst_info *inst, int is_gbar, int idx, int x, int y, int w, int h);
 extern void instance_extra_info_updated_by_instance(struct inst_info *inst);
 
 /*!

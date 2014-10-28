@@ -1934,6 +1934,51 @@ HAPI void instance_extra_info_updated_by_instance(struct inst_info *inst)
 	(void)CLIENT_SEND_EVENT(inst, packet);
 }
 
+HAPI void instance_extra_updated_by_instance(struct inst_info *inst, int is_gbar, int idx, int x, int y, int w, int h)
+{
+	struct packet *packet;
+	enum dynamicbox_dbox_type dbox_type;
+	unsigned int cmd = CMD_EXTRA_UPDATED;
+
+	if (idx < 0 || idx > DYNAMICBOX_CONF_EXTRA_BUFFER_COUNT) {
+	    ErrPrint("Invalid index\n");
+	    return;
+	}
+
+	if (is_gbar == 0) {
+	    if (!inst->dbox.extra_buffer || inst->dbox.extra_buffer[idx] == 0u) {
+		ErrPrint("Invalid extra buffer\n");
+		return;
+	    }
+	} else {
+	    if (!inst->gbar.extra_buffer || inst->gbar.extra_buffer[idx] == 0u) {
+		ErrPrint("Invalid extra buffer\n");
+		return;
+	    }
+	}
+
+	if (inst->client && inst->visible != DBOX_SHOW) {
+		if (inst->visible == DBOX_HIDE) {
+			DbgPrint("Ignore update event %s(HIDE)\n", inst->id);
+			return;
+		}
+	}
+
+	dbox_type = package_dbox_type(inst->info);
+	if (dbox_type != DBOX_TYPE_BUFFER) {
+		ErrPrint("Unsupported type\n");
+		return;
+	}
+
+	packet = packet_create_noack((const char *)&cmd, "ssiiiiii", package_name(inst->info), inst->id, is_gbar, idx, x, y, w, h);
+	if (!packet) {
+		ErrPrint("Failed to create param (%s - %s)\n", package_name(inst->info), inst->id);
+		return;
+	}
+
+	(void)CLIENT_SEND_EVENT(inst, packet);
+}
+
 HAPI void instance_dbox_updated_by_instance(struct inst_info *inst, const char *safe_file, int x, int y, int w, int h)
 {
 	struct packet *packet;
