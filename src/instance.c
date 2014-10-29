@@ -2016,9 +2016,7 @@ HAPI void instance_dbox_updated_by_instance(struct inst_info *inst, const char *
 	id = buffer_handler_id(inst->dbox.canvas.buffer);
     }
 
-    packet = packet_create_noack((const char *)&cmd, "ssssiiii",
-	    package_name(inst->info), inst->id, id, safe_file,
-	    x, y, w, h);
+    packet = packet_create_noack((const char *)&cmd, "ssssiiii", package_name(inst->info), inst->id, id, safe_file, x, y, w, h);
     if (!packet) {
 	ErrPrint("Failed to create param (%s - %s)\n", package_name(inst->info), inst->id);
 	return;
@@ -2094,9 +2092,7 @@ HAPI void instance_gbar_updated_by_instance(struct inst_info *inst, const char *
 	    break;
     }
 
-    packet = packet_create_noack((const char *)&cmd, "ssssiiii",
-	    package_name(inst->info), inst->id, descfile, id,
-	    x, y, w, h);
+    packet = packet_create_noack((const char *)&cmd, "ssssiiii", package_name(inst->info), inst->id, id, descfile, x, y, w, h);
     if (!packet) {
 	ErrPrint("Failed to create param (%s - %s)\n", package_name(inst->info), inst->id);
 	return;
