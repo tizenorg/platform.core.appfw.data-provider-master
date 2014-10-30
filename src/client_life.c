@@ -27,7 +27,8 @@
 
 #include <dlog.h>
 #include <packet.h>
-#include <livebox-errno.h>
+#include <dynamicbox_errno.h>
+#include <dynamicbox_service.h>
 
 #include "client_life.h"
 #include "instance.h"
@@ -486,13 +487,13 @@ HAPI int client_event_callback_add(struct client_node *client, enum client_event
 
 	if (!cb) {
 		ErrPrint("Invalid callback (cb == NULL)\n");
-		return LB_STATUS_ERROR_INVALID;
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	item = malloc(sizeof(*item));
 	if (!item) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return LB_STATUS_ERROR_MEMORY;
+		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	item->cb = cb;
@@ -526,10 +527,10 @@ HAPI int client_event_callback_add(struct client_node *client, enum client_event
 		break;
 	default:
 		DbgFree(item);
-		return LB_STATUS_ERROR_INVALID;
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI int client_event_callback_del(struct client_node *client, enum client_event event, int (*cb)(struct client_node *, void *), void *data)
@@ -540,7 +541,7 @@ HAPI int client_event_callback_del(struct client_node *client, enum client_event
 
 	if (!cb) {
 		ErrPrint("Invalid callback (cb == NULL)\n");
-		return LB_STATUS_ERROR_INVALID;
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	switch (event) {
@@ -553,7 +554,7 @@ HAPI int client_event_callback_del(struct client_node *client, enum client_event
 					client->event_deactivate_list = eina_list_remove(client->event_deactivate_list, item);
 					DbgFree(item);
 				}
-				return LB_STATUS_SUCCESS;
+				return DBOX_STATUS_ERROR_NONE;
 			}
 		}
 		break;
@@ -567,7 +568,7 @@ HAPI int client_event_callback_del(struct client_node *client, enum client_event
 					client->event_activate_list = eina_list_remove(client->event_activate_list, item);
 					DbgFree(item);
 				}
-				return LB_STATUS_SUCCESS;
+				return DBOX_STATUS_ERROR_NONE;
 			}
 		}
 		break;
@@ -577,7 +578,7 @@ HAPI int client_event_callback_del(struct client_node *client, enum client_event
 		break;
 	}
 
-	return LB_STATUS_ERROR_NOT_EXIST;
+	return DBOX_STATUS_ERROR_NOT_EXIST;
 }
 
 HAPI int client_set_data(struct client_node *client, const char *tag, void *data)
@@ -587,20 +588,20 @@ HAPI int client_set_data(struct client_node *client, const char *tag, void *data
 	item = calloc(1, sizeof(*item));
 	if (!item) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return LB_STATUS_ERROR_MEMORY;
+		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	item->tag = strdup(tag);
 	if (!item->tag) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		DbgFree(item);
-		return LB_STATUS_ERROR_MEMORY;
+		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	item->data = data;
 
 	client->data_list = eina_list_append(client->data_list, item);
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI void *client_data(struct client_node *client, const char *tag)
@@ -659,7 +660,7 @@ HAPI void client_resumed(struct client_node *client)
 
 HAPI int client_init(void)
 {
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI void client_fini(void)
@@ -689,7 +690,7 @@ HAPI int client_global_event_handler_add(enum client_global_event event_type, in
 	handler = malloc(sizeof(*handler));
 	if (!handler) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return LB_STATUS_ERROR_MEMORY;
+		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	handler->cbdata = data;
@@ -705,10 +706,10 @@ HAPI int client_global_event_handler_add(enum client_global_event event_type, in
 		break;
 	default:
 		DbgFree(handler);
-		return LB_STATUS_ERROR_INVALID;
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI int client_global_event_handler_del(enum client_global_event event_type, int (*cb)(struct client_node *, void *), void *data)
@@ -727,7 +728,7 @@ HAPI int client_global_event_handler_del(enum client_global_event event_type, in
 					s_info.create_event_list = eina_list_remove(s_info.create_event_list, item);
 					DbgFree(item);
 				}
-				return LB_STATUS_SUCCESS;
+				return DBOX_STATUS_ERROR_NONE;
 			}
 		}
 		break;
@@ -740,7 +741,7 @@ HAPI int client_global_event_handler_del(enum client_global_event event_type, in
 					s_info.destroy_event_list = eina_list_remove(s_info.destroy_event_list, item);
 					DbgFree(item);
 				}
-				return LB_STATUS_SUCCESS;
+				return DBOX_STATUS_ERROR_NONE;
 			}
 		}
 		break;
@@ -748,7 +749,7 @@ HAPI int client_global_event_handler_del(enum client_global_event event_type, in
 		break;
 	}
 
-	return LB_STATUS_ERROR_NOT_EXIST;
+	return DBOX_STATUS_ERROR_NOT_EXIST;
 }
 
 HAPI int client_subscribe(struct client_node *client, const char *cluster, const char *category)
@@ -758,14 +759,14 @@ HAPI int client_subscribe(struct client_node *client, const char *cluster, const
 	item = malloc(sizeof(*item));
 	if (!item) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return LB_STATUS_ERROR_MEMORY;
+		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	item->cluster = strdup(cluster);
 	if (!item->cluster) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		DbgFree(item);
-		return LB_STATUS_ERROR_MEMORY;
+		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	item->category = strdup(category);
@@ -773,11 +774,11 @@ HAPI int client_subscribe(struct client_node *client, const char *cluster, const
 		ErrPrint("Heap: %s\n", strerror(errno));
 		DbgFree(item->cluster);
 		DbgFree(item);
-		return LB_STATUS_ERROR_MEMORY;
+		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	client->subscribe_list = eina_list_append(client->subscribe_list, item);
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI int client_unsubscribe(struct client_node *client, const char *cluster, const char *category)
@@ -792,11 +793,11 @@ HAPI int client_unsubscribe(struct client_node *client, const char *cluster, con
 			DbgFree(item->cluster);
 			DbgFree(item->category);
 			DbgFree(item);
-			return LB_STATUS_SUCCESS;
+			return DBOX_STATUS_ERROR_NONE;
 		}
 	}
 
-	return LB_STATUS_ERROR_NOT_EXIST;
+	return DBOX_STATUS_ERROR_NOT_EXIST;
 }
 
 HAPI int client_is_subscribed(struct client_node *client, const char *cluster, const char *category)
@@ -832,7 +833,7 @@ HAPI int client_browse_list(const char *cluster, const char *category, int (*cb)
 	int cnt;
 
 	if (!cb || !cluster || !category) {
-		return LB_STATUS_ERROR_INVALID;
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	cnt = 0;
@@ -842,7 +843,7 @@ HAPI int client_browse_list(const char *cluster, const char *category, int (*cb)
 		}
 
 		if (cb(client, data) < 0) {
-			return LB_STATUS_ERROR_CANCEL;
+			return DBOX_STATUS_ERROR_CANCEL;
 		}
 
 		cnt++;
@@ -882,7 +883,7 @@ HAPI int client_broadcast(struct inst_info *inst, struct packet *packet)
 	}
 
 	packet_unref(packet);
-	return LB_STATUS_SUCCESS;
+	return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI const char *client_direct_addr(const struct client_node *client)

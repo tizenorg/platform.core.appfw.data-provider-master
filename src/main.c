@@ -33,6 +33,10 @@
 #include <dlog.h>
 
 #if defined(HAVE_LIVEBOX)
+
+#include <dynamicbox_service.h>
+#include <dynamicbox_conf.h>
+
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"
@@ -68,9 +72,9 @@ static inline int app_create(void)
 {
 	int ret;
 
-	if (access(SLAVE_LOG_PATH, R_OK | W_OK) != 0) {
-		if (mkdir(SLAVE_LOG_PATH, 0755) < 0) {
-			ErrPrint("Failed to create %s (%s)\n", SLAVE_LOG_PATH, strerror(errno));
+	if (access(DYNAMICBOX_CONF_LOG_PATH, R_OK | W_OK) != 0) {
+		if (mkdir(DYNAMICBOX_CONF_LOG_PATH, 0755) < 0) {
+			ErrPrint("Failed to create %s (%s)\n", DYNAMICBOX_CONF_LOG_PATH, strerror(errno));
 		}
 	}
 
@@ -144,24 +148,24 @@ static inline int app_create(void)
 
 	script_init();
 
-	if (util_service_is_enabled(SERVICE_FILE)) {
+	if (util_service_is_enabled(DYNAMICBOX_CONF_SERVICE_FILE)) {
 		file_service_init();
 	}
 
-	if (util_service_is_enabled(SERVICE_UTILITY)) {
+	if (util_service_is_enabled(DYNAMICBOX_CONF_SERVICE_UTILITY)) {
 		utility_service_init();
 	}
 #endif
 
-	if (util_service_is_enabled(SERVICE_SHORTCUT)) {
+	if (util_service_is_enabled(DYNAMICBOX_CONF_SERVICE_SHORTCUT)) {
 		shortcut_service_init();
 	}
 
-	if (util_service_is_enabled(SERVICE_NOTIFICATION)) {
+	if (util_service_is_enabled(DYNAMICBOX_CONF_SERVICE_NOTIFICATION)) {
 		notification_service_init();
 	}
 
-	if (util_service_is_enabled(SERVICE_BADGE)) {
+	if (util_service_is_enabled(DYNAMICBOX_CONF_SERVICE_BADGE)) {
 		badge_service_init();
 	}
 
@@ -172,21 +176,21 @@ static inline int app_terminate(void)
 {
 	int ret;
 
-	if (util_service_is_enabled(SERVICE_BADGE)) {
+	if (util_service_is_enabled(DYNAMICBOX_CONF_SERVICE_BADGE)) {
 		ret = badge_service_fini();
 		if (ret < 0) {
 			DbgPrint("badge: %d\n", ret);
 		}
 	}
 
-	if (util_service_is_enabled(SERVICE_NOTIFICATION)) {
+	if (util_service_is_enabled(DYNAMICBOX_CONF_SERVICE_NOTIFICATION)) {
 		ret = notification_service_fini();
 		if (ret < 0) {
 			DbgPrint("noti: %d\n", ret);
 		}
 	}
 
-	if (util_service_is_enabled(SERVICE_SHORTCUT)) {
+	if (util_service_is_enabled(DYNAMICBOX_CONF_SERVICE_SHORTCUT)) {
 		ret = shortcut_service_fini();
 		if (ret < 0) {
 			DbgPrint("shortcut: %d\n", ret);
@@ -194,7 +198,7 @@ static inline int app_terminate(void)
 	}
 
 #if defined(HAVE_LIVEBOX)
-	if (util_service_is_enabled(SERVICE_FILE)) {
+	if (util_service_is_enabled(DYNAMICBOX_CONF_SERVICE_FILE)) {
 		ret = file_service_fini();
 		if (ret < 0) {
 			DbgPrint("Finalize the file service: %d\n", ret);
@@ -211,7 +215,7 @@ static inline int app_terminate(void)
 		DbgPrint("dead signal handler finalized: %d\n", ret);
 	}
 
-	if (util_service_is_enabled(SERVICE_UTILITY)) {
+	if (util_service_is_enabled(DYNAMICBOX_CONF_SERVICE_UTILITY)) {
 		ret = utility_service_fini();
 		if (ret < 0) {
 			DbgPrint("utility: %d\n", ret);
@@ -349,8 +353,8 @@ int main(int argc, char *argv[])
 		return -EFAULT;
 	}
 
-	conf_init();
-	conf_loader();
+	dynamicbox_conf_init();
+	dynamicbox_conf_load();
 
 	/*!
 	 * How could we care this return values?
@@ -365,12 +369,12 @@ int main(int argc, char *argv[])
 	 * \note
 	 * Clear old contents files before start the master provider.
 	 */
-	(void)util_unlink_files(ALWAYS_PATH);
-	(void)util_unlink_files(READER_PATH);
-	(void)util_unlink_files(IMAGE_PATH);
-	(void)util_unlink_files(SLAVE_LOG_PATH);
+	(void)util_unlink_files(DYNAMICBOX_CONF_ALWAYS_PATH);
+	(void)util_unlink_files(DYNAMICBOX_CONF_READER_PATH);
+	(void)util_unlink_files(DYNAMICBOX_CONF_IMAGE_PATH);
+	(void)util_unlink_files(DYNAMICBOX_CONF_LOG_PATH);
 
-	if (util_free_space(IMAGE_PATH) < MINIMUM_SPACE) {
+	if (util_free_space(DYNAMICBOX_CONF_IMAGE_PATH) < DYNAMICBOX_CONF_MINIMUM_SPACE) {
 		util_remove_emergency_disk();
 		util_prepare_emergency_disk();
 	}
@@ -413,14 +417,6 @@ int main(int argc, char *argv[])
 	g_type_init();
 #endif
 
-#if defined(HAVE_LIVEBOX)
-	/*!
- 	 * \note
-	 * conf_update_size requires util_screen_init.
-	 */
-	conf_update_size();
-#endif
-
 	app_create();
 
 	vconf_get_int(VCONFKEY_MASTER_RESTART_COUNT, &restart_count);
@@ -448,7 +444,7 @@ int main(int argc, char *argv[])
 	}
 #endif
 
-	conf_reset();
+	dynamicbox_conf_reset();
 	return 0;
 }
 

@@ -26,7 +26,7 @@ pkg_check_modules(pkg REQUIRED
 
 IF (LIVEBOX)
 pkg_check_modules(pkg_livebox REQUIRED
-	livebox-service
+	dynamicbox_service
 )
 ENDIF (LIVEBOX)
 
@@ -100,7 +100,6 @@ SET(BUILD_SOURCE
 	src/badge_service.c
 	src/notification_service.c
 	src/service_common.c
-	src/conf.c
 )
 
 IF (LIVEBOX)
@@ -126,6 +125,7 @@ IF (LIVEBOX)
 		src/pkgmgr.c
 		src/event.c
 		src/file_service.c
+		src/conf.c
 	)
 
 	IF (WAYLAND_SUPPORT)
@@ -209,7 +209,7 @@ INSTALL(TARGETS ${PROJECT_NAME} DESTINATION /usr/bin PERMISSIONS OWNER_READ OWNE
 ADD_SUBDIRECTORY(res)
 ADD_SUBDIRECTORY(data)
 IF (LIVEBOX)
-ADD_SUBDIRECTORY(pkgmgr_livebox)
+ADD_SUBDIRECTORY(pkgmgr_dynamicbox)
 ENDIF (LIVEBOX)
 
 IF (X11_SUPPORT)
