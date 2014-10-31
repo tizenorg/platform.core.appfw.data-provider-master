@@ -36,64 +36,64 @@
 
 static int evt_cb(int handle, void *data)
 {
-	struct slave_node *slave;
-	struct client_node *client;
-	struct liveinfo *liveinfo;
+    struct slave_node *slave;
+    struct client_node *client;
+    struct liveinfo *liveinfo;
 
-	slave = slave_find_by_rpc_handle(handle);
-	if (slave) {
-		if (slave_pid(slave) != (pid_t)-1) {
-			switch (slave_state(slave)) {
-			case SLAVE_REQUEST_TO_DISCONNECT:
-				DbgPrint("Disconnected from %d\n", slave_pid(slave));
-			case SLAVE_REQUEST_TO_TERMINATE:
-				slave = slave_deactivated(slave);
-				break;
-			default:
-				slave = slave_deactivated_by_fault(slave);
-				break;
-			}
-		}
-
-		if (!slave) {
-			DbgPrint("Slave is deleted\n");
-		}
-
-		return 0;
+    slave = slave_find_by_rpc_handle(handle);
+    if (slave) {
+	if (slave_pid(slave) != (pid_t)-1) {
+	    switch (slave_state(slave)) {
+		case SLAVE_REQUEST_TO_DISCONNECT:
+		    DbgPrint("Disconnected from %d\n", slave_pid(slave));
+		case SLAVE_REQUEST_TO_TERMINATE:
+		    slave = slave_deactivated(slave);
+		    break;
+		default:
+		    slave = slave_deactivated_by_fault(slave);
+		    break;
+	    }
 	}
 
-	client = client_find_by_rpc_handle(handle);
-	if (client) {
-		if (client_pid(client) != (pid_t)-1) {
-			client = client_deactivated_by_fault(client);
-		}
-
-		if (!client) {
-			DbgPrint("Client is deleted\n");
-		}
-
-		return 0;
-	}
-
-	liveinfo = liveinfo_find_by_handle(handle);
-	if (liveinfo) {
-		liveinfo_destroy(liveinfo);
-		return 0;
+	if (!slave) {
+	    DbgPrint("Slave is deleted\n");
 	}
 
 	return 0;
+    }
+
+    client = client_find_by_rpc_handle(handle);
+    if (client) {
+	if (client_pid(client) != (pid_t)-1) {
+	    client = client_deactivated_by_fault(client);
+	}
+
+	if (!client) {
+	    DbgPrint("Client is deleted\n");
+	}
+
+	return 0;
+    }
+
+    liveinfo = liveinfo_find_by_handle(handle);
+    if (liveinfo) {
+	liveinfo_destroy(liveinfo);
+	return 0;
+    }
+
+    return 0;
 }
 
 HAPI int dead_init(void)
 {
-	com_core_add_event_callback(CONNECTOR_DISCONNECTED, evt_cb, NULL);
-	return 0;
+    com_core_add_event_callback(CONNECTOR_DISCONNECTED, evt_cb, NULL);
+    return 0;
 }
 
 HAPI int dead_fini(void)
 {
-	com_core_del_event_callback(CONNECTOR_DISCONNECTED, evt_cb, NULL);
-	return 0;
+    com_core_del_event_callback(CONNECTOR_DISCONNECTED, evt_cb, NULL);
+    return 0;
 }
 
 /* End of a file */

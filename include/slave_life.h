@@ -213,4 +213,8 @@ extern void slave_set_control_option(struct slave_node *slave, int ctrl);
 extern int slave_control_option(struct slave_node *slave);
 
 extern char *slave_package_name(const char *abi, const char *lbid);
+
+extern int slave_priority(struct slave_node *slave);
+extern int slave_set_priority(struct slave_node *slave, int priority);
+
 /* End of a file */
