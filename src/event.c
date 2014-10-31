@@ -50,56 +50,56 @@
 int errno;
 
 static struct info {
-	pthread_t tid;
-	Eina_List *event_list;
-	int handle;
-	pthread_mutex_t event_list_lock;
-	int evt_pipe[PIPE_MAX];
-	int tcb_pipe[PIPE_MAX];
-	Ecore_Fd_Handler *event_handler;
+    pthread_t tid;
+    Eina_List *event_list;
+    int handle;
+    pthread_mutex_t event_list_lock;
+    int evt_pipe[PIPE_MAX];
+    int tcb_pipe[PIPE_MAX];
+    Ecore_Fd_Handler *event_handler;
 
-	struct event_data event_data;
+    struct event_data event_data;
 
-	Eina_List *event_listener_list;
-	Eina_List *reactivate_list;
+    Eina_List *event_listener_list;
+    Eina_List *reactivate_list;
 
-	int event_handler_activated;
-	int timestamp_updated;
+    int event_handler_activated;
+    int timestamp_updated;
 } s_info = {
-	.event_handler_activated = 0,
-	.event_list = NULL,
-	.handle = -1,
-	.event_handler = NULL,
-	.evt_pipe = { -1, -1 },
-	.tcb_pipe = { -1, -1 },
+    .event_handler_activated = 0,
+    .event_list = NULL,
+    .handle = -1,
+    .event_handler = NULL,
+    .evt_pipe = { -1, -1 },
+    .tcb_pipe = { -1, -1 },
 
-	.event_data = {
-		.x = -1,
-		.y = -1,
-		.device = -1,
-		.slot = -1,
-		.keycode = 0,
-	},
+    .event_data = {
+	.x = -1,
+	.y = -1,
+	.device = -1,
+	.slot = -1,
+	.keycode = 0,
+    },
 
-	.event_listener_list = NULL,
-	.reactivate_list = NULL,
-	.timestamp_updated = 0,
+    .event_listener_list = NULL,
+    .reactivate_list = NULL,
+    .timestamp_updated = 0,
 };
 
 struct event_listener {
-	int (*event_cb)(enum event_state state, struct event_data *event, void *data);
-	void *cbdata;
+    int (*event_cb)(enum event_state state, struct event_data *event, void *data);
+    void *cbdata;
 
-	enum event_state prev_state;
-	enum event_state state;
+    enum event_state prev_state;
+    enum event_state state;
 
 #if defined(_USE_ECORE_TIME_GET)
-	double tv;
+    double tv;
 #else
-	struct timeval tv; /* Recording Activate / Deactivate time */
+    struct timeval tv; /* Recording Activate / Deactivate time */
 #endif
-	int x; /* RelX */
-	int y; /* RelY */
+    int x; /* RelX */
+    int y; /* RelY */
 };
 
 static int activate_thread(void);
@@ -108,29 +108,29 @@ static int event_control_fini(void);
 
 HAPI int event_init(void)
 {
-	int ret;
+    int ret;
 
-	ret = pthread_mutex_init(&s_info.event_list_lock, NULL);
-	if (ret != 0) {
-		ErrPrint("Mutex: %s\n", strerror(ret));
-		return DBOX_STATUS_ERROR_FAULT;
-	}
+    ret = pthread_mutex_init(&s_info.event_list_lock, NULL);
+    if (ret != 0) {
+	ErrPrint("Mutex: %s\n", strerror(ret));
+	return DBOX_STATUS_ERROR_FAULT;
+    }
 
-	return DBOX_STATUS_ERROR_NONE;
+    return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI int event_fini(void)
 {
-	int ret;
+    int ret;
 
-	event_control_fini();
+    event_control_fini();
 
-	ret = pthread_mutex_destroy(&s_info.event_list_lock);
-	if (ret != 0) {
-		ErrPrint("Mutex destroy failed: %s\n", strerror(ret));
-	}
+    ret = pthread_mutex_destroy(&s_info.event_list_lock);
+    if (ret != 0) {
+	ErrPrint("Mutex destroy failed: %s\n", strerror(ret));
+    }
 
-	return DBOX_STATUS_ERROR_NONE;
+    return DBOX_STATUS_ERROR_NONE;
 }
 
 /*
@@ -138,294 +138,294 @@ HAPI int event_fini(void)
  */
 static int push_event_item(void)
 {
-	struct event_data *item;
+    struct event_data *item;
 
-	if (s_info.event_data.x < 0 || s_info.event_data.y < 0) {
-		/* Waiting full event packet */
-		return DBOX_STATUS_ERROR_NONE;
-	}
-
-	item = malloc(sizeof(*item));
-	if (item) {
-		char event_ch = EVENT_CH;
-
-		memcpy(item, &s_info.event_data, sizeof(*item));
-
-		CRITICAL_SECTION_BEGIN(&s_info.event_list_lock);
-		s_info.event_list = eina_list_append(s_info.event_list, item);
-		CRITICAL_SECTION_END(&s_info.event_list_lock);
-
-		if (write(s_info.evt_pipe[PIPE_WRITE], &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
-			ErrPrint("Unable to send an event: %s\n", strerror(errno));
-			return DBOX_STATUS_ERROR_IO_ERROR;
-		}
-
-		/* Take a breathe */
-		pthread_yield();
-	} else {
-		ErrPrint("Heap: %s\n", strerror(errno));
-	}
-
+    if (s_info.event_data.x < 0 || s_info.event_data.y < 0) {
+	/* Waiting full event packet */
 	return DBOX_STATUS_ERROR_NONE;
+    }
+
+    item = malloc(sizeof(*item));
+    if (item) {
+	char event_ch = EVENT_CH;
+
+	memcpy(item, &s_info.event_data, sizeof(*item));
+
+	CRITICAL_SECTION_BEGIN(&s_info.event_list_lock);
+	s_info.event_list = eina_list_append(s_info.event_list, item);
+	CRITICAL_SECTION_END(&s_info.event_list_lock);
+
+	if (write(s_info.evt_pipe[PIPE_WRITE], &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
+	    ErrPrint("Unable to send an event: %s\n", strerror(errno));
+	    return DBOX_STATUS_ERROR_IO_ERROR;
+	}
+
+	/* Take a breathe */
+	pthread_yield();
+    } else {
+	ErrPrint("Heap: %s\n", strerror(errno));
+    }
+
+    return DBOX_STATUS_ERROR_NONE;
 }
 
 static double current_time_get(void)
 {
-	double ret;
+    double ret;
 
-	if (DYNAMICBOX_CONF_USE_GETTIMEOFDAY) {
-		struct timeval tv;
-		if (gettimeofday(&tv, NULL) < 0) {
-			ErrPrint("gettimeofday: %s\n", strerror(errno));
-			ret = ecore_time_get();
-		} else {
-			ret = (double)tv.tv_sec + ((double)tv.tv_usec / 1000000.0f);
-		}
+    if (DYNAMICBOX_CONF_USE_GETTIMEOFDAY) {
+	struct timeval tv;
+	if (gettimeofday(&tv, NULL) < 0) {
+	    ErrPrint("gettimeofday: %s\n", strerror(errno));
+	    ret = ecore_time_get();
 	} else {
-		ret = ecore_time_get();
+	    ret = (double)tv.tv_sec + ((double)tv.tv_usec / 1000000.0f);
 	}
+    } else {
+	ret = ecore_time_get();
+    }
 
-	return ret;
+    return ret;
 }
 
 static void update_timestamp(struct input_event *event)
 {
 #if !defined(_USE_ECORE_TIME_GET)
-	/*!
-	 * WARN
-	 * Input event uses MONOTONIC CLOCK TIME
-	 * So this case will not be work correctly.
-	 */
-	if (DYNAMICBOX_CONF_USE_EVENT_TIME) {
-		memcpy(&s_info.event_data.tv, &event->time, sizeof(event->time));
-	} else {
-		if (gettimeofday(&s_info.event_data.tv, NULL) < 0) {
-			ErrPrint("gettimeofday: %s\n", strerror(errno));
-		}
+    /*!
+     * WARN
+     * Input event uses MONOTONIC CLOCK TIME
+     * So this case will not be work correctly.
+     */
+    if (DYNAMICBOX_CONF_USE_EVENT_TIME) {
+	memcpy(&s_info.event_data.tv, &event->time, sizeof(event->time));
+    } else {
+	if (gettimeofday(&s_info.event_data.tv, NULL) < 0) {
+	    ErrPrint("gettimeofday: %s\n", strerror(errno));
 	}
+    }
 #else
-	/*
-	 * Input event uses timeval instead of timespec,
-	 * but its value is same as MONOTIC CLOCK TIME
-	 * So we should handles it properly.
-	 */
-	if (DYNAMICBOX_CONF_USE_EVENT_TIME) {
-		s_info.event_data.tv = (double)event->time.tv_sec + (double)event->time.tv_usec / 1000000.0f;
-	} else {
-		s_info.event_data.tv = current_time_get();
-	}
+    /*
+     * Input event uses timeval instead of timespec,
+     * but its value is same as MONOTIC CLOCK TIME
+     * So we should handles it properly.
+     */
+    if (DYNAMICBOX_CONF_USE_EVENT_TIME) {
+	s_info.event_data.tv = (double)event->time.tv_sec + (double)event->time.tv_usec / 1000000.0f;
+    } else {
+	s_info.event_data.tv = current_time_get();
+    }
 #endif
-	s_info.timestamp_updated = 1;
+    s_info.timestamp_updated = 1;
 }
 
 static void processing_ev_abs(struct input_event *event)
 {
-	switch (event->code) {
+    switch (event->code) {
 #if defined(ABS_X)
 	case ABS_X:
-		break;
+	    break;
 #endif
 #if defined(ABS_Y)
 	case ABS_Y:
-		break;
+	    break;
 #endif
 #if defined(ABS_Z)
 	case ABS_Z:
-		break;
+	    break;
 #endif
 #if defined(ABS_RX)
 	case ABS_RX:
-		break;
+	    break;
 #endif
 #if defined(ABS_RY)
 	case ABS_RY:
-		break;
+	    break;
 #endif
 #if defined(ABS_RZ)
 	case ABS_RZ:
-		break;
+	    break;
 #endif
 #if defined(ABS_THROTTLE)
 	case ABS_THROTTLE:
-		break;
+	    break;
 #endif
 #if defined(ABS_RUDDER)
 	case ABS_RUDDER:
-		break;
+	    break;
 #endif
 #if defined(ABS_WHEEL)
 	case ABS_WHEEL:
-		break;
+	    break;
 #endif
 #if defined(ABS_GAS)
 	case ABS_GAS:
-		break;
+	    break;
 #endif
 #if defined(ABS_BRAKE)
 	case ABS_BRAKE:
-		break;
+	    break;
 #endif
 #if defined(ABS_HAT0X)
 	case ABS_HAT0X:
-		break;
+	    break;
 #endif
 #if defined(ABS_HAT0Y)
 	case ABS_HAT0Y:
-		break;
+	    break;
 #endif
 #if defined(ABS_HAT1X)
 	case ABS_HAT1X:
-		break;
+	    break;
 #endif
 #if defined(ABS_HAT1Y)
 	case ABS_HAT1Y:
-		break;
+	    break;
 #endif
 #if defined(ABS_HAT2X)
 	case ABS_HAT2X:
-		break;
+	    break;
 #endif
 #if defined(ABS_HAT2Y)
 	case ABS_HAT2Y:
-		break;
+	    break;
 #endif
 #if defined(ABS_HAT3X)
 	case ABS_HAT3X:
-		break;
+	    break;
 #endif
 #if defined(ABS_HAT3Y)
 	case ABS_HAT3Y:
-		break;
+	    break;
 #endif
 #if defined(ABS_PRESSURE)
 	case ABS_PRESSURE:
-		break;
+	    break;
 #endif
 #if defined(ABS_TILT_X)
 	case ABS_TILT_X:
-		break;
+	    break;
 #endif
 #if defined(ABS_TILT_Y)
 	case ABS_TILT_Y:
-		break;
+	    break;
 #endif
 #if defined(ABS_TOOL_WIDTH)
 	case ABS_TOOL_WIDTH:
-		break;
+	    break;
 #endif
 #if defined(ABS_VOLUME)
 	case ABS_VOLUME:
-		break;
+	    break;
 #endif
 #if defined(ABS_MISC)
 	case ABS_MISC:
-		break;
+	    break;
 #endif
 #if defined(ABS_DISTANCE)
 	case ABS_DISTANCE:
-		s_info.event_data.distance = event->value;
-		break;
+	    s_info.event_data.distance = event->value;
+	    break;
 #endif
 #if defined(ABS_MT_POSITION_X)
 	case ABS_MT_POSITION_X:
-		s_info.event_data.x = event->value;
-		break;
+	    s_info.event_data.x = event->value;
+	    break;
 #endif
 #if defined(ABS_MT_POSITION_Y)
 	case ABS_MT_POSITION_Y:
-		s_info.event_data.y = event->value;
-		break;
+	    s_info.event_data.y = event->value;
+	    break;
 #endif
 #if defined(ABS_MT_SLOT)
 	case ABS_MT_SLOT:
-		s_info.event_data.slot = event->value;
-		break;
+	    s_info.event_data.slot = event->value;
+	    break;
 #endif
 #if defined(ABS_MT_TRACKING_ID)
 	case ABS_MT_TRACKING_ID:
-		s_info.event_data.device = event->value;
-		break;
+	    s_info.event_data.device = event->value;
+	    break;
 #endif
 #if defined(ABS_MT_TOUCH_MAJOR)
 	case ABS_MT_TOUCH_MAJOR:
-		s_info.event_data.touch.major = event->value;
-		break;
+	    s_info.event_data.touch.major = event->value;
+	    break;
 #endif
 #if defined(ABS_MT_TOUCH_MINOR)
 	case ABS_MT_TOUCH_MINOR:
-		s_info.event_data.touch.minor = event->value;
-		break;
+	    s_info.event_data.touch.minor = event->value;
+	    break;
 #endif
 #if defined(ABS_MT_WIDTH_MAJOR)
 	case ABS_MT_WIDTH_MAJOR:
-		s_info.event_data.width.major = event->value;
-		break;
+	    s_info.event_data.width.major = event->value;
+	    break;
 #endif
 #if defined(ABS_MT_WIDTH_MINOR)
 	case ABS_MT_WIDTH_MINOR:
-		s_info.event_data.width.minor = event->value;
-		break;
+	    s_info.event_data.width.minor = event->value;
+	    break;
 #endif
 #if defined(ABS_MT_ORIENTATION)
 	case ABS_MT_ORIENTATION:
-		s_info.event_data.orientation = event->value;
-		break;
+	    s_info.event_data.orientation = event->value;
+	    break;
 #endif
 #if defined(ABS_MT_PRESSURE)
 	case ABS_MT_PRESSURE:
-		s_info.event_data.pressure = event->value;
-		break;
+	    s_info.event_data.pressure = event->value;
+	    break;
 #endif
 #if defined(ABS_MT_TOOL_X)
 	case ABS_MT_TOOL_X:
-		DbgPrint("TOOL_X: %d\n", event->value);
-		break;
+	    DbgPrint("TOOL_X: %d\n", event->value);
+	    break;
 #endif
 #if defined(ABS_MT_TOOL_Y)
 	case ABS_MT_TOOL_Y:
-		DbgPrint("TOOL_Y: %d\n", event->value);
-		break;
+	    DbgPrint("TOOL_Y: %d\n", event->value);
+	    break;
 #endif
 #if defined(ABS_MT_TOOL_TYPE)
 	case ABS_MT_TOOL_TYPE:
-		DbgPrint("TOOL_TYPE: %d\n", event->value);
-		break;
+	    DbgPrint("TOOL_TYPE: %d\n", event->value);
+	    break;
 #endif
 #if defined(ABS_MT_BLOB_ID)
 	case ABS_MT_BLOB_ID:
-		DbgPrint("BLOB_ID: %d\n", event->value);
-		break;
+	    DbgPrint("BLOB_ID: %d\n", event->value);
+	    break;
 #endif
 #if defined(ABS_MT_DISTANCE)
 	case ABS_MT_DISTANCE:
-		DbgPrint("DISTANCE: %d\n", event->value);
-		break;
+	    DbgPrint("DISTANCE: %d\n", event->value);
+	    break;
 #endif
 #if defined(ABS_MT_ANGLE)
 	case ABS_MT_ANGLE:
-		DbgPrint("ANGLE: %d\n", event->value);
-		break;
+	    DbgPrint("ANGLE: %d\n", event->value);
+	    break;
 #endif
 #if defined(ABS_MT_PALM)
 	case ABS_MT_PALM:
-		DbgPrint("PALM: %d\n", event->value);
-		break;
+	    DbgPrint("PALM: %d\n", event->value);
+	    break;
 #endif
 #if defined(ABS_MT_COMPONENT)
 	case ABS_MT_COMPONENT:
-		DbgPrint("COMPONENT: %d\n", event->value);
-		break;
+	    DbgPrint("COMPONENT: %d\n", event->value);
+	    break;
 #endif
 #if defined(ABS_MT_SUMSIZE)
 	case ABS_MT_SUMSIZE:
-		DbgPrint("SUMSIZE: %d\n", event->value);
-		break;
+	    DbgPrint("SUMSIZE: %d\n", event->value);
+	    break;
 #endif
 	default:
-		break;
-	}
+	    break;
+    }
 
-	return;
+    return;
 }
 
 /*
@@ -433,47 +433,47 @@ static void processing_ev_abs(struct input_event *event)
  */
 static inline int processing_input_event(struct input_event *event)
 {
-	int ret;
+    int ret;
 
-	if (s_info.timestamp_updated == 0) {
-		update_timestamp(event);
-	}
+    if (s_info.timestamp_updated == 0) {
+	update_timestamp(event);
+    }
 
-	switch (event->type) {
+    switch (event->type) {
 	case EV_SYN:
-		switch (event->code) {
-			break;
+	    switch (event->code) {
+		break;
 		case SYN_CONFIG:
-			break;
+		break;
 		case SYN_MT_REPORT:
 		case SYN_REPORT:
-			s_info.timestamp_updated = 0;
-			ret = push_event_item();
-			if (ret < 0) {
-				return ret;
-			}
+		s_info.timestamp_updated = 0;
+		ret = push_event_item();
+		if (ret < 0) {
+		    return ret;
+		}
 
-			break;
+		break;
 #if defined(SYN_DROPPED)
 		case SYN_DROPPED:
-			DbgPrint("EV_SYN, SYN_DROPPED\n");
-			break;
+		DbgPrint("EV_SYN, SYN_DROPPED\n");
+		break;
 #endif
 		default:
-			DbgPrint("EV_SYN, 0x%x\n", event->code);
-			break;
-		}
+		DbgPrint("EV_SYN, 0x%x\n", event->code);
 		break;
+	    }
+	    break;
 	case EV_KEY:
-		DbgPrint("EV_KEY: 0x%X\n", event->value);
-		s_info.event_data.keycode = event->value;
-		break;
+	    DbgPrint("EV_KEY: 0x%X\n", event->value);
+	    s_info.event_data.keycode = event->value;
+	    break;
 	case EV_REL:
-		DbgPrint("EV_REL: 0x%X\n", event->value);
-		break;
+	    DbgPrint("EV_REL: 0x%X\n", event->value);
+	    break;
 	case EV_ABS:
-		processing_ev_abs(event);
-		break;
+	    processing_ev_abs(event);
+	    break;
 	case EV_MSC:
 	case EV_SW:
 	case EV_LED:
@@ -483,353 +483,353 @@ static inline int processing_input_event(struct input_event *event)
 	case EV_PWR:
 	case EV_FF_STATUS:
 	default:
-		DbgPrint("0x%X, 0x%X\n", event->type, event->code);
-		break;
-	}
+	    DbgPrint("0x%X, 0x%X\n", event->type, event->code);
+	    break;
+    }
 
-	return DBOX_STATUS_ERROR_NONE;
+    return DBOX_STATUS_ERROR_NONE;
 }
 
 static void *event_thread_main(void *data)
 {
-	fd_set set;
-	long ret = 0;
-	struct input_event input_event;
-	char *ptr = (char *)&input_event;
-	int offset = 0;
-	int readsize = 0;
-	int fd;
-	char event_ch;
+    fd_set set;
+    long ret = 0;
+    struct input_event input_event;
+    char *ptr = (char *)&input_event;
+    int offset = 0;
+    int readsize = 0;
+    int fd;
+    char event_ch;
 
-	while (1) {
-		FD_ZERO(&set);
-		FD_SET(s_info.handle, &set);
-		FD_SET(s_info.tcb_pipe[PIPE_READ], &set);
+    while (1) {
+	FD_ZERO(&set);
+	FD_SET(s_info.handle, &set);
+	FD_SET(s_info.tcb_pipe[PIPE_READ], &set);
 
-		fd = s_info.handle > s_info.tcb_pipe[PIPE_READ] ? s_info.handle : s_info.tcb_pipe[PIPE_READ];
-		ret = select(fd + 1, &set, NULL, NULL, NULL);
-		if (ret < 0) {
-			ret = -errno;
-			if (errno == EINTR) {
-				DbgPrint("Select receives INTR\n");
-				continue;
-			}
-			ErrPrint("Error: %s\n", strerror(errno));
-			break;
-		} else if (ret == 0) {
-			ErrPrint("Timeout expired\n");
-			ret = DBOX_STATUS_ERROR_TIMEOUT;
-			break;
-		}
-
-		if (FD_ISSET(s_info.handle, &set)) {
-			readsize = read(s_info.handle, ptr + offset, sizeof(input_event) - offset);
-			if (readsize < 0) {
-				ErrPrint("Unable to read device: %s / fd: %d / offset: %d / size: %d - %d\n", strerror(errno), s_info.handle, offset, sizeof(input_event), readsize);
-				ret = DBOX_STATUS_ERROR_FAULT;
-				break;
-			}
-
-			offset += readsize;
-			if (offset == sizeof(input_event)) {
-				offset = 0;
-				if (processing_input_event(&input_event) < 0) {
-					ret = DBOX_STATUS_ERROR_FAULT;
-					break;
-				}
-			}
-
-			/*
-			 * If there is input event,
-			 * Try again to get the input event.
-			 */
-		} else if (FD_ISSET(s_info.tcb_pipe[PIPE_READ], &set)) {
-			if (read(s_info.tcb_pipe[PIPE_READ], &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
-				ErrPrint("Unable to read TCB_PIPE: %s\n", strerror(errno));
-			}
-
-			ret = DBOX_STATUS_ERROR_CANCEL;
-			break;
-		}
+	fd = s_info.handle > s_info.tcb_pipe[PIPE_READ] ? s_info.handle : s_info.tcb_pipe[PIPE_READ];
+	ret = select(fd + 1, &set, NULL, NULL, NULL);
+	if (ret < 0) {
+	    ret = -errno;
+	    if (errno == EINTR) {
+		DbgPrint("Select receives INTR\n");
+		continue;
+	    }
+	    ErrPrint("Error: %s\n", strerror(errno));
+	    break;
+	} else if (ret == 0) {
+	    ErrPrint("Timeout expired\n");
+	    ret = DBOX_STATUS_ERROR_TIMEOUT;
+	    break;
 	}
 
-	event_ch = EVENT_EXIT;
-	if (write(s_info.evt_pipe[PIPE_WRITE], &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
-		ErrPrint("Unable to send an event: %s\n", strerror(errno));
-	}
+	if (FD_ISSET(s_info.handle, &set)) {
+	    readsize = read(s_info.handle, ptr + offset, sizeof(input_event) - offset);
+	    if (readsize < 0) {
+		ErrPrint("Unable to read device: %s / fd: %d / offset: %d / size: %d - %d\n", strerror(errno), s_info.handle, offset, sizeof(input_event), readsize);
+		ret = DBOX_STATUS_ERROR_FAULT;
+		break;
+	    }
 
-	return (void *)ret;
+	    offset += readsize;
+	    if (offset == sizeof(input_event)) {
+		offset = 0;
+		if (processing_input_event(&input_event) < 0) {
+		    ret = DBOX_STATUS_ERROR_FAULT;
+		    break;
+		}
+	    }
+
+	    /*
+	     * If there is input event,
+	     * Try again to get the input event.
+	     */
+	} else if (FD_ISSET(s_info.tcb_pipe[PIPE_READ], &set)) {
+	    if (read(s_info.tcb_pipe[PIPE_READ], &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
+		ErrPrint("Unable to read TCB_PIPE: %s\n", strerror(errno));
+	    }
+
+	    ret = DBOX_STATUS_ERROR_CANCEL;
+	    break;
+	}
+    }
+
+    event_ch = EVENT_EXIT;
+    if (write(s_info.evt_pipe[PIPE_WRITE], &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
+	ErrPrint("Unable to send an event: %s\n", strerror(errno));
+    }
+
+    return (void *)ret;
 }
 
 static int invoke_event_cb(struct event_listener *listener, struct event_data *item)
 {
-	struct event_data modified_item;
+    struct event_data modified_item;
 
-	memcpy(&modified_item, item, sizeof(modified_item));
+    memcpy(&modified_item, item, sizeof(modified_item));
 
-	modified_item.x -= listener->x;
-	modified_item.y -= listener->y;
+    modified_item.x -= listener->x;
+    modified_item.y -= listener->y;
 
-	if (listener->event_cb(listener->state, &modified_item, listener->cbdata) < 0) {
-		if (eina_list_data_find(s_info.event_listener_list, listener)) {
-			s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
-			DbgFree(listener);
-			return 1;
-		}
+    if (listener->event_cb(listener->state, &modified_item, listener->cbdata) < 0) {
+	if (eina_list_data_find(s_info.event_listener_list, listener)) {
+	    s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
+	    DbgFree(listener);
+	    return 1;
 	}
+    }
 
-	return 0;
+    return 0;
 }
 
 static inline void clear_all_listener_list(void)
 {
-	struct event_listener *listener;
-	enum event_state next_state;
-	struct event_data event_data;
-	struct event_data *p_event_data;
-	Eina_List *l;
-	Eina_List *n;
+    struct event_listener *listener;
+    enum event_state next_state;
+    struct event_data event_data;
+    struct event_data *p_event_data;
+    Eina_List *l;
+    Eina_List *n;
 
-	DbgPrint("event listeners: %d\n", eina_list_count(s_info.event_listener_list));
-	while (s_info.event_listener_list) {
-		EINA_LIST_FOREACH_SAFE(s_info.event_listener_list, l, n, listener) {
+    DbgPrint("event listeners: %d\n", eina_list_count(s_info.event_listener_list));
+    while (s_info.event_listener_list) {
+	EINA_LIST_FOREACH_SAFE(s_info.event_listener_list, l, n, listener) {
 
-			DbgPrint("listener[%p] prev[%x] state[%x]\n", listener, listener->prev_state, listener->state);
+	    DbgPrint("listener[%p] prev[%x] state[%x]\n", listener, listener->prev_state, listener->state);
 
-			switch (listener->state) {
-			case EVENT_STATE_ACTIVATE:
-				p_event_data = &s_info.event_data;
-				next_state = EVENT_STATE_ACTIVATED;
-				break;
-			case EVENT_STATE_ACTIVATED:
-				p_event_data = &s_info.event_data;
-				next_state = EVENT_STATE_DEACTIVATE;
-				break;
-			case EVENT_STATE_DEACTIVATE:
-				memcpy(&event_data, &s_info.event_data, sizeof(event_data));
-				p_event_data = &event_data;
+	    switch (listener->state) {
+		case EVENT_STATE_ACTIVATE:
+		    p_event_data = &s_info.event_data;
+		    next_state = EVENT_STATE_ACTIVATED;
+		    break;
+		case EVENT_STATE_ACTIVATED:
+		    p_event_data = &s_info.event_data;
+		    next_state = EVENT_STATE_DEACTIVATE;
+		    break;
+		case EVENT_STATE_DEACTIVATE:
+		    memcpy(&event_data, &s_info.event_data, sizeof(event_data));
+		    p_event_data = &event_data;
 
-				if (listener->prev_state == EVENT_STATE_ACTIVATE) {
-					/* There is no move event. we have to emulate it */
-					DbgPrint ("Let's emulate move event (%dx%d)\n", p_event_data->x, p_event_data->y);
-					listener->state = EVENT_STATE_ACTIVATED;
-					next_state = EVENT_STATE_DEACTIVATE;
-				} else {
-					next_state = EVENT_STATE_DEACTIVATED;
-				}
-				break;
-			case EVENT_STATE_DEACTIVATED:
-			default:
-				s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
-				DbgFree(listener);
-				continue;
-			}
+		    if (listener->prev_state == EVENT_STATE_ACTIVATE) {
+			/* There is no move event. we have to emulate it */
+			DbgPrint ("Let's emulate move event (%dx%d)\n", p_event_data->x, p_event_data->y);
+			listener->state = EVENT_STATE_ACTIVATED;
+			next_state = EVENT_STATE_DEACTIVATE;
+		    } else {
+			next_state = EVENT_STATE_DEACTIVATED;
+		    }
+		    break;
+		case EVENT_STATE_DEACTIVATED:
+		default:
+		    s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
+		    DbgFree(listener);
+		    continue;
+	    }
 
-			if (invoke_event_cb(listener, p_event_data)) {
-				continue;
-			}
+	    if (invoke_event_cb(listener, p_event_data)) {
+		continue;
+	    }
 
-			/*!
-			 * Changing state of listener will affect to the event collecting thread.
-			 */
-			listener->prev_state = listener->state;
-			listener->state = next_state;
-		}
+	    /*!
+	     * Changing state of listener will affect to the event collecting thread.
+	     */
+	    listener->prev_state = listener->state;
+	    listener->state = next_state;
 	}
+    }
 }
 
 #if defined(_USE_ECORE_TIME_GET)
 static int compare_timestamp(struct event_listener *listener, struct event_data *item)
 {
-	int ret;
-	if (listener->tv > item->tv) {
-		ret = 1;
-	} else if (listener->tv < item->tv) {
-		ret = -1;
-	} else {
-		ret = 0;
-	}
-	return ret;
+    int ret;
+    if (listener->tv > item->tv) {
+	ret = 1;
+    } else if (listener->tv < item->tv) {
+	ret = -1;
+    } else {
+	ret = 0;
+    }
+    return ret;
 }
 #else
 static int compare_timestamp(struct event_listener *listener, struct event_data *item)
 {
-	int ret;
-	if (timercmp(&listener->tv, &item->tv, >)) {
-		ret = 1;
-	} else if (timercmp(&listener->tv, &item->tv, <)) {
-		ret = -1;
-	} else {
-		ret = 0;
-	}
-	return ret;
+    int ret;
+    if (timercmp(&listener->tv, &item->tv, >)) {
+	ret = 1;
+    } else if (timercmp(&listener->tv, &item->tv, <)) {
+	ret = -1;
+    } else {
+	ret = 0;
+    }
+    return ret;
 }
 #endif
 
 static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 {
-	int fd;
-	struct event_data *item;
-	char event_ch;
-	struct event_listener *listener;
-	Eina_List *l;
-	Eina_List *n;
-	enum event_state next_state;
+    int fd;
+    struct event_data *item;
+    char event_ch;
+    struct event_listener *listener;
+    Eina_List *l;
+    Eina_List *n;
+    enum event_state next_state;
 
-	fd = ecore_main_fd_handler_fd_get(handler);
-	if (fd < 0) {
-		ErrPrint("Invalid fd\n");
-		return ECORE_CALLBACK_CANCEL;
-	}
+    fd = ecore_main_fd_handler_fd_get(handler);
+    if (fd < 0) {
+	ErrPrint("Invalid fd\n");
+	return ECORE_CALLBACK_CANCEL;
+    }
 
-	if (read(fd, &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
-		ErrPrint("Unable to read event ch: %s\n", strerror(errno));
-		return ECORE_CALLBACK_CANCEL;
-	}
+    if (read(fd, &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
+	ErrPrint("Unable to read event ch: %s\n", strerror(errno));
+	return ECORE_CALLBACK_CANCEL;
+    }
 
-	if (event_ch == EVENT_EXIT) {
-		/*!
-		 * If the master gets event exit from evt_pipe,
-		 * The event item list should be empty.
-		 */
-		if (!s_info.event_list) {
-			/* This callback must has to clear all listeners in this case */
-			ecore_main_fd_handler_del(s_info.event_handler);
-			s_info.event_handler = NULL;
-			clear_all_listener_list();
+    if (event_ch == EVENT_EXIT) {
+	/*!
+	 * If the master gets event exit from evt_pipe,
+	 * The event item list should be empty.
+	 */
+	if (!s_info.event_list) {
+	    /* This callback must has to clear all listeners in this case */
+	    ecore_main_fd_handler_del(s_info.event_handler);
+	    s_info.event_handler = NULL;
+	    clear_all_listener_list();
 
-			EINA_LIST_FREE(s_info.reactivate_list, listener) {
-				s_info.event_listener_list = eina_list_append(s_info.event_listener_list, listener);
-			}
-			DbgPrint("Reactivate: %p\n", s_info.event_listener_list);
+	    EINA_LIST_FREE(s_info.reactivate_list, listener) {
+		s_info.event_listener_list = eina_list_append(s_info.event_listener_list, listener);
+	    }
+	    DbgPrint("Reactivate: %p\n", s_info.event_listener_list);
 
-			if (s_info.event_listener_list) {
-				if (activate_thread() < 0) {
-					EINA_LIST_FREE(s_info.event_listener_list, listener) {
-						(void)listener->event_cb(EVENT_STATE_ERROR, NULL, listener->cbdata);
-					}
-				}
-			}
-
-			DbgPrint("Event read callback finshed (%p)\n", s_info.event_listener_list);
-			return ECORE_CALLBACK_CANCEL;
-		} else {
-			ErrPrint("Something goes wrong, the event_list is not flushed\n");
+	    if (s_info.event_listener_list) {
+		if (activate_thread() < 0) {
+		    EINA_LIST_FREE(s_info.event_listener_list, listener) {
+			(void)listener->event_cb(EVENT_STATE_ERROR, NULL, listener->cbdata);
+		    }
 		}
+	    }
+
+	    DbgPrint("Event read callback finshed (%p)\n", s_info.event_listener_list);
+	    return ECORE_CALLBACK_CANCEL;
+	} else {
+	    ErrPrint("Something goes wrong, the event_list is not flushed\n");
 	}
+    }
 
-	CRITICAL_SECTION_BEGIN(&s_info.event_list_lock);
-	item = eina_list_nth(s_info.event_list, 0);
-	if (item) {
-		s_info.event_list = eina_list_remove(s_info.event_list, item);
-	}
-	CRITICAL_SECTION_END(&s_info.event_list_lock);
+    CRITICAL_SECTION_BEGIN(&s_info.event_list_lock);
+    item = eina_list_nth(s_info.event_list, 0);
+    if (item) {
+	s_info.event_list = eina_list_remove(s_info.event_list, item);
+    }
+    CRITICAL_SECTION_END(&s_info.event_list_lock);
 
-	if (!item) {
-		ErrPrint("There is no remained event\n");
-		return ECORE_CALLBACK_RENEW;
-	}
-
-	EINA_LIST_FOREACH_SAFE(s_info.event_listener_list, l, n, listener) {
-		switch (listener->state) {
-		case EVENT_STATE_ACTIVATE:
-			if (compare_timestamp(listener, item) > 0) {
-				continue;
-			}
-			next_state = EVENT_STATE_ACTIVATED;
-			break;
-		case EVENT_STATE_DEACTIVATE:
-			if (compare_timestamp(listener, item) < 0) {
-				/* Consuming all events occurred while activating this listener */
-				listener->prev_state = listener->state;
-				listener->state = EVENT_STATE_ACTIVATED;
-				if (invoke_event_cb(listener, item) == 1) {
-					/* listener is deleted */
-					continue;
-				}
-
-				listener->prev_state = listener->state;
-				listener->state = EVENT_STATE_DEACTIVATE;
-			}
-
-			/* Do not terminate this listener, until this mets EVENT_EXIT */
-			continue;
-		case EVENT_STATE_ACTIVATED:
-			if (compare_timestamp(listener, item) > 0) {
-				continue;
-			}
-			next_state = listener->state;
-			break;
-		case EVENT_STATE_DEACTIVATED:
-		default:
-			/* Remove this from the list */
-			/* Check the item again. the listener can be deleted from the callback */
-			if (eina_list_data_find(s_info.event_listener_list, listener)) {
-				s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
-				DbgFree(listener);
-			}
-
-			continue;
-		}
-
-		if (invoke_event_cb(listener, item) == 1) {
-			continue;
-		}
-
-		listener->prev_state = listener->state;
-		listener->state = next_state;
-	}
-
-	DbgFree(item);
-
+    if (!item) {
+	ErrPrint("There is no remained event\n");
 	return ECORE_CALLBACK_RENEW;
+    }
+
+    EINA_LIST_FOREACH_SAFE(s_info.event_listener_list, l, n, listener) {
+	switch (listener->state) {
+	    case EVENT_STATE_ACTIVATE:
+		if (compare_timestamp(listener, item) > 0) {
+		    continue;
+		}
+		next_state = EVENT_STATE_ACTIVATED;
+		break;
+	    case EVENT_STATE_DEACTIVATE:
+		if (compare_timestamp(listener, item) < 0) {
+		    /* Consuming all events occurred while activating this listener */
+		    listener->prev_state = listener->state;
+		    listener->state = EVENT_STATE_ACTIVATED;
+		    if (invoke_event_cb(listener, item) == 1) {
+			/* listener is deleted */
+			continue;
+		    }
+
+		    listener->prev_state = listener->state;
+		    listener->state = EVENT_STATE_DEACTIVATE;
+		}
+
+		/* Do not terminate this listener, until this mets EVENT_EXIT */
+		continue;
+	    case EVENT_STATE_ACTIVATED:
+		if (compare_timestamp(listener, item) > 0) {
+		    continue;
+		}
+		next_state = listener->state;
+		break;
+	    case EVENT_STATE_DEACTIVATED:
+	    default:
+		/* Remove this from the list */
+		/* Check the item again. the listener can be deleted from the callback */
+		if (eina_list_data_find(s_info.event_listener_list, listener)) {
+		    s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
+		    DbgFree(listener);
+		}
+
+		continue;
+	}
+
+	if (invoke_event_cb(listener, item) == 1) {
+	    continue;
+	}
+
+	listener->prev_state = listener->state;
+	listener->state = next_state;
+    }
+
+    DbgFree(item);
+
+    return ECORE_CALLBACK_RENEW;
 }
 
 static int event_control_init(void)
 {
-	int status;
+    int status;
 
-	DbgPrint("Initializing event controller\n");
-	if (s_info.handle != -1) {
-		return DBOX_STATUS_ERROR_NONE;
-	}
-
-	s_info.handle = open(DYNAMICBOX_CONF_INPUT_PATH, O_RDONLY);
-	if (s_info.handle < 0) {
-		ErrPrint("Unable to access the device: %s\n", strerror(errno));
-		return DBOX_STATUS_ERROR_IO_ERROR;
-	}
-
-	if (fcntl(s_info.handle, F_SETFD, FD_CLOEXEC) < 0) {
-		ErrPrint("Error: %s\n", strerror(errno));
-	}
-
-	if (fcntl(s_info.handle, F_SETFL, O_NONBLOCK) < 0) {
-		ErrPrint("Error: %s\n", strerror(errno));
-	}
-
-	status = pipe2(s_info.evt_pipe, O_CLOEXEC);
-	if (status < 0) {
-		ErrPrint("Unable to prepare evt pipe: %s\n", strerror(errno));
-		if (close(s_info.handle) < 0) {
-			ErrPrint("Failed to close handle: %s\n", strerror(errno));
-		}
-		s_info.handle = -1;
-		return DBOX_STATUS_ERROR_FAULT;
-	}
-
-	status = pipe2(s_info.tcb_pipe, O_CLOEXEC);
-	if (status < 0) {
-		ErrPrint("Unable to prepare tcb pipe: %s\n", strerror(errno));
-		if (close(s_info.handle) < 0) {
-			ErrPrint("Failed to close handle: %s\n", strerror(errno));
-		}
-		s_info.handle = -1;
-		CLOSE_PIPE(s_info.evt_pipe);
-		return DBOX_STATUS_ERROR_FAULT;
-	}
-
+    DbgPrint("Initializing event controller\n");
+    if (s_info.handle != -1) {
 	return DBOX_STATUS_ERROR_NONE;
+    }
+
+    s_info.handle = open(DYNAMICBOX_CONF_INPUT_PATH, O_RDONLY);
+    if (s_info.handle < 0) {
+	ErrPrint("Unable to access the device: %s\n", strerror(errno));
+	return DBOX_STATUS_ERROR_IO_ERROR;
+    }
+
+    if (fcntl(s_info.handle, F_SETFD, FD_CLOEXEC) < 0) {
+	ErrPrint("Error: %s\n", strerror(errno));
+    }
+
+    if (fcntl(s_info.handle, F_SETFL, O_NONBLOCK) < 0) {
+	ErrPrint("Error: %s\n", strerror(errno));
+    }
+
+    status = pipe2(s_info.evt_pipe, O_CLOEXEC);
+    if (status < 0) {
+	ErrPrint("Unable to prepare evt pipe: %s\n", strerror(errno));
+	if (close(s_info.handle) < 0) {
+	    ErrPrint("Failed to close handle: %s\n", strerror(errno));
+	}
+	s_info.handle = -1;
+	return DBOX_STATUS_ERROR_FAULT;
+    }
+
+    status = pipe2(s_info.tcb_pipe, O_CLOEXEC);
+    if (status < 0) {
+	ErrPrint("Unable to prepare tcb pipe: %s\n", strerror(errno));
+	if (close(s_info.handle) < 0) {
+	    ErrPrint("Failed to close handle: %s\n", strerror(errno));
+	}
+	s_info.handle = -1;
+	CLOSE_PIPE(s_info.evt_pipe);
+	return DBOX_STATUS_ERROR_FAULT;
+    }
+
+    return DBOX_STATUS_ERROR_NONE;
 }
 
 /*!
@@ -837,87 +837,87 @@ static int event_control_init(void)
  */
 static int event_control_fini(void)
 {
-	DbgPrint("Finalizing event controller\n");
-	if (s_info.handle != -1) {
-		if (close(s_info.handle) < 0) {
-			ErrPrint("Unable to release the fd: %s\n", strerror(errno));
-		}
-
-		s_info.handle = -1;
+    DbgPrint("Finalizing event controller\n");
+    if (s_info.handle != -1) {
+	if (close(s_info.handle) < 0) {
+	    ErrPrint("Unable to release the fd: %s\n", strerror(errno));
 	}
 
-	if (!eina_list_count(s_info.event_list)) {
-		if (s_info.event_handler) {
-			ecore_main_fd_handler_del(s_info.event_handler);
-			s_info.event_handler = NULL;
-		}
-		clear_all_listener_list();
+	s_info.handle = -1;
+    }
+
+    if (!eina_list_count(s_info.event_list)) {
+	if (s_info.event_handler) {
+	    ecore_main_fd_handler_del(s_info.event_handler);
+	    s_info.event_handler = NULL;
 	}
+	clear_all_listener_list();
+    }
 
-	CLOSE_PIPE(s_info.tcb_pipe);
-	CLOSE_PIPE(s_info.evt_pipe);
+    CLOSE_PIPE(s_info.tcb_pipe);
+    CLOSE_PIPE(s_info.evt_pipe);
 
-	return DBOX_STATUS_ERROR_NONE;
+    return DBOX_STATUS_ERROR_NONE;
 }
 
 static int activate_thread(void)
 {
-	int ret;
+    int ret;
 
-	ret = event_control_init();
-	if (ret != DBOX_STATUS_ERROR_NONE) {
-		return ret;
-	}
+    ret = event_control_init();
+    if (ret != DBOX_STATUS_ERROR_NONE) {
+	return ret;
+    }
 
-	if (s_info.event_handler_activated) {
-		ErrPrint("Event handler is already activated\n");
-		return DBOX_STATUS_ERROR_ALREADY;
-	}
+    if (s_info.event_handler_activated) {
+	ErrPrint("Event handler is already activated\n");
+	return DBOX_STATUS_ERROR_ALREADY;
+    }
 
-	if (s_info.event_handler) {
-		ErrPrint("Event handler is already registered\n");
-		return DBOX_STATUS_ERROR_ALREADY;
-	}
+    if (s_info.event_handler) {
+	ErrPrint("Event handler is already registered\n");
+	return DBOX_STATUS_ERROR_ALREADY;
+    }
 
-	s_info.event_handler = ecore_main_fd_handler_add(s_info.evt_pipe[PIPE_READ], ECORE_FD_READ, event_read_cb, NULL, NULL, NULL);
-	if (!s_info.event_handler) {
-		ErrPrint("Failed to add monitor for EVT READ\n");
-		return DBOX_STATUS_ERROR_FAULT;
-	}
+    s_info.event_handler = ecore_main_fd_handler_add(s_info.evt_pipe[PIPE_READ], ECORE_FD_READ, event_read_cb, NULL, NULL, NULL);
+    if (!s_info.event_handler) {
+	ErrPrint("Failed to add monitor for EVT READ\n");
+	return DBOX_STATUS_ERROR_FAULT;
+    }
 
-	ret = pthread_create(&s_info.tid, NULL, event_thread_main, NULL);
-	if (ret != 0) {
-		ErrPrint("Failed to initiate the thread: %s\n", strerror(ret));
-		ecore_main_fd_handler_del(s_info.event_handler);
-		s_info.event_handler = NULL;
-		return DBOX_STATUS_ERROR_FAULT;
-	}
+    ret = pthread_create(&s_info.tid, NULL, event_thread_main, NULL);
+    if (ret != 0) {
+	ErrPrint("Failed to initiate the thread: %s\n", strerror(ret));
+	ecore_main_fd_handler_del(s_info.event_handler);
+	s_info.event_handler = NULL;
+	return DBOX_STATUS_ERROR_FAULT;
+    }
 
-	DbgPrint("Event handler activated\n");
-	s_info.event_handler_activated = 1;
-	return DBOX_STATUS_ERROR_NONE;
+    DbgPrint("Event handler activated\n");
+    s_info.event_handler_activated = 1;
+    return DBOX_STATUS_ERROR_NONE;
 }
 
 static int deactivate_thread(void)
 {
-	int status;
-	void *ret;
-	char event_ch = EVENT_CH;
+    int status;
+    void *ret;
+    char event_ch = EVENT_CH;
 
-	/* Terminating thread */
-	if (write(s_info.tcb_pipe[PIPE_WRITE], &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
-		ErrPrint("Unable to write tcb_pipe: %s\n", strerror(errno));
-	}
+    /* Terminating thread */
+    if (write(s_info.tcb_pipe[PIPE_WRITE], &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
+	ErrPrint("Unable to write tcb_pipe: %s\n", strerror(errno));
+    }
 
-	status = pthread_join(s_info.tid, &ret);
-	if (status != 0) {
-		ErrPrint("Failed to join a thread: %s\n", strerror(errno));
-	} else {
-		DbgPrint("Thread returns: %p\n", ret);
-	}
+    status = pthread_join(s_info.tid, &ret);
+    if (status != 0) {
+	ErrPrint("Failed to join a thread: %s\n", strerror(errno));
+    } else {
+	DbgPrint("Thread returns: %p\n", ret);
+    }
 
-	s_info.event_handler_activated = 0;
-	return DBOX_STATUS_ERROR_NONE;
+    s_info.event_handler_activated = 0;
+    return DBOX_STATUS_ERROR_NONE;
 }
 
 /*!
@@ -925,134 +925,134 @@ static int deactivate_thread(void)
  */
 HAPI int event_activate(int x, int y, int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data)
 {
-	struct event_listener *listener;
-	int ret = DBOX_STATUS_ERROR_NONE;
+    struct event_listener *listener;
+    int ret = DBOX_STATUS_ERROR_NONE;
 
-	listener = malloc(sizeof(*listener));
-	if (!listener) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
-	}
+    listener = malloc(sizeof(*listener));
+    if (!listener) {
+	ErrPrint("Heap: %s\n", strerror(errno));
+	return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+    }
 
 #if defined(_USE_ECORE_TIME_GET)
-	listener->tv = current_time_get() - DELAY_COMPENSATOR; // Let's use the previous event.
-	DbgPrint("Activated at: %lf (%dx%d)\n", listener->tv, x, y);
+    listener->tv = current_time_get() - DELAY_COMPENSATOR; // Let's use the previous event.
+    DbgPrint("Activated at: %lf (%dx%d)\n", listener->tv, x, y);
 #else
-	if (gettimeofday(&listener->tv, NULL) < 0) {
-		ErrPrint("gettimeofday: %s\n", strerror(errno));
-		DbgFree(listener);
-		return DBOX_STATUS_ERROR_FAULT;
-	}
-	DbgPrint("Activated at: %lu sec %lu msec (%dx%d)\n", listener->tv.tv_sec, listener->tv.tv_usec, x, y);
-	/* NEED TO DO COMPENSATION (DELAY) */
+    if (gettimeofday(&listener->tv, NULL) < 0) {
+	ErrPrint("gettimeofday: %s\n", strerror(errno));
+	DbgFree(listener);
+	return DBOX_STATUS_ERROR_FAULT;
+    }
+    DbgPrint("Activated at: %lu sec %lu msec (%dx%d)\n", listener->tv.tv_sec, listener->tv.tv_usec, x, y);
+    /* NEED TO DO COMPENSATION (DELAY) */
 #endif
 
-	listener->event_cb = event_cb;
-	listener->cbdata = data;
-	listener->prev_state = EVENT_STATE_DEACTIVATED;
-	listener->state = EVENT_STATE_ACTIVATE;
-	listener->x = x;
-	listener->y = y;
+    listener->event_cb = event_cb;
+    listener->cbdata = data;
+    listener->prev_state = EVENT_STATE_DEACTIVATED;
+    listener->state = EVENT_STATE_ACTIVATE;
+    listener->x = x;
+    listener->y = y;
 
-	if (!s_info.event_handler_activated) {
-		/*!
-		 * \note
-		 * We don't need to lock to access event_list here.
-		 * If the _sinfo.handle is greater than 0, the event_list will not be touched.
-		 * But if the s_info.handle is less than 0, it means, there is not thread,
-		 * so we can access the event_list without lock.
-		 */
-		if (s_info.event_list) {
-			DbgPrint("Event thread is deactivating now. activating will be delayed\n");
-			s_info.reactivate_list = eina_list_append(s_info.reactivate_list, listener);
-		} else {
-			s_info.event_listener_list = eina_list_append(s_info.event_listener_list, listener);
-
-			if ((ret = activate_thread()) < 0) {
-				s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
-				DbgFree(listener);
-			}
-		}
+    if (!s_info.event_handler_activated) {
+	/*!
+	 * \note
+	 * We don't need to lock to access event_list here.
+	 * If the _sinfo.handle is greater than 0, the event_list will not be touched.
+	 * But if the s_info.handle is less than 0, it means, there is not thread,
+	 * so we can access the event_list without lock.
+	 */
+	if (s_info.event_list) {
+	    DbgPrint("Event thread is deactivating now. activating will be delayed\n");
+	    s_info.reactivate_list = eina_list_append(s_info.reactivate_list, listener);
 	} else {
-		s_info.event_listener_list = eina_list_append(s_info.event_listener_list, listener);
-	}
+	    s_info.event_listener_list = eina_list_append(s_info.event_listener_list, listener);
 
-	return ret;
+	    if ((ret = activate_thread()) < 0) {
+		s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
+		DbgFree(listener);
+	    }
+	}
+    } else {
+	s_info.event_listener_list = eina_list_append(s_info.event_listener_list, listener);
+    }
+
+    return ret;
 }
 
 HAPI int event_deactivate(int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data)
 {
-	struct event_listener *listener = NULL;
-	struct event_listener *item;
-	Eina_List *l;
-	int keep_thread = 0;
+    struct event_listener *listener = NULL;
+    struct event_listener *item;
+    Eina_List *l;
+    int keep_thread = 0;
 
-	EINA_LIST_FOREACH(s_info.event_listener_list, l, item) {
-		if (item->event_cb == event_cb && item->cbdata == data) {
-			switch (item->state) {
-			case EVENT_STATE_ACTIVATE:
-			case EVENT_STATE_ACTIVATED:
-				item->prev_state = item->state;
-				item->state = EVENT_STATE_DEACTIVATE;
-				listener = item;
-				break;
-			default:
-				/* Item is already deactivated */
-				break;
-			}
-		}
-
-		keep_thread += (item->state == EVENT_STATE_ACTIVATE || item->state == EVENT_STATE_ACTIVATED);
+    EINA_LIST_FOREACH(s_info.event_listener_list, l, item) {
+	if (item->event_cb == event_cb && item->cbdata == data) {
+	    switch (item->state) {
+		case EVENT_STATE_ACTIVATE:
+		case EVENT_STATE_ACTIVATED:
+		    item->prev_state = item->state;
+		    item->state = EVENT_STATE_DEACTIVATE;
+		    listener = item;
+		    break;
+		default:
+		    /* Item is already deactivated */
+		    break;
+	    }
 	}
 
-	if (!listener) {
-		ErrPrint("Listener is not registered or already deactivated\n");
-		return DBOX_STATUS_ERROR_NOT_EXIST;
-	}
+	keep_thread += (item->state == EVENT_STATE_ACTIVATE || item->state == EVENT_STATE_ACTIVATED);
+    }
 
-	if (s_info.event_handler_activated == 0) {
-		ErrPrint("Event handler is not actiavated\n");
-		s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
-		DbgFree(listener);
-		return DBOX_STATUS_ERROR_NONE;
-	}
+    if (!listener) {
+	ErrPrint("Listener is not registered or already deactivated\n");
+	return DBOX_STATUS_ERROR_NOT_EXIST;
+    }
 
-	if (keep_thread) {
-		DbgPrint("Keep thread\n");
-		return DBOX_STATUS_ERROR_NONE;
-	}
-
-	deactivate_thread();
-
+    if (s_info.event_handler_activated == 0) {
+	ErrPrint("Event handler is not actiavated\n");
+	s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
+	DbgFree(listener);
 	return DBOX_STATUS_ERROR_NONE;
+    }
+
+    if (keep_thread) {
+	DbgPrint("Keep thread\n");
+	return DBOX_STATUS_ERROR_NONE;
+    }
+
+    deactivate_thread();
+
+    return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI int event_reset_cbdata(int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data, void *new_data)
 {
-	struct event_listener *item;
-	Eina_List *l;
-	int updated = 0;
+    struct event_listener *item;
+    Eina_List *l;
+    int updated = 0;
 
-	EINA_LIST_FOREACH(s_info.event_listener_list, l, item) {
-		if (item->event_cb == event_cb && item->cbdata == data) {
-			item->cbdata = new_data;
-			updated++;
-		}
+    EINA_LIST_FOREACH(s_info.event_listener_list, l, item) {
+	if (item->event_cb == event_cb && item->cbdata == data) {
+	    item->cbdata = new_data;
+	    updated++;
 	}
+    }
 
-	EINA_LIST_FOREACH(s_info.reactivate_list, l, item) {
-		if (item->event_cb == event_cb && item->cbdata == data) {
-			item->cbdata = new_data;
-			updated++;
-		}
+    EINA_LIST_FOREACH(s_info.reactivate_list, l, item) {
+	if (item->event_cb == event_cb && item->cbdata == data) {
+	    item->cbdata = new_data;
+	    updated++;
 	}
+    }
 
-	return updated;
+    return updated;
 }
 
 HAPI int event_is_activated(void)
 {
-	return s_info.handle >= 0;
+    return s_info.handle >= 0;
 }
 
 /* End of a file */
