@@ -32,10 +32,6 @@
 #include <dynamicbox_errno.h>
 #include <dynamicbox_conf.h>
 
-#if !defined(_USE_ECORE_TIME_GET)
-#define _USE_ECORE_TIME_GET
-#endif
-
 #include "util.h"
 #include "debug.h"
 #include "conf.h"
@@ -93,11 +89,7 @@ struct event_listener {
     enum event_state prev_state;
     enum event_state state;
 
-#if defined(_USE_ECORE_TIME_GET)
     double tv;
-#else
-    struct timeval tv; /* Recording Activate / Deactivate time */
-#endif
     int x; /* RelX */
     int y; /* RelY */
 };
@@ -190,31 +182,17 @@ static double current_time_get(void)
 
 static void update_timestamp(struct input_event *event)
 {
-#if !defined(_USE_ECORE_TIME_GET)
-    /*!
-     * WARN
-     * Input event uses MONOTONIC CLOCK TIME
-     * So this case will not be work correctly.
-     */
-    if (DYNAMICBOX_CONF_USE_EVENT_TIME) {
-	memcpy(&s_info.event_data.tv, &event->time, sizeof(event->time));
-    } else {
-	if (gettimeofday(&s_info.event_data.tv, NULL) < 0) {
-	    ErrPrint("gettimeofday: %s\n", strerror(errno));
-	}
-    }
-#else
     /*
      * Input event uses timeval instead of timespec,
      * but its value is same as MONOTIC CLOCK TIME
      * So we should handles it properly.
      */
-    if (DYNAMICBOX_CONF_USE_EVENT_TIME) {
+    if (DYNAMICBOX_CONF_USE_GETTIMEOFDAY) {
 	s_info.event_data.tv = (double)event->time.tv_sec + (double)event->time.tv_usec / 1000000.0f;
     } else {
-	s_info.event_data.tv = current_time_get();
+	s_info.event_data.tv = (double)event->time.tv_sec + (double)event->time.tv_usec / 1000000000.0f;
     }
-#endif
+
     s_info.timestamp_updated = 1;
 }
 
@@ -570,6 +548,10 @@ static int invoke_event_cb(struct event_listener *listener, struct event_data *i
     modified_item.x -= listener->x;
     modified_item.y -= listener->y;
 
+    if (!DYNAMICBOX_CONF_USE_EVENT_TIME) {
+	item->tv = current_time_get();
+    }
+
     if (listener->event_cb(listener->state, &modified_item, listener->cbdata) < 0) {
 	if (eina_list_data_find(s_info.event_listener_list, listener)) {
 	    s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
@@ -638,7 +620,6 @@ static inline void clear_all_listener_list(void)
     }
 }
 
-#if defined(_USE_ECORE_TIME_GET)
 static int compare_timestamp(struct event_listener *listener, struct event_data *item)
 {
     int ret;
@@ -651,20 +632,6 @@ static int compare_timestamp(struct event_listener *listener, struct event_data 
     }
     return ret;
 }
-#else
-static int compare_timestamp(struct event_listener *listener, struct event_data *item)
-{
-    int ret;
-    if (timercmp(&listener->tv, &item->tv, >)) {
-	ret = 1;
-    } else if (timercmp(&listener->tv, &item->tv, <)) {
-	ret = -1;
-    } else {
-	ret = 0;
-    }
-    return ret;
-}
-#endif
 
 static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 {
@@ -736,6 +703,7 @@ static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 		if (compare_timestamp(listener, item) > 0) {
 		    continue;
 		}
+
 		next_state = EVENT_STATE_ACTIVATED;
 		break;
 	    case EVENT_STATE_DEACTIVATE:
@@ -934,18 +902,8 @@ HAPI int event_activate(int x, int y, int (*event_cb)(enum event_state state, st
 	return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
     }
 
-#if defined(_USE_ECORE_TIME_GET)
     listener->tv = current_time_get() - DELAY_COMPENSATOR; // Let's use the previous event.
     DbgPrint("Activated at: %lf (%dx%d)\n", listener->tv, x, y);
-#else
-    if (gettimeofday(&listener->tv, NULL) < 0) {
-	ErrPrint("gettimeofday: %s\n", strerror(errno));
-	DbgFree(listener);
-	return DBOX_STATUS_ERROR_FAULT;
-    }
-    DbgPrint("Activated at: %lu sec %lu msec (%dx%d)\n", listener->tv.tv_sec, listener->tv.tv_usec, x, y);
-    /* NEED TO DO COMPENSATION (DELAY) */
-#endif
 
     listener->event_cb = event_cb;
     listener->cbdata = data;
