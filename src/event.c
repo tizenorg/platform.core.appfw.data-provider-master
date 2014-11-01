@@ -187,12 +187,7 @@ static void update_timestamp(struct input_event *event)
      * but its value is same as MONOTIC CLOCK TIME
      * So we should handles it properly.
      */
-    if (DYNAMICBOX_CONF_USE_GETTIMEOFDAY) {
-	s_info.event_data.tv = (double)event->time.tv_sec + (double)event->time.tv_usec / 1000000.0f;
-    } else {
-	s_info.event_data.tv = (double)event->time.tv_sec + (double)event->time.tv_usec / 1000000000.0f;
-    }
-
+    s_info.event_data.tv = (double)event->time.tv_sec + (double)event->time.tv_usec / 1000000.0f;
     s_info.timestamp_updated = 1;
 }
 
@@ -200,207 +195,207 @@ static void processing_ev_abs(struct input_event *event)
 {
     switch (event->code) {
 #if defined(ABS_X)
-	case ABS_X:
-	    break;
+    case ABS_X:
+	break;
 #endif
 #if defined(ABS_Y)
-	case ABS_Y:
-	    break;
+    case ABS_Y:
+	break;
 #endif
 #if defined(ABS_Z)
-	case ABS_Z:
-	    break;
+    case ABS_Z:
+	break;
 #endif
 #if defined(ABS_RX)
-	case ABS_RX:
-	    break;
+    case ABS_RX:
+	break;
 #endif
 #if defined(ABS_RY)
-	case ABS_RY:
-	    break;
+    case ABS_RY:
+	break;
 #endif
 #if defined(ABS_RZ)
-	case ABS_RZ:
-	    break;
+    case ABS_RZ:
+	break;
 #endif
 #if defined(ABS_THROTTLE)
-	case ABS_THROTTLE:
-	    break;
+    case ABS_THROTTLE:
+	break;
 #endif
 #if defined(ABS_RUDDER)
-	case ABS_RUDDER:
-	    break;
+    case ABS_RUDDER:
+	break;
 #endif
 #if defined(ABS_WHEEL)
-	case ABS_WHEEL:
-	    break;
+    case ABS_WHEEL:
+	break;
 #endif
 #if defined(ABS_GAS)
-	case ABS_GAS:
-	    break;
+    case ABS_GAS:
+	break;
 #endif
 #if defined(ABS_BRAKE)
-	case ABS_BRAKE:
-	    break;
+    case ABS_BRAKE:
+	break;
 #endif
 #if defined(ABS_HAT0X)
-	case ABS_HAT0X:
-	    break;
+    case ABS_HAT0X:
+	break;
 #endif
 #if defined(ABS_HAT0Y)
-	case ABS_HAT0Y:
-	    break;
+    case ABS_HAT0Y:
+	break;
 #endif
 #if defined(ABS_HAT1X)
-	case ABS_HAT1X:
-	    break;
+    case ABS_HAT1X:
+	break;
 #endif
 #if defined(ABS_HAT1Y)
-	case ABS_HAT1Y:
-	    break;
+    case ABS_HAT1Y:
+	break;
 #endif
 #if defined(ABS_HAT2X)
-	case ABS_HAT2X:
-	    break;
+    case ABS_HAT2X:
+	break;
 #endif
 #if defined(ABS_HAT2Y)
-	case ABS_HAT2Y:
-	    break;
+    case ABS_HAT2Y:
+	break;
 #endif
 #if defined(ABS_HAT3X)
-	case ABS_HAT3X:
-	    break;
+    case ABS_HAT3X:
+	break;
 #endif
 #if defined(ABS_HAT3Y)
-	case ABS_HAT3Y:
-	    break;
+    case ABS_HAT3Y:
+	break;
 #endif
 #if defined(ABS_PRESSURE)
-	case ABS_PRESSURE:
-	    break;
+    case ABS_PRESSURE:
+	break;
 #endif
 #if defined(ABS_TILT_X)
-	case ABS_TILT_X:
-	    break;
+    case ABS_TILT_X:
+	break;
 #endif
 #if defined(ABS_TILT_Y)
-	case ABS_TILT_Y:
-	    break;
+    case ABS_TILT_Y:
+	break;
 #endif
 #if defined(ABS_TOOL_WIDTH)
-	case ABS_TOOL_WIDTH:
-	    break;
+    case ABS_TOOL_WIDTH:
+	break;
 #endif
 #if defined(ABS_VOLUME)
-	case ABS_VOLUME:
-	    break;
+    case ABS_VOLUME:
+	break;
 #endif
 #if defined(ABS_MISC)
-	case ABS_MISC:
-	    break;
+    case ABS_MISC:
+	break;
 #endif
 #if defined(ABS_DISTANCE)
-	case ABS_DISTANCE:
-	    s_info.event_data.distance = event->value;
-	    break;
+    case ABS_DISTANCE:
+	s_info.event_data.distance = event->value;
+	break;
 #endif
 #if defined(ABS_MT_POSITION_X)
-	case ABS_MT_POSITION_X:
-	    s_info.event_data.x = event->value;
-	    break;
+    case ABS_MT_POSITION_X:
+	s_info.event_data.x = event->value;
+	break;
 #endif
 #if defined(ABS_MT_POSITION_Y)
-	case ABS_MT_POSITION_Y:
-	    s_info.event_data.y = event->value;
-	    break;
+    case ABS_MT_POSITION_Y:
+	s_info.event_data.y = event->value;
+	break;
 #endif
 #if defined(ABS_MT_SLOT)
-	case ABS_MT_SLOT:
-	    s_info.event_data.slot = event->value;
-	    break;
+    case ABS_MT_SLOT:
+	s_info.event_data.slot = event->value;
+	break;
 #endif
 #if defined(ABS_MT_TRACKING_ID)
-	case ABS_MT_TRACKING_ID:
-	    s_info.event_data.device = event->value;
-	    break;
+    case ABS_MT_TRACKING_ID:
+	s_info.event_data.device = event->value;
+	break;
 #endif
 #if defined(ABS_MT_TOUCH_MAJOR)
-	case ABS_MT_TOUCH_MAJOR:
-	    s_info.event_data.touch.major = event->value;
-	    break;
+    case ABS_MT_TOUCH_MAJOR:
+	s_info.event_data.touch.major = event->value;
+	break;
 #endif
 #if defined(ABS_MT_TOUCH_MINOR)
-	case ABS_MT_TOUCH_MINOR:
-	    s_info.event_data.touch.minor = event->value;
-	    break;
+    case ABS_MT_TOUCH_MINOR:
+	s_info.event_data.touch.minor = event->value;
+	break;
 #endif
 #if defined(ABS_MT_WIDTH_MAJOR)
-	case ABS_MT_WIDTH_MAJOR:
-	    s_info.event_data.width.major = event->value;
-	    break;
+    case ABS_MT_WIDTH_MAJOR:
+	s_info.event_data.width.major = event->value;
+	break;
 #endif
 #if defined(ABS_MT_WIDTH_MINOR)
-	case ABS_MT_WIDTH_MINOR:
-	    s_info.event_data.width.minor = event->value;
-	    break;
+    case ABS_MT_WIDTH_MINOR:
+	s_info.event_data.width.minor = event->value;
+	break;
 #endif
 #if defined(ABS_MT_ORIENTATION)
-	case ABS_MT_ORIENTATION:
-	    s_info.event_data.orientation = event->value;
-	    break;
+    case ABS_MT_ORIENTATION:
+	s_info.event_data.orientation = event->value;
+	break;
 #endif
 #if defined(ABS_MT_PRESSURE)
-	case ABS_MT_PRESSURE:
-	    s_info.event_data.pressure = event->value;
-	    break;
+    case ABS_MT_PRESSURE:
+	s_info.event_data.pressure = event->value;
+	break;
 #endif
 #if defined(ABS_MT_TOOL_X)
-	case ABS_MT_TOOL_X:
-	    DbgPrint("TOOL_X: %d\n", event->value);
-	    break;
+    case ABS_MT_TOOL_X:
+	DbgPrint("TOOL_X: %d\n", event->value);
+	break;
 #endif
 #if defined(ABS_MT_TOOL_Y)
-	case ABS_MT_TOOL_Y:
-	    DbgPrint("TOOL_Y: %d\n", event->value);
-	    break;
+    case ABS_MT_TOOL_Y:
+	DbgPrint("TOOL_Y: %d\n", event->value);
+	break;
 #endif
 #if defined(ABS_MT_TOOL_TYPE)
-	case ABS_MT_TOOL_TYPE:
-	    DbgPrint("TOOL_TYPE: %d\n", event->value);
-	    break;
+    case ABS_MT_TOOL_TYPE:
+	DbgPrint("TOOL_TYPE: %d\n", event->value);
+	break;
 #endif
 #if defined(ABS_MT_BLOB_ID)
-	case ABS_MT_BLOB_ID:
-	    DbgPrint("BLOB_ID: %d\n", event->value);
-	    break;
+    case ABS_MT_BLOB_ID:
+	DbgPrint("BLOB_ID: %d\n", event->value);
+	break;
 #endif
 #if defined(ABS_MT_DISTANCE)
-	case ABS_MT_DISTANCE:
-	    DbgPrint("DISTANCE: %d\n", event->value);
-	    break;
+    case ABS_MT_DISTANCE:
+	DbgPrint("DISTANCE: %d\n", event->value);
+	break;
 #endif
 #if defined(ABS_MT_ANGLE)
-	case ABS_MT_ANGLE:
-	    DbgPrint("ANGLE: %d\n", event->value);
-	    break;
+    case ABS_MT_ANGLE:
+	DbgPrint("ANGLE: %d\n", event->value);
+	break;
 #endif
 #if defined(ABS_MT_PALM)
-	case ABS_MT_PALM:
-	    DbgPrint("PALM: %d\n", event->value);
-	    break;
+    case ABS_MT_PALM:
+	DbgPrint("PALM: %d\n", event->value);
+	break;
 #endif
 #if defined(ABS_MT_COMPONENT)
-	case ABS_MT_COMPONENT:
-	    DbgPrint("COMPONENT: %d\n", event->value);
-	    break;
+    case ABS_MT_COMPONENT:
+	DbgPrint("COMPONENT: %d\n", event->value);
+	break;
 #endif
 #if defined(ABS_MT_SUMSIZE)
-	case ABS_MT_SUMSIZE:
-	    DbgPrint("SUMSIZE: %d\n", event->value);
-	    break;
+    case ABS_MT_SUMSIZE:
+	DbgPrint("SUMSIZE: %d\n", event->value);
+	break;
 #endif
-	default:
-	    break;
+    default:
+	break;
     }
 
     return;
@@ -418,51 +413,50 @@ static inline int processing_input_event(struct input_event *event)
     }
 
     switch (event->type) {
-	case EV_SYN:
-	    switch (event->code) {
-		break;
-		case SYN_CONFIG:
-		break;
-		case SYN_MT_REPORT:
-		case SYN_REPORT:
-		s_info.timestamp_updated = 0;
-		ret = push_event_item();
-		if (ret < 0) {
-		    return ret;
-		}
-
-		break;
-#if defined(SYN_DROPPED)
-		case SYN_DROPPED:
-		DbgPrint("EV_SYN, SYN_DROPPED\n");
-		break;
-#endif
-		default:
-		DbgPrint("EV_SYN, 0x%x\n", event->code);
-		break;
+    case EV_SYN:
+	switch (event->code) {
+	case SYN_CONFIG:
+	    break;
+	case SYN_MT_REPORT:
+	case SYN_REPORT:
+	    s_info.timestamp_updated = 0;
+	    ret = push_event_item();
+	    if (ret < 0) {
+		return ret;
 	    }
+
 	    break;
-	case EV_KEY:
-	    DbgPrint("EV_KEY: 0x%X\n", event->value);
-	    s_info.event_data.keycode = event->value;
+#if defined(SYN_DROPPED)
+	case SYN_DROPPED:
+	    DbgPrint("EV_SYN, SYN_DROPPED\n");
 	    break;
-	case EV_REL:
-	    DbgPrint("EV_REL: 0x%X\n", event->value);
-	    break;
-	case EV_ABS:
-	    processing_ev_abs(event);
-	    break;
-	case EV_MSC:
-	case EV_SW:
-	case EV_LED:
-	case EV_SND:
-	case EV_REP:
-	case EV_FF:
-	case EV_PWR:
-	case EV_FF_STATUS:
+#endif
 	default:
-	    DbgPrint("0x%X, 0x%X\n", event->type, event->code);
+	    DbgPrint("EV_SYN, 0x%x\n", event->code);
 	    break;
+	}
+	break;
+    case EV_KEY:
+	DbgPrint("EV_KEY: 0x%X\n", event->value);
+	s_info.event_data.keycode = event->value;
+	break;
+    case EV_REL:
+	DbgPrint("EV_REL: 0x%X\n", event->value);
+	break;
+    case EV_ABS:
+	processing_ev_abs(event);
+	break;
+    case EV_MSC:
+    case EV_SW:
+    case EV_LED:
+    case EV_SND:
+    case EV_REP:
+    case EV_FF:
+    case EV_PWR:
+    case EV_FF_STATUS:
+    default:
+	DbgPrint("0x%X, 0x%X\n", event->type, event->code);
+	break;
     }
 
     return DBOX_STATUS_ERROR_NONE;
@@ -579,32 +573,32 @@ static inline void clear_all_listener_list(void)
 	    DbgPrint("listener[%p] prev[%x] state[%x]\n", listener, listener->prev_state, listener->state);
 
 	    switch (listener->state) {
-		case EVENT_STATE_ACTIVATE:
-		    p_event_data = &s_info.event_data;
-		    next_state = EVENT_STATE_ACTIVATED;
-		    break;
-		case EVENT_STATE_ACTIVATED:
-		    p_event_data = &s_info.event_data;
-		    next_state = EVENT_STATE_DEACTIVATE;
-		    break;
-		case EVENT_STATE_DEACTIVATE:
-		    memcpy(&event_data, &s_info.event_data, sizeof(event_data));
-		    p_event_data = &event_data;
+	    case EVENT_STATE_ACTIVATE:
+		p_event_data = &s_info.event_data;
+		next_state = EVENT_STATE_ACTIVATED;
+		break;
+	    case EVENT_STATE_ACTIVATED:
+		p_event_data = &s_info.event_data;
+		next_state = EVENT_STATE_DEACTIVATE;
+		break;
+	    case EVENT_STATE_DEACTIVATE:
+		memcpy(&event_data, &s_info.event_data, sizeof(event_data));
+		p_event_data = &event_data;
 
-		    if (listener->prev_state == EVENT_STATE_ACTIVATE) {
-			/* There is no move event. we have to emulate it */
-			DbgPrint ("Let's emulate move event (%dx%d)\n", p_event_data->x, p_event_data->y);
-			listener->state = EVENT_STATE_ACTIVATED;
-			next_state = EVENT_STATE_DEACTIVATE;
-		    } else {
-			next_state = EVENT_STATE_DEACTIVATED;
-		    }
-		    break;
-		case EVENT_STATE_DEACTIVATED:
-		default:
-		    s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
-		    DbgFree(listener);
-		    continue;
+		if (listener->prev_state == EVENT_STATE_ACTIVATE) {
+		    /* There is no move event. we have to emulate it */
+		    DbgPrint ("Let's emulate move event (%dx%d)\n", p_event_data->x, p_event_data->y);
+		    listener->state = EVENT_STATE_ACTIVATED;
+		    next_state = EVENT_STATE_DEACTIVATE;
+		} else {
+		    next_state = EVENT_STATE_DEACTIVATED;
+		}
+		break;
+	    case EVENT_STATE_DEACTIVATED:
+	    default:
+		s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
+		DbgFree(listener);
+		continue;
 	    }
 
 	    if (invoke_event_cb(listener, p_event_data)) {
@@ -699,45 +693,46 @@ static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 
     EINA_LIST_FOREACH_SAFE(s_info.event_listener_list, l, n, listener) {
 	switch (listener->state) {
-	    case EVENT_STATE_ACTIVATE:
-		if (compare_timestamp(listener, item) > 0) {
+	case EVENT_STATE_ACTIVATE:
+	    if (compare_timestamp(listener, item) > 0) {
+		continue;
+	    }
+
+	    next_state = EVENT_STATE_ACTIVATED;
+	    break;
+	case EVENT_STATE_DEACTIVATE:
+	    if (compare_timestamp(listener, item) < 0) {
+		/* Consuming all events occurred while activating this listener */
+		listener->prev_state = listener->state;
+		listener->state = EVENT_STATE_ACTIVATED;
+		if (invoke_event_cb(listener, item) == 1) {
+		    /* listener is deleted */
 		    continue;
 		}
 
-		next_state = EVENT_STATE_ACTIVATED;
-		break;
-	    case EVENT_STATE_DEACTIVATE:
-		if (compare_timestamp(listener, item) < 0) {
-		    /* Consuming all events occurred while activating this listener */
-		    listener->prev_state = listener->state;
-		    listener->state = EVENT_STATE_ACTIVATED;
-		    if (invoke_event_cb(listener, item) == 1) {
-			/* listener is deleted */
-			continue;
-		    }
+		listener->prev_state = listener->state;
+		listener->state = EVENT_STATE_DEACTIVATE;
+	    }
 
-		    listener->prev_state = listener->state;
-		    listener->state = EVENT_STATE_DEACTIVATE;
-		}
-
-		/* Do not terminate this listener, until this mets EVENT_EXIT */
+	    /* Do not terminate this listener, until this mets EVENT_EXIT */
+	    continue;
+	case EVENT_STATE_ACTIVATED:
+	    if (compare_timestamp(listener, item) > 0) {
+		DbgPrint("Drop event\n");
 		continue;
-	    case EVENT_STATE_ACTIVATED:
-		if (compare_timestamp(listener, item) > 0) {
-		    continue;
-		}
-		next_state = listener->state;
-		break;
-	    case EVENT_STATE_DEACTIVATED:
-	    default:
-		/* Remove this from the list */
-		/* Check the item again. the listener can be deleted from the callback */
-		if (eina_list_data_find(s_info.event_listener_list, listener)) {
-		    s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
-		    DbgFree(listener);
-		}
+	    }
+	    next_state = listener->state;
+	    break;
+	case EVENT_STATE_DEACTIVATED:
+	default:
+	    /* Remove this from the list */
+	    /* Check the item again. the listener can be deleted from the callback */
+	    if (eina_list_data_find(s_info.event_listener_list, listener)) {
+		s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
+		DbgFree(listener);
+	    }
 
-		continue;
+	    continue;
 	}
 
 	if (invoke_event_cb(listener, item) == 1) {
@@ -948,15 +943,15 @@ HAPI int event_deactivate(int (*event_cb)(enum event_state state, struct event_d
     EINA_LIST_FOREACH(s_info.event_listener_list, l, item) {
 	if (item->event_cb == event_cb && item->cbdata == data) {
 	    switch (item->state) {
-		case EVENT_STATE_ACTIVATE:
-		case EVENT_STATE_ACTIVATED:
-		    item->prev_state = item->state;
-		    item->state = EVENT_STATE_DEACTIVATE;
-		    listener = item;
-		    break;
-		default:
-		    /* Item is already deactivated */
-		    break;
+	    case EVENT_STATE_ACTIVATE:
+	    case EVENT_STATE_ACTIVATED:
+		item->prev_state = item->state;
+		item->state = EVENT_STATE_DEACTIVATE;
+		listener = item;
+		break;
+	    default:
+		/* Item is already deactivated */
+		break;
 	    }
 	}
 
