@@ -23,6 +23,8 @@
 #include <sys/signalfd.h>
 #include <ctype.h>
 
+#include <systemd/sd-daemon.h>
+
 #include <Ecore.h>
 #include <glib.h>
 #include <glib-object.h>
@@ -418,6 +420,7 @@ int main(int argc, char *argv[])
 #endif
 
     app_create();
+    sd_notify(0, "READY=1");
 
     vconf_get_int(VCONFKEY_MASTER_RESTART_COUNT, &restart_count);
     restart_count++;
