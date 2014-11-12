@@ -1,15 +1,14 @@
 %bcond_with wayland
 
 Name: data-provider-master
-Summary: Master service provider for liveboxes
-Version: 0.43.2
+Summary: Master service provider for dynamicboxes
+Version: 1.0.0
 Release: 1
-Group: HomeTF/Livebox
+Group: HomeTF/DynamicBox
 License: Flora
 Source0: %{name}-%{version}.tar.gz
 Source1001: %{name}.manifest
 BuildRequires: cmake, gettext-tools, smack, coreutils
-BuildRequires: pkgconfig(ail)
 BuildRequires: pkgconfig(dlog)
 BuildRequires: pkgconfig(aul)
 BuildRequires: pkgconfig(vconf)
@@ -39,9 +38,11 @@ BuildRequires: pkgconfig(eina)
 BuildRequires: pkgconfig(com-core)
 BuildRequires: pkgconfig(libxml-2.0)
 BuildRequires: pkgconfig(pkgmgr)
+BuildRequires: pkgconfig(pkgmgr-info)
 
+# This will not be works, I know. But...
 %if "%{sec_product_feature_livebox}" != "0"
-BuildRequires: pkgconfig(livebox-service)
+BuildRequires: pkgconfig(dynamicbox_service)
 %endif
 
 BuildRequires: pkgconfig(notification)
@@ -50,13 +51,13 @@ BuildRequires: pkgconfig(badge)
 BuildRequires: pkgconfig(badge-service)
 BuildRequires: pkgconfig(shortcut)
 BuildRequires: pkgconfig(security-server)
-BuildRequires: pkgconfig(libsystemd-daemon)
+BuildRequires: sec-product-features
 Requires(post): sys-assert
 Requires(post): dbus
 
 %description
-Manage the 2nd stage livebox service provider and communicate with the viewer application.
-Keep trace on the life-cycle of the livebox and status of the service providers, viewer applications.
+Manage the 2nd stage dynamicbox service provider and communicate with the viewer application.
+Keep trace on the life-cycle of the dynamicbox and status of the service providers, viewer applications.
 
 %prep
 %setup -q
@@ -97,6 +98,18 @@ export MOBILE=On
 export WEARABLE=Off
 %endif
 
+%if "%{sec_product_feature_display_resolution}" == "360x480"
+export LIVEBOX_SHM="${LIVEBOX_SHM}.360x480"
+%endif
+
+%if "%{sec_product_feature_display_resolution}" == "320x480"
+export LIVEBOX_SHM="${LIVEBOX_SHM}.320x480"
+%endif
+
+%if "%{sec_product_feature_display_resolution}" == "480x800"
+export LIVEBOX_SHM="${LIVEBOX_SHM}.480x800"
+%endif
+
 %if "%{sec_product_feature_livebox}" == "0"
 export LIVEBOX=Off
 %else
@@ -111,14 +124,8 @@ CFLAGS="${CFLAGS} -Wall -Winline -Werror" LDFLAGS="${LDFLAGS}" make %{?jobs:-j%j
 rm -rf %{buildroot}
 %make_install
 mkdir -p %{buildroot}/%{_datarootdir}/license
-%if "%{_repository}" == "wearable"
 mkdir -p %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants
 ln -sf ../data-provider-master.service %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants/data-provider-master.service
-%else
-mkdir -p %{buildroot}/%{_libdir}/systemd/user/tizen-middleware.target.wants
-ln -sf %{_libdir}/systemd/user/data-provider-master.service %{buildroot}/%{_libdir}/systemd/user/tizen-middleware.target.wants/data-provider-master.service
-%endif
-
 %if "%{sec_product_feature_livebox}" == "0"
 # Nothing provides
 %else
@@ -128,20 +135,20 @@ mkdir -p %{buildroot}/opt/usr/share/live_magazine/reader
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/always
 mkdir -p %{buildroot}/opt/usr/devel/usr/bin
 mkdir -p %{buildroot}/opt/dbspace
-touch %{buildroot}/opt/dbspace/.livebox.db
-touch %{buildroot}/opt/dbspace/.livebox.db-journal
-if [ ! -s %{buildroot}/opt/dbspace/.livebox.db ]; then
-echo "LiveBox DB file is not exists, initiate it"
-sqlite3 %{buildroot}/opt/dbspace/.livebox.db <<EOF
+touch %{buildroot}/opt/dbspace/.dynamicbox.db
+touch %{buildroot}/opt/dbspace/.dynamicbox.db-journal
+if [ ! -s %{buildroot}/opt/dbspace/.dynamicbox.db ]; then
+echo "DynamicBox DB file is not exists, initiate it"
+sqlite3 %{buildroot}/opt/dbspace/.dynamicbox.db <<EOF
 CREATE TABLE version ( version INTEGER );
 CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, preview TEXT, touch_effect INTEGER, need_frame INTEGER, mouse_event INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
-CREATE TABLE client (pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch TEXT, pd_size TEXT, content TEXT, nodisplay INTEGER, setup TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
+CREATE TABLE client (pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch TEXT, gbar_size TEXT, content TEXT, nodisplay INTEGER, setup TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
 CREATE TABLE groupinfo ( id INTEGER PRIMARY KEY AUTOINCREMENT, cluster TEXT NOT NULL, category TEXT NOT NULL, pkgid TEXT NOT NULL, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
 CREATE TABLE groupmap (option_id INTEGER PRIMARY KEY AUTOINCREMENT, id INTEGER, pkgid TEXT NOT NULL, ctx_item TEXT NOT NULL, FOREIGN KEY(id) REFERENCES groupinfo(id), FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
 CREATE TABLE i18n ( pkgid TEXT NOT NULL, lang TEXT COLLATE NOCASE, name TEXT, icon TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
 CREATE TABLE option ( pkgid TEXT NOT NULL, option_id INTEGER, key TEXT NOT NULL, value TEXT NOT NULL, FOREIGN KEY(option_id) REFERENCES groupmap(option_id), FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
 CREATE TABLE pkgmap ( pkgid TEXT PRIMARY KEY NOT NULL, appid TEXT, uiapp TEXT, prime INTEGER, category TEXT DEFAULT 'http://tizen.org/category/default' );
-CREATE TABLE provider ( pkgid TEXT PRIMARY KEY NOT NULL, network INTEGER, abi TEXT, secured INTEGER, box_type INTEGER, box_src TEXT, box_group TEXT, pd_type INTEGER, pd_src TEXT, pd_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
+CREATE TABLE provider ( pkgid TEXT PRIMARY KEY NOT NULL, network INTEGER, abi TEXT, secured INTEGER, box_type INTEGER, box_src TEXT, box_group TEXT, gbar_type INTEGER, gbar_src TEXT, gbar_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, count INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
 EOF
 fi
 %endif
@@ -164,10 +171,10 @@ chown 5000:5000 /opt/usr/share/live_magazine/reader
 chmod 750 /opt/usr/share/live_magazine/reader
 chown 5000:5000 /opt/usr/share/live_magazine/always
 chmod 750 /opt/usr/share/live_magazine/always
-chown 0:5000 /opt/dbspace/.livebox.db
-chmod 640 /opt/dbspace/.livebox.db
-chown 0:5000 /opt/dbspace/.livebox.db-journal
-chmod 640 /opt/dbspace/.livebox.db-journal
+chown 0:5000 /opt/dbspace/.dynamicbox.db
+chmod 640 /opt/dbspace/.dynamicbox.db
+chown 0:5000 /opt/dbspace/.dynamicbox.db-journal
+chmod 640 /opt/dbspace/.dynamicbox.db-journal
 %endif
 vconftool set -t bool "memory/data-provider-master/started" 0 -i -u 5000 -f -s system::vconf_system
 vconftool set -t int "memory/private/data-provider-master/restart_count" 0 -i -u 5000 -f -s data-provider-master
@@ -179,27 +186,21 @@ echo "%{_sysconfdir}/init.d/data-provider-master start"
 %manifest %{name}.manifest
 %defattr(-,root,root,-)
 %{_bindir}/data-provider-master
-%if "%{_repository}" == "wearable"
 %{_libdir}/systemd/system/multi-user.target.wants/data-provider-master.service
 %{_libdir}/systemd/system/data-provider-master.service
-/opt/etc/dump.d/module.d/dump_livebox.sh
-%else
-%{_libdir}/systemd/user/data-provider-master.service
-%{_libdir}/systemd/user/tizen-middleware.target.wants/data-provider-master.service
-/opt/etc/smack/accesses.d
-%endif
 %{_datarootdir}/license/*
-%if "%{sec_product_feature_livebox}" == "0"
-# Nothing provides
-%else
 %if 0%{?tizen_build_binary_release_type_eng}
 /opt/usr/devel/usr/bin/*
 %endif
+%if "%{sec_product_feature_livebox}" == "0"
+# Nothing provides
+%else
 %{_prefix}/etc/package-manager/parserlib/*
 %{_datarootdir}/data-provider-master/*
+/opt/etc/dump.d/module.d/dump_dynamicbox.sh
 /opt/usr/share/live_magazine/*
-/opt/dbspace/.livebox.db
-/opt/dbspace/.livebox.db-journal
+/opt/dbspace/.dynamicbox.db
+/opt/dbspace/.dynamicbox.db-journal
 %endif
 
 # End of a file

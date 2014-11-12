@@ -28,7 +28,7 @@
 
 #include <gio/gio.h>
 #include <dlog.h>
-#include <livebox-errno.h>
+#include <dynamicbox_errno.h>
 
 #include "conf.h"
 #include "debug.h"
@@ -42,209 +42,209 @@
 int errno;
 
 struct event_item {
-	int (*cb)(void *user_data);
-	void *user_data;
+    int (*cb)(void *user_data);
+    void *user_data;
 };
 
 static struct info {
-	Ecore_Event_Handler *create_handler;
-	Ecore_Event_Handler *destroy_handler;
-	Ecore_Event_Handler *client_handler;
+    Ecore_Event_Handler *create_handler;
+    Ecore_Event_Handler *destroy_handler;
+    Ecore_Event_Handler *client_handler;
 
-	Eina_List *pause_list;
-	Eina_List *resume_list;
+    Eina_List *pause_list;
+    Eina_List *resume_list;
 
-	int paused;
+    int paused;
 } s_info = {
-	.create_handler = NULL,
-	.destroy_handler = NULL,
-	.client_handler = NULL,
+    .create_handler = NULL,
+    .destroy_handler = NULL,
+    .client_handler = NULL,
 
-	.pause_list = NULL,
-	.resume_list = NULL,
+    .pause_list = NULL,
+    .resume_list = NULL,
 
-	.paused = 1, /*!< The provider is treated as paused process when it is launched */
+    .paused = 1, /*!< The provider is treated as paused process when it is launched */
 };
 
 static inline void touch_paused_file(void)
 {
-	int fd;
-	fd = creat(PAUSED_FILE, 0644);
-	if (fd >= 0) {
-		if (close(fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
-		}
-	} else {
-		ErrPrint("Create .live.paused: %s\n", strerror(errno));
+    int fd;
+    fd = creat(PAUSED_FILE, 0644);
+    if (fd >= 0) {
+	if (close(fd) < 0) {
+	    ErrPrint("close: %s\n", strerror(errno));
 	}
+    } else {
+	ErrPrint("Create .live.paused: %s\n", strerror(errno));
+    }
 }
 
 static inline void remove_paused_file(void)
 {
-	if (unlink(PAUSED_FILE) < 0) {
-		ErrPrint("Unlink .live.paused: %s\n", strerror(errno));
-	}
+    if (unlink(PAUSED_FILE) < 0) {
+	ErrPrint("Unlink .live.paused: %s\n", strerror(errno));
+    }
 }
 
 HAPI void xmonitor_handle_state_changes(void)
 {
-	int paused;
-	Eina_List *l;
-	struct event_item *item;
+    int paused;
+    Eina_List *l;
+    struct event_item *item;
 
-	paused = client_is_all_paused() || setting_is_lcd_off();
-	if (s_info.paused == paused) {
-		return;
+    paused = client_is_all_paused() || setting_is_lcd_off();
+    if (s_info.paused == paused) {
+	return;
+    }
+
+    s_info.paused = paused;
+
+    if (s_info.paused) {
+	EINA_LIST_FOREACH(s_info.pause_list, l, item) {
+	    if (item->cb) {
+		item->cb(item->user_data);
+	    }
 	}
 
-	s_info.paused = paused;
+	touch_paused_file();
 
-	if (s_info.paused) {
-		EINA_LIST_FOREACH(s_info.pause_list, l, item) {
-			if (item->cb) {
-				item->cb(item->user_data);
-			}
-		}
+	sqlite3_release_memory(SQLITE_FLUSH_MAX);
+	malloc_trim(0);
+    } else {
+	remove_paused_file();
 
-		touch_paused_file();
-
-		sqlite3_release_memory(SQLITE_FLUSH_MAX);
-		malloc_trim(0);
-	} else {
-		remove_paused_file();
-
-		EINA_LIST_FOREACH(s_info.resume_list, l, item) {
-			if (item->cb) {
-				item->cb(item->user_data);
-			}
-		}
+	EINA_LIST_FOREACH(s_info.resume_list, l, item) {
+	    if (item->cb) {
+		item->cb(item->user_data);
+	    }
 	}
+    }
 }
 
 HAPI int xmonitor_update_state(int target_pid)
 {
-	struct client_node *client;
+    struct client_node *client;
 
-	if (!USE_XMONITOR || target_pid < 0) {
-		return LB_STATUS_SUCCESS;
-	}
+    if (!USE_XMONITOR || target_pid < 0) {
+	return DBOX_STATUS_ERROR_NONE;
+    }
 
-	/*!
-	 * \TODO
-	 * Find the top(focuesd) window's PID
-	 * Compare it with target_pid.
-	 * If it is what we finding, call the
-	 * xmonitor_pause or xmonitor_resume
-	 */
+    /*!
+     * \TODO
+     * Find the top(focuesd) window's PID
+     * Compare it with target_pid.
+     * If it is what we finding, call the
+     * xmonitor_pause or xmonitor_resume
+     */
 
-	xmonitor_handle_state_changes();
-	return LB_STATUS_SUCCESS;
+    xmonitor_handle_state_changes();
+    return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI int xmonitor_pause(struct client_node *client)
 {
-	DbgPrint("%d is paused\n", client_pid(client));
-	client_paused(client);
-	xmonitor_handle_state_changes();
-	return LB_STATUS_SUCCESS;
+    DbgPrint("%d is paused\n", client_pid(client));
+    client_paused(client);
+    xmonitor_handle_state_changes();
+    return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI int xmonitor_resume(struct client_node *client)
 {
-	DbgPrint("%d is resumed\n", client_pid(client));
-	client_resumed(client);
-	xmonitor_handle_state_changes();
-	return LB_STATUS_SUCCESS;
+    DbgPrint("%d is resumed\n", client_pid(client));
+    client_resumed(client);
+    xmonitor_handle_state_changes();
+    return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI int xmonitor_init(void)
 {
-	if (USE_XMONITOR) {
-		return LB_STATUS_SUCCESS;
-	}
+    if (USE_XMONITOR) {
+	return DBOX_STATUS_ERROR_NONE;
+    }
 
-	s_info.paused = client_is_all_paused() || setting_is_lcd_off();
-	if (s_info.paused) {
-		touch_paused_file();
-	} else {
-		remove_paused_file();
-	}
+    s_info.paused = client_is_all_paused() || setting_is_lcd_off();
+    if (s_info.paused) {
+	touch_paused_file();
+    } else {
+	remove_paused_file();
+    }
 
-	return LB_STATUS_SUCCESS;
+    return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI void xmonitor_fini(void)
 {
-	if (USE_XMONITOR) {
-	}
+    if (USE_XMONITOR) {
+    }
 }
 
 HAPI int xmonitor_add_event_callback(enum xmonitor_event event, int (*cb)(void *user_data), void *user_data)
 {
-	struct event_item *item;
+    struct event_item *item;
 
-	item = malloc(sizeof(*item));
-	if (!item) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		return LB_STATUS_ERROR_MEMORY;
-	}
+    item = malloc(sizeof(*item));
+    if (!item) {
+	ErrPrint("Heap: %s\n", strerror(errno));
+	return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+    }
 
-	item->cb = cb;
-	item->user_data = user_data;
+    item->cb = cb;
+    item->user_data = user_data;
 
-	switch (event) {
+    switch (event) {
 	case XMONITOR_PAUSED:
-		s_info.pause_list = eina_list_prepend(s_info.pause_list, item);
-		break;
+	    s_info.pause_list = eina_list_prepend(s_info.pause_list, item);
+	    break;
 	case XMONITOR_RESUMED:
-		s_info.resume_list = eina_list_prepend(s_info.resume_list, item);
-		break;
+	    s_info.resume_list = eina_list_prepend(s_info.resume_list, item);
+	    break;
 	default:
-		ErrPrint("Invalid event type\n");
-		DbgFree(item);
-		return LB_STATUS_ERROR_INVALID;
-	}
+	    ErrPrint("Invalid event type\n");
+	    DbgFree(item);
+	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+    }
 
-	return LB_STATUS_SUCCESS;
+    return DBOX_STATUS_ERROR_NONE;
 }
 
 HAPI int xmonitor_del_event_callback(enum xmonitor_event event, int (*cb)(void *user_data), void *user_data)
 {
-	struct event_item *item;
-	Eina_List *l;
-	Eina_List *n;
+    struct event_item *item;
+    Eina_List *l;
+    Eina_List *n;
 
-	switch (event) {
+    switch (event) {
 	case XMONITOR_PAUSED:
-		EINA_LIST_FOREACH_SAFE(s_info.pause_list, l, n, item) {
-			if (item->cb == cb && item->user_data == user_data) {
-				s_info.pause_list = eina_list_remove(s_info.pause_list, item);
-				DbgFree(item);
-				return LB_STATUS_SUCCESS;
-			}
+	    EINA_LIST_FOREACH_SAFE(s_info.pause_list, l, n, item) {
+		if (item->cb == cb && item->user_data == user_data) {
+		    s_info.pause_list = eina_list_remove(s_info.pause_list, item);
+		    DbgFree(item);
+		    return DBOX_STATUS_ERROR_NONE;
 		}
-		break;
+	    }
+	    break;
 
 	case XMONITOR_RESUMED:
-		EINA_LIST_FOREACH_SAFE(s_info.resume_list, l, n, item) {
-			if (item->cb == cb && item->user_data == user_data) {
-				s_info.resume_list = eina_list_remove(s_info.resume_list, item);
-				DbgFree(item);
-				return LB_STATUS_SUCCESS;
-			}
+	    EINA_LIST_FOREACH_SAFE(s_info.resume_list, l, n, item) {
+		if (item->cb == cb && item->user_data == user_data) {
+		    s_info.resume_list = eina_list_remove(s_info.resume_list, item);
+		    DbgFree(item);
+		    return DBOX_STATUS_ERROR_NONE;
 		}
-		break;
+	    }
+	    break;
 	default:
-		ErrPrint("Invalid event type\n");
-		return LB_STATUS_ERROR_INVALID;
-	}
+	    ErrPrint("Invalid event type\n");
+	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+    }
 
-	return LB_STATUS_ERROR_NOT_EXIST;
+    return DBOX_STATUS_ERROR_NOT_EXIST;
 }
 
 HAPI int xmonitor_is_paused(void)
 {
-	return s_info.paused;
+    return s_info.paused;
 }
 
 /* End of a file */

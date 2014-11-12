@@ -40,7 +40,7 @@
 #include <com-core_packet.h>
 #include <com-core.h>
 
-#include <livebox-service.h>
+#include <dynamicbox_service.h>
 
 #include <Ecore.h>
 
@@ -63,6 +63,7 @@ struct package {
 
 struct instance {
 	char *id;
+	char *buf_id;
 	char *cluster;
 	char *category;
 	double period;
@@ -150,7 +151,7 @@ static Eina_Bool process_line_cb(void *data)
 	return ECORE_CALLBACK_CANCEL;
 }
 
-static void prompt(const char *cmdline)
+static inline void prompt(const char *cmdline)
 {
 	char *path;
 
@@ -205,6 +206,7 @@ static void inst_del_cb(struct node *node)
 	}
 
 	free(info->id);
+	free(info->buf_id);
 	free(info->cluster);
 	free(info->category);
 	free(info->state);
@@ -270,7 +272,7 @@ static void ls(void)
 
 			info = node_data(node);
 
-			printf(" %5.2f %6s %10s %10s %4dx%-4d ", info->period, info->state, info->cluster, info->category, info->width, info->height);
+			printf(" %5.2f %s %6s %10s %10s %4dx%-4d ", info->period, info->buf_id, info->state, info->cluster, info->category, info->width, info->height);
 			snprintf(buf, sizeof(buf), "/opt/usr/share/live_magazine/reader/%s", node_name(node));
 			if (lstat(buf, &stat) < 0) {
 				printf("%3d ERR ", errno);
@@ -430,7 +432,7 @@ static void send_pkg_list(void)
 	s_info.cmd = PKG_LIST;
 	s_info.age++;
 
-	livebox_service_get_pkglist(pkglist_cb, s_info.targetdir);
+	dynamicbox_service_get_pkglist(pkglist_cb, s_info.targetdir);
 }
 
 static void send_inst_delete(void)
@@ -562,7 +564,7 @@ static void send_inst_list(const char *pkgname)
 
 static void help(void)
 {
-	printf("liveinfo - Livebox utility\n");
+	printf("liveinfo - DynamicBox utility\n");
 	printf("------------------------------ [Option] ------------------------------\n");
 	printf("-b Batch mode\n");
 	printf("-x execute command\n");
@@ -699,59 +701,40 @@ static inline int do_stat(const char *cmd)
 
 	switch (type){
 	case PKG:
-		tmp = livebox_service_i18n_name(node_name(node), NULL);
+		tmp = dynamicbox_service_i18n_name(node_name(node), NULL);
 		printf("Name: %s (", tmp);
 		free(tmp);
 
-		i = livebox_service_is_enabled(node_name(node));
+		i = dynamicbox_service_is_enabled(node_name(node));
 		printf("%s)\n", i ? "enabled" : "disabled");
 
-		tmp = livebox_service_i18n_icon(node_name(node), NULL);
+		tmp = dynamicbox_service_i18n_icon(node_name(node), NULL);
 		printf("Icon: %s\n", tmp);
 		free(tmp);
 
-		tmp = livebox_service_provider_name(node_name(node));
+		tmp = dynamicbox_service_provider_name(node_name(node));
 		printf("Provider: %s (content:", tmp);
 		free(tmp);
 
-		tmp = livebox_service_content(node_name(node));
+		tmp = dynamicbox_service_content(node_name(node));
 		printf("%s)\n", tmp);
 		free(tmp);
 
-		tmp = livebox_service_lb_script_path(node_name(node));
+		tmp = dynamicbox_service_dbox_script_path(node_name(node));
 		printf("LB Script: %s (", tmp);
 		free(tmp);
 
-		tmp = livebox_service_lb_script_group(node_name(node));
+		tmp = dynamicbox_service_dbox_script_group(node_name(node));
 		printf("%s)\n", tmp);
 		free(tmp);
 
-		tmp = livebox_service_pd_script_path(node_name(node));
+		tmp = dynamicbox_service_gbar_script_path(node_name(node));
 		printf("PD Script: %s (", tmp);
 		free(tmp);
 
-		tmp = livebox_service_pd_script_group(node_name(node));
+		tmp = dynamicbox_service_gbar_script_group(node_name(node));
 		printf("%s)\n", tmp);
 		free(tmp);
-
-		i = livebox_service_mouse_event(node_name(node), LB_SIZE_TYPE_1x1);
-		printf("[1x1] Mouse event: %s\n", i ? "enabled" : "disabled");
-		i = livebox_service_mouse_event(node_name(node), LB_SIZE_TYPE_2x1);
-		printf("[2x1] Mouse event: %s\n", i ? "enabled" : "disabled");
-		i = livebox_service_mouse_event(node_name(node), LB_SIZE_TYPE_2x2);
-		printf("[2x2] Mouse event: %s\n", i ? "enabled" : "disabled");
-		i = livebox_service_mouse_event(node_name(node), LB_SIZE_TYPE_4x1);
-		printf("[4x1] Mouse event: %s\n", i ? "enabled" : "disabled");
-		i = livebox_service_mouse_event(node_name(node), LB_SIZE_TYPE_4x2);
-		printf("[4x2] Mouse event: %s\n", i ? "enabled" : "disabled");
-		i = livebox_service_mouse_event(node_name(node), LB_SIZE_TYPE_4x3);
-		printf("[4x3] Mouse event: %s\n", i ? "enabled" : "disabled");
-		i = livebox_service_mouse_event(node_name(node), LB_SIZE_TYPE_4x4);
-		printf("[4x4] Mouse event: %s\n", i ? "enabled" : "disabled");
-		i = livebox_service_mouse_event(node_name(node), LB_SIZE_TYPE_4x5);
-		printf("[4x5] Mouse event: %s\n", i ? "enabled" : "disabled");
-		i = livebox_service_mouse_event(node_name(node), LB_SIZE_TYPE_4x6);
-		printf("[4x6] Mouse event: %s\n", i ? "enabled" : "disabled");
 
 		break;
 	case PROVIDER:
@@ -1452,8 +1435,10 @@ static void processing_line_buffer(const char *buffer)
 	char pkgname[256];
 	char abi[256];
 	char inst_id[4096];
+	char buf_id[256];
 	char cluster[256];
 	char category[256];
+	char str_period[64];
 	char state[10];
 	int refcnt;
 	int fault_count;
@@ -1589,10 +1574,12 @@ static void processing_line_buffer(const char *buffer)
 		slaveinfo->ttl = ttl;
 		break;
 	case INST_LIST:
-		if (sscanf(buffer, "%[^ ] %[^ ] %[^ ] %lf %[^ ] %d %d", inst_id, cluster, category, &period, state, &width, &height) != 7) {
+		if (sscanf(buffer, "%[^ ] %[^ ] %[^ ] %[^ ] %[^ ] %[^ ] %d %d", inst_id, buf_id, cluster, category, str_period, state, &width, &height) != 8) {
 			printf("Invalid format : [%s]\n", buffer);
 			return;
 		}
+
+		period = strtod(str_period, NULL);
 
 		for (i = strlen(inst_id); i > 0 && inst_id[i] != '/'; i--);
 		i += (inst_id[i] == '/');
@@ -1620,6 +1607,7 @@ static void processing_line_buffer(const char *buffer)
 		node_set_age(node, s_info.age);
 
 		free(instinfo->id);
+		free(instinfo->buf_id);
 		free(instinfo->cluster);
 		free(instinfo->category);
 		free(instinfo->state);
@@ -1642,6 +1630,10 @@ static void processing_line_buffer(const char *buffer)
 		instinfo->state = strdup(state);
 		if (!instinfo->state) {
 			printf("Error: %s\n", strerror(errno));
+		}
+
+		if (strlen(buf_id)) {
+			instinfo->buf_id = strdup(buf_id);
 		}
 
 		instinfo->period = period;
@@ -1933,7 +1925,7 @@ int main(int argc, char *argv[])
 
 	com_core_add_event_callback(CONNECTOR_DISCONNECTED, disconnected_cb, NULL);
 	com_core_add_event_callback(CONNECTOR_CONNECTED, connected_cb, NULL);
-	livebox_service_init();
+	dynamicbox_service_init();
 
 	s_info.fd = com_core_packet_client_init(SOCKET_FILE, 0, s_table);
 	if (s_info.fd < 0) {
@@ -1967,7 +1959,7 @@ int main(int argc, char *argv[])
 	ecore_main_loop_begin();
 
 	fini_directory();
-	livebox_service_fini();
+	dynamicbox_service_fini();
 
 	if (s_info.fd > 0) {
 		com_core_packet_client_fini(s_info.fd);
