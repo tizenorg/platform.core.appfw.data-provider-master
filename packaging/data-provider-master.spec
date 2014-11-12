@@ -41,7 +41,7 @@ BuildRequires: pkgconfig(pkgmgr)
 BuildRequires: pkgconfig(pkgmgr-info)
 
 # This will not be works, I know. But...
-%if "%{sec_product_feature_livebox}" != "0"
+%if "%{model_build_feature_livebox}" != "0"
 BuildRequires: pkgconfig(dynamicbox_service)
 %endif
 
@@ -52,6 +52,7 @@ BuildRequires: pkgconfig(badge-service)
 BuildRequires: pkgconfig(shortcut)
 BuildRequires: pkgconfig(security-server)
 BuildRequires: pkgconfig(libsystemd-daemon)
+BuildRequires: model-build-features
 Requires(post): sys-assert
 Requires(post): dbus
 
@@ -98,19 +99,19 @@ export MOBILE=On
 export WEARABLE=Off
 %endif
 
-%if "%{sec_product_feature_display_resolution}" == "360x480"
+%if "%{model_build_feature_display_resolution}" == "360x480"
 export LIVEBOX_SHM="${LIVEBOX_SHM}.360x480"
 %endif
 
-%if "%{sec_product_feature_display_resolution}" == "320x480"
+%if "%{model_build_feature_display_resolution}" == "320x480"
 export LIVEBOX_SHM="${LIVEBOX_SHM}.320x480"
 %endif
 
-%if "%{sec_product_feature_display_resolution}" == "480x800"
+%if "%{model_build_feature_display_resolution}" == "480x800"
 export LIVEBOX_SHM="${LIVEBOX_SHM}.480x800"
 %endif
 
-%if "%{sec_product_feature_livebox}" == "0"
+%if "%{model_build_feature_livebox}" == "0"
 export LIVEBOX=Off
 %else
 export LIVEBOX=On
@@ -126,7 +127,7 @@ rm -rf %{buildroot}
 mkdir -p %{buildroot}/%{_datarootdir}/license
 mkdir -p %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants
 ln -sf ../data-provider-master.service %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants/data-provider-master.service
-%if "%{sec_product_feature_livebox}" == "0"
+%if "%{model_build_feature_livebox}" == "0"
 # Nothing provides
 %else
 mkdir -p %{buildroot}/opt/usr/share/live_magazine
@@ -160,7 +161,7 @@ if [ -x %{_sysconfdir}/rc.d/init.d/data-provider-master ]; then
 fi
 
 %post
-%if "%{sec_product_feature_livebox}" == "0"
+%if "%{model_build_feature_livebox}" == "0"
 #Nothing provides
 %else
 chown 5000:5000 /opt/usr/share/live_magazine
@@ -192,7 +193,7 @@ echo "%{_sysconfdir}/init.d/data-provider-master start"
 %if 0%{?tizen_build_binary_release_type_eng}
 /opt/usr/devel/usr/bin/*
 %endif
-%if "%{sec_product_feature_livebox}" == "0"
+%if "%{model_build_feature_livebox}" == "0"
 # Nothing provides
 %else
 %{_prefix}/etc/package-manager/parserlib/*
