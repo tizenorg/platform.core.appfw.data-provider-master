@@ -717,33 +717,33 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
     }
 
     switch (packet_type(packet)) {
-	case PACKET_REQ:
-	    /* Need to send reply packet */
-	    DbgPrint("%p REQ: Command: [%s]\n", tcb, command);
+    case PACKET_REQ:
+	/* Need to send reply packet */
+	DbgPrint("%p REQ: Command: [%s]\n", tcb, command);
 
-	    for (i = 0; service_req_table[i].cmd; i++) {
-		if (strcmp(service_req_table[i].cmd, command)) {
-		    continue;
-		}
-
-		if (_persmission_check(tcb_fd(tcb), &(service_req_table[i])) == 1) {
-		    service_req_table[i].handler(tcb, packet, data);
-		} else {
-		    if (service_req_table[i].handler_access_error != NULL) {
-			service_req_table[i].handler_access_error(tcb, packet);
-		    }
-		}
-		break;
+	for (i = 0; service_req_table[i].cmd; i++) {
+	    if (strcmp(service_req_table[i].cmd, command)) {
+		continue;
 	    }
 
+	    if (_persmission_check(tcb_fd(tcb), &(service_req_table[i])) == 1) {
+		service_req_table[i].handler(tcb, packet, data);
+	    } else {
+		if (service_req_table[i].handler_access_error != NULL) {
+		    service_req_table[i].handler_access_error(tcb, packet);
+		}
+	    }
 	    break;
-	case PACKET_REQ_NOACK:
-	    break;
-	case PACKET_ACK:
-	    break;
-	default:
-	    ErrPrint("Packet type is not valid[%s]\n", command);
-	    return -EINVAL;
+	}
+
+	break;
+    case PACKET_REQ_NOACK:
+	break;
+    case PACKET_ACK:
+	break;
+    default:
+	ErrPrint("Packet type is not valid[%s]\n", command);
+	return -EINVAL;
     }
 
     /*!

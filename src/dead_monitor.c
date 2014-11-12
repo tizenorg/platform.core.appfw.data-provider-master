@@ -44,14 +44,14 @@ static int evt_cb(int handle, void *data)
     if (slave) {
 	if (slave_pid(slave) != (pid_t)-1) {
 	    switch (slave_state(slave)) {
-		case SLAVE_REQUEST_TO_DISCONNECT:
-		    DbgPrint("Disconnected from %d\n", slave_pid(slave));
-		case SLAVE_REQUEST_TO_TERMINATE:
-		    slave = slave_deactivated(slave);
-		    break;
-		default:
-		    slave = slave_deactivated_by_fault(slave);
-		    break;
+	    case SLAVE_REQUEST_TO_DISCONNECT:
+		DbgPrint("Disconnected from %d\n", slave_pid(slave));
+	    case SLAVE_REQUEST_TO_TERMINATE:
+		slave = slave_deactivated(slave);
+		break;
+	    default:
+		slave = slave_deactivated_by_fault(slave);
+		break;
 	    }
 	}
 

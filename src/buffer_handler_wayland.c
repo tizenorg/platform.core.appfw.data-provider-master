@@ -311,19 +311,19 @@ EAPI int buffer_handler_load(struct buffer_info *info)
     }
 
     switch (info->type) {
-	case BUFFER_TYPE_FILE:
-	    ret = load_file_buffer(info);
-	    (void)create_lock_file(info);
-	    break;
-	case BUFFER_TYPE_SHM:
-	    ret = load_shm_buffer(info);
-	    (void)create_lock_file(info);
-	    break;
-	case BUFFER_TYPE_PIXMAP:
-	default:
-	    ErrPrint("Invalid buffer\n");
-	    ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	    break;
+    case BUFFER_TYPE_FILE:
+	ret = load_file_buffer(info);
+	(void)create_lock_file(info);
+	break;
+    case BUFFER_TYPE_SHM:
+	ret = load_shm_buffer(info);
+	(void)create_lock_file(info);
+	break;
+    case BUFFER_TYPE_PIXMAP:
+    default:
+	ErrPrint("Invalid buffer\n");
+	ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	break;
     }
 
     return ret;
@@ -406,19 +406,19 @@ EAPI int buffer_handler_unload(struct buffer_info *info)
     }
 
     switch (info->type) {
-	case BUFFER_TYPE_FILE:
-	    (void)destroy_lock_file(info);
-	    ret = unload_file_buffer(info);
-	    break;
-	case BUFFER_TYPE_SHM:
-	    (void)destroy_lock_file(info);
-	    ret = unload_shm_buffer(info);
-	    break;
-	case BUFFER_TYPE_PIXMAP:
-	default:
-	    ErrPrint("Invalid buffer\n");
-	    ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	    break;
+    case BUFFER_TYPE_FILE:
+	(void)destroy_lock_file(info);
+	ret = unload_file_buffer(info);
+	break;
+    case BUFFER_TYPE_SHM:
+	(void)destroy_lock_file(info);
+	ret = unload_shm_buffer(info);
+	break;
+    case BUFFER_TYPE_PIXMAP:
+    default:
+	ErrPrint("Invalid buffer\n");
+	ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	break;
     }
 
     if (ret == 0) {
@@ -757,16 +757,16 @@ EAPI struct buffer *buffer_handler_raw_open(enum buffer_type buffer_type, void *
     struct buffer *handle;
 
     switch (buffer_type) {
-	case BUFFER_TYPE_SHM:
-	    handle = raw_open_shm((int)resource);
-	    break;
-	case BUFFER_TYPE_FILE:
-	    handle = raw_open_file(resource);
-	    break;
-	case BUFFER_TYPE_PIXMAP:
-	default:
-	    handle = NULL;
-	    break;
+    case BUFFER_TYPE_SHM:
+	handle = raw_open_shm((int)resource);
+	break;
+    case BUFFER_TYPE_FILE:
+	handle = raw_open_file(resource);
+	break;
+    case BUFFER_TYPE_PIXMAP:
+    default:
+	handle = NULL;
+	break;
     }
 
     return handle;
@@ -777,16 +777,16 @@ EAPI int buffer_handler_raw_close(struct buffer *buffer)
     int ret;
 
     switch (buffer->type) {
-	case BUFFER_TYPE_SHM:
-	    ret = raw_close_shm(buffer);
-	    break;
-	case BUFFER_TYPE_FILE:
-	    ret = raw_close_file(buffer);
-	    break;
-	case BUFFER_TYPE_PIXMAP:
-	default:
-	    ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	    break;
+    case BUFFER_TYPE_SHM:
+	ret = raw_close_shm(buffer);
+	break;
+    case BUFFER_TYPE_FILE:
+	ret = raw_close_file(buffer);
+	break;
+    case BUFFER_TYPE_PIXMAP:
+    default:
+	ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	break;
     }
 
     return ret;
@@ -872,37 +872,37 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buff
     }
 
     switch (type) {
-	case BUFFER_TYPE_SHM:
-	    if (pixel_size != DEFAULT_PIXELS) {
-		DbgPrint("SHM only supportes %d bytes pixels (requested: %d)\n", DEFAULT_PIXELS, pixel_size);
-		pixel_size = DEFAULT_PIXELS;
-	    }
+    case BUFFER_TYPE_SHM:
+	if (pixel_size != DEFAULT_PIXELS) {
+	    DbgPrint("SHM only supportes %d bytes pixels (requested: %d)\n", DEFAULT_PIXELS, pixel_size);
+	    pixel_size = DEFAULT_PIXELS;
+	}
 
-	    info->id = strdup(SCHEMA_SHM "-1");
-	    if (!info->id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		DbgFree(info);
-		return NULL;
-	    }
-	    break;
-	case BUFFER_TYPE_FILE:
-	    if (pixel_size != DEFAULT_PIXELS) {
-		DbgPrint("FILE only supportes %d bytes pixels (requested: %d)\n", DEFAULT_PIXELS, pixel_size);
-		pixel_size = DEFAULT_PIXELS;
-	    }
-
-	    info->id = strdup(SCHEMA_FILE "/tmp/.live.undefined");
-	    if (!info->id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		DbgFree(info);
-		return NULL;
-	    }
-	    break;
-	case BUFFER_TYPE_PIXMAP:
-	default:
-	    ErrPrint("Invalid type\n");
+	info->id = strdup(SCHEMA_SHM "-1");
+	if (!info->id) {
+	    ErrPrint("Heap: %s\n", strerror(errno));
 	    DbgFree(info);
 	    return NULL;
+	}
+	break;
+    case BUFFER_TYPE_FILE:
+	if (pixel_size != DEFAULT_PIXELS) {
+	    DbgPrint("FILE only supportes %d bytes pixels (requested: %d)\n", DEFAULT_PIXELS, pixel_size);
+	    pixel_size = DEFAULT_PIXELS;
+	}
+
+	info->id = strdup(SCHEMA_FILE "/tmp/.live.undefined");
+	if (!info->id) {
+	    ErrPrint("Heap: %s\n", strerror(errno));
+	    DbgFree(info);
+	    return NULL;
+	}
+	break;
+    case BUFFER_TYPE_PIXMAP:
+    default:
+	ErrPrint("Invalid type\n");
+	DbgFree(info);
+	return NULL;
     }
 
     info->lock = NULL;

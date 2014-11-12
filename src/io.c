@@ -86,130 +86,130 @@ static int load_abi_table(void)
     state = INIT;
     while ((ch = getc(fp)) != EOF && state != ERROR) {
 	switch (state) {
-	    case INIT:
-		if (isspace(ch)) {
-		    continue;
-		}
-		if (ch == '[') {
-		    state = GROUP;
-		    idx = 0;
-		} else {
+	case INIT:
+	    if (isspace(ch)) {
+		continue;
+	    }
+	    if (ch == '[') {
+		state = GROUP;
+		idx = 0;
+	    } else {
+		state = ERROR;
+	    }
+	    break;
+	case GROUP:
+	    if (ch == ']') {
+		if (idx == 0) {
 		    state = ERROR;
+		} else {
+		    group[idx] = '\0';
+		    state = TAG;
+		    idx = 0;
+		    ptr = NULL;
 		}
-		break;
-	    case GROUP:
-		if (ch == ']') {
-		    if (idx == 0) {
-			state = ERROR;
-		    } else {
-			group[idx] = '\0';
-			state = TAG;
-			idx = 0;
-			ptr = NULL;
+	    } else if (idx < MAX_ABI) {
+		group[idx++] = ch;
+	    } else {
+		ErrPrint("Overflow\n");
+		state = ERROR;
+	    }
+	    break;
+	case TAG:
+	    if (ptr == NULL) {
+		if (idx == 0) {
+		    if (isspace(ch)) {
+			continue;
 		    }
-		} else if (idx < MAX_ABI) {
-		    group[idx++] = ch;
+
+		    /* New group started */
+		    if (ch == '[') {
+			ungetc(ch, fp);
+			state = INIT;
+			continue;
+		    }
+		}
+
+		ptr = field[idx];
+	    }
+
+	    if (ptr == NULL) {
+		ErrPrint("unknown tag\n");
+		state = ERROR;
+		continue;
+	    }
+
+	    if (*ptr == '\0' && ch == '=') {
+		/* MATCHED */
+		state = VALUE;
+		tag_id = idx;
+		idx = 0;
+		ptr = NULL;
+	    } else if (*ptr == ch) {
+		ptr++;
+	    } else {
+		ungetc(ch, fp);
+		ptr--;
+		while (ptr >= field[idx]) {
+		    ungetc(*ptr, fp);
+		    ptr--;
+		}
+		ptr = NULL;
+		idx++;
+	    }
+	    break;
+	case VALUE:
+	    switch (tag_id) {
+	    case PKGNAME:
+		if (idx == 0) { /* LTRIM */
+		    if (isspace(ch)) {
+			continue;
+		    }
+
+		    pkgname[idx] = ch;
+		    idx++;
+		} else if (isspace(ch)) {
+		    int ret;
+		    pkgname[idx] = '\0';
+
+		    ret = abi_add_entry(group, pkgname);
+		    if (ret != 0) {
+			ErrPrint("Failed to add %s for %s\n", pkgname, group);
+		    }
+
+		    state = TAG;
+		    idx = 0;
+		} else if (idx < MAX_PKGNAME) {
+		    pkgname[idx] = ch;
+		    idx++;
 		} else {
 		    ErrPrint("Overflow\n");
 		    state = ERROR;
 		}
 		break;
-	    case TAG:
-		if (ptr == NULL) {
-		    if (idx == 0) {
-			if (isspace(ch)) {
-			    continue;
-			}
-
-			/* New group started */
-			if (ch == '[') {
-			    ungetc(ch, fp);
-			    state = INIT;
-			    continue;
-			}
-		    }
-
-		    ptr = field[idx];
-		}
-
-		if (ptr == NULL) {
-		    ErrPrint("unknown tag\n");
-		    state = ERROR;
-		    continue;
-		}
-
-		if (*ptr == '\0' && ch == '=') {
-		    /* MATCHED */
-		    state = VALUE;
-		    tag_id = idx;
-		    idx = 0;
-		    ptr = NULL;
-		} else if (*ptr == ch) {
-		    ptr++;
-		} else {
-		    ungetc(ch, fp);
-		    ptr--;
-		    while (ptr >= field[idx]) {
-			ungetc(*ptr, fp);
-			ptr--;
-		    }
-		    ptr = NULL;
-		    idx++;
-		}
-		break;
-	    case VALUE:
-		switch (tag_id) {
-		    case PKGNAME:
-			if (idx == 0) { /* LTRIM */
-			    if (isspace(ch)) {
-				continue;
-			    }
-
-			    pkgname[idx] = ch;
-			    idx++;
-			} else if (isspace(ch)) {
-			    int ret;
-			    pkgname[idx] = '\0';
-
-			    ret = abi_add_entry(group, pkgname);
-			    if (ret != 0) {
-				ErrPrint("Failed to add %s for %s\n", pkgname, group);
-			    }
-
-			    state = TAG;
-			    idx = 0;
-			} else if (idx < MAX_PKGNAME) {
-			    pkgname[idx] = ch;
-			    idx++;
-			} else {
-			    ErrPrint("Overflow\n");
-			    state = ERROR;
-			}
-			break;
-		    default:
-			break;
-		}
-		break;
-	    case ERROR:
 	    default:
 		break;
+	    }
+	    break;
+	case ERROR:
+	default:
+	    break;
 	}
     }
 
     if (state == VALUE) {
 	switch (tag_id) {
-	    case PKGNAME:
-		if (idx) {
-		    int ret;
-		    pkgname[idx] = '\0';
-		    ret = abi_add_entry(group, pkgname);
-		    if (ret != 0) {
-			ErrPrint("Failed to add %s for %s\n", pkgname, group);
-		    }
+	case PKGNAME:
+	    if (idx) {
+		int ret;
+		pkgname[idx] = '\0';
+		ret = abi_add_entry(group, pkgname);
+		if (ret != 0) {
+		    ErrPrint("Failed to add %s for %s\n", pkgname, group);
 		}
-		break;
-	    default:
-		break;
+	    }
+	    break;
+	default:
+	    break;
 	}
     }
 

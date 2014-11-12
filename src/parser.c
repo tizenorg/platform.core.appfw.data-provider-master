@@ -222,105 +222,105 @@ static inline int parse_size(const char *buffer, unsigned int *size)
 
     while (state != ERROR && state != END) {
 	switch (state) {
-	    case START:
-		switch (buffer[i]) {
-		    case '1'...'9':
-			state = WIDTH;
-			break;
-		    case ' ':
-		    case '\t':
-		    case ';':
-			i++;
-			break;
-		    case '\0':
-			state = END;
-			break;
-		    default:
-			state = ERROR;
-			break;
-		}
+	case START:
+	    switch (buffer[i]) {
+	    case '1'...'9':
+		state = WIDTH;
 		break;
-	    case WIDTH:
-		switch (buffer[i]) {
-		    case '0'...'9':
-			w = (w * 10) + (buffer[i] - '0');
-			i++;
-			break;
-		    case 'x':
-			state = DELIM;
-			i++;
-			break;
-		    default:
-			state = ERROR;
-			break;
-		}
-
+	    case ' ':
+	    case '\t':
+	    case ';':
+		i++;
 		break;
-	    case DELIM:
-		switch (buffer[i]) {
-		    case '1'...'9':
-			state = HEIGHT;
-			break;
-		    case ' ':
-		    case '\t':
-			i++;
-			break;
-		    default:
-			state = ERROR;
-			break;
-		}
-		break;
-	    case HEIGHT:
-		switch (buffer[i]) {
-		    case '0'...'9':
-			h = (h * 10) + (buffer[i] - '0');
-			i++;
-			break;
-		    case ';':
-		    case '\0':
-			state = STOP;
-			break;
-		    default:
-			state = ERROR;
-			break;
-		}
-		break;
-	    case STOP:
-		if (w == 1 && h == 1) {
-		    *size |= DBOX_SIZE_TYPE_1x1;
-		} else if (w == 2 && h == 1) {
-		    *size |= DBOX_SIZE_TYPE_2x1;
-		} else if (w == 2 && h == 2) {
-		    *size |= DBOX_SIZE_TYPE_2x2;
-		} else if (w == 4 && h == 1) {
-		    *size |= DBOX_SIZE_TYPE_4x1;
-		} else if (w == 4 && h == 2) {
-		    *size |= DBOX_SIZE_TYPE_4x2;
-		} else if (w == 4 && h == 3) {
-		    *size |= DBOX_SIZE_TYPE_4x3;
-		} else if (w == 4 && h == 4) {
-		    *size |= DBOX_SIZE_TYPE_4x4;
-		} else if (w == 21 && h == 21) {
-		    *size |= DBOX_SIZE_TYPE_EASY_1x1;
-		} else if (w == 23 && h == 21) {
-		    *size |= DBOX_SIZE_TYPE_EASY_3x1;
-		} else if (w == 23 && h == 23) {
-		    *size |= DBOX_SIZE_TYPE_EASY_3x3;
-		} else {
-		    ErrPrint("Invalid size type: %dx%d\n", w, h);
-		}
-
-		if (buffer[i] == ';') {
-		    state = START;
-		} else if (buffer[i] == '\0') {
-		    state = END;
-		}
-
-		w = 0;
-		h = 0;
+	    case '\0':
+		state = END;
 		break;
 	    default:
-		return -1;
+		state = ERROR;
+		break;
+	    }
+	    break;
+	case WIDTH:
+	    switch (buffer[i]) {
+	    case '0'...'9':
+		w = (w * 10) + (buffer[i] - '0');
+		i++;
+		break;
+	    case 'x':
+		state = DELIM;
+		i++;
+		break;
+	    default:
+		state = ERROR;
+		break;
+	    }
+
+	    break;
+	case DELIM:
+	    switch (buffer[i]) {
+	    case '1'...'9':
+		state = HEIGHT;
+		break;
+	    case ' ':
+	    case '\t':
+		i++;
+		break;
+	    default:
+		state = ERROR;
+		break;
+	    }
+	    break;
+	case HEIGHT:
+	    switch (buffer[i]) {
+	    case '0'...'9':
+		h = (h * 10) + (buffer[i] - '0');
+		i++;
+		break;
+	    case ';':
+	    case '\0':
+		state = STOP;
+		break;
+	    default:
+		state = ERROR;
+		break;
+	    }
+	    break;
+	case STOP:
+	    if (w == 1 && h == 1) {
+		*size |= DBOX_SIZE_TYPE_1x1;
+	    } else if (w == 2 && h == 1) {
+		*size |= DBOX_SIZE_TYPE_2x1;
+	    } else if (w == 2 && h == 2) {
+		*size |= DBOX_SIZE_TYPE_2x2;
+	    } else if (w == 4 && h == 1) {
+		*size |= DBOX_SIZE_TYPE_4x1;
+	    } else if (w == 4 && h == 2) {
+		*size |= DBOX_SIZE_TYPE_4x2;
+	    } else if (w == 4 && h == 3) {
+		*size |= DBOX_SIZE_TYPE_4x3;
+	    } else if (w == 4 && h == 4) {
+		*size |= DBOX_SIZE_TYPE_4x4;
+	    } else if (w == 21 && h == 21) {
+		*size |= DBOX_SIZE_TYPE_EASY_1x1;
+	    } else if (w == 23 && h == 21) {
+		*size |= DBOX_SIZE_TYPE_EASY_3x1;
+	    } else if (w == 23 && h == 23) {
+		*size |= DBOX_SIZE_TYPE_EASY_3x3;
+	    } else {
+		ErrPrint("Invalid size type: %dx%d\n", w, h);
+	    }
+
+	    if (buffer[i] == ';') {
+		state = START;
+	    } else if (buffer[i] == '\0') {
+		state = END;
+	    }
+
+	    w = 0;
+	    h = 0;
+	    break;
+	default:
+	    return -1;
 	}
     }
 
@@ -711,154 +711,154 @@ HAPI struct parser *parser_load(const char *pkgname)
 	}
 
 	switch (state) {
-	    case COMMENT:
-		if (c == CR || c == LF || c == EOF) {
-		    buffer[buffer_idx] = '\0';
+	case COMMENT:
+	    if (c == CR || c == LF || c == EOF) {
+		buffer[buffer_idx] = '\0';
 
-		    state = START;
-		    token_idx = -1;
-		    ch_idx = 0;
+		state = START;
+		token_idx = -1;
+		ch_idx = 0;
+		buffer_idx = 0;
+		linelen = -1; /* Will be ZERO by follwing increment code */
+		quote = 0;
+	    } else {
+		buffer[buffer_idx++] = c;
+		if (buffer_idx == (sizeof(buffer) - 1)) {
+		    buffer[buffer_idx] = '\0';
 		    buffer_idx = 0;
-		    linelen = -1; /* Will be ZERO by follwing increment code */
-		    quote = 0;
-		} else {
-		    buffer[buffer_idx++] = c;
-		    if (buffer_idx == (sizeof(buffer) - 1)) {
-			buffer[buffer_idx] = '\0';
-			buffer_idx = 0;
-		    }
 		}
-		break;
-	    case START:
-		if (linelen == 0 && c == '#') {
-		    state = COMMENT;
-		} else if (isspace(c)) {
-		    /* Ignore empty space */
-		} else {
-		    state = TOKEN;
-		    ungetc(c, fp);
-		}
-		break;
-	    case SPACE:
-		if (c == '=') {
-		    state = VALUE;
-		} else if (!isspace(c)) {
-		    state = ERROR;
-		}
-		break;
-	    case VALUE:
-		if (c == '"') {
-		    if (quote == 1) {
-			buffer[buffer_idx] = '\0';
-			state = END;
-		    } else if (buffer_idx != 0) {
-			buffer[buffer_idx++] = c;
-			if (buffer_idx >= sizeof(buffer)) {
-			    state = ERROR;
-			}
-		    } else {
-			quote = 1;
-		    }
-		} else if (isspace(c)) {
-		    if (buffer_idx == 0) {
-			/* Ignore */
-		    } else if (quote == 1) {
-			buffer[buffer_idx++] = c;
-			if (buffer_idx >= sizeof(buffer)) {
-			    state = ERROR;
-			}
-		    } else {
-			buffer[buffer_idx] = '\0';
-			ungetc(c, fp);
-			state = END;
-		    }
-		} else {
+	    }
+	    break;
+	case START:
+	    if (linelen == 0 && c == '#') {
+		state = COMMENT;
+	    } else if (isspace(c)) {
+		/* Ignore empty space */
+	    } else {
+		state = TOKEN;
+		ungetc(c, fp);
+	    }
+	    break;
+	case SPACE:
+	    if (c == '=') {
+		state = VALUE;
+	    } else if (!isspace(c)) {
+		state = ERROR;
+	    }
+	    break;
+	case VALUE:
+	    if (c == '"') {
+		if (quote == 1) {
+		    buffer[buffer_idx] = '\0';
+		    state = END;
+		} else if (buffer_idx != 0) {
 		    buffer[buffer_idx++] = c;
 		    if (buffer_idx >= sizeof(buffer)) {
 			state = ERROR;
 		    }
-		}
-		break;
-	    case TOKEN:
-		if (c == '=') {
-		    if (token_idx < 0) {
-			state = ERROR;
-		    } else {
-			state = VALUE;
-		    }
-		} else if (isspace(c)) {
-		    if (token_idx < 0) {
-			break;
-		    }
-
-		    if (token_handler[token_idx].name[ch_idx] != '\0') {
-			state = ERROR;
-		    } else {
-			state = SPACE;
-		    }
-		} else  {
-		    if (token_idx < 0) {
-			/* Now start to find a token! */
-			token_idx = 0;
-		    }
-
-		    if (token_handler[token_idx].name[ch_idx] == c) {
-			ch_idx++;
-		    } else {
-			ungetc(c, fp);
-			while (ch_idx-- > 0) {
-			    ungetc(token_handler[token_idx].name[ch_idx], fp);
-			}
-
-			token_idx++;
-
-			if (token_handler[token_idx].name == NULL) {
-			    state = ERROR;
-			} else {
-			    ch_idx = 0;
-			}
-		    }
-		}
-		break;
-	    case ERROR:
-		if (c == CR || c == LF || c == EOF) {
-		    state = START;
-		    token_idx = -1;
-		    buffer_idx = 0;
-		    ch_idx = 0;
-		    linelen = -1;
-		    quote = 0;
-		}
-		break;
-	    case END:
-		if (c == LF || c == CR || c == EOF) {
-		    state = START;
-
-		    /*!
-		     * \NOTE
-		     * Make the string terminator
-		     */
-		    buffer[buffer_idx] = '\0';
-
-		    if (token_idx >= 0 && token_handler[token_idx].handler) {
-			token_handler[token_idx].handler(item, buffer);
-		    }
-
-		    token_idx = -1;
-		    ch_idx = 0;
-		    buffer_idx = 0;
-		    linelen = -1;
-		    quote = 0;
-		    /* Finish */
-		} else if (isspace(c)) {
-		    /* ignore */
 		} else {
+		    quote = 1;
+		}
+	    } else if (isspace(c)) {
+		if (buffer_idx == 0) {
+		    /* Ignore */
+		} else if (quote == 1) {
+		    buffer[buffer_idx++] = c;
+		    if (buffer_idx >= sizeof(buffer)) {
+			state = ERROR;
+		    }
+		} else {
+		    buffer[buffer_idx] = '\0';
+		    ungetc(c, fp);
+		    state = END;
+		}
+	    } else {
+		buffer[buffer_idx++] = c;
+		if (buffer_idx >= sizeof(buffer)) {
 		    state = ERROR;
 		}
-		break;
-	    default:
-		/* ?? */
-		break;
+	    }
+	    break;
+	case TOKEN:
+	    if (c == '=') {
+		if (token_idx < 0) {
+		    state = ERROR;
+		} else {
+		    state = VALUE;
+		}
+	    } else if (isspace(c)) {
+		if (token_idx < 0) {
+		    break;
+		}
+
+		if (token_handler[token_idx].name[ch_idx] != '\0') {
+		    state = ERROR;
+		} else {
+		    state = SPACE;
+		}
+	    } else  {
+		if (token_idx < 0) {
+		    /* Now start to find a token! */
+		    token_idx = 0;
+		}
+
+		if (token_handler[token_idx].name[ch_idx] == c) {
+		    ch_idx++;
+		} else {
+		    ungetc(c, fp);
+		    while (ch_idx-- > 0) {
+			ungetc(token_handler[token_idx].name[ch_idx], fp);
+		    }
+
+		    token_idx++;
+
+		    if (token_handler[token_idx].name == NULL) {
+			state = ERROR;
+		    } else {
+			ch_idx = 0;
+		    }
+		}
+	    }
+	    break;
+	case ERROR:
+	    if (c == CR || c == LF || c == EOF) {
+		state = START;
+		token_idx = -1;
+		buffer_idx = 0;
+		ch_idx = 0;
+		linelen = -1;
+		quote = 0;
+	    }
+	    break;
+	case END:
+	    if (c == LF || c == CR || c == EOF) {
+		state = START;
+
+		/*!
+		 * \NOTE
+		 * Make the string terminator
+		 */
+		buffer[buffer_idx] = '\0';
+
+		if (token_idx >= 0 && token_handler[token_idx].handler) {
+		    token_handler[token_idx].handler(item, buffer);
+		}
+
+		token_idx = -1;
+		ch_idx = 0;
+		buffer_idx = 0;
+		linelen = -1;
+		quote = 0;
+		/* Finish */
+	    } else if (isspace(c)) {
+		/* ignore */
+	    } else {
+		state = ERROR;
+	    }
+	    break;
+	default:
+	    /* ?? */
+	    break;
 	}
 
 	linelen++;

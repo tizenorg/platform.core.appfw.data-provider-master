@@ -1221,224 +1221,224 @@ HAPI int script_handler_parse_desc(struct inst_info *inst, const char *filename,
     state = BEGIN;
     while (*fileptr && state != ERROR) {
 	switch (state) {
-	    case BEGIN:
-		if (*fileptr == '{') {
-		    block = calloc(1, sizeof(*block));
-		    if (!block) {
-			ErrPrint("calloc: %s\n", strerror(errno));
-			state = ERROR;
-			continue;
-		    }
-		    state = FIELD;
-		    ptr = NULL;
+	case BEGIN:
+	    if (*fileptr == '{') {
+		block = calloc(1, sizeof(*block));
+		if (!block) {
+		    ErrPrint("calloc: %s\n", strerror(errno));
+		    state = ERROR;
+		    continue;
 		}
-		break;
-	    case FIELD:
-		if (isspace(*fileptr)) {
-		    if (ptr != NULL) {
-			*fileptr = '\0';
-		    }
-		} else if (*fileptr == '=') {
+		state = FIELD;
+		ptr = NULL;
+	    }
+	    break;
+	case FIELD:
+	    if (isspace(*fileptr)) {
+		if (ptr != NULL) {
 		    *fileptr = '\0';
-		    ptr = NULL;
-		    state = DATA;
-		} else if (ptr == NULL) {
-		    ptr = fileptr;
-		    field_idx = 0;
-		    field_len = 0;
+		}
+	    } else if (*fileptr == '=') {
+		*fileptr = '\0';
+		ptr = NULL;
+		state = DATA;
+	    } else if (ptr == NULL) {
+		ptr = fileptr;
+		field_idx = 0;
+		field_len = 0;
 
+		while (field_list[field_idx]) {
+		    if (field_list[field_idx][field_len] == *fileptr) {
+			break;
+		    }
+		    field_idx++;
+		}
+
+		if (!field_list[field_idx]) {
+		    ErrPrint("Invalid field\n");
+		    state = ERROR;
+		    continue;
+		}
+
+		field_len++;
+	    } else {
+		if (field_list[field_idx][field_len] != *fileptr) {
+		    field_idx++;
 		    while (field_list[field_idx]) {
-			if (field_list[field_idx][field_len] == *fileptr) {
+			if (!strncmp(field_list[field_idx], fileptr - field_len, field_len)) {
 			    break;
+			} else {
+			    field_idx++;
 			}
-			field_idx++;
 		    }
 
 		    if (!field_list[field_idx]) {
-			ErrPrint("Invalid field\n");
 			state = ERROR;
+			ErrPrint("field is not valid\n");
+			continue;
+		    }
+		}
+
+		field_len++;
+	    }
+	    break;
+	case DATA:
+	    switch (field_idx) {
+	    case FIELD_TYPE:
+		if (ptr == NULL) {
+		    if (isspace(*fileptr)) {
+			break;
+		    }
+
+		    if (*fileptr == '\0') {
+			state = ERROR;
+			ErrPrint("Type is not valid\n");
 			continue;
 		    }
 
-		    field_len++;
-		} else {
-		    if (field_list[field_idx][field_len] != *fileptr) {
-			field_idx++;
-			while (field_list[field_idx]) {
-			    if (!strncmp(field_list[field_idx], fileptr - field_len, field_len)) {
-				break;
-			    } else {
-				field_idx++;
-			    }
-			}
+		    ptr = fileptr;
+		    type_idx = 0;
+		    type_len = 0;
+		}
 
-			if (!field_list[field_idx]) {
-			    state = ERROR;
-			    ErrPrint("field is not valid\n");
-			    continue;
+		if (*fileptr && (*fileptr == '\n' || *fileptr == '\r' || *fileptr == '\f')) {
+		    *fileptr = '\0';
+		}
+
+		if (type_list[type_idx][type_len] != *fileptr) {
+		    type_idx++;
+		    while (type_list[type_idx]) {
+			if (!strncmp(type_list[type_idx], fileptr - type_len, type_len)) {
+			    break;
+			} else {
+			    type_idx++;
 			}
 		    }
 
-		    field_len++;
-		}
-		break;
-	    case DATA:
-		switch (field_idx) {
-		    case FIELD_TYPE:
-			if (ptr == NULL) {
-			    if (isspace(*fileptr)) {
-				break;
-			    }
-
-			    if (*fileptr == '\0') {
-				state = ERROR;
-				ErrPrint("Type is not valid\n");
-				continue;
-			    }
-
-			    ptr = fileptr;
-			    type_idx = 0;
-			    type_len = 0;
-			}
-
-			if (*fileptr && (*fileptr == '\n' || *fileptr == '\r' || *fileptr == '\f')) {
-			    *fileptr = '\0';
-			}
-
-			if (type_list[type_idx][type_len] != *fileptr) {
-			    type_idx++;
-			    while (type_list[type_idx]) {
-				if (!strncmp(type_list[type_idx], fileptr - type_len, type_len)) {
-				    break;
-				} else {
-				    type_idx++;
-				}
-			    }
-
-			    if (!type_list[type_idx]) {
-				state = ERROR;
-				ErrPrint("type is not valid (%s)\n", fileptr - type_len);
-				continue;
-			    }
-			}
-
-			if (!*fileptr) {
-			    block->type = type_idx;
-			    state = DONE;
-			    ptr = NULL;
-			}
-
-			type_len++;
-			break;
-		    case FIELD_PART:
-			if (ptr == NULL) {
-			    ptr = fileptr;
-			}
-
-			if (*fileptr && (*fileptr == '\n' || *fileptr == '\r' || *fileptr == '\f')) {
-			    *fileptr = '\0';
-			}
-
-			if (!*fileptr) {
-			    block->part = ptr;
-			    state = DONE;
-			    ptr = NULL;
-			}
-			break;
-		    case FIELD_DATA:
-			if (ptr == NULL) {
-			    ptr = fileptr;
-			}
-
-			if (*fileptr && (*fileptr == '\n' || *fileptr == '\r' || *fileptr == '\f')) {
-			    *fileptr = '\0';
-			}
-
-			if (!*fileptr) {
-			    block->data = ptr;
-			    state = DONE;
-			    ptr = NULL;
-			}
-			break;
-		    case FIELD_OPTION:
-			if (ptr == NULL) {
-			    ptr = fileptr;
-			}
-
-			if (*fileptr && (*fileptr == '\n' || *fileptr == '\r' || *fileptr == '\f')) {
-			    *fileptr = '\0';
-			}
-
-			if (!*fileptr) {
-			    block->option = ptr;
-			    state = DONE;
-			    ptr = NULL;
-			}
-			break;
-		    case FIELD_ID:
-			if (ptr == NULL) {
-			    ptr = fileptr;
-			}
-
-			if (*fileptr && (*fileptr == '\n' || *fileptr == '\r' || *fileptr == '\f')) {
-			    *fileptr = '\0';
-			}
-
-			if (!*fileptr) {
-			    block->id = ptr;
-			    state = DONE;
-			    ptr = NULL;
-			}
-			break;
-		    case FIELD_TARGET:
-			if (ptr == NULL) {
-			    ptr = fileptr;
-			}
-
-			if (*fileptr && (*fileptr == '\n' || *fileptr == '\r' || *fileptr == '\f')) {
-			    *fileptr = '\0';
-			}
-
-			if (!*fileptr) {
-			    block->target = ptr;
-			    state = DONE;
-			    ptr = NULL;
-			}
-			break;
-		    case FIELD_FILE:
-			if (ptr == NULL) {
-			    ptr = fileptr;
-			}
-
-			if (*fileptr && (*fileptr == '\n' || *fileptr == '\r' || *fileptr == '\f')) {
-			    *fileptr = '\0';
-			}
-
-			if (!*fileptr) {
-			    block->target = ptr;
-			    state = DONE;
-			    ptr = NULL;
-			}
-		    default:
-			break;
+		    if (!type_list[type_idx]) {
+			state = ERROR;
+			ErrPrint("type is not valid (%s)\n", fileptr - type_len);
+			continue;
+		    }
 		}
 
+		if (!*fileptr) {
+		    block->type = type_idx;
+		    state = DONE;
+		    ptr = NULL;
+		}
+
+		type_len++;
 		break;
-	    case DONE:
-		if (isspace(*fileptr)) {
-		} else if (*fileptr == '}') {
-		    state = BEGIN;
-		    block->filename = filename;
-		    block_list = eina_list_append(block_list, block);
-		    block = NULL;
-		} else {
-		    state = FIELD;
-		    continue;
+	    case FIELD_PART:
+		if (ptr == NULL) {
+		    ptr = fileptr;
+		}
+
+		if (*fileptr && (*fileptr == '\n' || *fileptr == '\r' || *fileptr == '\f')) {
+		    *fileptr = '\0';
+		}
+
+		if (!*fileptr) {
+		    block->part = ptr;
+		    state = DONE;
+		    ptr = NULL;
 		}
 		break;
-	    case END:
+	    case FIELD_DATA:
+		if (ptr == NULL) {
+		    ptr = fileptr;
+		}
+
+		if (*fileptr && (*fileptr == '\n' || *fileptr == '\r' || *fileptr == '\f')) {
+		    *fileptr = '\0';
+		}
+
+		if (!*fileptr) {
+		    block->data = ptr;
+		    state = DONE;
+		    ptr = NULL;
+		}
+		break;
+	    case FIELD_OPTION:
+		if (ptr == NULL) {
+		    ptr = fileptr;
+		}
+
+		if (*fileptr && (*fileptr == '\n' || *fileptr == '\r' || *fileptr == '\f')) {
+		    *fileptr = '\0';
+		}
+
+		if (!*fileptr) {
+		    block->option = ptr;
+		    state = DONE;
+		    ptr = NULL;
+		}
+		break;
+	    case FIELD_ID:
+		if (ptr == NULL) {
+		    ptr = fileptr;
+		}
+
+		if (*fileptr && (*fileptr == '\n' || *fileptr == '\r' || *fileptr == '\f')) {
+		    *fileptr = '\0';
+		}
+
+		if (!*fileptr) {
+		    block->id = ptr;
+		    state = DONE;
+		    ptr = NULL;
+		}
+		break;
+	    case FIELD_TARGET:
+		if (ptr == NULL) {
+		    ptr = fileptr;
+		}
+
+		if (*fileptr && (*fileptr == '\n' || *fileptr == '\r' || *fileptr == '\f')) {
+		    *fileptr = '\0';
+		}
+
+		if (!*fileptr) {
+		    block->target = ptr;
+		    state = DONE;
+		    ptr = NULL;
+		}
+		break;
+	    case FIELD_FILE:
+		if (ptr == NULL) {
+		    ptr = fileptr;
+		}
+
+		if (*fileptr && (*fileptr == '\n' || *fileptr == '\r' || *fileptr == '\f')) {
+		    *fileptr = '\0';
+		}
+
+		if (!*fileptr) {
+		    block->target = ptr;
+		    state = DONE;
+		    ptr = NULL;
+		}
 	    default:
 		break;
+	    }
+
+	    break;
+	case DONE:
+	    if (isspace(*fileptr)) {
+	    } else if (*fileptr == '}') {
+		state = BEGIN;
+		block->filename = filename;
+		block_list = eina_list_append(block_list, block);
+		block = NULL;
+	    } else {
+		state = FIELD;
+		continue;
+	    }
+	    break;
+	case END:
+	default:
+	    break;
 	}
 
 	fileptr++;

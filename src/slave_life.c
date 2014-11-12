@@ -302,7 +302,7 @@ HAPI int slave_expired_ttl(struct slave_node *slave)
 	return 0;
     }
 
-    if (!slave->secured) {
+    if (!slave->secured && !DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL) {
 	return 0;
     }
 
@@ -497,7 +497,7 @@ static Eina_Bool relaunch_timer_cb(void *data)
 	} else {
 	    bundle_add(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
 	    bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_NAME, slave_name(slave));
-	    bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_SECURED, slave->secured ? "true" : "false");
+	    bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_SECURED, (DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL || slave->secured) ? "true" : "false");
 	    bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_ABI, slave->abi);
 
 	    slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
@@ -505,41 +505,41 @@ static Eina_Bool relaunch_timer_cb(void *data)
 	    bundle_free(param);
 
 	    switch (slave->pid) {
-		case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
-		case AUL_R_ENOLAUNCHPAD:	/**< no launchpad */
-		case AUL_R_EILLACC:		/**< Illegal Access */
-		case AUL_R_EINVAL:		/**< Invalid argument */
-		case AUL_R_ENOINIT:		/**< AUL handler NOT initialized */
-		case AUL_R_ERROR:		/**< General error */
-		    CRITICAL_LOG("Failed to launch a new slave %s (%d)\n", slave_name(slave), slave->pid);
-		    slave->pid = (pid_t)-1;
-		    ecore_timer_del(slave->activate_timer);
-		    slave->activate_timer = NULL;
+	    case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
+	    case AUL_R_ENOLAUNCHPAD:	/**< no launchpad */
+	    case AUL_R_EILLACC:		/**< Illegal Access */
+	    case AUL_R_EINVAL:		/**< Invalid argument */
+	    case AUL_R_ENOINIT:		/**< AUL handler NOT initialized */
+	    case AUL_R_ERROR:		/**< General error */
+		CRITICAL_LOG("Failed to launch a new slave %s (%d)\n", slave_name(slave), slave->pid);
+		slave->pid = (pid_t)-1;
+		ecore_timer_del(slave->activate_timer);
+		slave->activate_timer = NULL;
 
-		    slave->relaunch_timer = NULL;
+		slave->relaunch_timer = NULL;
 
-		    invoke_slave_fault_handler(slave);
-		    /* Waiting app-launch result */
-		    break;
-		case AUL_R_ETIMEOUT:		/**< Timeout */
-		case AUL_R_ECOMM:		/**< Comunication Error */
-		case AUL_R_ETERMINATING:	/**< application terminating */
-		case AUL_R_ECANCELED:		/**< Operation canceled */
-		    slave->relaunch_count--;
+		invoke_slave_fault_handler(slave);
+		/* Waiting app-launch result */
+		break;
+	    case AUL_R_ETIMEOUT:		/**< Timeout */
+	    case AUL_R_ECOMM:		/**< Comunication Error */
+	    case AUL_R_ETERMINATING:	/**< application terminating */
+	    case AUL_R_ECANCELED:		/**< Operation canceled */
+		slave->relaunch_count--;
 
-		    CRITICAL_LOG("Try relaunch again %s (%d), %d\n", slave_name(slave), slave->pid, slave->relaunch_count);
-		    slave->pid = (pid_t)-1;
-		    ret = ECORE_CALLBACK_RENEW;
-		    ecore_timer_reset(slave->activate_timer);
-		    /* Try again after a few secs later */
-		    break;
-		case AUL_R_LOCAL:		/**< Launch by himself */
-		case AUL_R_OK:			/**< General success */
-		default:
-		    DbgPrint("Slave %s is launched with %d as %s\n", slave_pkgname(slave), slave->pid, slave_name(slave));
-		    slave->relaunch_timer = NULL;
-		    ecore_timer_reset(slave->activate_timer);
-		    break;
+		CRITICAL_LOG("Try relaunch again %s (%d), %d\n", slave_name(slave), slave->pid, slave->relaunch_count);
+		slave->pid = (pid_t)-1;
+		ret = ECORE_CALLBACK_RENEW;
+		ecore_timer_reset(slave->activate_timer);
+		/* Try again after a few secs later */
+		break;
+	    case AUL_R_LOCAL:		/**< Launch by himself */
+	    case AUL_R_OK:			/**< General success */
+	    default:
+		DbgPrint("Slave %s is launched with %d as %s\n", slave_pkgname(slave), slave->pid, slave_name(slave));
+		slave->relaunch_timer = NULL;
+		ecore_timer_reset(slave->activate_timer);
+		break;
 	    }
 	}
 
@@ -550,14 +550,21 @@ static Eina_Bool relaunch_timer_cb(void *data)
 
 HAPI int slave_activate(struct slave_node *slave)
 {
-    /*!
-     * \note
+    /**
+     * @todo
+     * If a slave is deactivated by OOM killer,
+     * We should not activate it again from here.
+     * Instead of this, it should be reactivated by user event or oom event(normal)
+     */
+
+    /**
+     * @note
      * This check code can be replaced with the slave->state check code
      * If the slave data has the PID, it means, it is activated
      * Even if it is in the termiating sequence, it will have the PID
-     * before terminated at last.
+     * until it is terminated at last.
      * So we can use this simple code for checking the slave's last state.
-     * about it is alive? or not.
+     * whether it is alive or not.
      */
     if (slave_pid(slave) != (pid_t)-1) {
 	if (slave->terminate_timer) {
@@ -588,7 +595,7 @@ HAPI int slave_activate(struct slave_node *slave)
 
 	bundle_add(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
 	bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_NAME, slave_name(slave));
-	bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_SECURED, slave->secured ? "true" : "false");
+	bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_SECURED, (DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL || slave->secured) ? "true" : "false");
 	bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_ABI, slave->abi);
 
 	slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
@@ -596,34 +603,34 @@ HAPI int slave_activate(struct slave_node *slave)
 	bundle_free(param);
 
 	switch (slave->pid) {
-	    case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
-	    case AUL_R_ENOLAUNCHPAD:	/**< no launchpad */
-	    case AUL_R_EILLACC:		/**< Illegal Access */
-	    case AUL_R_EINVAL:		/**< Invalid argument */
-	    case AUL_R_ENOINIT:		/**< AUL handler NOT initialized */
-	    case AUL_R_ERROR:		/**< General error */
-		CRITICAL_LOG("Failed to launch a new slave %s (%d)\n", slave_name(slave), slave->pid);
+	case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
+	case AUL_R_ENOLAUNCHPAD:	/**< no launchpad */
+	case AUL_R_EILLACC:		/**< Illegal Access */
+	case AUL_R_EINVAL:		/**< Invalid argument */
+	case AUL_R_ENOINIT:		/**< AUL handler NOT initialized */
+	case AUL_R_ERROR:		/**< General error */
+	    CRITICAL_LOG("Failed to launch a new slave %s (%d)\n", slave_name(slave), slave->pid);
+	    slave->pid = (pid_t)-1;
+	    /* Waiting app-launch result */
+	    break;
+	case AUL_R_ECOMM:		/**< Comunication Error */
+	case AUL_R_ETERMINATING:	/**< application terminating */
+	case AUL_R_ECANCELED:		/**< Operation canceled */
+	case AUL_R_ETIMEOUT:		/**< Timeout */
+	    CRITICAL_LOG("Try relaunch this soon %s (%d)\n", slave_name(slave), slave->pid);
+	    slave->relaunch_timer = ecore_timer_add(DYNAMICBOX_CONF_SLAVE_RELAUNCH_TIME, relaunch_timer_cb, slave);
+	    if (!slave->relaunch_timer) {
+		CRITICAL_LOG("Failed to register a relaunch timer (%s)\n", slave_name(slave));
 		slave->pid = (pid_t)-1;
-		/* Waiting app-launch result */
-		break;
-	    case AUL_R_ECOMM:		/**< Comunication Error */
-	    case AUL_R_ETERMINATING:	/**< application terminating */
-	    case AUL_R_ECANCELED:		/**< Operation canceled */
-	    case AUL_R_ETIMEOUT:		/**< Timeout */
-		CRITICAL_LOG("Try relaunch this soon %s (%d)\n", slave_name(slave), slave->pid);
-		slave->relaunch_timer = ecore_timer_add(DYNAMICBOX_CONF_SLAVE_RELAUNCH_TIME, relaunch_timer_cb, slave);
-		if (!slave->relaunch_timer) {
-		    CRITICAL_LOG("Failed to register a relaunch timer (%s)\n", slave_name(slave));
-		    slave->pid = (pid_t)-1;
-		    return DBOX_STATUS_ERROR_FAULT;
-		}
-		/* Try again after a few secs later */
-		break;
-	    case AUL_R_LOCAL:		/**< Launch by himself */
-	    case AUL_R_OK:			/**< General success */
-	    default:
-		DbgPrint("Slave %s is launched with %d as %s\n", slave_pkgname(slave), slave->pid, slave_name(slave));
-		break;
+		return DBOX_STATUS_ERROR_FAULT;
+	    }
+	    /* Try again after a few secs later */
+	    break;
+	case AUL_R_LOCAL:		/**< Launch by himself */
+	case AUL_R_OK:			/**< General success */
+	default:
+	    DbgPrint("Slave %s is launched with %d as %s\n", slave_pkgname(slave), slave->pid, slave_name(slave));
+	    break;
 	}
 
 	slave->activate_timer = ecore_timer_add(DYNAMICBOX_CONF_SLAVE_ACTIVATE_TIME, activate_timer_cb, slave);
@@ -647,7 +654,7 @@ HAPI int slave_give_more_ttl(struct slave_node *slave)
 {
     double delay;
 
-    if (!slave->secured || !slave->ttl_timer) {
+    if (!DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL && (!slave->secured || !slave->ttl_timer)) {
 	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
@@ -658,7 +665,7 @@ HAPI int slave_give_more_ttl(struct slave_node *slave)
 
 HAPI int slave_freeze_ttl(struct slave_node *slave)
 {
-    if (!slave->secured || !slave->ttl_timer) {
+    if (!DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL && (!slave->secured || !slave->ttl_timer)) {
 	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
@@ -670,7 +677,7 @@ HAPI int slave_thaw_ttl(struct slave_node *slave)
 {
     double delay;
 
-    if (!slave->secured || !slave->ttl_timer) {
+    if (!DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL && (!slave->secured || !slave->ttl_timer)) {
 	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
@@ -689,7 +696,7 @@ HAPI int slave_activated(struct slave_node *slave)
 	slave_pause(slave);
     }
 
-    if (slave->secured == 1 && DYNAMICBOX_CONF_SLAVE_TTL > 0.0f) {
+    if ((DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL || slave->secured == 1) && DYNAMICBOX_CONF_SLAVE_TTL > 0.0f) {
 	DbgPrint("Slave deactivation timer is added (%s - %lf)\n", slave_name(slave), DYNAMICBOX_CONF_SLAVE_TTL);
 	slave->ttl_timer = ecore_timer_add(DYNAMICBOX_CONF_SLAVE_TTL, slave_ttl_cb, slave);
 	if (!slave->ttl_timer) {
@@ -900,7 +907,7 @@ HAPI struct slave_node *slave_deactivated(struct slave_node *slave)
 	 * The master will not reactivate it automatically.
 	 */
 	DbgPrint("Manual reactivate option is turned on\n");
-    } else if (reactivate && slave_need_to_reactivate(slave)) {
+    } else if (reactivate && slave_need_to_reactivate(slave) && setting_oom_level() == OOM_TYPE_NORMAL) {
 	int ret;
 
 	DbgPrint("Need to reactivate a slave\n");
@@ -1013,22 +1020,22 @@ HAPI struct slave_node *slave_deactivated_by_fault(struct slave_node *slave)
 HAPI const int const slave_is_activated(struct slave_node *slave)
 {
     switch (slave->state) {
-	case SLAVE_REQUEST_TO_TERMINATE:
-	case SLAVE_TERMINATED:
-	    return 0;
-	case SLAVE_REQUEST_TO_DISCONNECT:
-	    /* This case should be treated as an activated state.
-	     * To send the last request to the provider.
-	     */
-	case SLAVE_REQUEST_TO_LAUNCH:
-	    /* Not yet launched. but the slave incurred an unexpected error */
-	case SLAVE_REQUEST_TO_PAUSE:
-	case SLAVE_REQUEST_TO_RESUME:
-	case SLAVE_PAUSED:
-	case SLAVE_RESUMED:
-	    return 1;
-	default:
-	    return slave->pid != (pid_t)-1;
+    case SLAVE_REQUEST_TO_TERMINATE:
+    case SLAVE_TERMINATED:
+	return 0;
+    case SLAVE_REQUEST_TO_DISCONNECT:
+	/* This case should be treated as an activated state.
+	 * To send the last request to the provider.
+	 */
+    case SLAVE_REQUEST_TO_LAUNCH:
+	/* Not yet launched. but the slave incurred an unexpected error */
+    case SLAVE_REQUEST_TO_PAUSE:
+    case SLAVE_REQUEST_TO_RESUME:
+    case SLAVE_PAUSED:
+    case SLAVE_RESUMED:
+	return 1;
+    default:
+	return slave->pid != (pid_t)-1;
     }
 
     /* Could not be reach to here */
@@ -1068,27 +1075,27 @@ HAPI int slave_event_callback_add(struct slave_node *slave, enum slave_event eve
      */
 
     switch (event) {
-	case SLAVE_EVENT_ACTIVATE:
-	    slave->event_activate_list = eina_list_prepend(slave->event_activate_list, ev);
-	    break;
-	case SLAVE_EVENT_DELETE:
-	    slave->event_delete_list = eina_list_prepend(slave->event_delete_list, ev);
-	    break;
-	case SLAVE_EVENT_DEACTIVATE:
-	    slave->event_deactivate_list = eina_list_prepend(slave->event_deactivate_list, ev);
-	    break;
-	case SLAVE_EVENT_PAUSE:
-	    slave->event_pause_list = eina_list_prepend(slave->event_pause_list, ev);
-	    break;
-	case SLAVE_EVENT_RESUME:
-	    slave->event_resume_list = eina_list_prepend(slave->event_resume_list, ev);
-	    break;
-	case SLAVE_EVENT_FAULT:
-	    slave->event_fault_list = eina_list_prepend(slave->event_fault_list, ev);
-	    break;
-	default:
-	    DbgFree(ev);
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+    case SLAVE_EVENT_ACTIVATE:
+	slave->event_activate_list = eina_list_prepend(slave->event_activate_list, ev);
+	break;
+    case SLAVE_EVENT_DELETE:
+	slave->event_delete_list = eina_list_prepend(slave->event_delete_list, ev);
+	break;
+    case SLAVE_EVENT_DEACTIVATE:
+	slave->event_deactivate_list = eina_list_prepend(slave->event_deactivate_list, ev);
+	break;
+    case SLAVE_EVENT_PAUSE:
+	slave->event_pause_list = eina_list_prepend(slave->event_pause_list, ev);
+	break;
+    case SLAVE_EVENT_RESUME:
+	slave->event_resume_list = eina_list_prepend(slave->event_resume_list, ev);
+	break;
+    case SLAVE_EVENT_FAULT:
+	slave->event_fault_list = eina_list_prepend(slave->event_fault_list, ev);
+	break;
+    default:
+	DbgFree(ev);
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     return DBOX_STATUS_ERROR_NONE;
@@ -1101,86 +1108,86 @@ HAPI int slave_event_callback_del(struct slave_node *slave, enum slave_event eve
     Eina_List *n;
 
     switch (event) {
-	case SLAVE_EVENT_DEACTIVATE:
-	    EINA_LIST_FOREACH_SAFE(slave->event_deactivate_list, l, n, ev) {
-		if (ev->evt_cb == cb && ev->cbdata == data) {
-		    if (slave->in_event_process & SLAVE_EVENT_PROCESS_DEACTIVATE) {
-			ev->deleted = 1;
-		    } else {
-			slave->event_deactivate_list = eina_list_remove(slave->event_deactivate_list, ev);
-			DbgFree(ev);
-		    }
-		    return DBOX_STATUS_ERROR_NONE;
+    case SLAVE_EVENT_DEACTIVATE:
+	EINA_LIST_FOREACH_SAFE(slave->event_deactivate_list, l, n, ev) {
+	    if (ev->evt_cb == cb && ev->cbdata == data) {
+		if (slave->in_event_process & SLAVE_EVENT_PROCESS_DEACTIVATE) {
+		    ev->deleted = 1;
+		} else {
+		    slave->event_deactivate_list = eina_list_remove(slave->event_deactivate_list, ev);
+		    DbgFree(ev);
 		}
+		return DBOX_STATUS_ERROR_NONE;
 	    }
-	    break;
-	case SLAVE_EVENT_DELETE:
-	    EINA_LIST_FOREACH_SAFE(slave->event_delete_list, l, n, ev) {
-		if (ev->evt_cb == cb && ev->cbdata == data) {
-		    if (slave->in_event_process & SLAVE_EVENT_PROCESS_DELETE) {
-			ev->deleted = 1;
-		    } else {
-			slave->event_delete_list = eina_list_remove(slave->event_delete_list, ev);
-			DbgFree(ev);
-		    }
-		    return DBOX_STATUS_ERROR_NONE;
+	}
+	break;
+    case SLAVE_EVENT_DELETE:
+	EINA_LIST_FOREACH_SAFE(slave->event_delete_list, l, n, ev) {
+	    if (ev->evt_cb == cb && ev->cbdata == data) {
+		if (slave->in_event_process & SLAVE_EVENT_PROCESS_DELETE) {
+		    ev->deleted = 1;
+		} else {
+		    slave->event_delete_list = eina_list_remove(slave->event_delete_list, ev);
+		    DbgFree(ev);
 		}
+		return DBOX_STATUS_ERROR_NONE;
 	    }
-	    break;
-	case SLAVE_EVENT_ACTIVATE:
-	    EINA_LIST_FOREACH_SAFE(slave->event_activate_list, l, n, ev) {
-		if (ev->evt_cb == cb && ev->cbdata == data) {
-		    if (slave->in_event_process & SLAVE_EVENT_PROCESS_ACTIVATE) {
-			ev->deleted = 1;
-		    } else {
-			slave->event_activate_list = eina_list_remove(slave->event_activate_list, ev);
-			DbgFree(ev);
-		    }
-		    return DBOX_STATUS_ERROR_NONE;
+	}
+	break;
+    case SLAVE_EVENT_ACTIVATE:
+	EINA_LIST_FOREACH_SAFE(slave->event_activate_list, l, n, ev) {
+	    if (ev->evt_cb == cb && ev->cbdata == data) {
+		if (slave->in_event_process & SLAVE_EVENT_PROCESS_ACTIVATE) {
+		    ev->deleted = 1;
+		} else {
+		    slave->event_activate_list = eina_list_remove(slave->event_activate_list, ev);
+		    DbgFree(ev);
 		}
+		return DBOX_STATUS_ERROR_NONE;
 	    }
-	    break;
-	case SLAVE_EVENT_PAUSE:
-	    EINA_LIST_FOREACH_SAFE(slave->event_pause_list, l, n, ev) {
-		if (ev->evt_cb == cb && ev->cbdata == data) {
-		    if (slave->in_event_process & SLAVE_EVENT_PROCESS_PAUSE) {
-			ev->deleted = 1;
-		    } else {
-			slave->event_pause_list = eina_list_remove(slave->event_pause_list, ev);
-			DbgFree(ev);
-		    }
-		    return DBOX_STATUS_ERROR_NONE;
+	}
+	break;
+    case SLAVE_EVENT_PAUSE:
+	EINA_LIST_FOREACH_SAFE(slave->event_pause_list, l, n, ev) {
+	    if (ev->evt_cb == cb && ev->cbdata == data) {
+		if (slave->in_event_process & SLAVE_EVENT_PROCESS_PAUSE) {
+		    ev->deleted = 1;
+		} else {
+		    slave->event_pause_list = eina_list_remove(slave->event_pause_list, ev);
+		    DbgFree(ev);
 		}
+		return DBOX_STATUS_ERROR_NONE;
 	    }
-	    break;
-	case SLAVE_EVENT_RESUME:
-	    EINA_LIST_FOREACH_SAFE(slave->event_resume_list, l, n, ev) {
-		if (ev->evt_cb == cb && ev->cbdata == data) {
-		    if (slave->in_event_process & SLAVE_EVENT_PROCESS_RESUME) {
-			ev->deleted = 1;
-		    } else {
-			slave->event_resume_list = eina_list_remove(slave->event_resume_list, ev);
-			DbgFree(ev);
-		    }
-		    return DBOX_STATUS_ERROR_NONE;
+	}
+	break;
+    case SLAVE_EVENT_RESUME:
+	EINA_LIST_FOREACH_SAFE(slave->event_resume_list, l, n, ev) {
+	    if (ev->evt_cb == cb && ev->cbdata == data) {
+		if (slave->in_event_process & SLAVE_EVENT_PROCESS_RESUME) {
+		    ev->deleted = 1;
+		} else {
+		    slave->event_resume_list = eina_list_remove(slave->event_resume_list, ev);
+		    DbgFree(ev);
 		}
+		return DBOX_STATUS_ERROR_NONE;
 	    }
-	    break;
-	case SLAVE_EVENT_FAULT:
-	    EINA_LIST_FOREACH_SAFE(slave->event_fault_list, l, n, ev) {
-		if (ev->evt_cb == cb && ev->cbdata == data) {
-		    if (slave->in_event_process & SLAVE_EVENT_PROCESS_FAULT) {
-			ev->deleted = 1;
-		    } else {
-			slave->event_fault_list = eina_list_remove(slave->event_fault_list, ev);
-			DbgFree(ev);
-		    }
-		    return DBOX_STATUS_ERROR_NONE;
+	}
+	break;
+    case SLAVE_EVENT_FAULT:
+	EINA_LIST_FOREACH_SAFE(slave->event_fault_list, l, n, ev) {
+	    if (ev->evt_cb == cb && ev->cbdata == data) {
+		if (slave->in_event_process & SLAVE_EVENT_PROCESS_FAULT) {
+		    ev->deleted = 1;
+		} else {
+		    slave->event_fault_list = eina_list_remove(slave->event_fault_list, ev);
+		    DbgFree(ev);
 		}
+		return DBOX_STATUS_ERROR_NONE;
 	    }
-	    break;
-	default:
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+	break;
+    default:
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     return DBOX_STATUS_ERROR_NOT_EXIST;
@@ -1564,16 +1571,16 @@ HAPI int slave_resume(struct slave_node *slave)
     unsigned int cmd = CMD_RESUME;
 
     switch (slave->state) {
-	case SLAVE_REQUEST_TO_DISCONNECT:
-	case SLAVE_REQUEST_TO_LAUNCH:
-	case SLAVE_REQUEST_TO_TERMINATE:
-	case SLAVE_TERMINATED:
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	case SLAVE_RESUMED:
-	case SLAVE_REQUEST_TO_RESUME:
-	    return DBOX_STATUS_ERROR_NONE;
-	default:
-	    break;
+    case SLAVE_REQUEST_TO_DISCONNECT:
+    case SLAVE_REQUEST_TO_LAUNCH:
+    case SLAVE_REQUEST_TO_TERMINATE:
+    case SLAVE_TERMINATED:
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+    case SLAVE_RESUMED:
+    case SLAVE_REQUEST_TO_RESUME:
+	return DBOX_STATUS_ERROR_NONE;
+    default:
+	break;
     }
 
     timestamp = util_timestamp();
@@ -1595,16 +1602,16 @@ HAPI int slave_pause(struct slave_node *slave)
     unsigned int cmd = CMD_PAUSE;
 
     switch (slave->state) {
-	case SLAVE_REQUEST_TO_DISCONNECT:
-	case SLAVE_REQUEST_TO_LAUNCH:
-	case SLAVE_REQUEST_TO_TERMINATE:
-	case SLAVE_TERMINATED:
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	case SLAVE_PAUSED:
-	case SLAVE_REQUEST_TO_PAUSE:
-	    return DBOX_STATUS_ERROR_NONE;
-	default:
-	    break;
+    case SLAVE_REQUEST_TO_DISCONNECT:
+    case SLAVE_REQUEST_TO_LAUNCH:
+    case SLAVE_REQUEST_TO_TERMINATE:
+    case SLAVE_TERMINATED:
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+    case SLAVE_PAUSED:
+    case SLAVE_REQUEST_TO_PAUSE:
+	return DBOX_STATUS_ERROR_NONE;
+    default:
+	break;
     }
 
     timestamp = util_timestamp();
@@ -1632,26 +1639,26 @@ HAPI enum slave_state slave_state(const struct slave_node *slave)
 HAPI const char *slave_state_string(const struct slave_node *slave)
 {
     switch (slave->state) {
-	case SLAVE_REQUEST_TO_DISCONNECT:
-	    return "RequestToDisconnect";
-	case SLAVE_REQUEST_TO_LAUNCH:
-	    return "RequestToLaunch";
-	case SLAVE_REQUEST_TO_TERMINATE:
-	    return "RequestToTerminate";
-	case SLAVE_TERMINATED:
-	    return "Terminated";
-	case SLAVE_REQUEST_TO_PAUSE:
-	    return "RequestToPause";
-	case SLAVE_REQUEST_TO_RESUME:
-	    return "RequestToResume";
-	case SLAVE_PAUSED:
-	    return "Paused";
-	case SLAVE_RESUMED:
-	    return "Resumed";
-	case SLAVE_ERROR:
-	    return "Error";
-	default:
-	    break;
+    case SLAVE_REQUEST_TO_DISCONNECT:
+	return "RequestToDisconnect";
+    case SLAVE_REQUEST_TO_LAUNCH:
+	return "RequestToLaunch";
+    case SLAVE_REQUEST_TO_TERMINATE:
+	return "RequestToTerminate";
+    case SLAVE_TERMINATED:
+	return "Terminated";
+    case SLAVE_REQUEST_TO_PAUSE:
+	return "RequestToPause";
+    case SLAVE_REQUEST_TO_RESUME:
+	return "RequestToResume";
+    case SLAVE_PAUSED:
+	return "Paused";
+    case SLAVE_RESUMED:
+	return "Resumed";
+    case SLAVE_ERROR:
+	return "Error";
+    default:
+	break;
     }
 
     return "Unknown";

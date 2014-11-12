@@ -519,15 +519,15 @@ HAPI int client_event_callback_add(struct client_node *client, enum client_event
      */
 
     switch (event) {
-	case CLIENT_EVENT_DEACTIVATE:
-	    client->event_deactivate_list = eina_list_prepend(client->event_deactivate_list, item);
-	    break;
-	case CLIENT_EVENT_ACTIVATE:
-	    client->event_activate_list = eina_list_prepend(client->event_activate_list, item);
-	    break;
-	default:
-	    DbgFree(item);
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+    case CLIENT_EVENT_DEACTIVATE:
+	client->event_deactivate_list = eina_list_prepend(client->event_deactivate_list, item);
+	break;
+    case CLIENT_EVENT_ACTIVATE:
+	client->event_activate_list = eina_list_prepend(client->event_activate_list, item);
+	break;
+    default:
+	DbgFree(item);
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     return DBOX_STATUS_ERROR_NONE;
@@ -545,37 +545,37 @@ HAPI int client_event_callback_del(struct client_node *client, enum client_event
     }
 
     switch (event) {
-	case CLIENT_EVENT_DEACTIVATE:
-	    EINA_LIST_FOREACH_SAFE(client->event_deactivate_list, l, n, item) {
-		if (item->cb == cb && item->data == data) {
-		    if (client->in_event_process & CLIENT_EVENT_PROCESS_DEACTIVATE) {
-			item->deleted = 1;
-		    } else {
-			client->event_deactivate_list = eina_list_remove(client->event_deactivate_list, item);
-			DbgFree(item);
-		    }
-		    return DBOX_STATUS_ERROR_NONE;
+    case CLIENT_EVENT_DEACTIVATE:
+	EINA_LIST_FOREACH_SAFE(client->event_deactivate_list, l, n, item) {
+	    if (item->cb == cb && item->data == data) {
+		if (client->in_event_process & CLIENT_EVENT_PROCESS_DEACTIVATE) {
+		    item->deleted = 1;
+		} else {
+		    client->event_deactivate_list = eina_list_remove(client->event_deactivate_list, item);
+		    DbgFree(item);
 		}
+		return DBOX_STATUS_ERROR_NONE;
 	    }
-	    break;
+	}
+	break;
 
-	case CLIENT_EVENT_ACTIVATE:
-	    EINA_LIST_FOREACH_SAFE(client->event_activate_list, l, n, item) {
-		if (item->cb == cb && item->data == data) {
-		    if (client->in_event_process & CLIENT_EVENT_PROCESS_ACTIVATE) {
-			item->deleted = 1;
-		    } else {
-			client->event_activate_list = eina_list_remove(client->event_activate_list, item);
-			DbgFree(item);
-		    }
-		    return DBOX_STATUS_ERROR_NONE;
+    case CLIENT_EVENT_ACTIVATE:
+	EINA_LIST_FOREACH_SAFE(client->event_activate_list, l, n, item) {
+	    if (item->cb == cb && item->data == data) {
+		if (client->in_event_process & CLIENT_EVENT_PROCESS_ACTIVATE) {
+		    item->deleted = 1;
+		} else {
+		    client->event_activate_list = eina_list_remove(client->event_activate_list, item);
+		    DbgFree(item);
 		}
+		return DBOX_STATUS_ERROR_NONE;
 	    }
-	    break;
+	}
+	break;
 
-	default:
-	    ErrPrint("Invalid event\n");
-	    break;
+    default:
+	ErrPrint("Invalid event\n");
+	break;
     }
 
     return DBOX_STATUS_ERROR_NOT_EXIST;
@@ -698,15 +698,15 @@ HAPI int client_global_event_handler_add(enum client_global_event event_type, in
     handler->deleted = 0;
 
     switch (event_type) {
-	case CLIENT_GLOBAL_EVENT_CREATE:
-	    s_info.create_event_list = eina_list_prepend(s_info.create_event_list, handler);
-	    break;
-	case CLIENT_GLOBAL_EVENT_DESTROY:
-	    s_info.destroy_event_list = eina_list_prepend(s_info.destroy_event_list, handler);
-	    break;
-	default:
-	    DbgFree(handler);
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+    case CLIENT_GLOBAL_EVENT_CREATE:
+	s_info.create_event_list = eina_list_prepend(s_info.create_event_list, handler);
+	break;
+    case CLIENT_GLOBAL_EVENT_DESTROY:
+	s_info.destroy_event_list = eina_list_prepend(s_info.destroy_event_list, handler);
+	break;
+    default:
+	DbgFree(handler);
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     return DBOX_STATUS_ERROR_NONE;
@@ -719,34 +719,34 @@ HAPI int client_global_event_handler_del(enum client_global_event event_type, in
     struct global_event_item *item;
 
     switch (event_type) {
-	case CLIENT_GLOBAL_EVENT_CREATE:
-	    EINA_LIST_FOREACH_SAFE(s_info.create_event_list, l, n, item) {
-		if (item->cb == cb && item->cbdata == data) {
-		    if (s_info.in_event_process & GLOBAL_EVENT_PROCESS_CREATE) {
-			item->deleted = 1;
-		    } else {
-			s_info.create_event_list = eina_list_remove(s_info.create_event_list, item);
-			DbgFree(item);
-		    }
-		    return DBOX_STATUS_ERROR_NONE;
+    case CLIENT_GLOBAL_EVENT_CREATE:
+	EINA_LIST_FOREACH_SAFE(s_info.create_event_list, l, n, item) {
+	    if (item->cb == cb && item->cbdata == data) {
+		if (s_info.in_event_process & GLOBAL_EVENT_PROCESS_CREATE) {
+		    item->deleted = 1;
+		} else {
+		    s_info.create_event_list = eina_list_remove(s_info.create_event_list, item);
+		    DbgFree(item);
 		}
+		return DBOX_STATUS_ERROR_NONE;
 	    }
-	    break;
-	case CLIENT_GLOBAL_EVENT_DESTROY:
-	    EINA_LIST_FOREACH_SAFE(s_info.destroy_event_list, l, n, item) {
-		if (item->cb == cb && item->cbdata == data) {
-		    if (s_info.in_event_process & GLOBAL_EVENT_PROCESS_DESTROY) {
-			item->deleted = 1;
-		    } else {
-			s_info.destroy_event_list = eina_list_remove(s_info.destroy_event_list, item);
-			DbgFree(item);
-		    }
-		    return DBOX_STATUS_ERROR_NONE;
+	}
+	break;
+    case CLIENT_GLOBAL_EVENT_DESTROY:
+	EINA_LIST_FOREACH_SAFE(s_info.destroy_event_list, l, n, item) {
+	    if (item->cb == cb && item->cbdata == data) {
+		if (s_info.in_event_process & GLOBAL_EVENT_PROCESS_DESTROY) {
+		    item->deleted = 1;
+		} else {
+		    s_info.destroy_event_list = eina_list_remove(s_info.destroy_event_list, item);
+		    DbgFree(item);
 		}
+		return DBOX_STATUS_ERROR_NONE;
 	    }
-	    break;
-	default:
-	    break;
+	}
+	break;
+    default:
+	break;
     }
 
     return DBOX_STATUS_ERROR_NOT_EXIST;
