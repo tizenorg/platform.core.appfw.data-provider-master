@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<manifest xmlns="http://tizen.org/ns/packages" package="com.samsung.nicesj" version="1.0" install-location="auto">
+<manifest xmlns="http://tizen.org/ns/packages" package="org.tizen.nicesj" version="1.0" install-location="auto">
 
-<dynamicbox appid="com.samsung.nicesj.dynamicbox" primary="true" secured="false" network="false" abi="c" timeout="20" period="10.0" libexec="/usr/apps/com.samsung.myapp/libexec/liblive-com.samsung.nicesj.so" pinup="false" script="edje" nodisplay="false">
+<dynamicbox appid="org.tizen.nicesj.dynamicbox" primary="true" secured="false" network="false" abi="c" timeout="20" period="10.0" libexec="/usr/apps/org.tizen.myapp/libexec/liblive-org.tizen.nicesj.so" pinup="false" script="edje" nodisplay="false">
 	<label>My Dynamic Box</label>
-	<icon>/usr/share/icons/small/com.samsung.live-nicesj.png</icon>
+	<icon>/usr/share/icons/small/org.tizen.live-nicesj.png</icon>
 	<label xml:lang="en_US">Sample</label>
 	<label xml:lang="ko_KR">Hangul</label>
 	<content>Content information</content>	<!-- This string will be passed to the dynamicbox_create -->
 	<category name="http://tizen.org/dynamicbox/default"></category>	<!-- Used for categorizing a package -->
 
-	<launch>com.samsung.nicesj</launch> <!-- Launch this app from homescreen directly -->
+	<launch>org.tizen.nicesj</launch> <!-- Launch this app from homescreen directly -->
 
-	<setup>com.samsung.nicesj</setup> <!-- If the box needs to be setting up before adding it to the homscreen, this app will be launched -->
+	<setup>org.tizen.nicesj</setup> <!-- If the box needs to be setting up before adding it to the homscreen, this app will be launched -->
 
 	<box type="image" mouse_event="false" count="0">
 		<!-- 1x1 should be exists, mandatory size -->
@@ -31,12 +31,12 @@
 
 		<!-- Only supported for special Dynamic Box - inhouse / commercialization target only -->
 		<size>0x0</size>
-		<script src="/opt/usr/apps/com.samsung.myapp/res/script/my.edj" group="my_group" />
+		<script src="/opt/usr/apps/org.tizen.myapp/res/script/my.edj" group="my_group" />
 	</box>
 
 	<glancebar type="script">
 		<size>720x100</size>
-		<script src="/opt/usr/apps/com.samsung.myapp/res/script/mypd.edj" group="group_string" />
+		<script src="/opt/usr/apps/org.tizen.myapp/res/script/mypd.edj" group="group_string" />
 	</glancebar>
 
 	<group>
@@ -53,12 +53,12 @@
 		</cluster>
 		<cluster name="cluster2">
 			<category name="category1" context="CONTACT_COMMUNICATED_FREQUENTLY">
-				<option key="data_provider" value="com.samsung.contact" />
+				<option key="data_provider" value="org.tizen.contact" />
 				<option key="time_span" value="value" />
 				<option key="result_size" value="size" />
 			</category>
 			<category name="category2" context="CONTACT_COMMUNICATED_FREQUENTLY_THISTIME">
-				<option key="data_provider" value="com.samsung.contact" />
+				<option key="data_provider" value="org.tizen.contact" />
 				<option key="time_span" value="value" />
 				<option key="result_size" value="value" />
 				<option key="time_interval" value="value" />
