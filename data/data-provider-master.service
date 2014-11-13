@@ -28,4 +28,4 @@ Restart=always
 MemoryLimit=50M
 
 [Install]
-WantedBy=tizen-middleware.target
+WantedBy=multi-user.target
