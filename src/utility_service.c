@@ -218,38 +218,38 @@ static int launch_svc(struct service_context *svc_ctx)
 
     pid = aul_launch_app(SVC_PKG, NULL);
     switch (pid) {
-	case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
-	case AUL_R_ENOLAUNCHPAD:	/**< no launchpad */
-	case AUL_R_EILLACC:		/**< Illegal Access */
-	case AUL_R_EINVAL:		/**< Invalid argument */
-	case AUL_R_ENOINIT:		/**< AUL handler NOT initialized */
-	case AUL_R_ERROR:		/**< General error */
-	    ErrPrint("Failed to launch an app: %s(%d)\n", SVC_PKG, pid);
+    case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
+    case AUL_R_ENOLAUNCHPAD:	/**< no launchpad */
+    case AUL_R_EILLACC:		/**< Illegal Access */
+    case AUL_R_EINVAL:		/**< Invalid argument */
+    case AUL_R_ENOINIT:		/**< AUL handler NOT initialized */
+    case AUL_R_ERROR:		/**< General error */
+	ErrPrint("Failed to launch an app: %s(%d)\n", SVC_PKG, pid);
+	ret = DBOX_STATUS_ERROR_FAULT;
+	break;
+    case AUL_R_ETIMEOUT:		/**< Timeout */
+    case AUL_R_ECOMM:		/**< Comunication Error */
+    case AUL_R_ETERMINATING:	/**< application terminating */
+    case AUL_R_ECANCELED:		/**< Operation canceled */
+	/* Need time to launch app again */
+	ErrPrint("Terminating now, try to launch this after few sec later: %s(%d)\n", SVC_PKG, pid);
+	s_info.svc_daemon_is_launched = 1;
+	s_info.delay_launcher = service_common_add_timer(svc_ctx, LAUNCH_TIMEOUT, lazy_launcher_cb, NULL);
+	if (!s_info.delay_launcher) {
+	    ErrPrint("Unable to add delay launcher\n");
 	    ret = DBOX_STATUS_ERROR_FAULT;
-	    break;
-	case AUL_R_ETIMEOUT:		/**< Timeout */
-	case AUL_R_ECOMM:		/**< Comunication Error */
-	case AUL_R_ETERMINATING:	/**< application terminating */
-	case AUL_R_ECANCELED:		/**< Operation canceled */
-	    /* Need time to launch app again */
-	    ErrPrint("Terminating now, try to launch this after few sec later: %s(%d)\n", SVC_PKG, pid);
-	    s_info.svc_daemon_is_launched = 1;
-	    s_info.delay_launcher = service_common_add_timer(svc_ctx, LAUNCH_TIMEOUT, lazy_launcher_cb, NULL);
-	    if (!s_info.delay_launcher) {
-		ErrPrint("Unable to add delay launcher\n");
-		ret = DBOX_STATUS_ERROR_FAULT;
-	    }
-	    break;
-	case AUL_R_LOCAL:		/**< Launch by himself */
-	case AUL_R_OK:			/**< General success */
-	default:
-	    DbgPrint("Launched: %s(%d)\n", SVC_PKG, pid);
-	    s_info.svc_daemon_is_launched = 1;
-	    s_info.svc_daemon_pid = pid;
-	    s_info.launch_timer = service_common_add_timer(svc_ctx, LAUNCH_TIMEOUT, launch_timeout_cb, NULL);
-	    if (!s_info.launch_timer) {
-		ErrPrint("Unable to create launch timer\n");
-	    }
+	}
+	break;
+    case AUL_R_LOCAL:		/**< Launch by himself */
+    case AUL_R_OK:			/**< General success */
+    default:
+	DbgPrint("Launched: %s(%d)\n", SVC_PKG, pid);
+	s_info.svc_daemon_is_launched = 1;
+	s_info.svc_daemon_pid = pid;
+	s_info.launch_timer = service_common_add_timer(svc_ctx, LAUNCH_TIMEOUT, launch_timeout_cb, NULL);
+	if (!s_info.launch_timer) {
+	    ErrPrint("Unable to create launch timer\n");
+	}
     }
 
     return ret;
@@ -305,87 +305,87 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
     }
 
     switch (packet_type(packet)) {
-	case PACKET_REQ:
-	    if (!s_info.svc_daemon_is_launched) {
-		ret = launch_svc(tcb_svc_ctx(tcb));
-		if (ret != DBOX_STATUS_ERROR_NONE) {
-		    goto reply_out;
-		}
+    case PACKET_REQ:
+	if (!s_info.svc_daemon_is_launched) {
+	    ret = launch_svc(tcb_svc_ctx(tcb));
+	    if (ret != DBOX_STATUS_ERROR_NONE) {
+		goto reply_out;
 	    }
+	}
 
-	    if (!s_info.svc_daemon) {
-		ret = put_pended_request(tcb, packet);
-		if (ret < 0) {
-		    goto reply_out;
-		}
-	    } else if (tcb_is_valid(s_info.svc_ctx, s_info.svc_daemon) >= 0) { 
-		ret = service_common_unicast_packet(s_info.svc_daemon, packet);
-		if (ret <0) {
-		    goto reply_out;
-		}
-
-		put_reply_tcb(tcb, packet_seq(packet));
-
-		if (s_info.ttl_timer && service_common_update_timer(s_info.ttl_timer, TTL_TIMEOUT) < 0) {
-		    ErrPrint("Failed to update timer\n");
-		}
-	    }
-
-	    break;
-	case PACKET_REQ_NOACK:
-	    if (!strcmp(cmd, "service_register")) {
-		if (!s_info.svc_daemon_is_launched) {
-		    ErrPrint("Service daemon is not launched. but something tries to register a service\n");
-		    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
-		}
-
-		if (s_info.svc_daemon) {
-		    ErrPrint("Service daemon is already prepared\n");
-		    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
-		}
-
-		if (s_info.launch_timer) {
-		    service_common_del_timer(tcb_svc_ctx(tcb), s_info.launch_timer);
-		    s_info.launch_timer = NULL;
-		}
-
-		s_info.ttl_timer = service_common_add_timer(tcb_svc_ctx(tcb), TTL_TIMEOUT, ttl_timer_cb, NULL);
-		if (!s_info.ttl_timer) {
-		    ErrPrint("Failed to add TTL timer\n");
-		    if (s_info.svc_daemon_pid > 0) {
-			ret = aul_terminate_pid(s_info.svc_daemon_pid);
-			ErrPrint("Terminate: %d\n", ret);
-			s_info.svc_daemon_pid = -1;
-		    }
-		    s_info.svc_daemon_is_launched = 0;
-		    return DBOX_STATUS_ERROR_FAULT;
-		}
-		DbgPrint("TTL Timer is added: %p\n", s_info.ttl_timer);
-
-		s_info.svc_daemon = tcb;
-		flush_pended_request();
-	    }
-	    break;
-	case PACKET_ACK:
-	    tcb = get_reply_tcb(packet_seq(packet));
-	    if (!tcb) {
-		ErrPrint("Unable to find reply tcb\n");
-		break;
-	    }
-
-	    if (tcb_is_valid(s_info.svc_ctx, tcb) < 0) {
-		ErrPrint("TCB is not valid\n");
-		break;
-	    }
-
-	    ret = service_common_unicast_packet(tcb, packet);
+	if (!s_info.svc_daemon) {
+	    ret = put_pended_request(tcb, packet);
 	    if (ret < 0) {
-		ErrPrint("Unable to forward the reply packet\n");
+		goto reply_out;
 	    }
+	} else if (tcb_is_valid(s_info.svc_ctx, s_info.svc_daemon) >= 0) { 
+	    ret = service_common_unicast_packet(s_info.svc_daemon, packet);
+	    if (ret <0) {
+		goto reply_out;
+	    }
+
+	    put_reply_tcb(tcb, packet_seq(packet));
+
+	    if (s_info.ttl_timer && service_common_update_timer(s_info.ttl_timer, TTL_TIMEOUT) < 0) {
+		ErrPrint("Failed to update timer\n");
+	    }
+	}
+
+	break;
+    case PACKET_REQ_NOACK:
+	if (!strcmp(cmd, "service_register")) {
+	    if (!s_info.svc_daemon_is_launched) {
+		ErrPrint("Service daemon is not launched. but something tries to register a service\n");
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	    }
+
+	    if (s_info.svc_daemon) {
+		ErrPrint("Service daemon is already prepared\n");
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	    }
+
+	    if (s_info.launch_timer) {
+		service_common_del_timer(tcb_svc_ctx(tcb), s_info.launch_timer);
+		s_info.launch_timer = NULL;
+	    }
+
+	    s_info.ttl_timer = service_common_add_timer(tcb_svc_ctx(tcb), TTL_TIMEOUT, ttl_timer_cb, NULL);
+	    if (!s_info.ttl_timer) {
+		ErrPrint("Failed to add TTL timer\n");
+		if (s_info.svc_daemon_pid > 0) {
+		    ret = aul_terminate_pid(s_info.svc_daemon_pid);
+		    ErrPrint("Terminate: %d\n", ret);
+		    s_info.svc_daemon_pid = -1;
+		}
+		s_info.svc_daemon_is_launched = 0;
+		return DBOX_STATUS_ERROR_FAULT;
+	    }
+	    DbgPrint("TTL Timer is added: %p\n", s_info.ttl_timer);
+
+	    s_info.svc_daemon = tcb;
+	    flush_pended_request();
+	}
+	break;
+    case PACKET_ACK:
+	tcb = get_reply_tcb(packet_seq(packet));
+	if (!tcb) {
+	    ErrPrint("Unable to find reply tcb\n");
 	    break;
-	default:
-	    ErrPrint("Packet type is not valid[%s]\n", cmd);
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+
+	if (tcb_is_valid(s_info.svc_ctx, tcb) < 0) {
+	    ErrPrint("TCB is not valid\n");
+	    break;
+	}
+
+	ret = service_common_unicast_packet(tcb, packet);
+	if (ret < 0) {
+	    ErrPrint("Unable to forward the reply packet\n");
+	}
+	break;
+    default:
+	ErrPrint("Packet type is not valid[%s]\n", cmd);
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     return DBOX_STATUS_ERROR_NONE;

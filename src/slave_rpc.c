@@ -412,7 +412,7 @@ HAPI int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, 
 
     if (rpc->handle < 0) {
 	DbgPrint("RPC handle is not ready to use it\n");
-	if (((slave_control_option(slave) & PROVIDER_CTRL_MANUAL_REACTIVATION) == PROVIDER_CTRL_MANUAL_REACTIVATION || slave_is_secured(slave))
+	if (((slave_control_option(slave) & PROVIDER_CTRL_MANUAL_REACTIVATION) == PROVIDER_CTRL_MANUAL_REACTIVATION || slave_is_secured(slave) || DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL)
 		&& !slave_is_activated(slave))
 	{
 	    int ret;
@@ -472,7 +472,7 @@ HAPI int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, s
 
     if (rpc->handle < 0) {
 	DbgPrint("RPC handle is not ready to use it\n");
-	if (((slave_control_option(slave) & PROVIDER_CTRL_MANUAL_REACTIVATION) == PROVIDER_CTRL_MANUAL_REACTIVATION || slave_is_secured(slave))
+	if (((slave_control_option(slave) & PROVIDER_CTRL_MANUAL_REACTIVATION) == PROVIDER_CTRL_MANUAL_REACTIVATION || slave_is_secured(slave) || DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL)
 		&& !slave_is_activated(slave))
 	{
 	    int ret;

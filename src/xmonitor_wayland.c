@@ -193,16 +193,16 @@ HAPI int xmonitor_add_event_callback(enum xmonitor_event event, int (*cb)(void *
     item->user_data = user_data;
 
     switch (event) {
-	case XMONITOR_PAUSED:
-	    s_info.pause_list = eina_list_prepend(s_info.pause_list, item);
-	    break;
-	case XMONITOR_RESUMED:
-	    s_info.resume_list = eina_list_prepend(s_info.resume_list, item);
-	    break;
-	default:
-	    ErrPrint("Invalid event type\n");
-	    DbgFree(item);
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+    case XMONITOR_PAUSED:
+	s_info.pause_list = eina_list_prepend(s_info.pause_list, item);
+	break;
+    case XMONITOR_RESUMED:
+	s_info.resume_list = eina_list_prepend(s_info.resume_list, item);
+	break;
+    default:
+	ErrPrint("Invalid event type\n");
+	DbgFree(item);
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     return DBOX_STATUS_ERROR_NONE;
@@ -215,28 +215,28 @@ HAPI int xmonitor_del_event_callback(enum xmonitor_event event, int (*cb)(void *
     Eina_List *n;
 
     switch (event) {
-	case XMONITOR_PAUSED:
-	    EINA_LIST_FOREACH_SAFE(s_info.pause_list, l, n, item) {
-		if (item->cb == cb && item->user_data == user_data) {
-		    s_info.pause_list = eina_list_remove(s_info.pause_list, item);
-		    DbgFree(item);
-		    return DBOX_STATUS_ERROR_NONE;
-		}
+    case XMONITOR_PAUSED:
+	EINA_LIST_FOREACH_SAFE(s_info.pause_list, l, n, item) {
+	    if (item->cb == cb && item->user_data == user_data) {
+		s_info.pause_list = eina_list_remove(s_info.pause_list, item);
+		DbgFree(item);
+		return DBOX_STATUS_ERROR_NONE;
 	    }
-	    break;
+	}
+	break;
 
-	case XMONITOR_RESUMED:
-	    EINA_LIST_FOREACH_SAFE(s_info.resume_list, l, n, item) {
-		if (item->cb == cb && item->user_data == user_data) {
-		    s_info.resume_list = eina_list_remove(s_info.resume_list, item);
-		    DbgFree(item);
-		    return DBOX_STATUS_ERROR_NONE;
-		}
+    case XMONITOR_RESUMED:
+	EINA_LIST_FOREACH_SAFE(s_info.resume_list, l, n, item) {
+	    if (item->cb == cb && item->user_data == user_data) {
+		s_info.resume_list = eina_list_remove(s_info.resume_list, item);
+		DbgFree(item);
+		return DBOX_STATUS_ERROR_NONE;
 	    }
-	    break;
-	default:
-	    ErrPrint("Invalid event type\n");
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+	break;
+    default:
+	ErrPrint("Invalid event type\n");
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     return DBOX_STATUS_ERROR_NOT_EXIST;

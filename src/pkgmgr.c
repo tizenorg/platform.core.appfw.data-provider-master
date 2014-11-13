@@ -124,24 +124,24 @@ static inline void invoke_recover_event_handler(const char *pkgname, enum pkgmgr
 static inline void invoke_callback(const char *pkgname, struct item *item, double value)
 {
     switch (item->type) {
-	case PKGMGR_EVENT_DOWNLOAD:
-	    invoke_download_event_handler(pkgname, item->status, value);
-	    break;
-	case PKGMGR_EVENT_UNINSTALL:
-	    invoke_uninstall_event_handler(pkgname, item->status, value);
-	    break;
-	case PKGMGR_EVENT_INSTALL:
-	    invoke_install_event_handler(pkgname, item->status, value);
-	    break;
-	case PKGMGR_EVENT_UPDATE:
-	    invoke_update_event_handler(pkgname, item->status, value);
-	    break;
-	case PKGMGR_EVENT_RECOVER:
-	    invoke_recover_event_handler(pkgname, item->status, value);
-	    break;
-	default:
-	    ErrPrint("Unknown type: %d\n", item->type);
-	    break;
+    case PKGMGR_EVENT_DOWNLOAD:
+	invoke_download_event_handler(pkgname, item->status, value);
+	break;
+    case PKGMGR_EVENT_UNINSTALL:
+	invoke_uninstall_event_handler(pkgname, item->status, value);
+	break;
+    case PKGMGR_EVENT_INSTALL:
+	invoke_install_event_handler(pkgname, item->status, value);
+	break;
+    case PKGMGR_EVENT_UPDATE:
+	invoke_update_event_handler(pkgname, item->status, value);
+	break;
+    case PKGMGR_EVENT_RECOVER:
+	invoke_recover_event_handler(pkgname, item->status, value);
+	break;
+    default:
+	ErrPrint("Unknown type: %d\n", item->type);
+	break;
     }
 }
 
@@ -150,23 +150,23 @@ static inline int is_valid_status(struct item *item, const char *status)
     const char *expected_status;
 
     switch (item->type) {
-	case PKGMGR_EVENT_DOWNLOAD:
-	    expected_status = "download";
-	    break;
-	case PKGMGR_EVENT_UNINSTALL:
-	    expected_status = "uninstall";
-	    break;
-	case PKGMGR_EVENT_INSTALL:
-	    expected_status = "install";
-	    break;
-	case PKGMGR_EVENT_UPDATE:
-	    expected_status = "update";
-	    break;
-	case PKGMGR_EVENT_RECOVER:
-	    expected_status = "recover";
-	    break;
-	default:
-	    return 0;
+    case PKGMGR_EVENT_DOWNLOAD:
+	expected_status = "download";
+	break;
+    case PKGMGR_EVENT_UNINSTALL:
+	expected_status = "uninstall";
+	break;
+    case PKGMGR_EVENT_INSTALL:
+	expected_status = "install";
+	break;
+    case PKGMGR_EVENT_UPDATE:
+	expected_status = "update";
+	break;
+    case PKGMGR_EVENT_RECOVER:
+	expected_status = "recover";
+	break;
+    default:
+	return 0;
     }
 
     return !strcasecmp(status, expected_status);
@@ -343,14 +343,14 @@ static int download_cb(const char *pkgname, const char *val, void *data)
     }
 
     switch (item->status) {
-	case PKGMGR_STATUS_START:
-	case PKGMGR_STATUS_COMMAND:
-	    item->status = PKGMGR_STATUS_PROCESSING;
-	case PKGMGR_STATUS_PROCESSING:
-	    break;
-	default:
-	    ErrPrint("Invalid state [%s, %s]\n", pkgname, val);
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+    case PKGMGR_STATUS_START:
+    case PKGMGR_STATUS_COMMAND:
+	item->status = PKGMGR_STATUS_PROCESSING;
+    case PKGMGR_STATUS_PROCESSING:
+	break;
+    default:
+	ErrPrint("Invalid state [%s, %s]\n", pkgname, val);
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     if (val) {
@@ -380,14 +380,14 @@ static int progress_cb(const char *pkgname, const char *val, void *data)
     }
 
     switch (item->status) {
-	case PKGMGR_STATUS_START:
-	case PKGMGR_STATUS_COMMAND:
-	    item->status = PKGMGR_STATUS_PROCESSING;
-	case PKGMGR_STATUS_PROCESSING:
-	    break;
-	default:
-	    ErrPrint("Invalid state [%s, %s]\n", pkgname, val);
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+    case PKGMGR_STATUS_START:
+    case PKGMGR_STATUS_COMMAND:
+	item->status = PKGMGR_STATUS_PROCESSING;
+    case PKGMGR_STATUS_PROCESSING:
+	break;
+    default:
+	ErrPrint("Invalid state [%s, %s]\n", pkgname, val);
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     if (val) {
@@ -535,24 +535,24 @@ HAPI int pkgmgr_add_event_callback(enum pkgmgr_event_type type, int (*cb)(const 
     item->data = data;
 
     switch (type) {
-	case PKGMGR_EVENT_DOWNLOAD:
-	    s_info.download_event = eina_list_prepend(s_info.download_event, item);
-	    break;
-	case PKGMGR_EVENT_UNINSTALL:
-	    s_info.uninstall_event = eina_list_prepend(s_info.uninstall_event, item);
-	    break;
-	case PKGMGR_EVENT_INSTALL:
-	    s_info.install_event = eina_list_prepend(s_info.install_event, item);
-	    break;
-	case PKGMGR_EVENT_UPDATE:
-	    s_info.update_event = eina_list_prepend(s_info.update_event, item);
-	    break;
-	case PKGMGR_EVENT_RECOVER:
-	    s_info.recover_event = eina_list_prepend(s_info.recover_event, item);
-	    break;
-	default:
-	    DbgFree(item);
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+    case PKGMGR_EVENT_DOWNLOAD:
+	s_info.download_event = eina_list_prepend(s_info.download_event, item);
+	break;
+    case PKGMGR_EVENT_UNINSTALL:
+	s_info.uninstall_event = eina_list_prepend(s_info.uninstall_event, item);
+	break;
+    case PKGMGR_EVENT_INSTALL:
+	s_info.install_event = eina_list_prepend(s_info.install_event, item);
+	break;
+    case PKGMGR_EVENT_UPDATE:
+	s_info.update_event = eina_list_prepend(s_info.update_event, item);
+	break;
+    case PKGMGR_EVENT_RECOVER:
+	s_info.recover_event = eina_list_prepend(s_info.recover_event, item);
+	break;
+    default:
+	DbgFree(item);
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     return DBOX_STATUS_ERROR_NONE;
@@ -565,59 +565,59 @@ HAPI void *pkgmgr_del_event_callback(enum pkgmgr_event_type type, int (*cb)(cons
     void *cbdata = NULL;
 
     switch (type) {
-	case PKGMGR_EVENT_DOWNLOAD:
-	    EINA_LIST_FOREACH(s_info.download_event, l, item) {
-		if (item->cb == cb && item->data == data) {
-		    s_info.download_event = eina_list_remove(s_info.download_event, item);
-		    cbdata = item->data;
-		    DbgFree(item);
-		    break;
-		}
+    case PKGMGR_EVENT_DOWNLOAD:
+	EINA_LIST_FOREACH(s_info.download_event, l, item) {
+	    if (item->cb == cb && item->data == data) {
+		s_info.download_event = eina_list_remove(s_info.download_event, item);
+		cbdata = item->data;
+		DbgFree(item);
+		break;
 	    }
-	    break;
-	case PKGMGR_EVENT_UNINSTALL:
-	    EINA_LIST_FOREACH(s_info.uninstall_event, l, item) {
-		if (item->cb == cb && item->data == data) {
-		    s_info.uninstall_event = eina_list_remove(s_info.uninstall_event, item);
-		    cbdata = item->data;
-		    DbgFree(item);
-		    break;
-		}
+	}
+	break;
+    case PKGMGR_EVENT_UNINSTALL:
+	EINA_LIST_FOREACH(s_info.uninstall_event, l, item) {
+	    if (item->cb == cb && item->data == data) {
+		s_info.uninstall_event = eina_list_remove(s_info.uninstall_event, item);
+		cbdata = item->data;
+		DbgFree(item);
+		break;
 	    }
-	    break;
-	case PKGMGR_EVENT_INSTALL:
-	    EINA_LIST_FOREACH(s_info.install_event, l, item) {
-		if (item->cb == cb && item->data == data) {
-		    s_info.install_event = eina_list_remove(s_info.install_event, item);
-		    cbdata = item->data;
-		    DbgFree(item);
-		    break;
-		}
+	}
+	break;
+    case PKGMGR_EVENT_INSTALL:
+	EINA_LIST_FOREACH(s_info.install_event, l, item) {
+	    if (item->cb == cb && item->data == data) {
+		s_info.install_event = eina_list_remove(s_info.install_event, item);
+		cbdata = item->data;
+		DbgFree(item);
+		break;
 	    }
-	    break;
-	case PKGMGR_EVENT_UPDATE:
-	    EINA_LIST_FOREACH(s_info.update_event, l, item) {
-		if (item->cb == cb && item->data == data) {
-		    s_info.update_event = eina_list_remove(s_info.update_event, item);
-		    cbdata = item->data;
-		    DbgFree(item);
-		    break;
-		}
+	}
+	break;
+    case PKGMGR_EVENT_UPDATE:
+	EINA_LIST_FOREACH(s_info.update_event, l, item) {
+	    if (item->cb == cb && item->data == data) {
+		s_info.update_event = eina_list_remove(s_info.update_event, item);
+		cbdata = item->data;
+		DbgFree(item);
+		break;
 	    }
-	    break;
-	case PKGMGR_EVENT_RECOVER:
-	    EINA_LIST_FOREACH(s_info.recover_event, l, item) {
-		if (item->cb == cb && item->data == data) {
-		    s_info.recover_event = eina_list_remove(s_info.recover_event, item);
-		    cbdata = item->data;
-		    DbgFree(item);
-		    break;
-		}
+	}
+	break;
+    case PKGMGR_EVENT_RECOVER:
+	EINA_LIST_FOREACH(s_info.recover_event, l, item) {
+	    if (item->cb == cb && item->data == data) {
+		s_info.recover_event = eina_list_remove(s_info.recover_event, item);
+		cbdata = item->data;
+		DbgFree(item);
+		break;
 	    }
-	    break;
-	default:
-	    ErrPrint("Invalid type\n");
-	    break;
+	}
+	break;
+    default:
+	ErrPrint("Invalid type\n");
+	break;
     }
 
     return cbdata;

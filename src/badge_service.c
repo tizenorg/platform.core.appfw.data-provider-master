@@ -501,34 +501,34 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
     DbgPrint("Command: [%s], Packet type[%d]\n", command, packet_type(packet));
 
     switch (packet_type(packet)) {
-	case PACKET_REQ:
-	    /* Need to send reply packet */
-	    for (i = 0; service_req_table[i].cmd; i++) {
-		if (strcmp(service_req_table[i].cmd, command)) {
-		    continue;
-		}
-
-#if ENABLE_BS_ACCESS_CONTROL
-		if (_is_valid_permission(tcb_fd(tcb), &(service_req_table[i])) == 1) {
-		    service_req_table[i].handler(tcb, packet, data);
-		} else {
-		    _handler_access_control_error(tcb, packet);
-		}
-#else
-		_is_valid_permission(tcb_fd(tcb), &(service_req_table[i]));
-		service_req_table[i].handler(tcb, packet, data);
-#endif
-		break;
+    case PACKET_REQ:
+	/* Need to send reply packet */
+	for (i = 0; service_req_table[i].cmd; i++) {
+	    if (strcmp(service_req_table[i].cmd, command)) {
+		continue;
 	    }
 
+#if ENABLE_BS_ACCESS_CONTROL
+	    if (_is_valid_permission(tcb_fd(tcb), &(service_req_table[i])) == 1) {
+		service_req_table[i].handler(tcb, packet, data);
+	    } else {
+		_handler_access_control_error(tcb, packet);
+	    }
+#else
+	    _is_valid_permission(tcb_fd(tcb), &(service_req_table[i]));
+	    service_req_table[i].handler(tcb, packet, data);
+#endif
 	    break;
-	case PACKET_REQ_NOACK:
-	    break;
-	case PACKET_ACK:
-	    break;
-	default:
-	    ErrPrint("Packet type is not valid[%s]\n", command);
-	    return -EINVAL;
+	}
+
+	break;
+    case PACKET_REQ_NOACK:
+	break;
+    case PACKET_ACK:
+	break;
+    default:
+	ErrPrint("Packet type is not valid[%s]\n", command);
+	return -EINVAL;
     }
 
     /*!

@@ -557,29 +557,29 @@ EAPI int buffer_handler_load(struct buffer_info *info)
     }
 
     switch (info->type) {
-	case DBOX_FB_TYPE_FILE:
-	    ret = load_file_buffer(info);
+    case DBOX_FB_TYPE_FILE:
+	ret = load_file_buffer(info);
 
-	    if (script_handler_buffer_info(instance_gbar_script(info->inst)) != info && instance_gbar_buffer(info->inst) != info) {
-		type = DBOX_TYPE_DBOX;
-	    }
-	    info->lock_info = dynamicbox_service_create_lock(instance_id(info->inst), type, DBOX_LOCK_WRITE);
-	    break;
-	case DBOX_FB_TYPE_SHM:
-	    ret = load_shm_buffer(info);
+	if (script_handler_buffer_info(instance_gbar_script(info->inst)) != info && instance_gbar_buffer(info->inst) != info) {
+	    type = DBOX_TYPE_DBOX;
+	}
+	info->lock_info = dynamicbox_service_create_lock(instance_id(info->inst), type, DBOX_LOCK_WRITE);
+	break;
+    case DBOX_FB_TYPE_SHM:
+	ret = load_shm_buffer(info);
 
-	    if (script_handler_buffer_info(instance_gbar_script(info->inst)) != info && instance_gbar_buffer(info->inst) != info) {
-		type = DBOX_TYPE_DBOX;
-	    }
-	    info->lock_info = dynamicbox_service_create_lock(instance_id(info->inst), type, DBOX_LOCK_WRITE);
-	    break;
-	case DBOX_FB_TYPE_PIXMAP:
-	    ret = load_pixmap_buffer(info);
-	    break;
-	default:
-	    ErrPrint("Invalid buffer\n");
-	    ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	    break;
+	if (script_handler_buffer_info(instance_gbar_script(info->inst)) != info && instance_gbar_buffer(info->inst) != info) {
+	    type = DBOX_TYPE_DBOX;
+	}
+	info->lock_info = dynamicbox_service_create_lock(instance_id(info->inst), type, DBOX_LOCK_WRITE);
+	break;
+    case DBOX_FB_TYPE_PIXMAP:
+	ret = load_pixmap_buffer(info);
+	break;
+    default:
+	ErrPrint("Invalid buffer\n");
+	ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	break;
     }
 
     return ret;
@@ -703,23 +703,23 @@ EAPI int buffer_handler_unload(struct buffer_info *info)
     }
 
     switch (info->type) {
-	case DBOX_FB_TYPE_FILE:
-	    dynamicbox_service_destroy_lock(info->lock_info);
-	    info->lock_info = NULL;
-	    ret = unload_file_buffer(info);
-	    break;
-	case DBOX_FB_TYPE_SHM:
-	    dynamicbox_service_destroy_lock(info->lock_info);
-	    info->lock_info = NULL;
-	    ret = unload_shm_buffer(info);
-	    break;
-	case DBOX_FB_TYPE_PIXMAP:
-	    ret = unload_pixmap_buffer(info);
-	    break;
-	default:
-	    ErrPrint("Invalid buffer\n");
-	    ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	    break;
+    case DBOX_FB_TYPE_FILE:
+	dynamicbox_service_destroy_lock(info->lock_info);
+	info->lock_info = NULL;
+	ret = unload_file_buffer(info);
+	break;
+    case DBOX_FB_TYPE_SHM:
+	dynamicbox_service_destroy_lock(info->lock_info);
+	info->lock_info = NULL;
+	ret = unload_shm_buffer(info);
+	break;
+    case DBOX_FB_TYPE_PIXMAP:
+	ret = unload_pixmap_buffer(info);
+	break;
+    default:
+	ErrPrint("Invalid buffer\n");
+	ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	break;
     }
 
     if (ret == 0) {
@@ -1487,18 +1487,18 @@ EAPI dynamicbox_fb_t buffer_handler_raw_open(enum dynamicbox_fb_type dynamicbox_
     dynamicbox_fb_t handle;
 
     switch (dynamicbox_fb_type) {
-	case DBOX_FB_TYPE_SHM:
-	    handle = raw_open_shm((int)resource);
-	    break;
-	case DBOX_FB_TYPE_FILE:
-	    handle = raw_open_file(resource);
-	    break;
-	case DBOX_FB_TYPE_PIXMAP:
-	    handle = raw_open_pixmap((unsigned int)resource);
-	    break;
-	default:
-	    handle = NULL;
-	    break;
+    case DBOX_FB_TYPE_SHM:
+	handle = raw_open_shm((int)resource);
+	break;
+    case DBOX_FB_TYPE_FILE:
+	handle = raw_open_file(resource);
+	break;
+    case DBOX_FB_TYPE_PIXMAP:
+	handle = raw_open_pixmap((unsigned int)resource);
+	break;
+    default:
+	handle = NULL;
+	break;
     }
 
     return handle;
@@ -1513,18 +1513,18 @@ EAPI int buffer_handler_raw_close(dynamicbox_fb_t buffer)
     }
 
     switch (buffer->type) {
-	case DBOX_FB_TYPE_SHM:
-	    ret = raw_close_shm(buffer);
-	    break;
-	case DBOX_FB_TYPE_FILE:
-	    ret = raw_close_file(buffer);
-	    break;
-	case DBOX_FB_TYPE_PIXMAP:
-	    ret = raw_close_pixmap(buffer);
-	    break;
-	default:
-	    ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	    break;
+    case DBOX_FB_TYPE_SHM:
+	ret = raw_close_shm(buffer);
+	break;
+    case DBOX_FB_TYPE_FILE:
+	ret = raw_close_file(buffer);
+	break;
+    case DBOX_FB_TYPE_PIXMAP:
+	ret = raw_close_pixmap(buffer);
+	break;
+    default:
+	ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	break;
     }
 
     return ret;
@@ -1589,37 +1589,37 @@ EAPI int buffer_handler_stride(struct buffer_info *info)
     }
 
     switch (info->type) {
-	case DBOX_FB_TYPE_FILE:
-	case DBOX_FB_TYPE_SHM:
-	    stride = info->w * info->pixel_size;
-	    break;
-	case DBOX_FB_TYPE_PIXMAP:
-	    buffer = info->buffer;
-	    if (!buffer) {
-		stride = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-		break;
-	    }
-
-	    gem = (struct gem_data *)buffer->data;
-	    if (!gem) {
-		stride = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-		break;
-	    }
-
-	    if (!gem->dri2_buffer) {
-		/*
-		 * Uhm...
-		 */
-		ErrPrint("dri2_buffer info is not ready yet!\n");
-		stride = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-		break;
-	    }
-
-	    stride = gem->dri2_buffer->pitch;
-	    break;
-	default:
+    case DBOX_FB_TYPE_FILE:
+    case DBOX_FB_TYPE_SHM:
+	stride = info->w * info->pixel_size;
+	break;
+    case DBOX_FB_TYPE_PIXMAP:
+	buffer = info->buffer;
+	if (!buffer) {
 	    stride = DBOX_STATUS_ERROR_INVALID_PARAMETER;
 	    break;
+	}
+
+	gem = (struct gem_data *)buffer->data;
+	if (!gem) {
+	    stride = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	    break;
+	}
+
+	if (!gem->dri2_buffer) {
+	    /*
+	     * Uhm...
+	     */
+	    ErrPrint("dri2_buffer info is not ready yet!\n");
+	    stride = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	    break;
+	}
+
+	stride = gem->dri2_buffer->pitch;
+	break;
+    default:
+	stride = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	break;
     }
 
     return stride;
@@ -1685,44 +1685,44 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum dyna
     }
 
     switch (type) {
-	case DBOX_FB_TYPE_SHM:
-	    if (pixel_size != DYNAMICBOX_CONF_DEFAULT_PIXELS) {
-		DbgPrint("SHM only supportes %d bytes pixels (requested: %d)\n", DYNAMICBOX_CONF_DEFAULT_PIXELS, pixel_size);
-		pixel_size = DYNAMICBOX_CONF_DEFAULT_PIXELS;
-	    }
+    case DBOX_FB_TYPE_SHM:
+	if (pixel_size != DYNAMICBOX_CONF_DEFAULT_PIXELS) {
+	    DbgPrint("SHM only supportes %d bytes pixels (requested: %d)\n", DYNAMICBOX_CONF_DEFAULT_PIXELS, pixel_size);
+	    pixel_size = DYNAMICBOX_CONF_DEFAULT_PIXELS;
+	}
 
-	    info->id = strdup(SCHEMA_SHM "-1");
-	    if (!info->id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		DbgFree(info);
-		return NULL;
-	    }
-	    break;
-	case DBOX_FB_TYPE_FILE:
-	    if (pixel_size != DYNAMICBOX_CONF_DEFAULT_PIXELS) {
-		DbgPrint("FILE only supportes %d bytes pixels (requested: %d)\n", DYNAMICBOX_CONF_DEFAULT_PIXELS, pixel_size);
-		pixel_size = DYNAMICBOX_CONF_DEFAULT_PIXELS;
-	    }
-
-	    info->id = strdup(SCHEMA_FILE "/tmp/.live.undefined");
-	    if (!info->id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		DbgFree(info);
-		return NULL;
-	    }
-	    break;
-	case DBOX_FB_TYPE_PIXMAP:
-	    info->id = strdup(SCHEMA_PIXMAP "0:0");
-	    if (!info->id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		DbgFree(info);
-		return NULL;
-	    }
-	    break;
-	default:
-	    ErrPrint("Invalid type\n");
+	info->id = strdup(SCHEMA_SHM "-1");
+	if (!info->id) {
+	    ErrPrint("Heap: %s\n", strerror(errno));
 	    DbgFree(info);
 	    return NULL;
+	}
+	break;
+    case DBOX_FB_TYPE_FILE:
+	if (pixel_size != DYNAMICBOX_CONF_DEFAULT_PIXELS) {
+	    DbgPrint("FILE only supportes %d bytes pixels (requested: %d)\n", DYNAMICBOX_CONF_DEFAULT_PIXELS, pixel_size);
+	    pixel_size = DYNAMICBOX_CONF_DEFAULT_PIXELS;
+	}
+
+	info->id = strdup(SCHEMA_FILE "/tmp/.live.undefined");
+	if (!info->id) {
+	    ErrPrint("Heap: %s\n", strerror(errno));
+	    DbgFree(info);
+	    return NULL;
+	}
+	break;
+    case DBOX_FB_TYPE_PIXMAP:
+	info->id = strdup(SCHEMA_PIXMAP "0:0");
+	if (!info->id) {
+	    ErrPrint("Heap: %s\n", strerror(errno));
+	    DbgFree(info);
+	    return NULL;
+	}
+	break;
+    default:
+	ErrPrint("Invalid type\n");
+	DbgFree(info);
+	return NULL;
     }
 
     info->lock_info = NULL;

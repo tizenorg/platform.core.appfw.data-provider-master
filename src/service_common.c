@@ -191,94 +191,94 @@ static void *client_packet_pump_main(void *data)
 	 * Service!!! Receive packet & route packet
 	 */
 	switch (recv_state) {
-	    case RECV_INIT:
-		size = packet_header_size();
-		packet_offset = 0;
+	case RECV_INIT:
+	    size = packet_header_size();
+	    packet_offset = 0;
+	    recv_offset = 0;
+	    packet = NULL;
+	    ptr = malloc(size);
+	    if (!ptr) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		ret = -ENOMEM;
+		break;
+	    }
+	    recv_state = RECV_HEADER;
+	    /* Go through, don't break from here */
+	case RECV_HEADER:
+	    ret = secure_socket_recv(tcb->fd, ptr, size - recv_offset, &tcb->pid);
+	    if (ret <= 0) {
+		if (ret == 0) {
+		    ret = -ECANCELED;
+		}
+		DbgFree(ptr);
+		ptr = NULL;
+		break;
+	    }
+
+	    recv_offset += ret;
+	    ret = 0;
+
+	    if (recv_offset == size) {
+		packet = packet_build(packet, packet_offset, ptr, size);
+		DbgFree(ptr);
+		ptr = NULL;
+		if (!packet) {
+		    ret = -EFAULT;
+		    break;
+		}
+
+		packet_offset += recv_offset;
+
+		size = packet_payload_size(packet);
+		if (size <= 0) {
+		    recv_state = RECV_DONE;
+		    recv_offset = 0;
+		    break;
+		}
+
+		recv_state = RECV_PAYLOAD;
 		recv_offset = 0;
-		packet = NULL;
+
 		ptr = malloc(size);
 		if (!ptr) {
 		    ErrPrint("Heap: %s\n", strerror(errno));
 		    ret = -ENOMEM;
-		    break;
 		}
-		recv_state = RECV_HEADER;
-		/* Go through, don't break from here */
-	    case RECV_HEADER:
-		ret = secure_socket_recv(tcb->fd, ptr, size - recv_offset, &tcb->pid);
-		if (ret <= 0) {
-		    if (ret == 0) {
-			ret = -ECANCELED;
-		    }
-		    DbgFree(ptr);
-		    ptr = NULL;
-		    break;
+	    }
+	    break;
+	case RECV_PAYLOAD:
+	    ret = secure_socket_recv(tcb->fd, ptr, size - recv_offset, &tcb->pid);
+	    if (ret <= 0) {
+		if (ret == 0) {
+		    ret = -ECANCELED;
 		}
-
-		recv_offset += ret;
-		ret = 0;
-
-		if (recv_offset == size) {
-		    packet = packet_build(packet, packet_offset, ptr, size);
-		    DbgFree(ptr);
-		    ptr = NULL;
-		    if (!packet) {
-			ret = -EFAULT;
-			break;
-		    }
-
-		    packet_offset += recv_offset;
-
-		    size = packet_payload_size(packet);
-		    if (size <= 0) {
-			recv_state = RECV_DONE;
-			recv_offset = 0;
-			break;
-		    }
-
-		    recv_state = RECV_PAYLOAD;
-		    recv_offset = 0;
-
-		    ptr = malloc(size);
-		    if (!ptr) {
-			ErrPrint("Heap: %s\n", strerror(errno));
-			ret = -ENOMEM;
-		    }
-		}
+		DbgFree(ptr);
+		ptr = NULL;
 		break;
-	    case RECV_PAYLOAD:
-		ret = secure_socket_recv(tcb->fd, ptr, size - recv_offset, &tcb->pid);
-		if (ret <= 0) {
-		    if (ret == 0) {
-			ret = -ECANCELED;
-		    }
-		    DbgFree(ptr);
-		    ptr = NULL;
+	    }
+
+	    recv_offset += ret;
+	    ret = 0;
+
+	    if (recv_offset == size) {
+		packet = packet_build(packet, packet_offset, ptr, size);
+		DbgFree(ptr);
+		ptr = NULL;
+		if (!packet) {
+		    ret = -EFAULT;
 		    break;
 		}
 
-		recv_offset += ret;
-		ret = 0;
+		packet_offset += recv_offset;
 
-		if (recv_offset == size) {
-		    packet = packet_build(packet, packet_offset, ptr, size);
-		    DbgFree(ptr);
-		    ptr = NULL;
-		    if (!packet) {
-			ret = -EFAULT;
-			break;
-		    }
-
-		    packet_offset += recv_offset;
-
-		    recv_state = RECV_DONE;
-		    recv_offset = 0;
-		}
-		break;
-	    case RECV_DONE:
-	    default:
-		/* Dead code */
-		break;
+		recv_state = RECV_DONE;
+		recv_offset = 0;
+	    }
+	    break;
+	case RECV_DONE:
+	default:
+	    /* Dead code */
+	    break;
 	}
 
 	if (recv_state == RECV_DONE) {
@@ -361,18 +361,18 @@ HAPI int service_register_tcb_callback(struct service_context *svc_ctx, struct t
     cbdata->data = data;
 
     switch (event) {
-	case TCB_EVENT_CREATE:
-	    if (tcb) {
-		DbgPrint("To catch the create event of TCB does not requires \"tcb\" handle\n");
-	    }
-	    svc_ctx->tcb_create_cb_list = eina_list_append(svc_ctx->tcb_create_cb_list, cbdata);
-	    break;
-	case TCB_EVENT_DESTROY:
-	    svc_ctx->tcb_destroy_cb_list = eina_list_append(svc_ctx->tcb_destroy_cb_list, cbdata);
-	    break;
-	default:
-	    DbgFree(cbdata);
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+    case TCB_EVENT_CREATE:
+	if (tcb) {
+	    DbgPrint("To catch the create event of TCB does not requires \"tcb\" handle\n");
+	}
+	svc_ctx->tcb_create_cb_list = eina_list_append(svc_ctx->tcb_create_cb_list, cbdata);
+	break;
+    case TCB_EVENT_DESTROY:
+	svc_ctx->tcb_destroy_cb_list = eina_list_append(svc_ctx->tcb_destroy_cb_list, cbdata);
+	break;
+    default:
+	DbgFree(cbdata);
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     return DBOX_STATUS_ERROR_NONE;
@@ -388,26 +388,26 @@ HAPI int service_unregister_tcb_callback(struct service_context *svc_ctx, struct
     Eina_List *l;
 
     switch (event) {
-	case TCB_EVENT_CREATE:
-	    EINA_LIST_FOREACH(svc_ctx->tcb_create_cb_list, l, cbdata) {
-		if (cbdata->tcb == tcb && cbdata->cb == cb && cbdata->data == data) {
-		    svc_ctx->tcb_create_cb_list = eina_list_remove(svc_ctx->tcb_create_cb_list, cbdata);
-		    DbgFree(cbdata);
-		    return DBOX_STATUS_ERROR_NONE;
-		}
+    case TCB_EVENT_CREATE:
+	EINA_LIST_FOREACH(svc_ctx->tcb_create_cb_list, l, cbdata) {
+	    if (cbdata->tcb == tcb && cbdata->cb == cb && cbdata->data == data) {
+		svc_ctx->tcb_create_cb_list = eina_list_remove(svc_ctx->tcb_create_cb_list, cbdata);
+		DbgFree(cbdata);
+		return DBOX_STATUS_ERROR_NONE;
 	    }
-	    break;
-	case TCB_EVENT_DESTROY:
-	    EINA_LIST_FOREACH(svc_ctx->tcb_destroy_cb_list, l, cbdata) {
-		if (cbdata->tcb == tcb && cbdata->cb == cb && cbdata->data == data) {
-		    svc_ctx->tcb_destroy_cb_list = eina_list_remove(svc_ctx->tcb_destroy_cb_list, cbdata);
-		    DbgFree(cbdata);
-		    return DBOX_STATUS_ERROR_NONE;
-		}
+	}
+	break;
+    case TCB_EVENT_DESTROY:
+	EINA_LIST_FOREACH(svc_ctx->tcb_destroy_cb_list, l, cbdata) {
+	    if (cbdata->tcb == tcb && cbdata->cb == cb && cbdata->data == data) {
+		svc_ctx->tcb_destroy_cb_list = eina_list_remove(svc_ctx->tcb_destroy_cb_list, cbdata);
+		DbgFree(cbdata);
+		return DBOX_STATUS_ERROR_NONE;
 	    }
-	    break;
-	default:
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+	break;
+    default:
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     return DBOX_STATUS_ERROR_NOT_EXIST;
@@ -616,33 +616,33 @@ static inline void processing_timer_event(struct service_context *svc_ctx, fd_se
 
     EINA_LIST_FOREACH_SAFE(svc_ctx->event_list, l, n, item) {
 	switch (item->type) {
-	    case SERVICE_EVENT_TIMER:
-		if (!FD_ISSET(item->info.timer.fd, set)) {
+	case SERVICE_EVENT_TIMER:
+	    if (!FD_ISSET(item->info.timer.fd, set)) {
+		break;
+	    }
+
+	    if (read(item->info.timer.fd, &expired_count, sizeof(expired_count)) == sizeof(expired_count)) {
+		DbgPrint("Expired %d times\n", expired_count);
+		if (item->event_cb(svc_ctx, item->cbdata) >= 0) {
 		    break;
 		}
+	    } else {
+		ErrPrint("read: %s\n", strerror(errno));
+	    }
 
-		if (read(item->info.timer.fd, &expired_count, sizeof(expired_count)) == sizeof(expired_count)) {
-		    DbgPrint("Expired %d times\n", expired_count);
-		    if (item->event_cb(svc_ctx, item->cbdata) >= 0) {
-			break;
-		    }
-		} else {
-		    ErrPrint("read: %s\n", strerror(errno));
-		}
-
-		if (!eina_list_data_find(svc_ctx->event_list, item)) {
-		    break;
-		}
-
-		svc_ctx->event_list = eina_list_remove(svc_ctx->event_list, item);
-		if (close(item->info.timer.fd) < 0) {
-		    ErrPrint("close: %s\n", strerror(errno));
-		}
-		DbgFree(item);
+	    if (!eina_list_data_find(svc_ctx->event_list, item)) {
 		break;
-	    default:
-		ErrPrint("Unknown event: %d\n", item->type);
-		break;
+	    }
+
+	    svc_ctx->event_list = eina_list_remove(svc_ctx->event_list, item);
+	    if (close(item->info.timer.fd) < 0) {
+		ErrPrint("close: %s\n", strerror(errno));
+	    }
+	    DbgFree(item);
+	    break;
+	default:
+	    ErrPrint("Unknown event: %d\n", item->type);
+	    break;
 	}
     }
 }
