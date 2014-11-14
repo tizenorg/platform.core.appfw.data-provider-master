@@ -22,6 +22,7 @@ pkg_check_modules(pkg REQUIRED
 	libsmack
 	shortcut
 	pkgmgr-info
+	libsystemd-daemon
 )
 
 IF (LIVEBOX)
