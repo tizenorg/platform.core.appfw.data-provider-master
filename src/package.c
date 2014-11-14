@@ -1122,7 +1122,7 @@ HAPI int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 	(void)slave_event_callback_add(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
 	(void)slave_event_callback_add(info->slave, SLAVE_EVENT_FAULT, slave_fault_cb, info);
 
-	if (info->secured || DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL) {
+	if (info->secured || (DBOX_IS_INHOUSE(package_abi(info)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL)) {
 	    (void)slave_event_callback_add(info->slave, SLAVE_EVENT_PAUSE, slave_paused_cb, info);
 	    (void)slave_event_callback_add(info->slave, SLAVE_EVENT_RESUME, slave_resumed_cb, info);
 
@@ -1158,7 +1158,7 @@ HAPI int package_del_instance(struct pkg_info *info, struct inst_info *inst)
 	slave_event_callback_del(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
 	slave_event_callback_del(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
 
-	if (info->secured || DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL) {
+	if (info->secured || (DBOX_IS_INHOUSE(package_abi(info)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL)) {
 	    slave_event_callback_del(info->slave, SLAVE_EVENT_PAUSE, slave_paused_cb, info);
 	    slave_event_callback_del(info->slave, SLAVE_EVENT_RESUME, slave_resumed_cb, info);
 

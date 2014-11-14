@@ -326,7 +326,7 @@ HAPI int slave_expired_ttl(struct slave_node *slave)
 	return 0;
     }
 
-    if (!slave->secured && !DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL) {
+    if (!slave->secured && !(DBOX_IS_INHOUSE(slave_abi(slave)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL)) {
 	return 0;
     }
 
@@ -521,7 +521,7 @@ static Eina_Bool relaunch_timer_cb(void *data)
 	} else {
 	    bundle_add(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
 	    bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_NAME, slave_name(slave));
-	    bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_SECURED, (DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL || slave->secured) ? "true" : "false");
+	    bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_SECURED, ((DBOX_IS_INHOUSE(slave_abi(slave)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured) ? "true" : "false");
 	    bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_ABI, slave->abi);
 
 	    slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
@@ -619,7 +619,7 @@ HAPI int slave_activate(struct slave_node *slave)
 
 	bundle_add(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
 	bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_NAME, slave_name(slave));
-	bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_SECURED, (DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL || slave->secured) ? "true" : "false");
+	bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_SECURED, ((DBOX_IS_INHOUSE(slave_abi(slave)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured) ? "true" : "false");
 	bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_ABI, slave->abi);
 
 	slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
@@ -678,7 +678,7 @@ HAPI int slave_give_more_ttl(struct slave_node *slave)
 {
     double delay;
 
-    if (!DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL && (!slave->secured || !slave->ttl_timer)) {
+    if (!(DBOX_IS_INHOUSE(slave_abi(slave)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL) && (!slave->secured || !slave->ttl_timer)) {
 	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
@@ -689,7 +689,7 @@ HAPI int slave_give_more_ttl(struct slave_node *slave)
 
 HAPI int slave_freeze_ttl(struct slave_node *slave)
 {
-    if (!DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL && (!slave->secured || !slave->ttl_timer)) {
+    if (!(DBOX_IS_INHOUSE(slave_abi(slave)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL) && (!slave->secured || !slave->ttl_timer)) {
 	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
@@ -701,7 +701,7 @@ HAPI int slave_thaw_ttl(struct slave_node *slave)
 {
     double delay;
 
-    if (!DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL && (!slave->secured || !slave->ttl_timer)) {
+    if (!(DBOX_IS_INHOUSE(slave_abi(slave)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL) && (!slave->secured || !slave->ttl_timer)) {
 	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
@@ -720,7 +720,7 @@ HAPI int slave_activated(struct slave_node *slave)
 	slave_pause(slave);
     }
 
-    if ((DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL || slave->secured == 1) && DYNAMICBOX_CONF_SLAVE_TTL > 0.0f) {
+    if (((DBOX_IS_INHOUSE(slave_abi(slave)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured == 1) && DYNAMICBOX_CONF_SLAVE_TTL > 0.0f) {
 	DbgPrint("Slave deactivation timer is added (%s - %lf)\n", slave_name(slave), DYNAMICBOX_CONF_SLAVE_TTL);
 	slave->ttl_timer = ecore_timer_add(DYNAMICBOX_CONF_SLAVE_TTL, slave_ttl_cb, slave);
 	if (!slave->ttl_timer) {

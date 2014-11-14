@@ -825,7 +825,7 @@ static inline int fork_package(struct inst_info *inst, const char *pkgname)
 
     inst->info = info;
 
-    if (package_secured(info) || DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL) {
+    if (package_secured(info) || (DBOX_IS_INHOUSE(package_abi(info)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL)) {
 	if (inst->dbox.period > 0.0f) {
 	    inst->update_timer = util_timer_add(inst->dbox.period, update_timer_cb, inst);
 	    if (!inst->update_timer) {
@@ -2635,7 +2635,7 @@ HAPI int instance_set_period(struct inst_info *inst, double period)
     cbdata->period = period;
     cbdata->inst = instance_ref(inst);
 
-    if (package_secured(inst->info) || DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL) {
+    if (package_secured(inst->info) || (DBOX_IS_INHOUSE(package_abi(inst->info)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL)) {
 	/*!
 	 * \note
 	 * Secured dynamicbox doesn't need to send its update period to the slave.
