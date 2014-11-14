@@ -35,6 +35,7 @@
 #include <dynamicbox_errno.h>
 #include <dynamicbox_conf.h>
 #include <dynamicbox_cmd_list.h>
+#include <dynamicbox_service.h>
 
 #include "critical_log.h"
 #include "slave_life.h"
@@ -47,6 +48,9 @@
 #include "util.h"
 #include "abi.h"
 #include "xmonitor.h"
+
+#include "package.h"
+#include "instance.h"
 
 #define BUNDLE_SLAVE_SVC_OP_TYPE "__APP_SVC_OP_TYPE__"
 #define APP_CONTROL_OPERATION_MAIN "http://tizen.org/appcontrol/operation/main"
@@ -128,7 +132,27 @@ static struct {
 
 static Eina_Bool slave_ttl_cb(void *data)
 {
+    struct pkg_info *info;
     struct slave_node *slave = (struct slave_node *)data;
+    Eina_List *l;
+    Eina_List *pkg_list;
+
+    pkg_list = (Eina_List *)package_list();
+    EINA_LIST_FOREACH(pkg_list, l, info) {
+	if (package_slave(info) == slave) {
+	    struct inst_info *inst;
+	    Eina_List *inst_list;
+	    Eina_List *n;
+
+	    inst_list = (Eina_List *)package_instance_list(info);
+	    EINA_LIST_FOREACH(inst_list, n, inst) {
+		if (instance_visible_state(inst) == DBOX_SHOW) {
+		    DbgPrint("Instance is in show, give more ttl to %d for %s\n", slave_pid(slave), instance_id(inst));
+		    return ECORE_CALLBACK_RENEW;
+		}
+	    }
+	}
+    }
 
     /*!
      * \note
