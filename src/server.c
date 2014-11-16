@@ -509,12 +509,14 @@ static int mouse_event_dbox_route_cb(enum event_state state, struct event_data *
     switch (state) {
 	case EVENT_STATE_ACTIVATE:
 	    cmd = CMD_DBOX_MOUSE_DOWN;
+	    DbgPrint("DOWN: %s\n", instance_id(inst));
 	    break;
 	case EVENT_STATE_ACTIVATED:
 	    cmd = CMD_DBOX_MOUSE_MOVE;
 	    break;
 	case EVENT_STATE_DEACTIVATE:
 	    cmd = CMD_DBOX_MOUSE_UP;
+	    DbgPrint("UP: %s\n", instance_id(inst));
 	    break;
 	default:
 	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
