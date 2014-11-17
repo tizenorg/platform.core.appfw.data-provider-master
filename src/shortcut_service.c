@@ -131,66 +131,66 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
     }
 
     switch (packet_type(packet)) {
-	case PACKET_REQ:
+    case PACKET_REQ:
 
-	    /* Need to send reply packet */
-	    DbgPrint("%p REQ: Command: [%s]\n", tcb, command);
-	    if (!strcmp(command, "add_livebox") || !strcmp(command, "rm_livebox")) {
-		ret = security_server_check_privilege_by_sockfd(tcb_fd(tcb), "data-provider-master::shortcut.livebox", "w");
-		if (ret == SECURITY_SERVER_API_ERROR_ACCESS_DENIED) {
-		    ErrPrint("SMACK:Access denied\n");
-		    send_reply_packet(tcb, packet, SHORTCUT_ERROR_PERMISSION_DENIED);
-		    break;
-		}
-
-	    } else if (!strcmp(command, "add_shortcut") || !strcmp(command, "rm_shortcut")) {
-		ret = security_server_check_privilege_by_sockfd(tcb_fd(tcb), "data-provider-master::shortcut.shortcut", "w");
-		if (ret == SECURITY_SERVER_API_ERROR_ACCESS_DENIED) {
-		    ErrPrint("SMACK:Access denied\n");
-		    send_reply_packet(tcb, packet, SHORTCUT_ERROR_PERMISSION_DENIED);
-		    break;
-		}
-	    }
-
-	    if (service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE) < 0) {
-		ErrPrint("Unable to send service request packet\n");
-	    } else {
-		(void)put_reply_context(tcb, packet_seq(packet));
-	    }
-	    break;
-	case PACKET_REQ_NOACK:
-	    /* Doesn't need to send reply packet */
-	    DbgPrint("%p REQ_NOACK: Command: [%s]\n", tcb, command);
-	    if (!strcmp(command, "service_register")) {
-		tcb_client_type_set(tcb, TCB_CLIENT_TYPE_SERVICE);
+	/* Need to send reply packet */
+	DbgPrint("%p REQ: Command: [%s]\n", tcb, command);
+	if (!strcmp(command, "add_livebox") || !strcmp(command, "rm_livebox")) {
+	    ret = security_server_check_privilege_by_sockfd(tcb_fd(tcb), "data-provider-master::shortcut.livebox", "w");
+	    if (ret == SECURITY_SERVER_API_ERROR_ACCESS_DENIED) {
+		ErrPrint("SMACK:Access denied\n");
+		send_reply_packet(tcb, packet, SHORTCUT_ERROR_PERMISSION_DENIED);
 		break;
 	    }
 
-	    if (service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE) < 0) {
-		ErrPrint("Unable to send service reuqest packet\n");
-	    }
-	    break;
-	case PACKET_ACK:
-	    /* Okay, client(or app) send a reply packet to us. */
-	    DbgPrint("%p ACK: Command: [%s]\n", tcb, command);
-	    tcb = get_reply_context(packet_seq(packet));
-	    if (!tcb) {
-		ErrPrint("There is no proper context\n");
+	} else if (!strcmp(command, "add_shortcut") || !strcmp(command, "rm_shortcut")) {
+	    ret = security_server_check_privilege_by_sockfd(tcb_fd(tcb), "data-provider-master::shortcut.shortcut", "w");
+	    if (ret == SECURITY_SERVER_API_ERROR_ACCESS_DENIED) {
+		ErrPrint("SMACK:Access denied\n");
+		send_reply_packet(tcb, packet, SHORTCUT_ERROR_PERMISSION_DENIED);
 		break;
 	    }
+	}
 
-	    if (tcb_is_valid(s_info.svc_ctx, tcb) < 0) {
-		ErrPrint("TCB is not valid (already disconnected?)\n");
-		break;
-	    }
-
-	    if (service_common_unicast_packet(tcb, packet) < 0) {
-		ErrPrint("Unable to send reply packet\n");
-	    }
+	if (service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE) < 0) {
+	    ErrPrint("Unable to send service request packet\n");
+	} else {
+	    (void)put_reply_context(tcb, packet_seq(packet));
+	}
+	break;
+    case PACKET_REQ_NOACK:
+	/* Doesn't need to send reply packet */
+	DbgPrint("%p REQ_NOACK: Command: [%s]\n", tcb, command);
+	if (!strcmp(command, "service_register")) {
+	    tcb_client_type_set(tcb, TCB_CLIENT_TYPE_SERVICE);
 	    break;
-	default:
-	    ErrPrint("Packet type is not valid[%s]\n", command);
-	    return -EINVAL;
+	}
+
+	if (service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE) < 0) {
+	    ErrPrint("Unable to send service reuqest packet\n");
+	}
+	break;
+    case PACKET_ACK:
+	/* Okay, client(or app) send a reply packet to us. */
+	DbgPrint("%p ACK: Command: [%s]\n", tcb, command);
+	tcb = get_reply_context(packet_seq(packet));
+	if (!tcb) {
+	    ErrPrint("There is no proper context\n");
+	    break;
+	}
+
+	if (tcb_is_valid(s_info.svc_ctx, tcb) < 0) {
+	    ErrPrint("TCB is not valid (already disconnected?)\n");
+	    break;
+	}
+
+	if (service_common_unicast_packet(tcb, packet) < 0) {
+	    ErrPrint("Unable to send reply packet\n");
+	}
+	break;
+    default:
+	ErrPrint("Packet type is not valid[%s]\n", command);
+	return -EINVAL;
     }
 
     /*!

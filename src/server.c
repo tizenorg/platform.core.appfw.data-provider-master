@@ -462,17 +462,17 @@ static int key_event_dbox_route_cb(enum event_state state, struct event_data *ev
     }
 
     switch (state) {
-	case EVENT_STATE_ACTIVATE:
-	    cmd = CMD_DBOX_KEY_DOWN;
-	    break;
-	case EVENT_STATE_ACTIVATED:
-	    cmd = CMD_DBOX_KEY_DOWN;
-	    break;
-	case EVENT_STATE_DEACTIVATE:
-	    cmd = CMD_DBOX_KEY_UP;
-	    break;
-	default:
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+    case EVENT_STATE_ACTIVATE:
+	cmd = CMD_DBOX_KEY_DOWN;
+	break;
+    case EVENT_STATE_ACTIVATED:
+	cmd = CMD_DBOX_KEY_DOWN;
+	break;
+    case EVENT_STATE_DEACTIVATE:
+	cmd = CMD_DBOX_KEY_UP;
+	break;
+    default:
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     packet = packet_create_noack((const char *)&cmd, "ssdi", package_name(pkg), instance_id(inst), event_info->tv, event_info->keycode);
@@ -507,19 +507,17 @@ static int mouse_event_dbox_route_cb(enum event_state state, struct event_data *
     }
 
     switch (state) {
-	case EVENT_STATE_ACTIVATE:
-	    cmd = CMD_DBOX_MOUSE_DOWN;
-	    DbgPrint("DOWN: %s\n", instance_id(inst));
-	    break;
-	case EVENT_STATE_ACTIVATED:
-	    cmd = CMD_DBOX_MOUSE_MOVE;
-	    break;
-	case EVENT_STATE_DEACTIVATE:
-	    cmd = CMD_DBOX_MOUSE_UP;
-	    DbgPrint("UP: %s\n", instance_id(inst));
-	    break;
-	default:
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+    case EVENT_STATE_ACTIVATE:
+	cmd = CMD_DBOX_MOUSE_DOWN;
+	break;
+    case EVENT_STATE_ACTIVATED:
+	cmd = CMD_DBOX_MOUSE_MOVE;
+	break;
+    case EVENT_STATE_DEACTIVATE:
+	cmd = CMD_DBOX_MOUSE_UP;
+	break;
+    default:
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     packet = packet_create_noack((const char *)&cmd, "ssdii", package_name(pkg), instance_id(inst), event_info->tv, event_info->x, event_info->y);
@@ -550,21 +548,21 @@ static int key_event_dbox_consume_cb(enum event_state state, struct event_data *
     timestamp = event_info->tv;
 
     switch (state) {
-	case EVENT_STATE_ACTIVATE:
-	    script_handler_update_keycode(script, event_info->keycode);
-	    (void)script_handler_feed_event(script, DBOX_SCRIPT_KEY_DOWN, timestamp);
-	    break;
-	case EVENT_STATE_ACTIVATED:
-	    script_handler_update_keycode(script, event_info->keycode);
-	    (void)script_handler_feed_event(script, DBOX_SCRIPT_KEY_DOWN, timestamp);
-	    break;
-	case EVENT_STATE_DEACTIVATE:
-	    script_handler_update_keycode(script, event_info->keycode);
-	    (void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_UP, timestamp);
-	    break;
-	default:
-	    ErrPrint("Unknown event\n");
-	    break;
+    case EVENT_STATE_ACTIVATE:
+	script_handler_update_keycode(script, event_info->keycode);
+	(void)script_handler_feed_event(script, DBOX_SCRIPT_KEY_DOWN, timestamp);
+	break;
+    case EVENT_STATE_ACTIVATED:
+	script_handler_update_keycode(script, event_info->keycode);
+	(void)script_handler_feed_event(script, DBOX_SCRIPT_KEY_DOWN, timestamp);
+	break;
+    case EVENT_STATE_DEACTIVATE:
+	script_handler_update_keycode(script, event_info->keycode);
+	(void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_UP, timestamp);
+	break;
+    default:
+	ErrPrint("Unknown event\n");
+	break;
     }
 
     return 0;
@@ -590,20 +588,20 @@ static int mouse_event_dbox_consume_cb(enum event_state state, struct event_data
     timestamp = event_info->tv;
 
     switch (state) {
-	case EVENT_STATE_ACTIVATE:
-	    script_handler_update_pointer(script, event_info->x, event_info->y, 1);
-	    (void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_DOWN, timestamp);
-	    break;
-	case EVENT_STATE_ACTIVATED:
-	    script_handler_update_pointer(script, event_info->x, event_info->y, -1);
-	    (void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_MOVE, timestamp);
-	    break;
-	case EVENT_STATE_DEACTIVATE:
-	    script_handler_update_pointer(script, event_info->x, event_info->y, 0);
-	    (void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_UP, timestamp);
-	    break;
-	default:
-	    break;
+    case EVENT_STATE_ACTIVATE:
+	script_handler_update_pointer(script, event_info->x, event_info->y, 1);
+	(void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_DOWN, timestamp);
+	break;
+    case EVENT_STATE_ACTIVATED:
+	script_handler_update_pointer(script, event_info->x, event_info->y, -1);
+	(void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_MOVE, timestamp);
+	break;
+    case EVENT_STATE_DEACTIVATE:
+	script_handler_update_pointer(script, event_info->x, event_info->y, 0);
+	(void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_UP, timestamp);
+	break;
+    default:
+	break;
     }
 
     return 0;
@@ -633,17 +631,17 @@ static int key_event_gbar_route_cb(enum event_state state, struct event_data *ev
     }
 
     switch (state) {
-	case EVENT_STATE_ACTIVATE:
-	    cmd = CMD_GBAR_KEY_DOWN;
-	    break;
-	case EVENT_STATE_ACTIVATED:
-	    cmd = CMD_GBAR_KEY_DOWN;
-	    break;
-	case EVENT_STATE_DEACTIVATE:
-	    cmd = CMD_GBAR_KEY_UP;
-	    break;
-	default:
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+    case EVENT_STATE_ACTIVATE:
+	cmd = CMD_GBAR_KEY_DOWN;
+	break;
+    case EVENT_STATE_ACTIVATED:
+	cmd = CMD_GBAR_KEY_DOWN;
+	break;
+    case EVENT_STATE_DEACTIVATE:
+	cmd = CMD_GBAR_KEY_UP;
+	break;
+    default:
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     packet = packet_create_noack((const char *)&cmd, "ssdi", package_name(pkg), instance_id(inst), event_info->tv, event_info->keycode);
@@ -678,17 +676,17 @@ static int mouse_event_gbar_route_cb(enum event_state state, struct event_data *
     }
 
     switch (state) {
-	case EVENT_STATE_ACTIVATE:
-	    cmd = CMD_GBAR_MOUSE_DOWN;
-	    break;
-	case EVENT_STATE_ACTIVATED:
-	    cmd = CMD_GBAR_MOUSE_MOVE;
-	    break;
-	case EVENT_STATE_DEACTIVATE:
-	    cmd = CMD_GBAR_MOUSE_UP;
-	    break;
-	default:
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+    case EVENT_STATE_ACTIVATE:
+	cmd = CMD_GBAR_MOUSE_DOWN;
+	break;
+    case EVENT_STATE_ACTIVATED:
+	cmd = CMD_GBAR_MOUSE_MOVE;
+	break;
+    case EVENT_STATE_DEACTIVATE:
+	cmd = CMD_GBAR_MOUSE_UP;
+	break;
+    default:
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     packet = packet_create_noack((const char *)&cmd, "ssdii", package_name(pkg), instance_id(inst), event_info->tv, event_info->x, event_info->y);
@@ -719,21 +717,21 @@ static int key_event_gbar_consume_cb(enum event_state state, struct event_data *
     timestamp = event_info->tv;
 
     switch (state) {
-	case EVENT_STATE_ACTIVATE:
-	    script_handler_update_keycode(script, event_info->keycode);
-	    (void)script_handler_feed_event(script, DBOX_SCRIPT_KEY_DOWN, timestamp);
-	    break;
-	case EVENT_STATE_ACTIVATED:
-	    script_handler_update_keycode(script, event_info->keycode);
-	    (void)script_handler_feed_event(script, DBOX_SCRIPT_KEY_DOWN, timestamp);
-	    break;
-	case EVENT_STATE_DEACTIVATE:
-	    script_handler_update_keycode(script, event_info->keycode);
-	    (void)script_handler_feed_event(script, DBOX_SCRIPT_KEY_UP, timestamp);
-	    break;
-	default:
-	    ErrPrint("Unknown event\n");
-	    break;
+    case EVENT_STATE_ACTIVATE:
+	script_handler_update_keycode(script, event_info->keycode);
+	(void)script_handler_feed_event(script, DBOX_SCRIPT_KEY_DOWN, timestamp);
+	break;
+    case EVENT_STATE_ACTIVATED:
+	script_handler_update_keycode(script, event_info->keycode);
+	(void)script_handler_feed_event(script, DBOX_SCRIPT_KEY_DOWN, timestamp);
+	break;
+    case EVENT_STATE_DEACTIVATE:
+	script_handler_update_keycode(script, event_info->keycode);
+	(void)script_handler_feed_event(script, DBOX_SCRIPT_KEY_UP, timestamp);
+	break;
+    default:
+	ErrPrint("Unknown event\n");
+	break;
     }
 
     return 0;
@@ -759,20 +757,20 @@ static int mouse_event_gbar_consume_cb(enum event_state state, struct event_data
     timestamp = event_info->tv;
 
     switch (state) {
-	case EVENT_STATE_ACTIVATE:
-	    script_handler_update_pointer(script, event_info->x, event_info->y, 1);
-	    (void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_DOWN, timestamp);
-	    break;
-	case EVENT_STATE_ACTIVATED:
-	    script_handler_update_pointer(script, event_info->x, event_info->y, -1);
-	    (void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_MOVE, timestamp);
-	    break;
-	case EVENT_STATE_DEACTIVATE:
-	    script_handler_update_pointer(script, event_info->x, event_info->y, 0);
-	    (void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_UP, timestamp);
-	    break;
-	default:
-	    break;
+    case EVENT_STATE_ACTIVATE:
+	script_handler_update_pointer(script, event_info->x, event_info->y, 1);
+	(void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_DOWN, timestamp);
+	break;
+    case EVENT_STATE_ACTIVATED:
+	script_handler_update_pointer(script, event_info->x, event_info->y, -1);
+	(void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_MOVE, timestamp);
+	break;
+    case EVENT_STATE_DEACTIVATE:
+	script_handler_update_pointer(script, event_info->x, event_info->y, 0);
+	(void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_UP, timestamp);
+	break;
+    default:
+	break;
     }
     return 0;
 }
@@ -1124,14 +1122,14 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 	}
     } else {
 	switch (type) {
-	    case DBOX_DELETE_PERMANENTLY:
-		ret = instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
-		break;
-	    case DBOX_DELETE_TEMPORARY:
-		ret = instance_destroy(inst, DBOX_DESTROY_TYPE_TEMPORARY);
-		break;
-	    default:
-		break;
+	case DBOX_DELETE_PERMANENTLY:
+	    ret = instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+	    break;
+	case DBOX_DELETE_TEMPORARY:
+	    ret = instance_destroy(inst, DBOX_DESTROY_TYPE_TEMPORARY);
+	    break;
+	default:
+	    break;
 	}
     }
 
@@ -3494,21 +3492,21 @@ static struct packet *client_gbar_access_hl(pid_t pid, int handle, const struct 
 	}
 
 	switch (event.type) {
-	    case ACCESS_TYPE_CUR:
-		type = DBOX_SCRIPT_ACCESS_HIGHLIGHT;
-		break;
-	    case ACCESS_TYPE_NEXT:
-		type = DBOX_SCRIPT_ACCESS_HIGHLIGHT_NEXT;
-		break;
-	    case ACCESS_TYPE_PREV:
-		type = DBOX_SCRIPT_ACCESS_HIGHLIGHT_PREV;
-		break;
-	    case ACCESS_TYPE_OFF:
-		type = DBOX_SCRIPT_ACCESS_UNHIGHLIGHT;
-		break;
-	    default:
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-		goto out;
+	case ACCESS_TYPE_CUR:
+	    type = DBOX_SCRIPT_ACCESS_HIGHLIGHT;
+	    break;
+	case ACCESS_TYPE_NEXT:
+	    type = DBOX_SCRIPT_ACCESS_HIGHLIGHT_NEXT;
+	    break;
+	case ACCESS_TYPE_PREV:
+	    type = DBOX_SCRIPT_ACCESS_HIGHLIGHT_PREV;
+	    break;
+	case ACCESS_TYPE_OFF:
+	    type = DBOX_SCRIPT_ACCESS_UNHIGHLIGHT;
+	    break;
+	default:
+	    ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	    goto out;
 	}
 
 	script_handler_update_pointer(script, event.x, event.y, event.type);
@@ -3937,21 +3935,21 @@ static struct packet *client_dbox_access_hl(pid_t pid, int handle, const struct 
 	}
 
 	switch (event.type) {
-	    case ACCESS_TYPE_CUR:
-		type = DBOX_SCRIPT_ACCESS_HIGHLIGHT;
-		break;
-	    case ACCESS_TYPE_NEXT:
-		type = DBOX_SCRIPT_ACCESS_HIGHLIGHT_NEXT;
-		break;
-	    case ACCESS_TYPE_PREV:
-		type = DBOX_SCRIPT_ACCESS_HIGHLIGHT_PREV;
-		break;
-	    case ACCESS_TYPE_OFF:
-		type = DBOX_SCRIPT_ACCESS_UNHIGHLIGHT;
-		break;
-	    default:
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-		goto out;
+	case ACCESS_TYPE_CUR:
+	    type = DBOX_SCRIPT_ACCESS_HIGHLIGHT;
+	    break;
+	case ACCESS_TYPE_NEXT:
+	    type = DBOX_SCRIPT_ACCESS_HIGHLIGHT_NEXT;
+	    break;
+	case ACCESS_TYPE_PREV:
+	    type = DBOX_SCRIPT_ACCESS_HIGHLIGHT_PREV;
+	    break;
+	case ACCESS_TYPE_OFF:
+	    type = DBOX_SCRIPT_ACCESS_UNHIGHLIGHT;
+	    break;
+	default:
+	    ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	    goto out;
 	}
 
 	script_handler_update_pointer(script, event.x, event.y, event.type);
@@ -6805,27 +6803,27 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 	}
 
 	switch (package_dbox_type(instance_package(inst))) {
-	    case DBOX_TYPE_SCRIPT:
-		script_handler_resize(instance_dbox_script(inst), w, h);
-		if (safe_filename) {
-		    (void)script_handler_parse_desc(inst, safe_filename, 0);
-		} else {
-		    safe_filename = util_uri_to_path(id);
-		    (void)script_handler_parse_desc(inst, safe_filename, 0);
-		}
+	case DBOX_TYPE_SCRIPT:
+	    script_handler_resize(instance_dbox_script(inst), w, h);
+	    if (safe_filename) {
+		(void)script_handler_parse_desc(inst, safe_filename, 0);
+	    } else {
+		safe_filename = util_uri_to_path(id);
+		(void)script_handler_parse_desc(inst, safe_filename, 0);
+	    }
 
-		if (unlink(safe_filename) < 0) {
-		    ErrPrint("unlink: %s - %s\n", strerror(errno), safe_filename);
-		}
-		break;
-	    case DBOX_TYPE_BUFFER:
-	    default:
-		/*!
-		 * \check
-		 * text format (inst)
-		 */
-		instance_dbox_updated_by_instance(inst, safe_filename, x, y, w, h);
-		break;
+	    if (unlink(safe_filename) < 0) {
+		ErrPrint("unlink: %s - %s\n", strerror(errno), safe_filename);
+	    }
+	    break;
+	case DBOX_TYPE_BUFFER:
+	default:
+	    /*!
+	     * \check
+	     * text format (inst)
+	     */
+	    instance_dbox_updated_by_instance(inst, safe_filename, x, y, w, h);
+	    break;
 	}
 
 	slave_give_more_ttl(slave);
@@ -6946,20 +6944,20 @@ static struct packet *slave_desc_updated(pid_t pid, int handle, const struct pac
     }
 
     switch (package_gbar_type(instance_package(inst))) {
-	case GBAR_TYPE_SCRIPT:
-	    DbgPrint("%s updated (%s)\n", instance_id(inst), descfile);
-	    if (script_handler_is_loaded(instance_gbar_script(inst))) {
-		(void)script_handler_parse_desc(inst, descfile, 1);
-	    }
-	    break;
-	case GBAR_TYPE_TEXT:
-	    instance_set_gbar_size(inst, 0, 0);
-	case GBAR_TYPE_BUFFER:
-	    instance_gbar_updated(pkgname, id, descfile, x, y, w, h);
-	    break;
-	default:
-	    DbgPrint("Ignore updated DESC(%s)\n", pkgname);
-	    break;
+    case GBAR_TYPE_SCRIPT:
+	DbgPrint("%s updated (%s)\n", instance_id(inst), descfile);
+	if (script_handler_is_loaded(instance_gbar_script(inst))) {
+	    (void)script_handler_parse_desc(inst, descfile, 1);
+	}
+	break;
+    case GBAR_TYPE_TEXT:
+	instance_set_gbar_size(inst, 0, 0);
+    case GBAR_TYPE_BUFFER:
+	instance_gbar_updated(pkgname, id, descfile, x, y, w, h);
+	break;
+    default:
+	DbgPrint("Ignore updated DESC(%s)\n", pkgname);
+	break;
     }
 
 out:
@@ -7849,14 +7847,14 @@ out:
     static inline const char *visible_state_string(enum dynamicbox_visible_state state)
     {
 	switch (state) {
-	    case DBOX_SHOW:
-		return "Show";
-	    case DBOX_HIDE:
-		return "Hide";
-	    case DBOX_HIDE_WITH_PAUSE:
-		return "Paused";
-	    default:
-		break;
+	case DBOX_SHOW:
+	    return "Show";
+	case DBOX_HIDE:
+	    return "Hide";
+	case DBOX_HIDE_WITH_PAUSE:
+	    return "Paused";
+	default:
+	    break;
 	}
 
 	return "Unknown";

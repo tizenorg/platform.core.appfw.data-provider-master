@@ -522,60 +522,60 @@ HAPI int group_add_dynamicbox(const char *group, const char *pkgname)
 	    /* cluster{category} */
 
 	    switch (state) {
-		case CLUSTER:
-		    cluster = group_find_cluster(name);
-		    if (!cluster) {
-			cluster = group_create_cluster(name);
-		    }
+	    case CLUSTER:
+		cluster = group_find_cluster(name);
+		if (!cluster) {
+		    cluster = group_create_cluster(name);
+		}
 
-		    if (!cluster) {
-			ErrPrint("Failed to get cluster\n");
-			DbgFree(name);
-			return DBOX_STATUS_ERROR_FAULT;
-		    }
-
-		    state = CATEGORY;
-		    break;
-
-		case CATEGORY:
-		    category = group_find_category(cluster, name);
-		    if (!category) {
-			category = group_create_category(cluster, name);
-		    }
-
-		    if (!category) {
-			ErrPrint("Failed to get category\n");
-			DbgFree(name);
-			return DBOX_STATUS_ERROR_FAULT;
-		    }
-
-		    info = group_create_context_info(category, pkgname);
-		    if (!info) {
-			ErrPrint("Failed to create ctx info\n");
-			DbgFree(name);
-			return DBOX_STATUS_ERROR_FAULT;
-		    }
-
-		    state = CONTEXT_ITEM;
-		    break;
-
-		case CONTEXT_ITEM:
-		    item = group_add_context_item(info, name);
-		    if (!item) {
-			ErrPrint("Failed to create a context item\n");
-			DbgFree(name);
-			return DBOX_STATUS_ERROR_FAULT;
-		    }
-
-		    state = CONTEXT_OPTION_KEY;
-		    break;
-
-		case CONTEXT_OPTION_KEY:
-		case CONTEXT_OPTION_VALUE:
-		default:
-		    ErrPrint("Invalid state\n");
+		if (!cluster) {
+		    ErrPrint("Failed to get cluster\n");
 		    DbgFree(name);
 		    return DBOX_STATUS_ERROR_FAULT;
+		}
+
+		state = CATEGORY;
+		break;
+
+	    case CATEGORY:
+		category = group_find_category(cluster, name);
+		if (!category) {
+		    category = group_create_category(cluster, name);
+		}
+
+		if (!category) {
+		    ErrPrint("Failed to get category\n");
+		    DbgFree(name);
+		    return DBOX_STATUS_ERROR_FAULT;
+		}
+
+		info = group_create_context_info(category, pkgname);
+		if (!info) {
+		    ErrPrint("Failed to create ctx info\n");
+		    DbgFree(name);
+		    return DBOX_STATUS_ERROR_FAULT;
+		}
+
+		state = CONTEXT_ITEM;
+		break;
+
+	    case CONTEXT_ITEM:
+		item = group_add_context_item(info, name);
+		if (!item) {
+		    ErrPrint("Failed to create a context item\n");
+		    DbgFree(name);
+		    return DBOX_STATUS_ERROR_FAULT;
+		}
+
+		state = CONTEXT_OPTION_KEY;
+		break;
+
+	    case CONTEXT_OPTION_KEY:
+	    case CONTEXT_OPTION_VALUE:
+	    default:
+		ErrPrint("Invalid state\n");
+		DbgFree(name);
+		return DBOX_STATUS_ERROR_FAULT;
 	    }
 
 	    DbgFree(name);
@@ -595,32 +595,54 @@ HAPI int group_add_dynamicbox(const char *group, const char *pkgname)
 	    }
 
 	    switch (state) {
-		case CLUSTER:
-		    if (is_open != 0) {
-			ErrPrint("Invalid state\n");
-			DbgFree(name);
-			return DBOX_STATUS_ERROR_FAULT;
-		    }
-		    cluster = group_find_cluster(name);
-		    if (!cluster) {
-			cluster = group_create_cluster(name);
-		    }
+	    case CLUSTER:
+		if (is_open != 0) {
+		    ErrPrint("Invalid state\n");
+		    DbgFree(name);
+		    return DBOX_STATUS_ERROR_FAULT;
+		}
+		cluster = group_find_cluster(name);
+		if (!cluster) {
+		    cluster = group_create_cluster(name);
+		}
 
-		    if (!cluster) {
-			ErrPrint("Failed to get cluster\n");
-			DbgFree(name);
-			return DBOX_STATUS_ERROR_FAULT;
-		    }
+		if (!cluster) {
+		    ErrPrint("Failed to get cluster\n");
+		    DbgFree(name);
+		    return DBOX_STATUS_ERROR_FAULT;
+		}
 
-		    state = CATEGORY;
-		    break;
+		state = CATEGORY;
+		break;
 
-		case CATEGORY:
-		    if (is_open != 1) {
-			ErrPrint("Invalid state\n");
-			DbgFree(name);
-			return DBOX_STATUS_ERROR_FAULT;
-		    }
+	    case CATEGORY:
+		if (is_open != 1) {
+		    ErrPrint("Invalid state\n");
+		    DbgFree(name);
+		    return DBOX_STATUS_ERROR_FAULT;
+		}
+		category = group_find_category(cluster, name);
+		if (!category) {
+		    category = group_create_category(cluster, name);
+		}
+
+		if (!category) {
+		    ErrPrint("Failed to get category\n");
+		    DbgFree(name);
+		    return DBOX_STATUS_ERROR_FAULT;
+		}
+
+		info = group_create_context_info(category, pkgname);
+		if (!info) {
+		    ErrPrint("Failed to create ctx info\n");
+		    DbgFree(name);
+		    return DBOX_STATUS_ERROR_FAULT;
+		}
+
+		state = CONTEXT_ITEM;
+		break;
+	    case CONTEXT_ITEM:
+		if (is_open == 1) {
 		    category = group_find_category(cluster, name);
 		    if (!category) {
 			category = group_create_category(cluster, name);
@@ -638,64 +660,42 @@ HAPI int group_add_dynamicbox(const char *group, const char *pkgname)
 			DbgFree(name);
 			return DBOX_STATUS_ERROR_FAULT;
 		    }
-
-		    state = CONTEXT_ITEM;
-		    break;
-		case CONTEXT_ITEM:
-		    if (is_open == 1) {
-			category = group_find_category(cluster, name);
-			if (!category) {
-			    category = group_create_category(cluster, name);
-			}
-
-			if (!category) {
-			    ErrPrint("Failed to get category\n");
-			    DbgFree(name);
-			    return DBOX_STATUS_ERROR_FAULT;
-			}
-
-			info = group_create_context_info(category, pkgname);
-			if (!info) {
-			    ErrPrint("Failed to create ctx info\n");
-			    DbgFree(name);
-			    return DBOX_STATUS_ERROR_FAULT;
-			}
-		    } else if (is_open == 2) {
-			item = group_add_context_item(info, name);
-			if (!item) {
-			    ErrPrint("Failed to create a context item\n");
-			    DbgFree(name);
-			    return DBOX_STATUS_ERROR_FAULT;
-			}
-			state = CONTEXT_OPTION_KEY;
-		    } else {
-			ErrPrint("Invalid state\n");
+		} else if (is_open == 2) {
+		    item = group_add_context_item(info, name);
+		    if (!item) {
+			ErrPrint("Failed to create a context item\n");
 			DbgFree(name);
 			return DBOX_STATUS_ERROR_FAULT;
 		    }
-
-		    break;
-		case CONTEXT_OPTION_VALUE:
-		    if (is_open != 3) {
-			ErrPrint("Invalid state\n");
-			DbgFree(name);
-			return DBOX_STATUS_ERROR_FAULT;
-		    }
-
-		    if (group_add_option(item, key, name) < 0) {
-			ErrPrint("Failed to add a new option: %s - %s\n", key, name);
-		    }
-
-		    DbgFree(key);
-		    key = NULL;
-
 		    state = CONTEXT_OPTION_KEY;
-		    break;
-		case CONTEXT_OPTION_KEY:
-		default:
-		    ErrPrint("Invalid state (%s)\n", name);
+		} else {
+		    ErrPrint("Invalid state\n");
 		    DbgFree(name);
 		    return DBOX_STATUS_ERROR_FAULT;
+		}
+
+		break;
+	    case CONTEXT_OPTION_VALUE:
+		if (is_open != 3) {
+		    ErrPrint("Invalid state\n");
+		    DbgFree(name);
+		    return DBOX_STATUS_ERROR_FAULT;
+		}
+
+		if (group_add_option(item, key, name) < 0) {
+		    ErrPrint("Failed to add a new option: %s - %s\n", key, name);
+		}
+
+		DbgFree(key);
+		key = NULL;
+
+		state = CONTEXT_OPTION_KEY;
+		break;
+	    case CONTEXT_OPTION_KEY:
+	    default:
+		ErrPrint("Invalid state (%s)\n", name);
+		DbgFree(name);
+		return DBOX_STATUS_ERROR_FAULT;
 	    }
 
 	    DbgFree(name);
@@ -737,7 +737,29 @@ HAPI int group_add_dynamicbox(const char *group, const char *pkgname)
 	    }
 
 	    switch (state) {
-		case CATEGORY:
+	    case CATEGORY:
+		category = group_find_category(cluster, name);
+		if (!category) {
+		    category = group_create_category(cluster, name);
+		}
+
+		if (!category) {
+		    ErrPrint("Failed to get category\n");
+		    DbgFree(name);
+		    return DBOX_STATUS_ERROR_FAULT;
+		}
+
+		info = group_create_context_info(category, pkgname);
+		if (!info) {
+		    ErrPrint("Failed to create ctx info\n");
+		    DbgFree(name);
+		    return DBOX_STATUS_ERROR_FAULT;
+		}
+
+		state = CLUSTER;
+		break;
+	    case CONTEXT_ITEM:
+		if (is_open == 1) {
 		    category = group_find_category(cluster, name);
 		    if (!category) {
 			category = group_create_category(cluster, name);
@@ -757,57 +779,35 @@ HAPI int group_add_dynamicbox(const char *group, const char *pkgname)
 		    }
 
 		    state = CLUSTER;
-		    break;
-		case CONTEXT_ITEM:
-		    if (is_open == 1) {
-			category = group_find_category(cluster, name);
-			if (!category) {
-			    category = group_create_category(cluster, name);
-			}
-
-			if (!category) {
-			    ErrPrint("Failed to get category\n");
-			    DbgFree(name);
-			    return DBOX_STATUS_ERROR_FAULT;
-			}
-
-			info = group_create_context_info(category, pkgname);
-			if (!info) {
-			    ErrPrint("Failed to create ctx info\n");
-			    DbgFree(name);
-			    return DBOX_STATUS_ERROR_FAULT;
-			}
-
-			state = CLUSTER;
-		    } else if (is_open == 2) {
-			state = CATEGORY;
-		    } else {
-			ErrPrint("Invalid state\n");
-			DbgFree(name);
-			return DBOX_STATUS_ERROR_FAULT;
-		    }
-		    break;
-		case CONTEXT_OPTION_VALUE:
-		    if (is_open != 2) {
-			ErrPrint("Invalid state (%s)\n", name);
-			DbgFree(name);
-			return DBOX_STATUS_ERROR_FAULT;
-		    }
-
-		    if (group_add_option(item, key, name) < 0) {
-			ErrPrint("Failed to add a new option: %s - %s\n", key, name);
-		    }
-
-		    DbgFree(key);
-		    key = NULL;
-
-		    state = CONTEXT_ITEM;
-		    break;
-		case CONTEXT_OPTION_KEY:
-		case CLUSTER:
-		default:
+		} else if (is_open == 2) {
+		    state = CATEGORY;
+		} else {
+		    ErrPrint("Invalid state\n");
+		    DbgFree(name);
+		    return DBOX_STATUS_ERROR_FAULT;
+		}
+		break;
+	    case CONTEXT_OPTION_VALUE:
+		if (is_open != 2) {
 		    ErrPrint("Invalid state (%s)\n", name);
-		    break;
+		    DbgFree(name);
+		    return DBOX_STATUS_ERROR_FAULT;
+		}
+
+		if (group_add_option(item, key, name) < 0) {
+		    ErrPrint("Failed to add a new option: %s - %s\n", key, name);
+		}
+
+		DbgFree(key);
+		key = NULL;
+
+		state = CONTEXT_ITEM;
+		break;
+	    case CONTEXT_OPTION_KEY:
+	    case CLUSTER:
+	    default:
+		ErrPrint("Invalid state (%s)\n", name);
+		break;
 	    }
 
 	    DbgFree(name);

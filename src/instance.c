@@ -270,20 +270,20 @@ static inline int instance_recover_visible_state(struct inst_info *inst)
     int ret;
 
     switch (inst->visible) {
-	case DBOX_SHOW:
-	case DBOX_HIDE:
-	    instance_thaw_updator(inst);
+    case DBOX_SHOW:
+    case DBOX_HIDE:
+	instance_thaw_updator(inst);
 
-	    ret = 0;
-	    break;
-	case DBOX_HIDE_WITH_PAUSE:
-	    ret = pause_dynamicbox(inst);
+	ret = 0;
+	break;
+    case DBOX_HIDE_WITH_PAUSE:
+	ret = pause_dynamicbox(inst);
 
-	    instance_freeze_updator(inst);
-	    break;
-	default:
-	    ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	    break;
+	instance_freeze_updator(inst);
+	break;
+    default:
+	ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	break;
     }
 
     DbgPrint("Visible state is recovered to %d\n", ret);
@@ -607,16 +607,16 @@ HAPI int instance_event_callback_is_added(struct inst_info *inst, enum instance_
     }
 
     switch (type) {
-	case INSTANCE_EVENT_DESTROY:
-	    EINA_LIST_FOREACH(inst->delete_event_list, l, item) {
-		if (item->event_cb == event_cb && item->data == data) {
-		    return 1;
-		}
+    case INSTANCE_EVENT_DESTROY:
+	EINA_LIST_FOREACH(inst->delete_event_list, l, item) {
+	    if (item->event_cb == event_cb && item->data == data) {
+		return 1;
 	    }
+	}
 
-	    break;
-	default:
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	break;
+    default:
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     return 0;
@@ -631,21 +631,21 @@ HAPI int instance_event_callback_add(struct inst_info *inst, enum instance_event
     }
 
     switch (type) {
-	case INSTANCE_EVENT_DESTROY:
-	    item = malloc(sizeof(*item));
-	    if (!item) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
-	    }
+    case INSTANCE_EVENT_DESTROY:
+	item = malloc(sizeof(*item));
+	if (!item) {
+	    ErrPrint("Heap: %s\n", strerror(errno));
+	    return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+	}
 
-	    item->event_cb = event_cb;
-	    item->data = data;
-	    item->deleted = 0;
+	item->event_cb = event_cb;
+	item->data = data;
+	item->deleted = 0;
 
-	    inst->delete_event_list = eina_list_append(inst->delete_event_list, item);
-	    break;
-	default:
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	inst->delete_event_list = eina_list_append(inst->delete_event_list, item);
+	break;
+    default:
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     return DBOX_STATUS_ERROR_NONE;
@@ -658,21 +658,21 @@ HAPI int instance_event_callback_del(struct inst_info *inst, enum instance_event
     struct event_item *item;
 
     switch (type) {
-	case INSTANCE_EVENT_DESTROY:
-	    EINA_LIST_FOREACH_SAFE(inst->delete_event_list, l, n, item) {
-		if (item->event_cb == event_cb && item->data == data) {
-		    if (inst->in_event_process & INST_EVENT_PROCESS_DELETE) {
-			item->deleted = 1;
-		    } else {
-			inst->delete_event_list = eina_list_remove(inst->delete_event_list, item);
-			DbgFree(item);
-		    }
-		    return DBOX_STATUS_ERROR_NONE;
+    case INSTANCE_EVENT_DESTROY:
+	EINA_LIST_FOREACH_SAFE(inst->delete_event_list, l, n, item) {
+	    if (item->event_cb == event_cb && item->data == data) {
+		if (inst->in_event_process & INST_EVENT_PROCESS_DELETE) {
+		    item->deleted = 1;
+		} else {
+		    inst->delete_event_list = eina_list_remove(inst->delete_event_list, item);
+		    DbgFree(item);
 		}
+		return DBOX_STATUS_ERROR_NONE;
 	    }
-	    break;
-	default:
-	    break;
+	}
+	break;
+    default:
+	break;
     }
 
     return DBOX_STATUS_ERROR_NOT_EXIST;
@@ -825,7 +825,7 @@ static inline int fork_package(struct inst_info *inst, const char *pkgname)
 
     inst->info = info;
 
-    if (package_secured(info)) {
+    if (package_secured(info) || (DBOX_IS_INHOUSE(package_abi(info)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL)) {
 	if (inst->dbox.period > 0.0f) {
 	    inst->update_timer = util_timer_add(inst->dbox.period, update_timer_cb, inst);
 	    if (!inst->update_timer) {
@@ -1008,59 +1008,59 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
     }
 
     switch (ret) {
-	case 0:
-	    /*!
-	     * \note
-	     * Successfully unloaded
-	     */
-	    switch (inst->requested_state) {
-		case INST_ACTIVATED:
-		    instance_state_reset(inst);
-		    instance_reactivate(inst);
-		    break;
-		case INST_DESTROYED:
-		    if (inst->unicast_delete_event) {
-			instance_unicast_deleted_event(inst, NULL, ret);
-		    } else {
-			instance_broadcast_deleted_event(inst, ret);
-		    }
-		    instance_state_reset(inst);
-		    instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
-		default:
-		    /*!< Unable to reach here */
-		    break;
-	    }
-
+    case 0:
+	/*!
+	 * \note
+	 * Successfully unloaded
+	 */
+	switch (inst->requested_state) {
+	case INST_ACTIVATED:
+	    instance_state_reset(inst);
+	    instance_reactivate(inst);
 	    break;
-	case DBOX_STATUS_ERROR_INVALID_PARAMETER:
-	    /*!
-	     * \note
-	     * Slave has no instance of this package.
-	     */
-	case DBOX_STATUS_ERROR_NOT_EXIST:
-	    /*!
-	     * \note
-	     * This instance's previous state is only can be the INST_ACTIVATED.
-	     * So we should care the slave_unload_instance from here.
-	     * And we should send notification to clients, about this is deleted.
-	     */
-	    /*!
-	     * \note
-	     * Slave has no instance of this.
-	     * In this case, ignore the requested_state
-	     * Because, this instance is already met a problem.
-	     */
-	default:
-	    /*!
-	     * \note
-	     * Failed to unload this instance.
-	     * This is not possible, slave will always return DBOX_STATUS_ERROR_NOT_EXIST, DBOX_STATUS_ERROR_INVALID_PARAMETER, or 0.
-	     * but care this exceptional case.
-	     */
-	    instance_broadcast_deleted_event(inst, ret);
+	case INST_DESTROYED:
+	    if (inst->unicast_delete_event) {
+		instance_unicast_deleted_event(inst, NULL, ret);
+	    } else {
+		instance_broadcast_deleted_event(inst, ret);
+	    }
 	    instance_state_reset(inst);
 	    instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+	default:
+	    /*!< Unable to reach here */
 	    break;
+	}
+
+	break;
+    case DBOX_STATUS_ERROR_INVALID_PARAMETER:
+	/*!
+	 * \note
+	 * Slave has no instance of this package.
+	 */
+    case DBOX_STATUS_ERROR_NOT_EXIST:
+	/*!
+	 * \note
+	 * This instance's previous state is only can be the INST_ACTIVATED.
+	 * So we should care the slave_unload_instance from here.
+	 * And we should send notification to clients, about this is deleted.
+	 */
+	/*!
+	 * \note
+	 * Slave has no instance of this.
+	 * In this case, ignore the requested_state
+	 * Because, this instance is already met a problem.
+	 */
+    default:
+	/*!
+	 * \note
+	 * Failed to unload this instance.
+	 * This is not possible, slave will always return DBOX_STATUS_ERROR_NOT_EXIST, DBOX_STATUS_ERROR_INVALID_PARAMETER, or 0.
+	 * but care this exceptional case.
+	 */
+	instance_broadcast_deleted_event(inst, ret);
+	instance_state_reset(inst);
+	instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+	break;
     }
 
 out:
@@ -1131,99 +1131,99 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
     }
 
     switch (ret) {
-	case 0: /*!< normally created */
-	    inst->state = INST_ACTIVATED;
-	    switch (inst->requested_state) {
-		case INST_DESTROYED:
-		    instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
-		    break;
-		case INST_ACTIVATED:
-		    inst->is_pinned_up = is_pinned_up;
-		    dbox_type = package_dbox_type(inst->info);
-		    gbar_type = package_gbar_type(inst->info);
-
-		    /*!
-		     * \note
-		     * Optimization point.
-		     *   In case of the BUFFER type,
-		     *   the slave will request the buffer to render its contents.
-		     *   so the buffer will be automatcially recreated when it gots the
-		     *   buffer request packet.
-		     *   so load a buffer from here is not neccessary.
-		     *   I should to revise it and concrete the concept.
-		     *   Just leave it only for now.
-		     */
-
-		    if (dbox_type == DBOX_TYPE_SCRIPT && inst->dbox.canvas.script) {
-			script_handler_load(inst->dbox.canvas.script, 0);
-		    } else if (dbox_type == DBOX_TYPE_BUFFER && inst->dbox.canvas.buffer) {
-			buffer_handler_load(inst->dbox.canvas.buffer);
-		    }
-
-		    if (gbar_type == GBAR_TYPE_SCRIPT && inst->gbar.canvas.script && inst->gbar.is_opened_for_reactivate) {
-			double x, y;
-			/*!
-			 * \note
-			 * We should to send a request to open a GBAR to slave.
-			 * if we didn't send it, the slave will not recognize the state of a GBAR.
-			 * We have to keep the view of GBAR seamless even if the dynamicbox is reactivated.
-			 * To do that, send open request from here.
-			 */
-			ret = instance_slave_open_gbar(inst, NULL);
-			instance_slave_get_gbar_pos(inst, &x, &y);
-
-			/*!
-			 * \note
-			 * In this case, master already loads the GBAR script.
-			 * So just send the gbar,show event to the slave again.
-			 */
-			ret = instance_signal_emit(inst, "gbar,show", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
-		    } else if (gbar_type == GBAR_TYPE_BUFFER && inst->gbar.canvas.buffer && inst->gbar.is_opened_for_reactivate) {
-			double x, y;
-
-			buffer_handler_load(inst->gbar.canvas.buffer);
-			instance_slave_get_gbar_pos(inst, &x, &y);
-
-			/*!
-			 * \note
-			 * We should to send a request to open a GBAR to slave.
-			 * if we didn't send it, the slave will not recognize the state of a GBAR.
-			 * We have to keep the view of GBAR seamless even if the dynamicbox is reactivated.
-			 * To do that, send open request from here.
-			 */
-			ret = instance_slave_open_gbar(inst, NULL);
-
-			/*!
-			 * \note
-			 * In this case, just send the gbar,show event for keeping the compatibility
-			 */
-			ret = instance_signal_emit(inst, "gbar,show", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
-		    }
-
-		    /*!
-		     * \note
-		     * After create an instance again,
-		     * Send resize request to the dynamicbox.
-		     * instance_resize(inst, inst->dbox.width, inst->dbox.height);
-		     *
-		     * renew request will resize the dynamicbox while creating it again
-		     */
-
-		    /*!
-		     * \note
-		     * This function will check the visiblity of a dynamicbox and
-		     * make decision whether it thaw the update timer or not.
-		     */
-		    instance_recover_visible_state(inst);
-		default:
-		    break;
-	    }
-	    break;
-	default:
-	    instance_broadcast_deleted_event(inst, ret);
-	    instance_state_reset(inst);
+    case 0: /*!< normally created */
+	inst->state = INST_ACTIVATED;
+	switch (inst->requested_state) {
+	case INST_DESTROYED:
 	    instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
 	    break;
+	case INST_ACTIVATED:
+	    inst->is_pinned_up = is_pinned_up;
+	    dbox_type = package_dbox_type(inst->info);
+	    gbar_type = package_gbar_type(inst->info);
+
+	    /*!
+	     * \note
+	     * Optimization point.
+	     *   In case of the BUFFER type,
+	     *   the slave will request the buffer to render its contents.
+	     *   so the buffer will be automatcially recreated when it gots the
+	     *   buffer request packet.
+	     *   so load a buffer from here is not neccessary.
+	     *   I should to revise it and concrete the concept.
+	     *   Just leave it only for now.
+	     */
+
+	    if (dbox_type == DBOX_TYPE_SCRIPT && inst->dbox.canvas.script) {
+		script_handler_load(inst->dbox.canvas.script, 0);
+	    } else if (dbox_type == DBOX_TYPE_BUFFER && inst->dbox.canvas.buffer) {
+		buffer_handler_load(inst->dbox.canvas.buffer);
+	    }
+
+	    if (gbar_type == GBAR_TYPE_SCRIPT && inst->gbar.canvas.script && inst->gbar.is_opened_for_reactivate) {
+		double x, y;
+		/*!
+		 * \note
+		 * We should to send a request to open a GBAR to slave.
+		 * if we didn't send it, the slave will not recognize the state of a GBAR.
+		 * We have to keep the view of GBAR seamless even if the dynamicbox is reactivated.
+		 * To do that, send open request from here.
+		 */
+		ret = instance_slave_open_gbar(inst, NULL);
+		instance_slave_get_gbar_pos(inst, &x, &y);
+
+		/*!
+		 * \note
+		 * In this case, master already loads the GBAR script.
+		 * So just send the gbar,show event to the slave again.
+		 */
+		ret = instance_signal_emit(inst, "gbar,show", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
+	    } else if (gbar_type == GBAR_TYPE_BUFFER && inst->gbar.canvas.buffer && inst->gbar.is_opened_for_reactivate) {
+		double x, y;
+
+		buffer_handler_load(inst->gbar.canvas.buffer);
+		instance_slave_get_gbar_pos(inst, &x, &y);
+
+		/*!
+		 * \note
+		 * We should to send a request to open a GBAR to slave.
+		 * if we didn't send it, the slave will not recognize the state of a GBAR.
+		 * We have to keep the view of GBAR seamless even if the dynamicbox is reactivated.
+		 * To do that, send open request from here.
+		 */
+		ret = instance_slave_open_gbar(inst, NULL);
+
+		/*!
+		 * \note
+		 * In this case, just send the gbar,show event for keeping the compatibility
+		 */
+		ret = instance_signal_emit(inst, "gbar,show", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
+	    }
+
+	    /*!
+	     * \note
+	     * After create an instance again,
+	     * Send resize request to the dynamicbox.
+	     * instance_resize(inst, inst->dbox.width, inst->dbox.height);
+	     *
+	     * renew request will resize the dynamicbox while creating it again
+	     */
+
+	    /*!
+	     * \note
+	     * This function will check the visiblity of a dynamicbox and
+	     * make decision whether it thaw the update timer or not.
+	     */
+	    instance_recover_visible_state(inst);
+	default:
+	    break;
+	}
+	break;
+    default:
+	instance_broadcast_deleted_event(inst, ret);
+	instance_state_reset(inst);
+	instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+	break;
     }
 
 out:
@@ -1271,91 +1271,91 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
     }
 
     switch (ret) {
-	case 1: /*!< need to create */
-	    if (util_free_space(DYNAMICBOX_CONF_IMAGE_PATH) > DYNAMICBOX_CONF_MINIMUM_SPACE) {
-		struct inst_info *new_inst;
-		new_inst = instance_create(inst->client, util_timestamp(), package_name(inst->info),
-			inst->content, inst->cluster, inst->category,
-			inst->dbox.period, 0, 0);
-		if (!new_inst) {
-		    ErrPrint("Failed to create a new instance\n");
-		}
-	    } else {
-		ErrPrint("Not enough space\n");
+    case 1: /*!< need to create */
+	if (util_free_space(DYNAMICBOX_CONF_IMAGE_PATH) > DYNAMICBOX_CONF_MINIMUM_SPACE) {
+	    struct inst_info *new_inst;
+	    new_inst = instance_create(inst->client, util_timestamp(), package_name(inst->info),
+		    inst->content, inst->cluster, inst->category,
+		    inst->dbox.period, 0, 0);
+	    if (!new_inst) {
+		ErrPrint("Failed to create a new instance\n");
 	    }
-	case 0: /*!< normally created */
-	    /*!
-	     * \note
-	     * Anyway this instance is loaded to the slave,
-	     * just increase the loaded instance counter
-	     * And then reset jobs.
+	} else {
+	    ErrPrint("Not enough space\n");
+	}
+    case 0: /*!< normally created */
+	/*!
+	 * \note
+	 * Anyway this instance is loaded to the slave,
+	 * just increase the loaded instance counter
+	 * And then reset jobs.
+	 */
+	instance_set_dbox_size(inst, w, h);
+	instance_set_dbox_info(inst, priority, content, title);
+
+	inst->state = INST_ACTIVATED;
+
+	switch (inst->requested_state) {
+	case INST_DESTROYED:
+	    /**
+	     * In this case, we should destroy the instance.
 	     */
-	    instance_set_dbox_size(inst, w, h);
-	    instance_set_dbox_info(inst, priority, content, title);
-
-	    inst->state = INST_ACTIVATED;
-
-	    switch (inst->requested_state) {
-		case INST_DESTROYED:
-		    /**
-		     * In this case, we should destroy the instance.
-		     */
-		    instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
-		    break;
-		case INST_ACTIVATED:
-		default:
-		    /**
-		     * @note
-		     * DBOX should be created at the create time
-		     */
-		    inst->is_pinned_up = is_pinned_up;
-		    if (package_dbox_type(inst->info) == DBOX_TYPE_SCRIPT) {
-			if (inst->dbox.width == 0 && inst->dbox.height == 0) {
-			    dynamicbox_service_get_size(DBOX_SIZE_TYPE_1x1, &inst->dbox.width, &inst->dbox.height);
-			}
-
-			inst->dbox.canvas.script = script_handler_create(inst,
-				package_dbox_path(inst->info),
-				package_dbox_group(inst->info),
-				inst->dbox.width, inst->dbox.height);
-
-			if (!inst->dbox.canvas.script) {
-			    ErrPrint("Failed to create DBOX\n");
-			} else {
-			    script_handler_load(inst->dbox.canvas.script, 0);
-			}
-		    } else if (package_dbox_type(inst->info) == DBOX_TYPE_BUFFER) {
-			instance_create_dbox_buffer(inst, DYNAMICBOX_CONF_DEFAULT_PIXELS);
-		    }
-
-		    if (package_gbar_type(inst->info) == GBAR_TYPE_SCRIPT) {
-			if (inst->gbar.width == 0 && inst->gbar.height == 0) {
-			    instance_set_gbar_size(inst, package_gbar_width(inst->info), package_gbar_height(inst->info));
-			}
-
-			inst->gbar.canvas.script = script_handler_create(inst,
-				package_gbar_path(inst->info),
-				package_gbar_group(inst->info),
-				inst->gbar.width, inst->gbar.height);
-
-			if (!inst->gbar.canvas.script) {
-			    ErrPrint("Failed to create GBAR\n");
-			}
-		    } else if (package_gbar_type(inst->info) == GBAR_TYPE_BUFFER) {
-			instance_create_gbar_buffer(inst, DYNAMICBOX_CONF_DEFAULT_PIXELS);
-		    }
-
-		    instance_broadcast_created_event(inst);
-
-		    instance_thaw_updator(inst);
-		    break;
-	    }
-	    break;
-	default:
-	    instance_unicast_deleted_event(inst, NULL, ret);
-	    instance_state_reset(inst);
 	    instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
 	    break;
+	case INST_ACTIVATED:
+	default:
+	    /**
+	     * @note
+	     * DBOX should be created at the create time
+	     */
+	    inst->is_pinned_up = is_pinned_up;
+	    if (package_dbox_type(inst->info) == DBOX_TYPE_SCRIPT) {
+		if (inst->dbox.width == 0 && inst->dbox.height == 0) {
+		    dynamicbox_service_get_size(DBOX_SIZE_TYPE_1x1, &inst->dbox.width, &inst->dbox.height);
+		}
+
+		inst->dbox.canvas.script = script_handler_create(inst,
+			package_dbox_path(inst->info),
+			package_dbox_group(inst->info),
+			inst->dbox.width, inst->dbox.height);
+
+		if (!inst->dbox.canvas.script) {
+		    ErrPrint("Failed to create DBOX\n");
+		} else {
+		    script_handler_load(inst->dbox.canvas.script, 0);
+		}
+	    } else if (package_dbox_type(inst->info) == DBOX_TYPE_BUFFER) {
+		instance_create_dbox_buffer(inst, DYNAMICBOX_CONF_DEFAULT_PIXELS);
+	    }
+
+	    if (package_gbar_type(inst->info) == GBAR_TYPE_SCRIPT) {
+		if (inst->gbar.width == 0 && inst->gbar.height == 0) {
+		    instance_set_gbar_size(inst, package_gbar_width(inst->info), package_gbar_height(inst->info));
+		}
+
+		inst->gbar.canvas.script = script_handler_create(inst,
+			package_gbar_path(inst->info),
+			package_gbar_group(inst->info),
+			inst->gbar.width, inst->gbar.height);
+
+		if (!inst->gbar.canvas.script) {
+		    ErrPrint("Failed to create GBAR\n");
+		}
+	    } else if (package_gbar_type(inst->info) == GBAR_TYPE_BUFFER) {
+		instance_create_gbar_buffer(inst, DYNAMICBOX_CONF_DEFAULT_PIXELS);
+	    }
+
+	    instance_broadcast_created_event(inst);
+
+	    instance_thaw_updator(inst);
+	    break;
+	}
+	break;
+    default:
+	instance_unicast_deleted_event(inst, NULL, ret);
+	instance_state_reset(inst);
+	instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+	break;
     }
 
 out:
@@ -1454,21 +1454,21 @@ HAPI int instance_destroy(struct inst_info *inst, dynamicbox_destroy_type_e type
     }
 
     switch (inst->state) {
-	case INST_REQUEST_TO_ACTIVATE:
-	case INST_REQUEST_TO_DESTROY:
-	case INST_REQUEST_TO_REACTIVATE:
-	    inst->requested_state = INST_DESTROYED;
-	    return DBOX_STATUS_ERROR_NONE;
-	case INST_INIT:
-	    inst->state = INST_DESTROYED;
-	    inst->requested_state = INST_DESTROYED;
-	    (void)instance_unref(inst);
-	    return DBOX_STATUS_ERROR_NONE;
-	case INST_DESTROYED:
-	    inst->requested_state = INST_DESTROYED;
-	    return DBOX_STATUS_ERROR_NONE;
-	default:
-	    break;
+    case INST_REQUEST_TO_ACTIVATE:
+    case INST_REQUEST_TO_DESTROY:
+    case INST_REQUEST_TO_REACTIVATE:
+	inst->requested_state = INST_DESTROYED;
+	return DBOX_STATUS_ERROR_NONE;
+    case INST_INIT:
+	inst->state = INST_DESTROYED;
+	inst->requested_state = INST_DESTROYED;
+	(void)instance_unref(inst);
+	return DBOX_STATUS_ERROR_NONE;
+    case INST_DESTROYED:
+	inst->requested_state = INST_DESTROYED;
+	return DBOX_STATUS_ERROR_NONE;
+    default:
+	break;
     }
 
     packet = packet_create((const char *)&cmd, "ssi", package_name(inst->info), inst->id, type);
@@ -1498,21 +1498,21 @@ HAPI int instance_reload(struct inst_info *inst, dynamicbox_destroy_type_e type)
     DbgPrint("Reload instance (%s)\n", instance_id(inst));
 
     switch (inst->state) {
-	case INST_REQUEST_TO_ACTIVATE:
-	case INST_REQUEST_TO_REACTIVATE:
-	    return DBOX_STATUS_ERROR_NONE;
-	case INST_INIT:
-	    ret = instance_activate(inst);
-	    if (ret < 0) {
-		ErrPrint("Failed to activate instance: %d (%s)\n", ret, instance_id(inst));
-	    }
-	    return DBOX_STATUS_ERROR_NONE;
-	case INST_DESTROYED:
-	case INST_REQUEST_TO_DESTROY:
-	    DbgPrint("Instance is destroying now\n");
-	    return DBOX_STATUS_ERROR_NONE;
-	default:
-	    break;
+    case INST_REQUEST_TO_ACTIVATE:
+    case INST_REQUEST_TO_REACTIVATE:
+	return DBOX_STATUS_ERROR_NONE;
+    case INST_INIT:
+	ret = instance_activate(inst);
+	if (ret < 0) {
+	    ErrPrint("Failed to activate instance: %d (%s)\n", ret, instance_id(inst));
+	}
+	return DBOX_STATUS_ERROR_NONE;
+    case INST_DESTROYED:
+    case INST_REQUEST_TO_DESTROY:
+	DbgPrint("Instance is destroying now\n");
+	return DBOX_STATUS_ERROR_NONE;
+    default:
+	break;
     }
 
     packet = packet_create((const char *)&cmd, "ssi", package_name(inst->info), inst->id, type);
@@ -1656,17 +1656,17 @@ HAPI int instance_reactivate(struct inst_info *inst)
     }
 
     switch (inst->state) {
-	case INST_REQUEST_TO_DESTROY:
-	case INST_REQUEST_TO_ACTIVATE:
-	case INST_REQUEST_TO_REACTIVATE:
-	    inst->requested_state = INST_ACTIVATED;
-	    return DBOX_STATUS_ERROR_NONE;
-	case INST_DESTROYED:
-	case INST_ACTIVATED:
-	    return DBOX_STATUS_ERROR_NONE;
-	case INST_INIT:
-	default:
-	    break;
+    case INST_REQUEST_TO_DESTROY:
+    case INST_REQUEST_TO_ACTIVATE:
+    case INST_REQUEST_TO_REACTIVATE:
+	inst->requested_state = INST_ACTIVATED;
+	return DBOX_STATUS_ERROR_NONE;
+    case INST_DESTROYED:
+    case INST_ACTIVATED:
+	return DBOX_STATUS_ERROR_NONE;
+    case INST_INIT:
+    default:
+	break;
     }
 
     packet = packet_create((const char *)&cmd, "sssiidssiisiis",
@@ -1724,17 +1724,17 @@ HAPI int instance_activate(struct inst_info *inst)
     }
 
     switch (inst->state) {
-	case INST_REQUEST_TO_REACTIVATE:
-	case INST_REQUEST_TO_ACTIVATE:
-	case INST_REQUEST_TO_DESTROY:
-	    inst->requested_state = INST_ACTIVATED;
-	    return DBOX_STATUS_ERROR_NONE;
-	case INST_ACTIVATED:
-	case INST_DESTROYED:
-	    return DBOX_STATUS_ERROR_NONE;
-	case INST_INIT:
-	default:
-	    break;
+    case INST_REQUEST_TO_REACTIVATE:
+    case INST_REQUEST_TO_ACTIVATE:
+    case INST_REQUEST_TO_DESTROY:
+	inst->requested_state = INST_ACTIVATED;
+	return DBOX_STATUS_ERROR_NONE;
+    case INST_ACTIVATED:
+    case INST_DESTROYED:
+	return DBOX_STATUS_ERROR_NONE;
+    case INST_INIT:
+    default:
+	break;
     }
 
     packet = packet_create((const char *)&cmd, "sssiidssisiis",
@@ -1791,23 +1791,23 @@ HAPI int instance_dbox_update_begin(struct inst_info *inst, double priority, con
     }
 
     switch (package_dbox_type(inst->info)) {
-	case DBOX_TYPE_BUFFER:
-	    if (!inst->dbox.canvas.buffer) {
-		ErrPrint("Buffer is null [%s]\n", inst->id);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	    }
-	    fbfile = buffer_handler_id(inst->dbox.canvas.buffer);
-	    break;
-	case DBOX_TYPE_SCRIPT:
-	    if (!inst->dbox.canvas.script) {
-		ErrPrint("Script is null [%s]\n", inst->id);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	    }
-	    fbfile = script_handler_buffer_id(inst->dbox.canvas.script);
-	    break;
-	default:
-	    ErrPrint("Invalid request[%s]\n", inst->id);
+    case DBOX_TYPE_BUFFER:
+	if (!inst->dbox.canvas.buffer) {
+	    ErrPrint("Buffer is null [%s]\n", inst->id);
 	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+	fbfile = buffer_handler_id(inst->dbox.canvas.buffer);
+	break;
+    case DBOX_TYPE_SCRIPT:
+	if (!inst->dbox.canvas.script) {
+	    ErrPrint("Script is null [%s]\n", inst->id);
+	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+	fbfile = script_handler_buffer_id(inst->dbox.canvas.script);
+	break;
+    default:
+	ErrPrint("Invalid request[%s]\n", inst->id);
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     packet = packet_create_noack((const char *)&cmd, "ssdsss", package_name(inst->info), inst->id, priority, content, title, fbfile);
@@ -1830,21 +1830,21 @@ HAPI int instance_dbox_update_end(struct inst_info *inst)
     }
 
     switch (package_dbox_type(inst->info)) {
-	case DBOX_TYPE_BUFFER:
-	    if (!inst->dbox.canvas.buffer) {
-		ErrPrint("Buffer is null [%s]\n", inst->id);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	    }
-	    break;
-	case DBOX_TYPE_SCRIPT:
-	    if (!inst->dbox.canvas.script) {
-		ErrPrint("Script is null [%s]\n", inst->id);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	    }
-	    break;
-	default:
-	    ErrPrint("Invalid request[%s]\n", inst->id);
+    case DBOX_TYPE_BUFFER:
+	if (!inst->dbox.canvas.buffer) {
+	    ErrPrint("Buffer is null [%s]\n", inst->id);
 	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+	break;
+    case DBOX_TYPE_SCRIPT:
+	if (!inst->dbox.canvas.script) {
+	    ErrPrint("Script is null [%s]\n", inst->id);
+	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+	break;
+    default:
+	ErrPrint("Invalid request[%s]\n", inst->id);
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     packet = packet_create_noack((const char *)&cmd, "ss", package_name(inst->info), inst->id);
@@ -1868,23 +1868,23 @@ HAPI int instance_gbar_update_begin(struct inst_info *inst)
     }
 
     switch (package_gbar_type(inst->info)) {
-	case GBAR_TYPE_BUFFER:
-	    if (!inst->gbar.canvas.buffer) {
-		ErrPrint("Buffer is null [%s]\n", inst->id);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	    }
-	    fbfile = buffer_handler_id(inst->gbar.canvas.buffer);
-	    break;
-	case GBAR_TYPE_SCRIPT:
-	    if (!inst->gbar.canvas.script) {
-		ErrPrint("Script is null [%s]\n", inst->id);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	    }
-	    fbfile = script_handler_buffer_id(inst->gbar.canvas.script);
-	    break;
-	default:
-	    ErrPrint("Invalid request[%s]\n", inst->id);
+    case GBAR_TYPE_BUFFER:
+	if (!inst->gbar.canvas.buffer) {
+	    ErrPrint("Buffer is null [%s]\n", inst->id);
 	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+	fbfile = buffer_handler_id(inst->gbar.canvas.buffer);
+	break;
+    case GBAR_TYPE_SCRIPT:
+	if (!inst->gbar.canvas.script) {
+	    ErrPrint("Script is null [%s]\n", inst->id);
+	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+	fbfile = script_handler_buffer_id(inst->gbar.canvas.script);
+	break;
+    default:
+	ErrPrint("Invalid request[%s]\n", inst->id);
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     packet = packet_create_noack((const char *)&cmd, "sss", package_name(inst->info), inst->id, fbfile);
@@ -1907,21 +1907,21 @@ HAPI int instance_gbar_update_end(struct inst_info *inst)
     }
 
     switch (package_gbar_type(inst->info)) {
-	case GBAR_TYPE_BUFFER:
-	    if (!inst->gbar.canvas.buffer) {
-		ErrPrint("Buffer is null [%s]\n", inst->id);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	    }
-	    break;
-	case GBAR_TYPE_SCRIPT:
-	    if (!inst->gbar.canvas.script) {
-		ErrPrint("Script is null [%s]\n", inst->id);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	    }
-	    break;
-	default:
-	    ErrPrint("Invalid request[%s]\n", inst->id);
+    case GBAR_TYPE_BUFFER:
+	if (!inst->gbar.canvas.buffer) {
+	    ErrPrint("Buffer is null [%s]\n", inst->id);
 	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+	break;
+    case GBAR_TYPE_SCRIPT:
+	if (!inst->gbar.canvas.script) {
+	    ErrPrint("Script is null [%s]\n", inst->id);
+	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+	break;
+    default:
+	ErrPrint("Invalid request[%s]\n", inst->id);
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     packet = packet_create_noack((const char *)&cmd, "ss", package_name(inst->info), inst->id);
@@ -2080,16 +2080,16 @@ HAPI void instance_gbar_updated_by_instance(struct inst_info *inst, const char *
     }
 
     switch (package_gbar_type(inst->info)) {
-	case GBAR_TYPE_SCRIPT:
-	    id = script_handler_buffer_id(inst->gbar.canvas.script);
-	    break;
-	case GBAR_TYPE_BUFFER:
-	    id = buffer_handler_id(inst->gbar.canvas.buffer);
-	    break;
-	case GBAR_TYPE_TEXT:
-	default:
-	    id = "";
-	    break;
+    case GBAR_TYPE_SCRIPT:
+	id = script_handler_buffer_id(inst->gbar.canvas.script);
+	break;
+    case GBAR_TYPE_BUFFER:
+	id = buffer_handler_id(inst->gbar.canvas.buffer);
+	break;
+    case GBAR_TYPE_TEXT:
+    default:
+	id = "";
+	break;
     }
 
     packet = packet_create_noack((const char *)&cmd, "ssssiiii", package_name(inst->info), inst->id, id, descfile, x, y, w, h);
@@ -2386,29 +2386,29 @@ HAPI int instance_set_visible_state(struct inst_info *inst, enum dynamicbox_visi
     }
 
     switch (state) {
-	case DBOX_SHOW:
-	case DBOX_HIDE:
-	    if (inst->visible == DBOX_HIDE_WITH_PAUSE) {
-		if (resume_dynamicbox(inst) == 0) {
-		    inst->visible = state;
-		}
-
-		instance_thaw_updator(inst);
-	    } else {
+    case DBOX_SHOW:
+    case DBOX_HIDE:
+	if (inst->visible == DBOX_HIDE_WITH_PAUSE) {
+	    if (resume_dynamicbox(inst) == 0) {
 		inst->visible = state;
 	    }
-	    break;
 
-	case DBOX_HIDE_WITH_PAUSE:
-	    if (pause_dynamicbox(inst) == 0) {
-		inst->visible = DBOX_HIDE_WITH_PAUSE;
-	    }
+	    instance_thaw_updator(inst);
+	} else {
+	    inst->visible = state;
+	}
+	break;
 
-	    instance_freeze_updator(inst);
-	    break;
+    case DBOX_HIDE_WITH_PAUSE:
+	if (pause_dynamicbox(inst) == 0) {
+	    inst->visible = DBOX_HIDE_WITH_PAUSE;
+	}
 
-	default:
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	instance_freeze_updator(inst);
+	break;
+
+    default:
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     return DBOX_STATUS_ERROR_NONE;
@@ -2635,7 +2635,7 @@ HAPI int instance_set_period(struct inst_info *inst, double period)
     cbdata->period = period;
     cbdata->inst = instance_ref(inst);
 
-    if (package_secured(inst->info)) {
+    if (package_secured(inst->info) || (DBOX_IS_INHOUSE(package_abi(inst->info)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL)) {
 	/*!
 	 * \note
 	 * Secured dynamicbox doesn't need to send its update period to the slave.
@@ -2959,34 +2959,34 @@ HAPI const enum instance_state const instance_state(const struct inst_info *inst
 HAPI int instance_destroyed(struct inst_info *inst, int reason)
 {
     switch (inst->state) {
-	case INST_INIT:
-	case INST_REQUEST_TO_ACTIVATE:
-	    if (inst->unicast_delete_event) {
-		/*!
-		 * \note
-		 * No other clients know the existence of this instance,
-		 * only who added this knows it.
-		 * So send deleted event to only it.
-		 */
-		DbgPrint("Send deleted event - unicast - %p\n", inst->client);
-		instance_unicast_deleted_event(inst, NULL, reason);
-	    } else {
-		instance_broadcast_deleted_event(inst, reason);
-	    }
-	    instance_state_reset(inst);
-	    instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
-	    break;
-	case INST_REQUEST_TO_REACTIVATE:
-	case INST_REQUEST_TO_DESTROY:
-	case INST_ACTIVATED:
-	    DbgPrint("Send deleted event - multicast\n");
+    case INST_INIT:
+    case INST_REQUEST_TO_ACTIVATE:
+	if (inst->unicast_delete_event) {
+	    /*!
+	     * \note
+	     * No other clients know the existence of this instance,
+	     * only who added this knows it.
+	     * So send deleted event to only it.
+	     */
+	    DbgPrint("Send deleted event - unicast - %p\n", inst->client);
+	    instance_unicast_deleted_event(inst, NULL, reason);
+	} else {
 	    instance_broadcast_deleted_event(inst, reason);
-	    instance_state_reset(inst);
-	    instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
-	case INST_DESTROYED:
-	    break;
-	default:
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+	instance_state_reset(inst);
+	instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+	break;
+    case INST_REQUEST_TO_REACTIVATE:
+    case INST_REQUEST_TO_DESTROY:
+    case INST_ACTIVATED:
+	DbgPrint("Send deleted event - multicast\n");
+	instance_broadcast_deleted_event(inst, reason);
+	instance_state_reset(inst);
+	instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+    case INST_DESTROYED:
+	break;
+    default:
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     return DBOX_STATUS_ERROR_NONE;
@@ -3010,53 +3010,53 @@ HAPI int instance_recover_state(struct inst_info *inst)
     }
 
     switch (inst->state) {
+    case INST_ACTIVATED:
+    case INST_REQUEST_TO_REACTIVATE:
+    case INST_REQUEST_TO_DESTROY:
+	switch (inst->requested_state) {
 	case INST_ACTIVATED:
-	case INST_REQUEST_TO_REACTIVATE:
-	case INST_REQUEST_TO_DESTROY:
-	    switch (inst->requested_state) {
-		case INST_ACTIVATED:
-		    DbgPrint("Req. to RE-ACTIVATED (%s)\n", package_name(inst->info));
-		    instance_state_reset(inst);
-		    instance_reactivate(inst);
-		    ret = 1;
-		    break;
-		case INST_DESTROYED:
-		    DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
-		    instance_state_reset(inst);
-		    instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
-		    break;
-		default:
-		    break;
-	    }
+	    DbgPrint("Req. to RE-ACTIVATED (%s)\n", package_name(inst->info));
+	    instance_state_reset(inst);
+	    instance_reactivate(inst);
+	    ret = 1;
 	    break;
+	case INST_DESTROYED:
+	    DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
+	    instance_state_reset(inst);
+	    instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+	    break;
+	default:
+	    break;
+	}
+	break;
+    case INST_INIT:
+    case INST_REQUEST_TO_ACTIVATE:
+	switch (inst->requested_state) {
+	case INST_ACTIVATED:
 	case INST_INIT:
-	case INST_REQUEST_TO_ACTIVATE:
-	    switch (inst->requested_state) {
-		case INST_ACTIVATED:
-		case INST_INIT:
-		    DbgPrint("Req. to ACTIVATED (%s)\n", package_name(inst->info));
-		    instance_state_reset(inst);
-		    if (instance_activate(inst) < 0) {
-			DbgPrint("Failed to reactivate the instance\n");
-			instance_broadcast_deleted_event(inst, DBOX_STATUS_ERROR_FAULT);
-			instance_state_reset(inst);
-			instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
-		    } else {
-			ret = 1;
-		    }
-		    break;
-		case INST_DESTROYED:
-		    DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
-		    instance_state_reset(inst);
-		    instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
-		    break;
-		default:
-		    break;
+	    DbgPrint("Req. to ACTIVATED (%s)\n", package_name(inst->info));
+	    instance_state_reset(inst);
+	    if (instance_activate(inst) < 0) {
+		DbgPrint("Failed to reactivate the instance\n");
+		instance_broadcast_deleted_event(inst, DBOX_STATUS_ERROR_FAULT);
+		instance_state_reset(inst);
+		instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+	    } else {
+		ret = 1;
 	    }
 	    break;
 	case INST_DESTROYED:
+	    DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
+	    instance_state_reset(inst);
+	    instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+	    break;
 	default:
 	    break;
+	}
+	break;
+    case INST_DESTROYED:
+    default:
+	break;
     }
 
     return ret;
@@ -3080,60 +3080,60 @@ HAPI int instance_need_slave(struct inst_info *inst)
 
 	DbgPrint("CLIENT FAULT: Req. to DESTROYED (%s)\n", package_name(inst->info));
 	switch (inst->state) {
-	    case INST_INIT:
-	    case INST_ACTIVATED:
-	    case INST_REQUEST_TO_REACTIVATE:
-	    case INST_REQUEST_TO_DESTROY:
-	    case INST_REQUEST_TO_ACTIVATE:
-		instance_state_reset(inst);
-		instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
-		break;
-	    case INST_DESTROYED:
-		break;
+	case INST_INIT:
+	case INST_ACTIVATED:
+	case INST_REQUEST_TO_REACTIVATE:
+	case INST_REQUEST_TO_DESTROY:
+	case INST_REQUEST_TO_ACTIVATE:
+	    instance_state_reset(inst);
+	    instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+	    break;
+	case INST_DESTROYED:
+	    break;
 	}
 
 	return DBOX_STATUS_ERROR_NONE;
     }
 
     switch (inst->state) {
-	case INST_ACTIVATED:
-	case INST_REQUEST_TO_REACTIVATE:
-	case INST_REQUEST_TO_DESTROY:
-	    switch (inst->requested_state) {
-		case INST_INIT:
-		case INST_ACTIVATED:
-		    DbgPrint("Req. to ACTIVATED (%s)\n", package_name(inst->info));
-		    ret = 1;
-		    break;
-		case INST_DESTROYED:
-		    DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
-		    instance_state_reset(inst);
-		    instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
-		    break;
-		default:
-		    break;
-	    }
-	    break;
+    case INST_ACTIVATED:
+    case INST_REQUEST_TO_REACTIVATE:
+    case INST_REQUEST_TO_DESTROY:
+	switch (inst->requested_state) {
 	case INST_INIT:
-	case INST_REQUEST_TO_ACTIVATE:
-	    switch (inst->requested_state) {
-		case INST_INIT:
-		case INST_ACTIVATED:
-		    DbgPrint("Req. to ACTIVATED (%s)\n", package_name(inst->info));
-		    ret = 1;
-		    break;
-		case INST_DESTROYED:
-		    DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
-		    instance_state_reset(inst);
-		    instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
-		    break;
-		default:
-		    break;
-	    }
+	case INST_ACTIVATED:
+	    DbgPrint("Req. to ACTIVATED (%s)\n", package_name(inst->info));
+	    ret = 1;
 	    break;
 	case INST_DESTROYED:
+	    DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
+	    instance_state_reset(inst);
+	    instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+	    break;
 	default:
 	    break;
+	}
+	break;
+    case INST_INIT:
+    case INST_REQUEST_TO_ACTIVATE:
+	switch (inst->requested_state) {
+	case INST_INIT:
+	case INST_ACTIVATED:
+	    DbgPrint("Req. to ACTIVATED (%s)\n", package_name(inst->info));
+	    ret = 1;
+	    break;
+	case INST_DESTROYED:
+	    DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
+	    instance_state_reset(inst);
+	    instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+	    break;
+	default:
+	    break;
+	}
+	break;
+    case INST_DESTROYED:
+    default:
+	break;
     }
 
     return ret;
@@ -3343,16 +3343,16 @@ HAPI int instance_client_gbar_created(struct inst_info *inst, int status)
     }
 
     switch (package_gbar_type(inst->info)) {
-	case GBAR_TYPE_SCRIPT:
-	    buf_id = script_handler_buffer_id(inst->gbar.canvas.script);
-	    break;
-	case GBAR_TYPE_BUFFER:
-	    buf_id = buffer_handler_id(inst->gbar.canvas.buffer);
-	    break;
-	case GBAR_TYPE_TEXT:
-	default:
-	    buf_id = "";
-	    break;
+    case GBAR_TYPE_SCRIPT:
+	buf_id = script_handler_buffer_id(inst->gbar.canvas.script);
+	break;
+    case GBAR_TYPE_BUFFER:
+	buf_id = buffer_handler_id(inst->gbar.canvas.buffer);
+	break;
+    case GBAR_TYPE_TEXT:
+    default:
+	buf_id = "";
+	break;
     }
 
     inst->gbar.need_to_send_close_event = (status == 0);

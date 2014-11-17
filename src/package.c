@@ -1122,7 +1122,7 @@ HAPI int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 	(void)slave_event_callback_add(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
 	(void)slave_event_callback_add(info->slave, SLAVE_EVENT_FAULT, slave_fault_cb, info);
 
-	if (info->secured) {
+	if (info->secured || (DBOX_IS_INHOUSE(package_abi(info)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL)) {
 	    (void)slave_event_callback_add(info->slave, SLAVE_EVENT_PAUSE, slave_paused_cb, info);
 	    (void)slave_event_callback_add(info->slave, SLAVE_EVENT_RESUME, slave_resumed_cb, info);
 
@@ -1158,7 +1158,7 @@ HAPI int package_del_instance(struct pkg_info *info, struct inst_info *inst)
 	slave_event_callback_del(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
 	slave_event_callback_del(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
 
-	if (info->secured) {
+	if (info->secured || (DBOX_IS_INHOUSE(package_abi(info)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL)) {
 	    slave_event_callback_del(info->slave, SLAVE_EVENT_PAUSE, slave_paused_cb, info);
 	    slave_event_callback_del(info->slave, SLAVE_EVENT_RESUME, slave_resumed_cb, info);
 
@@ -1198,30 +1198,30 @@ static int client_created_cb(struct client_node *client, void *data)
 
 	EINA_LIST_FOREACH(info->inst_list, i_l, inst) {
 	    switch (instance_state(inst)) {
-		case INST_INIT:
-		    /* Will be send a created event after the instance gets created event */
-		    break;
-		case INST_ACTIVATED: /*!< This instance is actiavted, and used */
-		case INST_REQUEST_TO_REACTIVATE: /*!< This instance will be reactivated soon */
-		case INST_REQUEST_TO_DESTROY: /*!< This instance will be destroy soon */
-		    if (instance_client(inst) == client) {
+	    case INST_INIT:
+		/* Will be send a created event after the instance gets created event */
+		break;
+	    case INST_ACTIVATED: /*!< This instance is actiavted, and used */
+	    case INST_REQUEST_TO_REACTIVATE: /*!< This instance will be reactivated soon */
+	    case INST_REQUEST_TO_DESTROY: /*!< This instance will be destroy soon */
+		if (instance_client(inst) == client) {
+		    instance_unicast_created_event(inst, client);
+		} else if (instance_client(inst) == NULL) {
+		    /*!
+		     * \note
+		     * Instances are lives in the system cluster/sub-cluster
+		     */
+		    if (client_is_subscribed(client, instance_cluster(inst), instance_category(inst))) {
 			instance_unicast_created_event(inst, client);
-		    } else if (instance_client(inst) == NULL) {
-			/*!
-			 * \note
-			 * Instances are lives in the system cluster/sub-cluster
-			 */
-			if (client_is_subscribed(client, instance_cluster(inst), instance_category(inst))) {
-			    instance_unicast_created_event(inst, client);
-			    DbgPrint("(Subscribed) Created package: %s\n", info->dbox_id);
-			}
+			DbgPrint("(Subscribed) Created package: %s\n", info->dbox_id);
 		    }
+		}
 
-		    break;
-		default:
-		    DbgPrint("%s(%s) is not activated (%d)\n",
-			    package_name(info), instance_id(inst), instance_state(inst));
-		    break;
+		break;
+	    default:
+		DbgPrint("%s(%s) is not activated (%d)\n",
+			package_name(info), instance_id(inst), instance_state(inst));
+		break;
 	    }
 	}
     }
@@ -1470,54 +1470,54 @@ HAPI int package_alter_instances_to_client(struct client_node *client, enum alte
 	    }
 
 	    switch (instance_state(inst)) {
-		case INST_INIT:
-		case INST_REQUEST_TO_ACTIVATE:
-		    /* Will be send a created event after the instance gets created event */
-		    switch (alter) {
-			case ALTER_CREATE:
-			    if (!instance_has_client(inst, client)) {
-				instance_add_client(inst, client);
-			    }
-			    break;
-			case ALTER_DESTROY:
-			    if (instance_has_client(inst, client)) {
-				instance_del_client(inst, client);
-			    }
-			    break;
-			default:
-			    break;
+	    case INST_INIT:
+	    case INST_REQUEST_TO_ACTIVATE:
+		/* Will be send a created event after the instance gets created event */
+		switch (alter) {
+		case ALTER_CREATE:
+		    if (!instance_has_client(inst, client)) {
+			instance_add_client(inst, client);
 		    }
 		    break;
-		case INST_ACTIVATED: /*!< This instance is actiavted, and used */
-		case INST_REQUEST_TO_REACTIVATE: /*!< This instance will be reactivated soon */
-		case INST_REQUEST_TO_DESTROY: /*!< This instance will be destroy soon */
-		    /*!
-		     * \note
-		     * Instances are lives in the system cluster/sub-cluster
-		     */
-		    switch (alter) {
-			case ALTER_CREATE:
-			    if (!instance_has_client(inst, client)) {
-				instance_unicast_created_event(inst, client);
-				instance_add_client(inst, client);
-				DbgPrint("(Subscribed) Created package: %s\n", info->dbox_id);
-			    }
-			    break;
-			case ALTER_DESTROY:
-			    if (instance_has_client(inst, client)) {
-				instance_unicast_deleted_event(inst, client, DBOX_STATUS_ERROR_NONE);
-				instance_del_client(inst, client);
-			    }
-			    break;
-			default:
-			    break;
+		case ALTER_DESTROY:
+		    if (instance_has_client(inst, client)) {
+			instance_del_client(inst, client);
 		    }
-
 		    break;
 		default:
-		    DbgPrint("%s(%s) is not activated (%d)\n",
-			    package_name(info), instance_id(inst), instance_state(inst));
 		    break;
+		}
+		break;
+	    case INST_ACTIVATED: /*!< This instance is actiavted, and used */
+	    case INST_REQUEST_TO_REACTIVATE: /*!< This instance will be reactivated soon */
+	    case INST_REQUEST_TO_DESTROY: /*!< This instance will be destroy soon */
+		/*!
+		 * \note
+		 * Instances are lives in the system cluster/sub-cluster
+		 */
+		switch (alter) {
+		case ALTER_CREATE:
+		    if (!instance_has_client(inst, client)) {
+			instance_unicast_created_event(inst, client);
+			instance_add_client(inst, client);
+			DbgPrint("(Subscribed) Created package: %s\n", info->dbox_id);
+		    }
+		    break;
+		case ALTER_DESTROY:
+		    if (instance_has_client(inst, client)) {
+			instance_unicast_deleted_event(inst, client, DBOX_STATUS_ERROR_NONE);
+			instance_del_client(inst, client);
+		    }
+		    break;
+		default:
+		    break;
+		}
+
+		break;
+	    default:
+		DbgPrint("%s(%s) is not activated (%d)\n",
+			package_name(info), instance_id(inst), instance_state(inst));
+		break;
 	    }
 	}
     }

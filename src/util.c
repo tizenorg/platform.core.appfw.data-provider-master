@@ -217,77 +217,77 @@ HAPI char *util_replace_string(const char *src, const char *pattern, const char 
     out_idx = 0;
     for (state = STATE_START, ptr = src; state != STATE_END; ptr++) {
 	switch (state) {
-	    case STATE_START:
-		if (*ptr == '\0') {
-		    state = STATE_END;
-		} else if (!isblank(*ptr)) {
-		    state = STATE_FIND;
-		    ptr--;
-		}
-		break;
-	    case STATE_FIND:
-		if (*ptr == '\0') {
-		    state = STATE_END;
-		} else if (*ptr == *pattern) {
-		    state = STATE_CHECK;
-		    ptr--;
-		    idx = 0;
-		} else {
-		    ret[out_idx] = *ptr;
-		    out_idx++;
-		    if (out_idx == out_sz) {
-			tmp = extend_heap(ret, &out_sz, strlen(replace) + 1);
-			if (!tmp) {
-			    DbgFree(ret);
-			    return NULL;
-			}
-			ret = tmp;
+	case STATE_START:
+	    if (*ptr == '\0') {
+		state = STATE_END;
+	    } else if (!isblank(*ptr)) {
+		state = STATE_FIND;
+		ptr--;
+	    }
+	    break;
+	case STATE_FIND:
+	    if (*ptr == '\0') {
+		state = STATE_END;
+	    } else if (*ptr == *pattern) {
+		state = STATE_CHECK;
+		ptr--;
+		idx = 0;
+	    } else {
+		ret[out_idx] = *ptr;
+		out_idx++;
+		if (out_idx == out_sz) {
+		    tmp = extend_heap(ret, &out_sz, strlen(replace) + 1);
+		    if (!tmp) {
+			DbgFree(ret);
+			return NULL;
 		    }
+		    ret = tmp;
 		}
-		break;
-	    case STATE_CHECK:
-		if (!pattern[idx]) {
-		    /*!
-		     * If there is no space for copying the replacement,
-		     * Extend size of the return buffer.
-		     */
-		    if (out_sz - out_idx < strlen(replace) + 1) {
-			tmp = extend_heap(ret, &out_sz, strlen(replace) + 1);
-			if (!tmp) {
-			    DbgFree(ret);
-			    return NULL;
-			}
-			ret = tmp;
+	    }
+	    break;
+	case STATE_CHECK:
+	    if (!pattern[idx]) {
+		/*!
+		 * If there is no space for copying the replacement,
+		 * Extend size of the return buffer.
+		 */
+		if (out_sz - out_idx < strlen(replace) + 1) {
+		    tmp = extend_heap(ret, &out_sz, strlen(replace) + 1);
+		    if (!tmp) {
+			DbgFree(ret);
+			return NULL;
 		    }
+		    ret = tmp;
+		}
 
-		    strcpy(ret + out_idx, replace);
-		    out_idx += strlen(replace);
+		strcpy(ret + out_idx, replace);
+		out_idx += strlen(replace);
 
-		    state = STATE_FIND;
-		    ptr--;
-		} else if (*ptr != pattern[idx]) {
-		    ptr -= idx;
+		state = STATE_FIND;
+		ptr--;
+	    } else if (*ptr != pattern[idx]) {
+		ptr -= idx;
 
-		    /* Copy the first matched character */
-		    ret[out_idx] = *ptr;
-		    out_idx++;
-		    if (out_idx == out_sz) {
-			tmp = extend_heap(ret, &out_sz, strlen(replace) + 1);
-			if (!tmp) {
-			    DbgFree(ret);
-			    return NULL;
-			}
-
-			ret = tmp;
+		/* Copy the first matched character */
+		ret[out_idx] = *ptr;
+		out_idx++;
+		if (out_idx == out_sz) {
+		    tmp = extend_heap(ret, &out_sz, strlen(replace) + 1);
+		    if (!tmp) {
+			DbgFree(ret);
+			return NULL;
 		    }
 
-		    state = STATE_FIND;
-		} else {
-		    idx++;
+		    ret = tmp;
 		}
-		break;
-	    default:
-		break;
+
+		state = STATE_FIND;
+	    } else {
+		idx++;
+	    }
+	    break;
+	default:
+	    break;
 	}
     }
 
@@ -470,74 +470,74 @@ HAPI void util_prepare_emergency_disk(void)
 	if (tag[tag_idx][idx] == '\0') {
 	    if (*ptr == '=' || isblank(*ptr)) {
 		switch (tag_idx) {
-		    case TAG_SOURCE:
-			if (source) {
-			    ErrPrint("source[%s] is overrided\n", source);
-			}
+		case TAG_SOURCE:
+		    if (source) {
+			ErrPrint("source[%s] is overrided\n", source);
+		    }
 
-			while ((*ptr != '\0' && *ptr != ';') && (*ptr == '=' || isblank(*ptr))) {
-			    ptr++;
-			}
+		    while ((*ptr != '\0' && *ptr != ';') && (*ptr == '=' || isblank(*ptr))) {
+			ptr++;
+		    }
 
-			source = ptr;
-			while (*ptr != '\0' && *ptr != ';') {
-			    ptr++;
-			}
+		    source = ptr;
+		    while (*ptr != '\0' && *ptr != ';') {
+			ptr++;
+		    }
 
-			if (*source == '\0') {
-			    type = NULL;
-			}
+		    if (*source == '\0') {
+			type = NULL;
+		    }
 
-			*ptr = '\0';
-			rollback_ptr = ptr + 1;
-			idx = 0;
-			break;
-		    case TAG_TYPE:
-			if (type) {
-			    ErrPrint("type[%s] is overrided\n", type);
-			}
+		    *ptr = '\0';
+		    rollback_ptr = ptr + 1;
+		    idx = 0;
+		    break;
+		case TAG_TYPE:
+		    if (type) {
+			ErrPrint("type[%s] is overrided\n", type);
+		    }
 
-			while ((*ptr != '\0' && *ptr != ';') && (*ptr == '=' || isblank(*ptr))) {
-			    ptr++;
-			}
+		    while ((*ptr != '\0' && *ptr != ';') && (*ptr == '=' || isblank(*ptr))) {
+			ptr++;
+		    }
 
-			type = ptr;
-			while (*ptr != '\0' && *ptr != ';') {
-			    ptr++;
-			}
+		    type = ptr;
+		    while (*ptr != '\0' && *ptr != ';') {
+			ptr++;
+		    }
 
-			if (*type == '\0') {
-			    type = NULL;
-			}
+		    if (*type == '\0') {
+			type = NULL;
+		    }
 
-			*ptr = '\0';
-			rollback_ptr = ptr + 1;
-			idx = 0;
-			break;
-		    case TAG_OPTION:
-			if (option) {
-			    ErrPrint("option[%s] is overrided\n", option);
-			}
+		    *ptr = '\0';
+		    rollback_ptr = ptr + 1;
+		    idx = 0;
+		    break;
+		case TAG_OPTION:
+		    if (option) {
+			ErrPrint("option[%s] is overrided\n", option);
+		    }
 
-			while ((*ptr != '\0' && *ptr != ';') && (*ptr == '=' || isblank(*ptr))) {
-			    ptr++;
-			}
+		    while ((*ptr != '\0' && *ptr != ';') && (*ptr == '=' || isblank(*ptr))) {
+			ptr++;
+		    }
 
-			option = ptr;
-			while (*ptr != '\0' && *ptr != ';') {
-			    ptr++;
-			}
+		    option = ptr;
+		    while (*ptr != '\0' && *ptr != ';') {
+			ptr++;
+		    }
 
-			if (*option == '\0') {
-			    option = NULL;
-			}
+		    if (*option == '\0') {
+			option = NULL;
+		    }
 
-			*ptr = '\0';
-			rollback_ptr = ptr + 1;
-			idx = 0;
-			break;
-		    default:
-			break;
+		    *ptr = '\0';
+		    rollback_ptr = ptr + 1;
+		    idx = 0;
+		    break;
+		default:
+		    break;
 		}
 	    } else {
 		ptr = rollback_ptr;

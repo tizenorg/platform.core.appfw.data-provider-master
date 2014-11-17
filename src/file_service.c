@@ -104,24 +104,24 @@ static inline struct request_item *create_request_item(struct tcb *tcb, int type
     }
 
     switch (type) {
-	case REQUEST_TYPE_FILE:
-	    item->data.filename = strdup(data);
-	    if (!item->data.filename) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		DbgFree(item);
-		return NULL;
-	    }
-	    break;
-	case REQUEST_TYPE_PIXMAP:
-	    item->data.pixmap = (unsigned int)data;
-	    break;
-	case REQUEST_TYPE_SHM:
-	    item->data.shm = (int)data;
-	    break;
-	default:
-	    ErrPrint("Invalid type of request\n");
+    case REQUEST_TYPE_FILE:
+	item->data.filename = strdup(data);
+	if (!item->data.filename) {
+	    ErrPrint("Heap: %s\n", strerror(errno));
 	    DbgFree(item);
 	    return NULL;
+	}
+	break;
+    case REQUEST_TYPE_PIXMAP:
+	item->data.pixmap = (unsigned int)data;
+	break;
+    case REQUEST_TYPE_SHM:
+	item->data.shm = (int)data;
+	break;
+    default:
+	ErrPrint("Invalid type of request\n");
+	DbgFree(item);
+	return NULL;
     }
 
     item->type = type;
@@ -132,14 +132,14 @@ static inline struct request_item *create_request_item(struct tcb *tcb, int type
 static inline int destroy_request_item(struct request_item *item)
 {
     switch (item->type) {
-	case REQUEST_TYPE_FILE:
-	    DbgFree(item->data.filename);
-	    break;
-	case REQUEST_TYPE_SHM:
-	case REQUEST_TYPE_PIXMAP:
-	    break;
-	default:
-	    return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+    case REQUEST_TYPE_FILE:
+	DbgFree(item->data.filename);
+	break;
+    case REQUEST_TYPE_SHM:
+    case REQUEST_TYPE_PIXMAP:
+	break;
+    default:
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
     }
 
     DbgFree(item);
@@ -246,74 +246,74 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
     }
 
     switch (packet_type(packet)) {
-	case PACKET_REQ:
-	    for (i = 0; cmd_table[i].cmd; i++) {
-		/*!
-		 * Protocol sequence
-		 * FILE REQUEST COMMAND (Client -> Server)
-		 * REPLY FOR REQUEST (Client <- Server)
-		 * PUSH FILE (Client <- Server)
-		 *
-		 * Client & Server must has to keep this communication sequence.
-		 */
-		if (strcmp(cmd, cmd_table[i].cmd)) {
-		    continue;
-		}
-
-		item = NULL;
-		ret = cmd_table[i].request_handler(tcb, packet, &item);
-
-		reply = packet_create_reply(packet, "i", ret);
-		if (!reply) {
-		    ErrPrint("Failed to create a reply packet\n");
-		    break;
-		}
-
-		if (service_common_unicast_packet(tcb, reply) < 0) {
-		    ErrPrint("Unable to send reply packet\n");
-		}
-
-		packet_destroy(reply);
-
-		/*!
-		 * \note
-		 * After send the reply packet, file push thread can sending a file
-		 */
-		if (ret != DBOX_STATUS_ERROR_NONE || !item) {
-		    break;
-		}
-
-		CRITICAL_SECTION_BEGIN(&s_info.request_list_lock);
-		s_info.request_list = eina_list_append(s_info.request_list, item);
-		CRITICAL_SECTION_END(&s_info.request_list_lock);
-
-		ret = write(s_info.request_pipe[PIPE_WRITE], &ch, sizeof(ch));
-		if (ret < 0) {
-		    ErrPrint("write: %s\n", strerror(errno));
-
-		    CRITICAL_SECTION_BEGIN(&s_info.request_list_lock);
-		    s_info.request_list = eina_list_remove(s_info.request_list, item);
-		    CRITICAL_SECTION_END(&s_info.request_list_lock);
-
-		    destroy_request_item(item);
-		    /*!
-		     * \note for the client
-		     * In this case, the client can waiting files forever.
-		     * So the client must has to wait only a few seconds.
-		     * If the client could not get the any data in that time,
-		     * it should cancel the waiting.
-		     */
-		}
+    case PACKET_REQ:
+	for (i = 0; cmd_table[i].cmd; i++) {
+	    /*!
+	     * Protocol sequence
+	     * FILE REQUEST COMMAND (Client -> Server)
+	     * REPLY FOR REQUEST (Client <- Server)
+	     * PUSH FILE (Client <- Server)
+	     *
+	     * Client & Server must has to keep this communication sequence.
+	     */
+	    if (strcmp(cmd, cmd_table[i].cmd)) {
+		continue;
 	    }
 
-	    break;
-	case PACKET_REQ_NOACK:
-	case PACKET_ACK:
-	    /* File service has no this case, it is passive service type */
-	    ErrPrint("Invalid packet.\n");
-	    break;
-	default:
-	    break;
+	    item = NULL;
+	    ret = cmd_table[i].request_handler(tcb, packet, &item);
+
+	    reply = packet_create_reply(packet, "i", ret);
+	    if (!reply) {
+		ErrPrint("Failed to create a reply packet\n");
+		break;
+	    }
+
+	    if (service_common_unicast_packet(tcb, reply) < 0) {
+		ErrPrint("Unable to send reply packet\n");
+	    }
+
+	    packet_destroy(reply);
+
+	    /*!
+	     * \note
+	     * After send the reply packet, file push thread can sending a file
+	     */
+	    if (ret != DBOX_STATUS_ERROR_NONE || !item) {
+		break;
+	    }
+
+	    CRITICAL_SECTION_BEGIN(&s_info.request_list_lock);
+	    s_info.request_list = eina_list_append(s_info.request_list, item);
+	    CRITICAL_SECTION_END(&s_info.request_list_lock);
+
+	    ret = write(s_info.request_pipe[PIPE_WRITE], &ch, sizeof(ch));
+	    if (ret < 0) {
+		ErrPrint("write: %s\n", strerror(errno));
+
+		CRITICAL_SECTION_BEGIN(&s_info.request_list_lock);
+		s_info.request_list = eina_list_remove(s_info.request_list, item);
+		CRITICAL_SECTION_END(&s_info.request_list_lock);
+
+		destroy_request_item(item);
+		/*!
+		 * \note for the client
+		 * In this case, the client can waiting files forever.
+		 * So the client must has to wait only a few seconds.
+		 * If the client could not get the any data in that time,
+		 * it should cancel the waiting.
+		 */
+	    }
+	}
+
+	break;
+    case PACKET_REQ_NOACK:
+    case PACKET_ACK:
+	/* File service has no this case, it is passive service type */
+	ErrPrint("Invalid packet.\n");
+	break;
+    default:
+	break;
     }
 
     return DBOX_STATUS_ERROR_NONE;

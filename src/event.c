@@ -374,27 +374,30 @@ static void processing_ev_abs(struct input_event *event)
 	DbgPrint("DISTANCE: %d\n", event->value);
 	break;
 #endif
-#if defined(ABS_MT_ANGLE)
-    case ABS_MT_ANGLE:
-	DbgPrint("ANGLE: %d\n", event->value);
-	break;
-#endif
 #if defined(ABS_MT_PALM)
     case ABS_MT_PALM:
 	DbgPrint("PALM: %d\n", event->value);
 	break;
 #endif
+    default:
 #if defined(ABS_MT_COMPONENT)
-    case ABS_MT_COMPONENT:
-	DbgPrint("COMPONENT: %d\n", event->value);
-	break;
+	if (event->code == ABS_MT_COMPONENT) {
+	    DbgPrint("COMPONENT: %d\n", event->value);
+	    break;
+	}
+#endif
+#if defined(ABS_MT_ANGLE)
+	if (event->code == ABS_MT_ANGLE) {
+	    DbgPrint("ANGLE: %d\n", event->value);
+	    break;
+	}
 #endif
 #if defined(ABS_MT_SUMSIZE)
-    case ABS_MT_SUMSIZE:
-	DbgPrint("SUMSIZE: %d\n", event->value);
-	break;
+	if (event->code == ABS_MT_SUMSIZE) {
+	    DbgPrint("SUMSIZE: %d\n", event->value);
+	    break;
+	}
 #endif
-    default:
 	break;
     }
 
