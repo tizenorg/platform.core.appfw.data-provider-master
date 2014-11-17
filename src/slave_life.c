@@ -54,6 +54,7 @@
 
 #define BUNDLE_SLAVE_SVC_OP_TYPE "__APP_SVC_OP_TYPE__"
 #define APP_CONTROL_OPERATION_MAIN "http://tizen.org/appcontrol/operation/main"
+#define LOW_PRIORITY	10
 
 int errno;
 
@@ -753,6 +754,7 @@ HAPI int slave_activated(struct slave_node *slave)
 	slave->relaunch_timer = NULL;
     }
 
+    slave_set_priority(slave, LOW_PRIORITY);
     return DBOX_STATUS_ERROR_NONE;
 }
 
