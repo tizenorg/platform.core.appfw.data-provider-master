@@ -8766,8 +8766,8 @@ HAPI int server_init(void)
 	ErrPrint("Faild to create a service socket\n");
     }
 
-    smack_fsetlabel(s_info.service_fd, "data-provider-master::service", SMACK_LABEL_IPIN);
-    smack_fsetlabel(s_info.service_fd, "data-provider-master::service", SMACK_LABEL_IPOUT);
+    smack_fsetlabel(s_info.service_fd, "data-provider-master", SMACK_LABEL_IPIN);
+    smack_fsetlabel(s_info.service_fd, "data-provider-master", SMACK_LABEL_IPOUT);
 
     if (chmod(INFO_SOCKET, 0600) < 0) {
 	ErrPrint("info socket: %s\n", strerror(errno));
