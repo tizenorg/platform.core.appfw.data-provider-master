@@ -15,6 +15,9 @@
 			<label name="data-provider-master::notification" />
 			<label name="data-provider-master::notification.client" />
 			<label name="data-provider-master::utility" />
+			<label name="data-provider-master::client" />
+			<label name="data-provider-master::provider" />
+			<label name="data-provider-master::bin" />
 		</provide>
 		<request>
 			<smack request="sys-assert::core" type="rwxat" />
