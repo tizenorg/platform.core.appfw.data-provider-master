@@ -936,6 +936,13 @@ HAPI int event_activate(int x, int y, int (*event_cb)(enum event_state state, st
     return ret;
 }
 
+HAPI int event_input_fd(void)
+{
+    event_control_init();
+    DbgPrint("Input event handler: %d\n", s_info.handle);
+    return s_info.handle;
+}
+
 HAPI int event_deactivate(int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data)
 {
     struct event_listener *listener = NULL;
