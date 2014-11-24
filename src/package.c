@@ -117,6 +117,7 @@ struct pkg_info {
 
     int network;
     int secured;
+    int direct_input;
     char *script; /* script type: edje, ... */
     char *abi;
 
@@ -1043,6 +1044,16 @@ HAPI int package_network(struct pkg_info *info)
 HAPI void package_set_network(struct pkg_info *info, int network)
 {
     info->network = network;
+}
+
+HAPI void package_set_direct_input(struct pkg_info *info, int direct_input)
+{
+    info->direct_input = direct_input;
+}
+
+HAPI int package_direct_input(const struct pkg_info *info)
+{
+    return info->direct_input;
 }
 
 HAPI const enum dynamicbox_gbar_type const package_gbar_type(const struct pkg_info *info)

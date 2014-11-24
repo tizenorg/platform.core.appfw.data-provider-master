@@ -15,32 +15,32 @@
  */
 
 struct event_data {
-	int x;
-	int y;
-	unsigned int keycode;
-	int device;
-	int slot;
-	struct {
-		int major;
-		int minor;
-	} touch;
-	struct {
-		int major;
-		int minor;
-	} width;
-	int distance;	/* Hovering */
-	int orientation;
-	int pressure;
-	int updated; /* Timestamp is updated */
-	double tv;
+    int x;
+    int y;
+    unsigned int keycode;
+    int device;
+    int slot;
+    struct {
+	int major;
+	int minor;
+    } touch;
+    struct {
+	int major;
+	int minor;
+    } width;
+    int distance;	/* Hovering */
+    int orientation;
+    int pressure;
+    int updated; /* Timestamp is updated */
+    double tv;
 };
 
 enum event_state {
-	EVENT_STATE_DEACTIVATED,
-	EVENT_STATE_ACTIVATE,
-	EVENT_STATE_ACTIVATED,
-	EVENT_STATE_DEACTIVATE,
-	EVENT_STATE_ERROR
+    EVENT_STATE_DEACTIVATED,
+    EVENT_STATE_ACTIVATE,
+    EVENT_STATE_ACTIVATED,
+    EVENT_STATE_DEACTIVATE,
+    EVENT_STATE_ERROR
 };
 
 extern int event_init(void);
