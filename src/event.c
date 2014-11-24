@@ -754,6 +754,7 @@ static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 static int event_control_init(void)
 {
     int status;
+    unsigned int clockId = CLOCK_MONOTONIC;
 
     DbgPrint("Initializing event controller\n");
     if (s_info.handle != -1) {
@@ -772,6 +773,10 @@ static int event_control_init(void)
 
     if (fcntl(s_info.handle, F_SETFL, O_NONBLOCK) < 0) {
 	ErrPrint("Error: %s\n", strerror(errno));
+    }
+
+    if (ioctl(s_info.handle, EVIOCSCLOCKID, &clockId) < 0) {
+       ErrPrint("Error: %s\n", strerror(errno));
     }
 
     status = pipe2(s_info.evt_pipe, O_CLOEXEC);
