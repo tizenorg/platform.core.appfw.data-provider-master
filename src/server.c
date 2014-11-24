@@ -2106,6 +2106,7 @@ static struct packet *client_dbox_mouse_set(pid_t pid, int handle, const struct 
 	    DbgPrint("Direct input is enabled(set for %s:%d)\n", id, packet_fd(packet));
 	    slave = package_slave(pkg);
 	    if (slave) {
+		packet_ref((struct packet *)packet);
 		ret = slave_rpc_request_only(slave, pkgname, (struct packet *)packet, 0);
 	    } else {
 		ErrPrint("Unable to find a slave for %s\n", pkgname);
@@ -2179,6 +2180,7 @@ static struct packet *client_dbox_mouse_unset(pid_t pid, int handle, const struc
 	    DbgPrint("Direct input is enabled(unset) for %s\n", id);
 	    slave = package_slave(pkg);
 	    if (slave) {
+		packet_ref((struct packet *)packet);
 		ret = slave_rpc_request_only(slave, pkgname, (struct packet *)packet, 0);
 	    } else {
 		ErrPrint("Unable to find a slave for %s\n", pkgname);
@@ -2252,6 +2254,7 @@ static struct packet *client_gbar_mouse_set(pid_t pid, int handle, const struct 
 	    DbgPrint("Direct input is enabled(set for %s:%d)\n", id, packet_fd(packet));
 	    slave = package_slave(pkg);
 	    if (slave) {
+		packet_ref((struct packet *)packet);
 		ret = slave_rpc_request_only(slave, pkgname, (struct packet *)packet, 0);
 	    } else {
 		ErrPrint("Unable to find a slave for %s\n", pkgname);
@@ -2766,6 +2769,7 @@ static struct packet *client_gbar_mouse_unset(pid_t pid, int handle, const struc
 	    DbgPrint("Direct input is enabled(unset) for %s\n", id);
 	    slave = package_slave(pkg);
 	    if (slave) {
+		packet_ref((struct packet *)packet);
 		ret = slave_rpc_request_only(slave, pkgname, (struct packet *)packet, 0);
 	    } else {
 		ErrPrint("Unable to find a slave for %s\n", pkgname);
