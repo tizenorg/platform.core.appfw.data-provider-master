@@ -69,6 +69,8 @@
 #define ACCESS_TYPE_PREV 2
 #define ACCESS_TYPE_OFF 3
 
+#define SLAVE_HW_ACCELERATION_NONE "none"
+
 static struct info {
     int info_fd;
     int client_fd;
@@ -6328,7 +6330,7 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 		    DbgPrint("Slave pkgname is invalid, ABI is replaced with '%s'(default)\n", abi);
 		}
 
-		slave = slave_create(slavename, 1, abi, pkgname, 0);
+		slave = slave_create(slavename, 1, abi, pkgname, 0, SLAVE_HW_ACCELERATION_NONE);
 		if (!slave) {
 		    ErrPrint("Failed to create a new slave for %s\n", slavename);
 		    goto out;

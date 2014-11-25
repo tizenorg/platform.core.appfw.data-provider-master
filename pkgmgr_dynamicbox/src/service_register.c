@@ -65,11 +65,11 @@
  *
  * provider
  * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+---------+---------+--------+--------+-------+-----------------------+
- * | pkgid | network | abi | secured | box_type | box_src | box_group | gbar_type | gbar_src | gbar_group | libexec | timeout | period | script | pinup | count(from ver 4) | direct_input |
- * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+---------+---------+--------+--------+-------+-----------------------+-------|
- * |   -   |    -    |  -  |    -    |     -    |    -    |     -     |    -    |    -   |     -    |     -   |    -    |    -   |    -   |   -   |           -           |   -   |
- * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+---------+---------+--------+--------+-------+-----------------------+-------|
- * CREATE TABLE provider ( pkgid TEXT PRIMARY KEY NOT NULL, network INTEGER, abi TEXT, secured INTEGER, box_type INTEGER, box_src TEXT, box_group TEXT, gbar_type TEXT, gbar_src TEXT, gbar_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, count INTEGER, direct_input INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid))
+ * | pkgid | network | abi | secured | box_type | box_src | box_group | gbar_type | gbar_src | gbar_group | libexec | timeout | period | script | pinup | count(from ver 4) | direct_input | hw_acceleration |
+ * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+---------+---------+--------+--------+-------+-----------------------+-------|---------------|
+ * |   -   |    -    |  -  |    -    |     -    |    -    |     -     |    -    |    -   |     -    |     -   |    -    |    -   |    -   |   -   |           -           |   -   |       -       |
+ * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+---------+---------+--------+--------+-------+-----------------------+-------|---------------|
+ * CREATE TABLE provider ( pkgid TEXT PRIMARY KEY NOT NULL, network INTEGER, abi TEXT, secured INTEGER, box_type INTEGER, box_src TEXT, box_group TEXT, gbar_type TEXT, gbar_src TEXT, gbar_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, count INTEGER, direct_input INTEGER DEFAULT 0, hw_acceleration TEXT DEFAULT 'none', FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid))
  *
  * = box_type = { text | buffer | script | image }
  * = gbar_type = { text | buffer | script }
@@ -189,6 +189,7 @@ struct dynamicbox {
     xmlChar *gbar_src;
     xmlChar *gbar_group;
     xmlChar *gbar_size; /* Default PD size */
+    xmlChar *hw_acceleration;
 
     struct dlist *i18n_list;
     struct dlist *group_list;
@@ -424,6 +425,20 @@ static void upgrade_to_version_5(void)
      * Create a new column "direct_input" for provider table
      */
     ddl = "ALTER TABLE provider ADD COLUMN direct_input INTEGER DEFAULT 0";
+    if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
+	ErrPrint("Failed to execute the DDL (%s)\n", err);
+        return;
+    }
+
+    if (sqlite3_changes(s_info.handle) == 0) {
+	ErrPrint("No changes to DB\n");
+    }
+
+    /*
+     * Step 2
+     * Create a new column "hw_acceleration" for provider table
+     */
+    ddl = "ALTER TABLE provider ADD COLUMN hw_acceleration TEXT DEFAULT 'none'";
     if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
 	ErrPrint("Failed to execute the DDL (%s)\n", err);
         return;
@@ -728,7 +743,7 @@ static inline int db_create_provider(void)
 	   "abi TEXT, secured INTEGER, box_type INTEGER, " \
 	   "box_src TEXT, box_group TEXT, gbar_type INTEGER, " \
 	   "gbar_src TEXT, gbar_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, "\
-	   "count INTEGER, direct_input INTEGER, "\
+	   "count INTEGER, direct_input INTEGER DEFAULT 0, hw_acceleration TEXT DEFAULT 'none', "\
 	   "FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
 
     if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
@@ -789,6 +804,7 @@ static int db_insert_provider(struct dynamicbox *dynamicbox)
     char *timeout = (char *)dynamicbox->timeout;
     char *period = (char *)dynamicbox->period;
     char *script = (char *)dynamicbox->script;
+    char *hw_acceleration = (char *)dynamicbox->hw_acceleration;
 
     if (!abi) {
 	abi = "c";
@@ -806,7 +822,11 @@ static int db_insert_provider(struct dynamicbox *dynamicbox)
 	script = "edje";
     }
 
-    dml = "INSERT INTO provider ( pkgid, network, abi, secured, box_type, box_src, box_group, gbar_type, gbar_src, gbar_group, libexec, timeout, period, script, pinup, count, direct_input ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    if (!hw_acceleration) {
+	hw_acceleration = "none";
+    }
+
+    dml = "INSERT INTO provider ( pkgid, network, abi, secured, box_type, box_src, box_group, gbar_type, gbar_src, gbar_group, libexec, timeout, period, script, pinup, count, direct_input, hw_acceleration) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
     if (ret != SQLITE_OK) {
 	ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
@@ -925,6 +945,13 @@ static int db_insert_provider(struct dynamicbox *dynamicbox)
     }
 
     ret = sqlite3_bind_int(stmt, 17, dynamicbox->direct_input);
+    if (ret != SQLITE_OK) {
+	ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
+	ret = -EIO;
+	goto out;
+    }
+
+    ret = sqlite3_bind_text(stmt, 18, hw_acceleration, -1, SQLITE_TRANSIENT);
     if (ret != SQLITE_OK) {
 	ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 	ret = -EIO;
@@ -1868,6 +1895,7 @@ static int dynamicbox_destroy(struct dynamicbox *dynamicbox)
     xmlFree(dynamicbox->preview[10]); /* easy 3x1 */
     xmlFree(dynamicbox->preview[11]); /* easy 3x3 */
     xmlFree(dynamicbox->preview[12]); /* full */
+    xmlFree(dynamicbox->hw_acceleration);
 
     dlist_foreach_safe(dynamicbox->i18n_list, l, n, i18n) {
 	dynamicbox->i18n_list = dlist_remove(dynamicbox->i18n_list, l);
@@ -2829,6 +2857,13 @@ static int do_install(xmlNodePtr node, const char *appid)
 	tmp = xmlGetProp(node, (const xmlChar *)"direct_input");
 	dynamicbox->direct_input = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
 	xmlFree(tmp);
+    }
+
+    if (xmlHasProp(node, (const xmlChar *)"hw-acceleration")) {
+	dynamicbox->hw_acceleration = xmlGetProp(node, (const xmlChar *)"hw-acceleration");
+	if (!dynamicbox->hw_acceleration) {
+	    ErrPrint("hw-acceleration is NIL\n");
+	}
     }
 
     if (xmlHasProp(node, (const xmlChar *)"abi")) {
