@@ -108,6 +108,8 @@ struct slave_node {
 #else
     struct timeval activated_at;
 #endif
+
+    char *hw_acceleration;
 };
 
 struct event {
@@ -186,7 +188,7 @@ static inline int xmonitor_resume_cb(void *data)
     return DBOX_STATUS_ERROR_NONE;
 }
 
-static inline struct slave_node *create_slave_node(const char *name, int is_secured, const char *abi, const char *pkgname, int network)
+static inline struct slave_node *create_slave_node(const char *name, int is_secured, const char *abi, const char *pkgname, int network, const char *hw_acceleration)
 {
     struct slave_node *slave;
 
@@ -214,6 +216,16 @@ static inline struct slave_node *create_slave_node(const char *name, int is_secu
     slave->pkgname = strdup(pkgname);
     if (!slave->pkgname) {
 	ErrPrint("Heap: %s\n", strerror(errno));
+	DbgFree(slave->abi);
+	DbgFree(slave->name);
+	DbgFree(slave);
+	return NULL;
+    }
+
+    slave->hw_acceleration = strdup(hw_acceleration);
+    if (!slave->hw_acceleration) {
+	ErrPrint("Heap: %s\n", strerror(errno));
+	DbgFree(slave->pkgname);
 	DbgFree(slave->abi);
 	DbgFree(slave->name);
 	DbgFree(slave);
@@ -303,6 +315,7 @@ static inline void destroy_slave_node(struct slave_node *slave)
     DbgFree(slave->abi);
     DbgFree(slave->name);
     DbgFree(slave->pkgname);
+    DbgFree(slave->hw_acceleration);
     DbgFree(slave);
     return;
 }
@@ -369,7 +382,7 @@ HAPI const int const slave_refcnt(struct slave_node *slave)
     return slave->refcnt;
 }
 
-HAPI struct slave_node *slave_create(const char *name, int is_secured, const char *abi, const char *pkgname, int network)
+HAPI struct slave_node *slave_create(const char *name, int is_secured, const char *abi, const char *pkgname, int network, const char *hw_acceleration)
 {
     struct slave_node *slave;
 
@@ -381,7 +394,7 @@ HAPI struct slave_node *slave_create(const char *name, int is_secured, const cha
 	return slave;
     }
 
-    slave = create_slave_node(name, is_secured, abi, pkgname, network);
+    slave = create_slave_node(name, is_secured, abi, pkgname, network, hw_acceleration);
     if (!slave) {
 	return NULL;
     }
@@ -524,6 +537,7 @@ static Eina_Bool relaunch_timer_cb(void *data)
 	    bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_NAME, slave_name(slave));
 	    bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_SECURED, ((DBOX_IS_INHOUSE(slave_abi(slave)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured) ? "true" : "false");
 	    bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_ABI, slave->abi);
+	    bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_HW_ACCELERATION, slave->hw_acceleration);
 
 	    slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
 
@@ -622,6 +636,7 @@ HAPI int slave_activate(struct slave_node *slave)
 	bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_NAME, slave_name(slave));
 	bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_SECURED, ((DBOX_IS_INHOUSE(slave_abi(slave)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured) ? "true" : "false");
 	bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_ABI, slave->abi);
+	bundle_add(param, DYNAMICBOX_CONF_BUNDLE_SLAVE_HW_ACCELERATION, slave->hw_acceleration);
 
 	slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
 
@@ -1304,7 +1319,7 @@ HAPI struct slave_node *slave_find_by_name(const char *name)
     return NULL;
 }
 
-HAPI struct slave_node *slave_find_available(const char *slave_pkgname, const char *abi, int secured, int network)
+HAPI struct slave_node *slave_find_available(const char *slave_pkgname, const char *abi, int secured, int network, const char *hw_acceleration)
 {
     Eina_List *l;
     struct slave_node *slave;
@@ -1333,6 +1348,12 @@ HAPI struct slave_node *slave_find_available(const char *slave_pkgname, const ch
 
 	if (strcasecmp(slave->pkgname, slave_pkgname)) {
 	    continue;
+	}
+
+	if (slave->hw_acceleration != hw_acceleration) {
+	    if (!slave->hw_acceleration || !hw_acceleration || strcasecmp(slave->hw_acceleration, hw_acceleration)) {
+		continue;
+	    }
 	}
 
 	if (slave->secured) {

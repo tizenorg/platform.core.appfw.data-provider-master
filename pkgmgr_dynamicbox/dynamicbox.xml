@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <manifest xmlns="http://tizen.org/ns/packages" package="com.samsung.nicesj" version="1.0" install-location="auto">
 
-<dynamicbox appid="com.samsung.nicesj.dynamicbox" primary="true" secured="false" network="false" abi="c" timeout="20" period="10.0" libexec="/usr/apps/com.samsung.myapp/libexec/liblive-com.samsung.nicesj.so" pinup="false" script="edje" nodisplay="false">
+<dynamicbox appid="com.samsung.nicesj.dynamicbox" primary="true" secured="false" network="false" abi="c" timeout="20" period="10.0" libexec="/usr/apps/com.samsung.myapp/libexec/liblive-com.samsung.nicesj.so" pinup="false" script="edje" nodisplay="false" direct_input="true">
 	<label>My Dynamic Box</label>
 	<icon>/usr/share/icons/small/com.samsung.live-nicesj.png</icon>
 	<label xml:lang="en_US">Sample</label>

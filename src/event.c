@@ -775,8 +775,11 @@ static int event_control_init(void)
 	ErrPrint("Error: %s\n", strerror(errno));
     }
 
-    if (ioctl(s_info.handle, EVIOCSCLOCKID, &clockId) < 0) {
-       ErrPrint("Error: %s\n", strerror(errno));
+    if (DYNAMICBOX_CONF_USE_EVENT_TIME && !DYNAMICBOX_CONF_USE_GETTIMEOFDAY) {
+	DbgPrint("Change timestamp to monotonic\n");
+	if (ioctl(s_info.handle, EVIOCSCLOCKID, &clockId) < 0) {
+	    ErrPrint("Error: %s\n", strerror(errno));
+	}
     }
 
     status = pipe2(s_info.evt_pipe, O_CLOEXEC);
@@ -939,6 +942,13 @@ HAPI int event_activate(int x, int y, int (*event_cb)(enum event_state state, st
     }
 
     return ret;
+}
+
+HAPI int event_input_fd(void)
+{
+    event_control_init();
+    DbgPrint("Input event handler: %d\n", s_info.handle);
+    return s_info.handle;
 }
 
 HAPI int event_deactivate(int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data)

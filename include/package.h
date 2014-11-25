@@ -85,6 +85,10 @@ extern void package_set_gbar_width(struct pkg_info *info, int width);
 extern int package_set_abi(struct pkg_info *info, const char *abi);
 extern void package_add_ctx_info(struct pkg_info *pkginfo, struct context_info *info);
 extern void package_del_ctx_info(struct pkg_info *pkginfo, struct context_info *info);
+extern void package_set_direct_input(struct pkg_info *info, int direct_input);
+extern int package_direct_input(const struct pkg_info *info);
+extern const char *package_hw_acceleration(struct pkg_info *info);
+extern int package_set_hw_acceleration(struct pkg_info *info, const char *hw_acceleration);
 
 /*!
  * \brief
