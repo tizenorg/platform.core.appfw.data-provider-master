@@ -359,7 +359,7 @@ static inline int build_provider_info(struct pkg_info *info)
 
     package_set_pinup(info, sqlite3_column_int(stmt, 13));
     package_set_direct_input(info, sqlite3_column_int(stmt, 15));
-    package_set_hw_acceleration(info, sqlite3_column_text(stmt, 16));
+    package_set_hw_acceleration(info, (const char *)sqlite3_column_text(stmt, 16));
 
     sqlite3_reset(stmt);
     sqlite3_clear_bindings(stmt);
