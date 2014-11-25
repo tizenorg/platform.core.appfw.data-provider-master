@@ -775,8 +775,10 @@ static int event_control_init(void)
 	ErrPrint("Error: %s\n", strerror(errno));
     }
 
-    if (ioctl(s_info.handle, EVIOCSCLOCKID, &clockId) < 0) {
-	ErrPrint("Error: %s\n", strerror(errno));
+    if (DYNAMICBOX_CONF_USE_EVENT_TIME && !DYNAMICBOX_CONF_USE_GETTIMEOFDAY) {
+	if (ioctl(s_info.handle, EVIOCSCLOCKID, &clockId) < 0) {
+	    ErrPrint("Error: %s\n", strerror(errno));
+	}
     }
 
     status = pipe2(s_info.evt_pipe, O_CLOEXEC);
