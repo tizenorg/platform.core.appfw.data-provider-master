@@ -222,14 +222,16 @@ static inline struct slave_node *create_slave_node(const char *name, int is_secu
 	return NULL;
     }
 
-    slave->hw_acceleration = strdup(hw_acceleration);
-    if (!slave->hw_acceleration) {
-	ErrPrint("Heap: %s\n", strerror(errno));
-	DbgFree(slave->pkgname);
-	DbgFree(slave->abi);
-	DbgFree(slave->name);
-	DbgFree(slave);
-	return NULL;
+    if (slave->hw_acceleration) {
+	slave->hw_acceleration = strdup(hw_acceleration);
+	if (!slave->hw_acceleration) {
+	    ErrPrint("Heap: %s\n", strerror(errno));
+	    DbgFree(slave->pkgname);
+	    DbgFree(slave->abi);
+	    DbgFree(slave->name);
+	    DbgFree(slave);
+	    return NULL;
+	}
     }
 
     slave->secured = is_secured;
