@@ -776,6 +776,7 @@ static int event_control_init(void)
     }
 
     if (DYNAMICBOX_CONF_USE_EVENT_TIME && !DYNAMICBOX_CONF_USE_GETTIMEOFDAY) {
+	DbgPrint("Change timestamp to monotonic\n");
 	if (ioctl(s_info.handle, EVIOCSCLOCKID, &clockId) < 0) {
 	    ErrPrint("Error: %s\n", strerror(errno));
 	}
