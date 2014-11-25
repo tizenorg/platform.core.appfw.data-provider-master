@@ -222,7 +222,7 @@ static inline struct slave_node *create_slave_node(const char *name, int is_secu
 	return NULL;
     }
 
-    if (slave->hw_acceleration) {
+    if (hw_acceleration) {
 	slave->hw_acceleration = strdup(hw_acceleration);
 	if (!slave->hw_acceleration) {
 	    ErrPrint("Heap: %s\n", strerror(errno));

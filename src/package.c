@@ -1107,7 +1107,7 @@ static inline int assign_new_slave(const char *slave_pkgname, struct pkg_info *i
 	return DBOX_STATUS_ERROR_FAULT;
     }
 
-    DbgPrint("New slave[%s] is assigned for %s (using %s / abi[%s])\n", s_name, info->dbox_id, slave_pkgname, info->abi);
+    DbgPrint("New slave[%s] is assigned for %s (using %s / abi[%s] / accel[%s])\n", s_name, info->dbox_id, slave_pkgname, info->abi, info->hw_acceleration);
     info->slave = slave_create(s_name, info->secured, info->abi, slave_pkgname, info->network, info->hw_acceleration);
 
     DbgFree(s_name);
