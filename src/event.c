@@ -43,6 +43,15 @@
 #define PRESSURE 10
 #define DELAY_COMPENSATOR 0.1f
 
+#if !defined(EVIOCSCLOCKID)
+/**
+ * @note
+ * I just copy this from the latest input.h file.
+ * It could not be compatible with the latest one.
+ */
+#define EVIOCSCLOCKID           _IOW('E', 0xa0, int)                    /* Set clockid to be used for timestamps */
+#endif
+
 int errno;
 
 static struct info {
