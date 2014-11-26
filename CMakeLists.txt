@@ -52,7 +52,7 @@ pkg_check_modules(pkg_extra REQUIRED
 ENDIF (WAYLAND_SUPPORT)
 
 SET(PACKAGE "${PROJECT_NAME}")
-SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Winline -Werror -fno-builtin-malloc -fno-omit-frame-pointer -g")
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Winline -Werror -fno-builtin-malloc -fno-omit-frame-pointer -g -fPIE")
 
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
@@ -177,7 +177,7 @@ ADD_DEFINITIONS(${pkg_livebox_LDFLAGS})
 
 ADD_EXECUTABLE(${PROJECT_NAME} ${BUILD_SOURCE})
 
-TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${pkg_LDFLAGS} ${pkg_extra_LDFLAGS} ${pkg_livebox_LDFLAGS} "-ldl -lrt")
+TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${pkg_LDFLAGS} ${pkg_extra_LDFLAGS} ${pkg_livebox_LDFLAGS} "-ldl -lrt -pie")
 
 IF (LIVEBOX)
 INSTALL(FILES ${CMAKE_SOURCE_DIR}/data/abi.ini DESTINATION /usr/share/data-provider-master PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
