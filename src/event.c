@@ -910,6 +910,14 @@ HAPI int event_activate(int x, int y, int (*event_cb)(enum event_state state, st
 {
     struct event_listener *listener;
     int ret = DBOX_STATUS_ERROR_NONE;
+    Eina_List *l;
+
+    EINA_LIST_FOREACH(s_info.event_listener_list, l, listener) {
+	if (listener->event_cb == event_cb && listener->cbdata == data) {
+	    ErrPrint("Already registered\n");
+	    return DBOX_STATUS_ERROR_ALREADY;
+	}
+    }
 
     listener = malloc(sizeof(*listener));
     if (!listener) {
