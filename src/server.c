@@ -2090,13 +2090,27 @@ static struct packet *client_dbox_mouse_set(pid_t pid, int handle, const struct 
     }
 
     if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-	ret = event_activate(x, y, mouse_event_dbox_route_cb, inst);
-	if (ret == DBOX_STATUS_ERROR_NONE) {
-	    if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-		(void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON);
+	if (package_direct_input(pkg) == 0 || packet_set_fd((struct packet *)packet, event_input_fd()) < 0) {
+	    ret = event_activate(x, y, mouse_event_dbox_route_cb, inst);
+	    if (ret == DBOX_STATUS_ERROR_NONE) {
+		if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
+		    (void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON);
+		}
+		if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_dbox_route_cb) <= 0) {
+		    instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_dbox_route_cb);
+		}
 	    }
-	    if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_dbox_route_cb) <= 0) {
-		instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_dbox_route_cb);
+	} else {
+	    struct slave_node *slave;
+
+	    DbgPrint("Direct input is enabled(set for %s:%d)\n", id, packet_fd(packet));
+	    slave = package_slave(pkg);
+	    if (slave) {
+		packet_ref((struct packet *)packet);
+		ret = slave_rpc_request_only(slave, pkgname, (struct packet *)packet, 0);
+	    } else {
+		ErrPrint("Unable to find a slave for %s\n", pkgname);
+		ret = DBOX_STATUS_ERROR_FAULT;
 	    }
 	}
     } else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
@@ -2149,16 +2163,30 @@ static struct packet *client_dbox_mouse_unset(pid_t pid, int handle, const struc
     }
 
     if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-	ret = event_deactivate(mouse_event_dbox_route_cb, inst);
-	if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-	    (void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF);
+	if (package_direct_input(pkg) == 0) {
+	    ret = event_deactivate(mouse_event_dbox_route_cb, inst);
+	    if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
+		(void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF);
+	    }
+	    /*
+	     * This delete callback will be removed when the instance will be destroyed.
+	     if (ret == 0) {
+	     instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_dbox_route_cb);
+	     }
+	     */
+	} else {
+	    struct slave_node *slave;
+
+	    DbgPrint("Direct input is enabled(unset) for %s\n", id);
+	    slave = package_slave(pkg);
+	    if (slave) {
+		packet_ref((struct packet *)packet);
+		ret = slave_rpc_request_only(slave, pkgname, (struct packet *)packet, 0);
+	    } else {
+		ErrPrint("Unable to find a slave for %s\n", pkgname);
+		ret = DBOX_STATUS_ERROR_FAULT;
+	    }
 	}
-	/*
-	 * This delete callback will be removed when the instance will be destroyed.
-	 if (ret == 0) {
-	 instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_dbox_route_cb);
-	 }
-	 */
     } else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
 	ret = event_deactivate(mouse_event_dbox_consume_cb, inst);
 	if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
@@ -2210,13 +2238,27 @@ static struct packet *client_gbar_mouse_set(pid_t pid, int handle, const struct 
     }
 
     if (package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
-	ret = event_activate(x, y, mouse_event_gbar_route_cb, inst);
-	if (ret == DBOX_STATUS_ERROR_NONE) {
-	    if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-		(void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON);
+	if (package_direct_input(pkg) == 0 || packet_set_fd((struct packet *)packet, event_input_fd()) < 0) {
+	    ret = event_activate(x, y, mouse_event_gbar_route_cb, inst);
+	    if (ret == DBOX_STATUS_ERROR_NONE) {
+		if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
+		    (void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON);
+		}
+		if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_gbar_route_cb) <= 0) {
+		    instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_gbar_route_cb);
+		}
 	    }
-	    if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_gbar_route_cb) <= 0) {
-		instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_gbar_route_cb);
+	} else {
+	    struct slave_node *slave;
+
+	    DbgPrint("Direct input is enabled(set for %s:%d)\n", id, packet_fd(packet));
+	    slave = package_slave(pkg);
+	    if (slave) {
+		packet_ref((struct packet *)packet);
+		ret = slave_rpc_request_only(slave, pkgname, (struct packet *)packet, 0);
+	    } else {
+		ErrPrint("Unable to find a slave for %s\n", pkgname);
+		ret = DBOX_STATUS_ERROR_FAULT;
 	    }
 	}
     } else if (package_gbar_type(pkg) == GBAR_TYPE_SCRIPT) {
@@ -2710,16 +2752,30 @@ static struct packet *client_gbar_mouse_unset(pid_t pid, int handle, const struc
     }
 
     if (package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
-	ret = event_deactivate(mouse_event_gbar_route_cb, inst);
-	if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-	    (void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF);
+	if (package_direct_input(pkg) == 0) {
+	    ret = event_deactivate(mouse_event_gbar_route_cb, inst);
+	    if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
+		(void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF);
+	    }
+	    /*
+	     * This delete callback will be removed when the instance will be destroyed.
+	     if (ret == 0) {
+	     instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_gbar_route_cb);
+	     }
+	     */
+	} else {
+	    struct slave_node *slave;
+
+	    DbgPrint("Direct input is enabled(unset) for %s\n", id);
+	    slave = package_slave(pkg);
+	    if (slave) {
+		packet_ref((struct packet *)packet);
+		ret = slave_rpc_request_only(slave, pkgname, (struct packet *)packet, 0);
+	    } else {
+		ErrPrint("Unable to find a slave for %s\n", pkgname);
+		ret = DBOX_STATUS_ERROR_FAULT;
+	    }
 	}
-	/*
-	 * This delete callback will be removed when the instance will be destroyed.
-	 if (ret == 0) {
-	 instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_gbar_route_cb);
-	 }
-	 */
     } else if (package_gbar_type(pkg) == GBAR_TYPE_SCRIPT) {
 	ret = event_deactivate(mouse_event_gbar_consume_cb, inst);
 	if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
@@ -6272,7 +6328,7 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 		    DbgPrint("Slave pkgname is invalid, ABI is replaced with '%s'(default)\n", abi);
 		}
 
-		slave = slave_create(slavename, 1, abi, pkgname, 0);
+		slave = slave_create(slavename, 1, abi, pkgname, 0, NULL);
 		if (!slave) {
 		    ErrPrint("Failed to create a new slave for %s\n", slavename);
 		    goto out;

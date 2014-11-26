@@ -117,8 +117,10 @@ struct pkg_info {
 
     int network;
     int secured;
+    int direct_input;
     char *script; /* script type: edje, ... */
     char *abi;
+    char *hw_acceleration;
 
     int fault_count;
     struct fault_info *fault_info;
@@ -308,6 +310,7 @@ static inline void destroy_package(struct pkg_info *info)
     DbgFree(info->dbox.libexec);
     DbgFree(info->dbox.auto_launch);
     DbgFree(info->pkgid);
+    DbgFree(info->hw_acceleration);
 
     DbgFree(info);
 }
@@ -1045,6 +1048,16 @@ HAPI void package_set_network(struct pkg_info *info, int network)
     info->network = network;
 }
 
+HAPI void package_set_direct_input(struct pkg_info *info, int direct_input)
+{
+    info->direct_input = direct_input;
+}
+
+HAPI int package_direct_input(const struct pkg_info *info)
+{
+    return info->direct_input;
+}
+
 HAPI const enum dynamicbox_gbar_type const package_gbar_type(const struct pkg_info *info)
 {
     return info ? info->gbar.type : GBAR_TYPE_NONE;
@@ -1053,6 +1066,30 @@ HAPI const enum dynamicbox_gbar_type const package_gbar_type(const struct pkg_in
 HAPI void package_set_gbar_type(struct pkg_info *info, enum dynamicbox_gbar_type type)
 {
     info->gbar.type = type;
+}
+
+HAPI const char *package_hw_acceleration(struct pkg_info *info)
+{
+    return info->hw_acceleration;
+}
+
+HAPI int package_set_hw_acceleration(struct pkg_info *info, const char *hw_acceleration)
+{
+    char *tmp;
+
+    if (!hw_acceleration || !info) {
+	return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+    }
+
+    tmp = strdup(hw_acceleration);
+    if (!tmp) {
+	ErrPrint("strdup: %s\n", strerror(errno));
+	return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+    }
+
+    DbgFree(info->hw_acceleration);
+    info->hw_acceleration = tmp;
+    return DBOX_STATUS_ERROR_NONE;
 }
 
 /*!
@@ -1070,8 +1107,8 @@ static inline int assign_new_slave(const char *slave_pkgname, struct pkg_info *i
 	return DBOX_STATUS_ERROR_FAULT;
     }
 
-    DbgPrint("New slave[%s] is assigned for %s (using %s / abi[%s])\n", s_name, info->dbox_id, slave_pkgname, info->abi);
-    info->slave = slave_create(s_name, info->secured, info->abi, slave_pkgname, info->network);
+    DbgPrint("New slave[%s] is assigned for %s (using %s / abi[%s] / accel[%s])\n", s_name, info->dbox_id, slave_pkgname, info->abi, info->hw_acceleration);
+    info->slave = slave_create(s_name, info->secured, info->abi, slave_pkgname, info->network, info->hw_acceleration);
 
     DbgFree(s_name);
 
@@ -1102,7 +1139,7 @@ HAPI int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 	    return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
-	info->slave = slave_find_available(slave_pkgname, info->abi, info->secured, info->network);
+	info->slave = slave_find_available(slave_pkgname, info->abi, info->secured, info->network, info->hw_acceleration);
 	if (!info->slave) {
 	    int ret;
 
