@@ -940,7 +940,7 @@ HAPI int event_activate(int x, int y, int (*event_cb)(enum event_state state, st
 	 * \note
 	 * We don't need to lock to access event_list here.
 	 * If the _sinfo.handle is greater than 0, the event_list will not be touched.
-	 * But if the s_info.handle is less than 0, it means, there is not thread,
+	 * But if the s_info.handle is less than 0, it means, there is no thread,
 	 * so we can access the event_list without lock.
 	 */
 	if (s_info.event_list) {
