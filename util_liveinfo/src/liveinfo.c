@@ -1384,7 +1384,7 @@ static Eina_Bool input_cb(void *data, Ecore_Fd_Handler *fd_handler)
 {
     static int idx = 0;
     static char cmd_buffer[256];
-    char ch;
+    unsigned char ch;
     int fd;
     int ret;
     const char escape_str[] = { 0x1b, 0x5b, 0x0 };
