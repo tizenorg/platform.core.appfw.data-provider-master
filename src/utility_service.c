@@ -266,7 +266,7 @@ static int lazy_launcher_cb(struct service_context *svc_ctx, void *data)
 static int ttl_timer_cb(struct service_context *svc_ctx, void *data)
 {
     DbgPrint("TTL Timer is expired: PID(%d)\n", s_info.svc_daemon_pid);
-    (void)aul_terminate_pid(s_info.svc_daemon_pid);
+    (void)aul_terminate_pid_async(s_info.svc_daemon_pid);
 
     s_info.ttl_timer = NULL;
     s_info.svc_daemon_is_launched = 0;
@@ -353,7 +353,7 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 	    if (!s_info.ttl_timer) {
 		ErrPrint("Failed to add TTL timer\n");
 		if (s_info.svc_daemon_pid > 0) {
-		    ret = aul_terminate_pid(s_info.svc_daemon_pid);
+		    ret = aul_terminate_pid_async(s_info.svc_daemon_pid);
 		    ErrPrint("Terminate: %d\n", ret);
 		    s_info.svc_daemon_pid = -1;
 		}

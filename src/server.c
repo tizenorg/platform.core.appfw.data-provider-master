@@ -6355,7 +6355,7 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 	    if (slave_pid(slave) > 0) {
 		CRITICAL_LOG("Slave(%s) is already assigned to %d\n", slave_name(slave), slave_pid(slave));
 		if (pid > 0) {
-		    ret = aul_terminate_pid(pid);
+		    ret = aul_terminate_pid_async(pid);
 		    CRITICAL_LOG("Terminate %d (ret: %d)\n", pid, ret);
 		}
 		goto out;

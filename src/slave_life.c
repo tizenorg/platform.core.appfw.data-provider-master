@@ -467,7 +467,7 @@ static Eina_Bool activate_timer_cb(void *data)
     if (slave_pid(slave) > 0) {
 	int ret;
 	DbgPrint("Try to terminate PID: %d\n", slave_pid(slave));
-	ret = aul_terminate_pid(slave_pid(slave));
+	ret = aul_terminate_pid_async(slave_pid(slave));
 	if (ret < 0) {
 	    ErrPrint("Terminate failed, pid %d (reason: %d)\n", slave_pid(slave), ret);
 	}
@@ -493,7 +493,7 @@ static inline void invoke_slave_fault_handler(struct slave_node *slave)
 	} else {
 	    int ret;
 	    DbgPrint("Try to terminate PID: %d\n", slave_pid(slave));
-	    ret = aul_terminate_pid(slave_pid(slave));
+	    ret = aul_terminate_pid_async(slave_pid(slave));
 	    if (ret < 0) {
 		ErrPrint("Terminate failed, pid %d (reason: %d)\n", slave_pid(slave), ret);
 	    }
@@ -819,7 +819,7 @@ static Eina_Bool terminate_timer_cb(void *data)
     slave->terminate_timer = NULL;
 
     DbgPrint("Terminate slave: %d (%s)\n", slave_pid(slave), slave_name(slave));
-    ret = aul_terminate_pid(slave->pid);
+    ret = aul_terminate_pid_async(slave->pid);
     if (ret < 0) {
 	ErrPrint("Terminate slave(%s) failed. pid %d (%d)\n", slave_name(slave), slave_pid(slave), ret);
 	slave = slave_deactivated(slave);
@@ -882,7 +882,7 @@ HAPI struct slave_node *slave_deactivate(struct slave_node *slave, int no_timer)
 	     */
 	    slave->state = SLAVE_REQUEST_TO_TERMINATE;
 
-	    ret = aul_terminate_pid(slave->pid);
+	    ret = aul_terminate_pid_async(slave->pid);
 	    if (ret < 0) {
 		ErrPrint("Terminate slave(%s) failed. pid %d (%d)\n", slave_name(slave), slave_pid(slave), ret);
 		slave = slave_deactivated(slave);
@@ -896,7 +896,7 @@ HAPI struct slave_node *slave_deactivate(struct slave_node *slave, int no_timer)
 	slave->state = SLAVE_REQUEST_TO_TERMINATE;
 
 	DbgPrint("Terminate slave: %d (%s)\n", slave_pid(slave), slave_name(slave));
-	ret = aul_terminate_pid(slave->pid);
+	ret = aul_terminate_pid_async(slave->pid);
 	if (ret < 0) {
 	    ErrPrint("Terminate slave(%s) failed. pid %d (%d)\n", slave_name(slave), slave_pid(slave), ret);
 	    slave = slave_deactivated(slave);
@@ -996,7 +996,7 @@ HAPI struct slave_node *slave_deactivated_by_fault(struct slave_node *slave)
 
     if (slave_pid(slave) > 0) {
 	DbgPrint("Try to terminate PID: %d\n", slave_pid(slave));
-	ret = aul_terminate_pid(slave_pid(slave));
+	ret = aul_terminate_pid_async(slave_pid(slave));
 	if (ret < 0) {
 	    ErrPrint("Terminate failed, pid %d\n", slave_pid(slave));
 	}
