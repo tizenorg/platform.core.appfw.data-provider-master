@@ -113,12 +113,6 @@ extern void slave_destroy(struct slave_node *slave);
 extern int slave_activate(struct slave_node *slave);
 
 /*!
- * \brief After this function call, the slave object can be deleted
- * \param[in] slave
- */
-extern struct slave_node *slave_deactivate(struct slave_node *slave, int direct) __attribute__((warn_unused_result));
-
-/*!
  * To check the slave's activation state
  */
 extern const int const slave_is_activated(struct slave_node *slave);

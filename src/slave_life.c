@@ -132,6 +132,93 @@ static struct {
     .deactivate_all_refcnt = 0,
 };
 
+static Eina_Bool terminate_timer_cb(void *data)
+{
+    struct slave_node *slave = data;
+    int ret;
+
+    /*!
+     * \todo
+     * check the return value of the aul_terminate_pid
+     */
+    slave->state = SLAVE_REQUEST_TO_TERMINATE;
+    slave->terminate_timer = NULL;
+
+    DbgPrint("Terminate slave: %d (%s)\n", slave_pid(slave), slave_name(slave));
+    ret = aul_terminate_pid_async(slave->pid);
+    if (ret < 0) {
+	ErrPrint("Terminate slave(%s) failed. pid %d (%d)\n", slave_name(slave), slave_pid(slave), ret);
+	slave = slave_deactivated(slave);
+	if (slave == NULL) {
+	    DbgPrint("Slave is deleted\n");
+	}
+    }
+
+    return ECORE_CALLBACK_CANCEL;
+}
+
+static struct slave_node *slave_deactivate(struct slave_node *slave, int no_timer)
+{
+    int ret;
+
+    if (slave_pid(slave) <= 0) {
+	return slave;
+    }
+
+    if ((slave->ctrl_option & PROVIDER_CTRL_MANUAL_TERMINATION) == PROVIDER_CTRL_MANUAL_TERMINATION) {
+	/*!
+	 * \note
+	 * In this case,
+	 * The provider requests MANUAL TERMINATION control option.
+	 * Master will not send terminate request in this case, the provider should be terminated by itself.
+	 */
+	DbgPrint("Manual termination is turned on\n");
+	slave->state = SLAVE_REQUEST_TO_DISCONNECT;
+	(void)slave_rpc_disconnect(slave);
+    } else if (slave->terminate_timer) {
+	ErrPrint("Terminate timer is already fired (%d)\n", slave->pid);
+    } else if (!no_timer && !slave->secured) {
+	DbgPrint("Fire the terminate timer: %d\n", slave->pid);
+	slave->terminate_timer = ecore_timer_add(DYNAMICBOX_CONF_SLAVE_ACTIVATE_TIME, terminate_timer_cb, slave);
+	if (!slave->terminate_timer) {
+	    /*!
+	     * \note
+	     * Normally, Call the terminate_timer_cb directly from here
+	     * But in this case. if the aul_terminate_pid failed, Call the slave_deactivated function directly.
+	     * Then the "slave" pointer can be changed. To trace it, Copy the body of terminate_timer_cb to here.
+	     */
+	    ErrPrint("Failed to add a new timer for terminating\n");
+	    DbgPrint("Terminate slave: %d (%s)\n", slave_pid(slave), slave_name(slave));
+	    /*!
+	     * \todo
+	     * check the return value of the aul_terminate_pid
+	     */
+	    slave->state = SLAVE_REQUEST_TO_TERMINATE;
+
+	    ret = aul_terminate_pid_async(slave->pid);
+	    if (ret < 0) {
+		ErrPrint("Terminate slave(%s) failed. pid %d (%d)\n", slave_name(slave), slave_pid(slave), ret);
+		slave = slave_deactivated(slave);
+	    }
+	}
+    } else {
+	/*!
+	 * \todo
+	 * check the return value of the aul_terminate_pid
+	 */
+	slave->state = SLAVE_REQUEST_TO_TERMINATE;
+
+	DbgPrint("Terminate slave: %d (%s)\n", slave_pid(slave), slave_name(slave));
+	ret = aul_terminate_pid_async(slave->pid);
+	if (ret < 0) {
+	    ErrPrint("Terminate slave(%s) failed. pid %d (%d)\n", slave_name(slave), slave_pid(slave), ret);
+	    slave = slave_deactivated(slave);
+	}
+    }
+
+    return slave;
+}
+
 static Eina_Bool slave_ttl_cb(void *data)
 {
     struct pkg_info *info;
@@ -163,12 +250,14 @@ static Eina_Bool slave_ttl_cb(void *data)
      */
     slave->ttl_timer = NULL;
 
-    slave_set_reactivation(slave, 0);
-    slave_set_reactivate_instances(slave, 1);
+    if (slave_is_activated(slave)) {
+	slave_set_reactivation(slave, 0);
+	slave_set_reactivate_instances(slave, 1);
 
-    slave = slave_deactivate(slave, 1);
-    if (!slave) {
-	DbgPrint("Slave is deleted\n");
+	slave = slave_deactivate(slave, 1);
+	if (!slave) {
+	    DbgPrint("Slave is deleted\n");
+	}
     }
 
     /*! To recover all instances state it is activated again */
@@ -804,106 +893,6 @@ static inline int invoke_deactivate_cb(struct slave_node *slave)
     slave->in_event_process &= ~SLAVE_EVENT_PROCESS_DEACTIVATE;
 
     return reactivate;
-}
-
-static Eina_Bool terminate_timer_cb(void *data)
-{
-    struct slave_node *slave = data;
-    int ret;
-
-    /*!
-     * \todo
-     * check the return value of the aul_terminate_pid
-     */
-    slave->state = SLAVE_REQUEST_TO_TERMINATE;
-    slave->terminate_timer = NULL;
-
-    DbgPrint("Terminate slave: %d (%s)\n", slave_pid(slave), slave_name(slave));
-    ret = aul_terminate_pid_async(slave->pid);
-    if (ret < 0) {
-	ErrPrint("Terminate slave(%s) failed. pid %d (%d)\n", slave_name(slave), slave_pid(slave), ret);
-	slave = slave_deactivated(slave);
-	if (slave == NULL) {
-	    DbgPrint("Slave is deleted\n");
-	}
-    }
-
-    return ECORE_CALLBACK_CANCEL;
-}
-
-HAPI struct slave_node *slave_deactivate(struct slave_node *slave, int no_timer)
-{
-    int ret;
-
-    if (!slave_is_activated(slave)) {
-	ErrPrint("Slave is already deactivated\n");
-	if (slave_loaded_instance(slave) == 0) {
-	    /*!
-	     * \note
-	     * If a slave has no more instances,
-	     * Destroy it
-	     */
-	    slave = slave_unref(slave);
-	}
-	return slave;
-    }
-
-    if (slave_pid(slave) <= 0) {
-	return slave;
-    }
-
-    if ((slave->ctrl_option & PROVIDER_CTRL_MANUAL_TERMINATION) == PROVIDER_CTRL_MANUAL_TERMINATION) {
-	/*!
-	 * \note
-	 * In this case,
-	 * The provider requests MANUAL TERMINATION control option.
-	 * Master will not send terminate request in this case, the provider should be terminated by itself.
-	 */
-	DbgPrint("Manual termination is turned on\n");
-	slave->state = SLAVE_REQUEST_TO_DISCONNECT;
-	(void)slave_rpc_disconnect(slave);
-    } else if (slave->terminate_timer) {
-	ErrPrint("Terminate timer is already fired (%d)\n", slave->pid);
-    } else if (!no_timer && !slave->secured) {
-	DbgPrint("Fire the terminate timer: %d\n", slave->pid);
-	slave->terminate_timer = ecore_timer_add(DYNAMICBOX_CONF_SLAVE_ACTIVATE_TIME, terminate_timer_cb, slave);
-	if (!slave->terminate_timer) {
-	    /*!
-	     * \note
-	     * Normally, Call the terminate_timer_cb directly from here
-	     * But in this case. if the aul_terminate_pid failed, Call the slave_deactivated function directly.
-	     * Then the "slave" pointer can be changed. To trace it, Copy the body of terminate_timer_cb to here.
-	     */
-	    ErrPrint("Failed to add a new timer for terminating\n");
-	    DbgPrint("Terminate slave: %d (%s)\n", slave_pid(slave), slave_name(slave));
-	    /*!
-	     * \todo
-	     * check the return value of the aul_terminate_pid
-	     */
-	    slave->state = SLAVE_REQUEST_TO_TERMINATE;
-
-	    ret = aul_terminate_pid_async(slave->pid);
-	    if (ret < 0) {
-		ErrPrint("Terminate slave(%s) failed. pid %d (%d)\n", slave_name(slave), slave_pid(slave), ret);
-		slave = slave_deactivated(slave);
-	    }
-	}
-    } else {
-	/*!
-	 * \todo
-	 * check the return value of the aul_terminate_pid
-	 */
-	slave->state = SLAVE_REQUEST_TO_TERMINATE;
-
-	DbgPrint("Terminate slave: %d (%s)\n", slave_pid(slave), slave_name(slave));
-	ret = aul_terminate_pid_async(slave->pid);
-	if (ret < 0) {
-	    ErrPrint("Terminate slave(%s) failed. pid %d (%d)\n", slave_name(slave), slave_pid(slave), ret);
-	    slave = slave_deactivated(slave);
-	}
-    }
-
-    return slave;
 }
 
 HAPI struct slave_node *slave_deactivated(struct slave_node *slave)
@@ -1774,14 +1763,16 @@ HAPI int slave_deactivate_all(int reactivate, int reactivate_instances, int no_t
     DbgPrint("Deactivate all\n");
 
     EINA_LIST_FOREACH_SAFE(s_info.slave_list, l, n, slave) {
-	slave_set_reactivate_instances(slave, reactivate_instances);
-	slave_set_reactivation(slave, reactivate);
+	if (slave_is_activated(slave)) {
+	    slave_set_reactivate_instances(slave, reactivate_instances);
+	    slave_set_reactivation(slave, reactivate);
 
-	if (!slave_deactivate(slave, no_timer)) {
-	    s_info.slave_list = eina_list_remove(s_info.slave_list, slave);
+	    if (!slave_deactivate(slave, no_timer)) {
+		s_info.slave_list = eina_list_remove(s_info.slave_list, slave);
+	    }
 	}
 
-	cnt++;
+        cnt++;
     }
 
     return cnt;
