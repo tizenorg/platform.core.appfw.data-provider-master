@@ -161,8 +161,24 @@ static struct slave_node *slave_deactivate(struct slave_node *slave, int no_time
 {
     int ret;
 
+    /**
+     * @note
+     * The caller must has to check the slave's state.
+     * If it is not activated, this function must has not to be called.
+     */
+
     if (slave_pid(slave) <= 0) {
 	return slave;
+    }
+
+    if (slave->ttl_timer) {
+	/**
+	 * @note
+	 * If there is an activated TTL timer,
+	 * It has to be cleared before deactivate the slave.
+	 */
+	ecore_timer_del(slave->ttl_timer);
+	slave->ttl_timer = NULL;
     }
 
     if ((slave->ctrl_option & PROVIDER_CTRL_MANUAL_TERMINATION) == PROVIDER_CTRL_MANUAL_TERMINATION) {
