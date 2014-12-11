@@ -23,7 +23,8 @@ struct slave_node;
 enum slave_event {
 	SLAVE_EVENT_ACTIVATE,
 	SLAVE_EVENT_DEACTIVATE, /* deactivate callback, can return REACTIVATE, DEFAULT */
-	SLAVE_EVENT_DELETE,
+	SLAVE_EVENT_DELETE, /* Callbacks for this event type, must has not to do something with slave object.
+			       use this only for just notice the state of slave */
 	SLAVE_EVENT_FAULT, /* Critical fault */
 
 	SLAVE_EVENT_PAUSE,

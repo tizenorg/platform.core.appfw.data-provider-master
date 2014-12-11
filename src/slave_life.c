@@ -470,13 +470,13 @@ HAPI struct slave_node *slave_unref(struct slave_node *slave)
     }
 
     if (slave->refcnt == 0) {
-	ErrPrint("Slave refcnt is not valid\n");
+        ErrPrint("Slave refcnt is not valid\n");
 	return NULL;
     }
 
     slave->refcnt--;
     if (slave->refcnt == 0) {
-	destroy_slave_node(slave);
+        destroy_slave_node(slave);
 	slave = NULL;
     }
 
@@ -521,12 +521,13 @@ HAPI void slave_destroy(struct slave_node *slave)
     slave_unref(slave);
 }
 
-static inline void invoke_fault_cb(struct slave_node *slave)
+static inline struct slave_node *invoke_fault_cb(struct slave_node *slave)
 {
     Eina_List *l;
     Eina_List *n;
     struct event *event;
 
+    slave_ref(slave);
     slave->in_event_process |= SLAVE_EVENT_PROCESS_FAULT;
     EINA_LIST_FOREACH_SAFE(slave->event_fault_list, l, n, event) {
 	if (event->deleted || event->evt_cb(event->slave, event->cbdata) < 0 || event->deleted) {
@@ -535,6 +536,9 @@ static inline void invoke_fault_cb(struct slave_node *slave)
 	}
     }
     slave->in_event_process &= ~SLAVE_EVENT_PROCESS_FAULT;
+    slave = slave_unref(slave);
+
+    return slave;
 }
 
 static inline void invoke_activate_cb(struct slave_node *slave)
@@ -563,7 +567,11 @@ static Eina_Bool activate_timer_cb(void *data)
     }
 
     slave->fault_count++;
-    invoke_fault_cb(slave);
+
+    if (invoke_fault_cb(slave) == NULL) {
+	ErrPrint("Slave is deleted while processing fault handler\n");
+	return ECORE_CALLBACK_CANCEL;
+    }
 
     slave_set_reactivation(slave, 0);
     slave_set_reactivate_instances(slave, 0);
@@ -586,7 +594,10 @@ static Eina_Bool activate_timer_cb(void *data)
 static inline void invoke_slave_fault_handler(struct slave_node *slave)
 {
     slave->fault_count++;
-    invoke_fault_cb(slave);
+    if (invoke_fault_cb(slave) == NULL) {
+	ErrPrint("Slave is deleted while processing fault handler\n");
+	return;
+    }
 
     slave_set_reactivation(slave, 0);
     slave_set_reactivate_instances(slave, 0);
@@ -938,7 +949,24 @@ HAPI struct slave_node *slave_deactivated(struct slave_node *slave)
 	slave->terminate_timer = NULL;
     }
 
+    /**
+     * @note
+     * FOR SAFETY
+     * If the deactivated event callback is called for package.c
+     * It can delete the instance if it has fault information
+     * then it also try to delete the slave object again.
+     * To prevent from unexpected slave object deletetion while handling callback,
+     * increase the refcnt of slave
+     * when it get back from callback, try to decrease the refcnt of slave
+     * At that time, we can delete slave safely.
+     */
+    slave_ref(slave);
     reactivate = invoke_deactivate_cb(slave);
+    slave = slave_unref(slave);
+    if (!slave) {
+	ErrPrint("Slave object is deleted\n");
+	return slave;
+    }
 
     slave = slave_unref(slave);
     if (!slave) {
@@ -1023,7 +1051,10 @@ HAPI struct slave_node *slave_deactivated_by_fault(struct slave_node *slave)
 	     * \note
 	     * Fault callback can access the slave information.
 	     */
-	    invoke_fault_cb(slave);
+	    if (invoke_fault_cb(slave) == NULL) {
+		ErrPrint("Slave is deleted while processing fault handler\n");
+		return NULL;
+	    }
 	} else {
 	    slave->critical_fault_count = 0;
 	}
@@ -1046,7 +1077,10 @@ HAPI struct slave_node *slave_deactivated_by_fault(struct slave_node *slave)
 		 * \note
 		 * Fault callback can access the slave information.
 		 */
-		invoke_fault_cb(slave);
+		if (invoke_fault_cb(slave) == NULL) {
+		    ErrPrint("Slave is deleted while processing fault handler\n");
+		    return NULL;
+		}
 	    }
 	} else {
 	    slave->critical_fault_count = 0;
