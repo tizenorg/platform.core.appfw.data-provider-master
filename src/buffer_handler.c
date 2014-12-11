@@ -43,8 +43,8 @@
 #include <dlog.h>
 #include <packet.h>
 #include <dynamicbox_errno.h>
-#include <dynamicbox_buffer.h>
 #include <dynamicbox_service.h>
+#include <dynamicbox_buffer.h>
 #include <dynamicbox_conf.h>
 
 #include "debug.h"

@@ -28,6 +28,7 @@
 #include <dlog.h>
 
 #include <dynamicbox_errno.h>
+#include <dynamicbox_service.h>
 #include <packet.h>
 #include <com-core.h>
 

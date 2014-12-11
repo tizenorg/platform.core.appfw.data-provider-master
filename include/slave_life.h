@@ -23,7 +23,8 @@ struct slave_node;
 enum slave_event {
 	SLAVE_EVENT_ACTIVATE,
 	SLAVE_EVENT_DEACTIVATE, /* deactivate callback, can return REACTIVATE, DEFAULT */
-	SLAVE_EVENT_DELETE,
+	SLAVE_EVENT_DELETE, /* Callbacks for this event type, must has not to do something with slave object.
+			       use this only for just notice the state of slave */
 	SLAVE_EVENT_FAULT, /* Critical fault */
 
 	SLAVE_EVENT_PAUSE,
@@ -111,12 +112,6 @@ extern void slave_destroy(struct slave_node *slave);
  * \return int
  */
 extern int slave_activate(struct slave_node *slave);
-
-/*!
- * \brief After this function call, the slave object can be deleted
- * \param[in] slave
- */
-extern struct slave_node *slave_deactivate(struct slave_node *slave, int direct) __attribute__((warn_unused_result));
 
 /*!
  * To check the slave's activation state
