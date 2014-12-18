@@ -110,6 +110,10 @@ export LIVEBOX_SHM="${LIVEBOX_SHM}.320x480"
 export LIVEBOX_SHM="${LIVEBOX_SHM}.480x800"
 %endif
 
+%if "%{sec_product_feature_display_resolution}" == "360x360"
+export LIVEBOX_SHM="${LIVEBOX_SHM}.360x360"
+%endif
+
 %if "%{sec_product_feature_livebox}" == "0"
 export LIVEBOX=Off
 %else
