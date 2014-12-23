@@ -2180,7 +2180,7 @@ static void update_size_info(struct dynamicbox *dynamicbox, int idx, xmlNodePtr 
     }
 }
 
-static inline void update_box(struct dynamicbox *dynamicbox, xmlNodePtr node)
+static void update_box(struct dynamicbox *dynamicbox, xmlNodePtr node)
 {
     if (!xmlHasProp(node, (const xmlChar *)"type")) {
 	dynamicbox->dbox_type = DBOX_TYPE_FILE;
