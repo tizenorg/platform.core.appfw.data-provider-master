@@ -52,6 +52,7 @@
 		<filesystem path="/usr/share/data-provider-master/360x480/resolution.ini" label="_" />
 		<filesystem path="/usr/share/data-provider-master/720x1280/resolution.ini" label="_" />
 		<filesystem path="/usr/share/data-provider-master/320x320/resolution.ini" label="_" />
+		<filesystem path="/usr/share/data-provider-master/360x360/resolution.ini" label="_" />
 		<filesystem path="/usr/share/data-provider-master/480x800/resolution.ini" label="_" />
 
 		<!-- Slave provider and the master provider are able to access the conf.ini file -->
@@ -61,6 +62,7 @@
 		<filesystem path="/usr/share/data-provider-master/360x480/conf.ini" label="data-provider-master::data" />
 		<filesystem path="/usr/share/data-provider-master/720x1280/conf.ini" label="data-provider-master::data" />
 		<filesystem path="/usr/share/data-provider-master/320x320/conf.ini" label="data-provider-master::data" />
+		<filesystem path="/usr/share/data-provider-master/360x360/conf.ini" label="data-provider-master::data" />
 		<filesystem path="/usr/share/data-provider-master/480x800/conf.ini" label="data-provider-master::data" />
 
 		<!-- Shared data folder -->
