@@ -69,10 +69,10 @@ static struct info {
 	Eina_List *event_listener_list;
 	Eina_List *reactivate_list;
 
-	int event_handler_activated;
+	enum event_handler_activate_type event_handler_activated;
 	int timestamp_updated;
 } s_info = {
-	.event_handler_activated = 0,
+	.event_handler_activated = EVENT_HANDLER_DEACTIVATED,
 	.event_list = NULL,
 	.handle = -1,
 	.event_handler = NULL,
@@ -112,8 +112,6 @@ struct event_listener {
 	int y; /* RelY */
 };
 
-static int activate_thread(void);
-static int deactivate_thread(void);
 static int event_control_fini(void);
 
 HAPI int event_init(void)
@@ -697,7 +695,7 @@ static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 			DbgPrint("Reactivate: %p\n", s_info.event_listener_list);
 
 			if (s_info.event_listener_list) {
-				if (activate_thread() < 0) {
+				if (event_activate_thread(EVENT_HANDLER_ACTIVATED_BY_MOUSE_SET) < 0) {
 					EINA_LIST_FREE(s_info.event_listener_list, listener) {
 						(void)listener->event_cb(EVENT_STATE_ERROR, NULL, listener->cbdata);
 					}
@@ -867,18 +865,13 @@ static int event_control_fini(void)
 	return DBOX_STATUS_ERROR_NONE;
 }
 
-static int activate_thread(void)
+int event_activate_thread(enum event_handler_activate_type activate_type)
 {
 	int ret;
 
 	ret = event_control_init();
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		return ret;
-	}
-
-	if (s_info.event_handler_activated) {
-		ErrPrint("Event handler is already activated\n");
-		return DBOX_STATUS_ERROR_ALREADY;
 	}
 
 	if (s_info.event_handler) {
@@ -901,15 +894,20 @@ static int activate_thread(void)
 	}
 
 	DbgPrint("Event handler activated\n");
-	s_info.event_handler_activated = 1;
+	s_info.event_handler_activated = activate_type;
 	return DBOX_STATUS_ERROR_NONE;
 }
 
-static int deactivate_thread(void)
+int event_deactivate_thread(enum event_handler_activate_type activate_type)
 {
 	int status;
 	void *ret;
 	char event_ch = EVENT_CH;
+
+	if (s_info.event_handler_activated != activate_type) {
+		ErrPrint("Event handler activate type is mismatched\n");
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
 
 	/* Terminating thread */
 	if (write(s_info.tcb_pipe[PIPE_WRITE], &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
@@ -923,7 +921,7 @@ static int deactivate_thread(void)
 		DbgPrint("Thread returns: %p\n", ret);
 	}
 
-	s_info.event_handler_activated = 0;
+	s_info.event_handler_activated = EVENT_HANDLER_DEACTIVATED;
 	return DBOX_STATUS_ERROR_NONE;
 }
 
@@ -959,7 +957,7 @@ HAPI int event_activate(int x, int y, int (*event_cb)(enum event_state state, st
 	listener->x = x;
 	listener->y = y;
 
-	if (!s_info.event_handler_activated) {
+	if (s_info.event_handler_activated == EVENT_HANDLER_DEACTIVATED) {
 		/*!
 		 * \note
 		 * We don't need to lock to access event_list here.
@@ -973,7 +971,7 @@ HAPI int event_activate(int x, int y, int (*event_cb)(enum event_state state, st
 		} else {
 			s_info.event_listener_list = eina_list_append(s_info.event_listener_list, listener);
 
-			if ((ret = activate_thread()) < 0) {
+			if ((ret = event_activate_thread(EVENT_HANDLER_ACTIVATED_BY_MOUSE_SET)) < 0) {
 				s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
 				DbgFree(listener);
 			}
@@ -1022,7 +1020,7 @@ HAPI int event_deactivate(int (*event_cb)(enum event_state state, struct event_d
 		return DBOX_STATUS_ERROR_NOT_EXIST;
 	}
 
-	if (s_info.event_handler_activated == 0) {
+	if (s_info.event_handler_activated == EVENT_HANDLER_DEACTIVATED) {
 		ErrPrint("Event handler is not actiavated\n");
 		s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
 		DbgFree(listener);
@@ -1034,7 +1032,7 @@ HAPI int event_deactivate(int (*event_cb)(enum event_state state, struct event_d
 		return DBOX_STATUS_ERROR_NONE;
 	}
 
-	deactivate_thread();
+	event_deactivate_thread(EVENT_HANDLER_ACTIVATED_BY_MOUSE_SET);
 
 	return DBOX_STATUS_ERROR_NONE;
 }
