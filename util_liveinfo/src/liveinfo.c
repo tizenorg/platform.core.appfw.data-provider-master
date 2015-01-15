@@ -1380,10 +1380,12 @@ static void do_command(const char *cmd)
     return;
 }
 
+#define CMD_BUFFER_SIZE 256
+
 static Eina_Bool input_cb(void *data, Ecore_Fd_Handler *fd_handler)
 {
     static int idx = 0;
-    static char cmd_buffer[256];
+    static char cmd_buffer[CMD_BUFFER_SIZE];
     unsigned char ch;
     int fd;
     int ret;
@@ -1438,7 +1440,8 @@ static Eina_Bool input_cb(void *data, Ecore_Fd_Handler *fd_handler)
 			cmd_buffer[0] = '\0';
 			prompt(NULL);
 		    } else {
-			strcpy(cmd_buffer, tmp);
+			strncpy(cmd_buffer, tmp, CMD_BUFFER_SIZE - 1);
+			cmd_buffer[CMD_BUFFER_SIZE - 1]  = '\0';
 			idx = strlen(cmd_buffer);
 			prompt(cmd_buffer);
 		    }
