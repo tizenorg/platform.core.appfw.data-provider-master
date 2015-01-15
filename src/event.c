@@ -618,8 +618,8 @@ static inline void clear_all_listener_list(void)
 				if (listener->prev_state == EVENT_STATE_ACTIVATE) {
 					/* There is no move event. we have to emulate it */
 					DbgPrint ("Let's emulate move event (%dx%d)\n", p_event_data->x, p_event_data->y);
-					listener->state = EVENT_STATE_ACTIVATED;
-					next_state = EVENT_STATE_DEACTIVATE;
+					listener->state = EVENT_STATE_ACTIVATE;
+					next_state = EVENT_STATE_ACTIVATED;
 				} else {
 					next_state = EVENT_STATE_DEACTIVATED;
 				}
