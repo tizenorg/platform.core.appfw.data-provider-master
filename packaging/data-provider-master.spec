@@ -39,12 +39,7 @@ BuildRequires: pkgconfig(com-core)
 BuildRequires: pkgconfig(libxml-2.0)
 BuildRequires: pkgconfig(pkgmgr)
 BuildRequires: pkgconfig(pkgmgr-info)
-
-# This will not be works, I know. But...
-%if "%{model_build_feature_livebox}" != "0"
 BuildRequires: pkgconfig(dynamicbox_service)
-%endif
-
 BuildRequires: pkgconfig(notification)
 BuildRequires: pkgconfig(notification-service)
 BuildRequires: pkgconfig(badge)
@@ -99,23 +94,8 @@ export MOBILE=On
 export WEARABLE=Off
 %endif
 
-%if "%{model_build_feature_display_resolution}" == "360x480"
-export LIVEBOX_SHM="${LIVEBOX_SHM}.360x480"
-%endif
-
-%if "%{model_build_feature_display_resolution}" == "320x480"
-export LIVEBOX_SHM="${LIVEBOX_SHM}.320x480"
-%endif
-
-%if "%{model_build_feature_display_resolution}" == "480x800"
 export LIVEBOX_SHM="${LIVEBOX_SHM}.480x800"
-%endif
-
-%if "%{model_build_feature_livebox}" == "0"
-export LIVEBOX=Off
-%else
 export LIVEBOX=On
-%endif
 
 %ifarch %ix86
 export TARGET=emulator
@@ -133,9 +113,6 @@ rm -rf %{buildroot}
 mkdir -p %{buildroot}/%{_datarootdir}/license
 mkdir -p %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants
 ln -sf ../data-provider-master.service %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants/data-provider-master.service
-%if "%{model_build_feature_livebox}" == "0"
-# Nothing provides
-%else
 mkdir -p %{buildroot}/opt/usr/share/live_magazine
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/log
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/reader
@@ -158,7 +135,6 @@ CREATE TABLE pkgmap ( pkgid TEXT PRIMARY KEY NOT NULL, appid TEXT, uiapp TEXT, p
 CREATE TABLE provider ( pkgid TEXT PRIMARY KEY NOT NULL, network INTEGER, abi TEXT, secured INTEGER, box_type INTEGER, box_src TEXT, box_group TEXT, gbar_type INTEGER, gbar_src TEXT, gbar_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, count INTEGER, direct_input INTEGER DEFAULT 0, hw_acceleration TEXT DEFAULT '', FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
 EOF
 fi
-%endif
 
 %pre
 # Executing the stop script for stopping the service of installed provider (old version)
@@ -167,9 +143,6 @@ if [ -x %{_sysconfdir}/rc.d/init.d/data-provider-master ]; then
 fi
 
 %post
-%if "%{model_build_feature_livebox}" == "0"
-#Nothing provides
-%else
 chown 5000:5000 /opt/usr/share/live_magazine
 chmod 750 /opt/usr/share/live_magazine
 chown 5000:5000 /opt/usr/share/live_magazine/log
@@ -182,7 +155,6 @@ chown 0:5000 /opt/dbspace/.dynamicbox.db
 chmod 640 /opt/dbspace/.dynamicbox.db
 chown 0:5000 /opt/dbspace/.dynamicbox.db-journal
 chmod 640 /opt/dbspace/.dynamicbox.db-journal
-%endif
 vconftool set -t bool "memory/data-provider-master/started" 0 -i -u 5000 -f -s system::vconf_system
 vconftool set -t int "memory/private/data-provider-master/restart_count" 0 -i -u 5000 -f -s data-provider-master
 vconftool set -t string "db/data-provider-master/serveraddr" "/opt/usr/share/live_magazine/.client.socket" -i -u 5000 -f -s system::vconf_system
@@ -199,15 +171,11 @@ echo "%{_sysconfdir}/init.d/data-provider-master start"
 %if 0%{?tizen_build_binary_release_type_eng}
 /opt/usr/devel/usr/bin/*
 %endif
-%if "%{model_build_feature_livebox}" == "0"
-# Nothing provides
-%else
 %{_prefix}/etc/package-manager/parserlib/*
 %{_datarootdir}/data-provider-master/*
 /opt/etc/dump.d/module.d/dump_dynamicbox.sh
 /opt/usr/share/live_magazine/*
 /opt/dbspace/.dynamicbox.db
 /opt/dbspace/.dynamicbox.db-journal
-%endif
 
 # End of a file
