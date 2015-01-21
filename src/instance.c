@@ -166,9 +166,23 @@ struct inst_info {
 	Eina_List *data_list;
 };
 
-#define CLIENT_SEND_EVENT(instance, packet)	((instance)->client ? client_rpc_async_request((instance)->client, (packet)) : client_broadcast((instance), (packet)))
-
 static Eina_Bool update_timer_cb(void *data);
+
+static int client_send_event(struct inst_info *instance, struct packet *packet)
+{
+	/*!
+	 * \note
+	 * If a instance has owner, send event to it first.
+	 */
+	if (instance->client) {
+		client_rpc_async_request(instance->client, packet);
+	}
+
+	/*!
+	 * And then broadcast events to all client (viewer)
+	 */
+	return client_broadcast(instance, packet);
+}
 
 static inline void timer_thaw(struct inst_info *inst)
 {
@@ -305,7 +319,7 @@ static inline void instance_send_update_mode_event(struct inst_info *inst, int a
 
 	packet = packet_create_noack((const char *)&cmd, "ssii", pkgname, inst->id, status, active_mode);
 	if (packet) {
-		CLIENT_SEND_EVENT(inst, packet);
+		client_send_event(inst, packet);
 	} else {
 		ErrPrint("Failed to send update mode event\n");
 	}
@@ -318,7 +332,7 @@ static inline void instance_send_update_id(struct inst_info *inst)
 
 	packet = packet_create_noack((const char *)&cmd, "ds", inst->timestamp, inst->id);
 	if (packet) {
-		CLIENT_SEND_EVENT(inst, packet);
+		client_send_event(inst, packet);
 	} else {
 		ErrPrint("Failed to create update_id packet\n");
 	}
@@ -350,7 +364,7 @@ static inline void instance_send_resized_event(struct inst_info *inst, int is_gb
 
 	packet = packet_create_noack((const char *)&cmd, "sssiiii", pkgname, inst->id, id, is_gbar, w, h, status);
 	if (packet) {
-		CLIENT_SEND_EVENT(inst, packet);
+		client_send_event(inst, packet);
 	} else {
 		ErrPrint("Failed to send size changed event\n");
 	}
@@ -484,6 +498,8 @@ static int instance_broadcast_created_event(struct inst_info *inst)
 		client_browse_group_list(inst->cluster, inst->category, update_client_list, inst);
 	}
 
+	client_browse_category_list(package_category(inst->info), update_client_list, inst);
+
 	packet = packet_create_noack((const char *)&cmd, "dsssiiiisssssdiiiiidsi", 
 			inst->timestamp,
 			package_name(inst->info), inst->id, inst->content,
@@ -505,7 +521,7 @@ static int instance_broadcast_created_event(struct inst_info *inst)
 	}
 
 	inst->unicast_delete_event = 0;
-	return CLIENT_SEND_EVENT(inst, packet);
+	return client_send_event(inst, packet);
 }
 
 HAPI int instance_unicast_deleted_event(struct inst_info *inst, struct client_node *client, int reason)
@@ -544,7 +560,7 @@ static int instance_broadcast_deleted_event(struct inst_info *inst, int reason)
 		return DBOX_STATUS_ERROR_FAULT;
 	}
 
-	ret = CLIENT_SEND_EVENT(inst, packet);
+	ret = client_send_event(inst, packet);
 
 	EINA_LIST_FOREACH_SAFE(inst->client_list, l, n, client) {
 		instance_del_client(inst, client);
@@ -578,7 +594,7 @@ static int send_gbar_destroyed_to_client(struct inst_info *inst, int status)
 
 	inst->gbar.need_to_send_close_event = 0;
 
-	return CLIENT_SEND_EVENT(inst, packet);
+	return client_send_event(inst, packet);
 }
 
 static inline void invoke_delete_callbacks(struct inst_info *inst)
@@ -1816,7 +1832,7 @@ HAPI int instance_dbox_update_begin(struct inst_info *inst, double priority, con
 		return DBOX_STATUS_ERROR_FAULT;
 	}
 
-	return CLIENT_SEND_EVENT(inst, packet);
+	return client_send_event(inst, packet);
 }
 
 HAPI int instance_dbox_update_end(struct inst_info *inst)
@@ -1853,7 +1869,7 @@ HAPI int instance_dbox_update_end(struct inst_info *inst)
 		return DBOX_STATUS_ERROR_FAULT;
 	}
 
-	return CLIENT_SEND_EVENT(inst, packet);
+	return client_send_event(inst, packet);
 }
 
 HAPI int instance_gbar_update_begin(struct inst_info *inst)
@@ -1893,7 +1909,7 @@ HAPI int instance_gbar_update_begin(struct inst_info *inst)
 		return DBOX_STATUS_ERROR_FAULT;
 	}
 
-	return CLIENT_SEND_EVENT(inst, packet);
+	return client_send_event(inst, packet);
 }
 
 HAPI int instance_gbar_update_end(struct inst_info *inst)
@@ -1930,7 +1946,7 @@ HAPI int instance_gbar_update_end(struct inst_info *inst)
 		return DBOX_STATUS_ERROR_FAULT;
 	}
 
-	return CLIENT_SEND_EVENT(inst, packet);
+	return client_send_event(inst, packet);
 }
 
 HAPI void instance_extra_info_updated_by_instance(struct inst_info *inst)
@@ -1947,7 +1963,7 @@ HAPI void instance_extra_info_updated_by_instance(struct inst_info *inst)
 		return;
 	}
 
-	(void)CLIENT_SEND_EVENT(inst, packet);
+	(void)client_send_event(inst, packet);
 }
 
 HAPI void instance_extra_updated_by_instance(struct inst_info *inst, int is_gbar, int idx, int x, int y, int w, int h)
@@ -1992,7 +2008,7 @@ HAPI void instance_extra_updated_by_instance(struct inst_info *inst, int is_gbar
 		return;
 	}
 
-	(void)CLIENT_SEND_EVENT(inst, packet);
+	(void)client_send_event(inst, packet);
 }
 
 HAPI void instance_dbox_updated_by_instance(struct inst_info *inst, const char *safe_file, int x, int y, int w, int h)
@@ -2022,7 +2038,7 @@ HAPI void instance_dbox_updated_by_instance(struct inst_info *inst, const char *
 		return;
 	}
 
-	(void)CLIENT_SEND_EVENT(inst, packet);
+	(void)client_send_event(inst, packet);
 }
 
 HAPI int instance_hold_scroll(struct inst_info *inst, int hold)
@@ -2042,7 +2058,7 @@ HAPI int instance_hold_scroll(struct inst_info *inst, int hold)
 	}
 
 	inst->scroll_locked = hold;
-	return CLIENT_SEND_EVENT(inst, packet);
+	return client_send_event(inst, packet);
 }
 
 HAPI void instance_gbar_updated_by_instance(struct inst_info *inst, const char *descfile, int x, int y, int w, int h)
@@ -2098,7 +2114,7 @@ HAPI void instance_gbar_updated_by_instance(struct inst_info *inst, const char *
 		return;
 	}
 
-	(void)CLIENT_SEND_EVENT(inst, packet);
+	(void)client_send_event(inst, packet);
 }
 
 HAPI void instance_gbar_updated(const char *pkgname, const char *id, const char *descfile, int x, int y, int w, int h)
@@ -2294,7 +2310,7 @@ out:
 	result = packet_create_noack((const char *)&cmd, "iisss", ret, cbdata->inst->is_pinned_up,
 			package_name(cbdata->inst->info), cbdata->inst->id, cbdata->inst->content);
 	if (result) {
-		(void)CLIENT_SEND_EVENT(cbdata->inst, result);
+		(void)client_send_event(cbdata->inst, result);
 	} else {
 		ErrPrint("Failed to build a packet for %s\n", package_name(cbdata->inst->info));
 	}
@@ -2549,7 +2565,7 @@ static void set_period_cb(struct slave_node *slave, const struct packet *packet,
 out:
 	result = packet_create_noack((const char *)&cmd, "idss", ret, cbdata->inst->dbox.period, package_name(cbdata->inst->info), cbdata->inst->id);
 	if (result) {
-		(void)CLIENT_SEND_EVENT(cbdata->inst, result);
+		(void)client_send_event(cbdata->inst, result);
 	} else {
 		ErrPrint("Failed to build a packet for %s\n", package_name(cbdata->inst->info));
 	}
@@ -2590,7 +2606,7 @@ static Eina_Bool timer_updator_cb(void *data)
 
 	result = packet_create_noack((const char *)&cmd, "idss", 0, inst->dbox.period, package_name(inst->info), inst->id);
 	if (result) {
-		(void)CLIENT_SEND_EVENT(inst, result);
+		(void)client_send_event(inst, result);
 	} else {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 	}
@@ -2782,7 +2798,7 @@ out:
 	if (!result) {
 		ErrPrint("Failed to build a packet %s\n", package_name(cbdata->inst->info));
 	} else {
-		(void)CLIENT_SEND_EVENT(cbdata->inst, result);
+		(void)client_send_event(cbdata->inst, result);
 	}
 
 	instance_unref(cbdata->inst);
@@ -3141,7 +3157,7 @@ HAPI int instance_need_slave(struct inst_info *inst)
 
 HAPI int instance_forward_packet(struct inst_info *inst, struct packet *packet)
 {
-	return CLIENT_SEND_EVENT(inst, packet);
+	return client_send_event(inst, packet);
 }
 
 HAPI int instance_send_key_status(struct inst_info *inst, int status)
@@ -3155,7 +3171,7 @@ HAPI int instance_send_key_status(struct inst_info *inst, int status)
 		return DBOX_STATUS_ERROR_FAULT;
 	}
 
-	return CLIENT_SEND_EVENT(inst, packet);
+	return client_send_event(inst, packet);
 }
 
 HAPI int instance_send_access_status(struct inst_info *inst, int status)
@@ -3169,7 +3185,7 @@ HAPI int instance_send_access_status(struct inst_info *inst, int status)
 		return DBOX_STATUS_ERROR_FAULT;
 	}
 
-	return CLIENT_SEND_EVENT(inst, packet);
+	return client_send_event(inst, packet);
 }
 
 HAPI void instance_slave_set_gbar_pos(struct inst_info *inst, double x, double y)
@@ -3365,7 +3381,7 @@ HAPI int instance_client_gbar_created(struct inst_info *inst, int status)
 		return DBOX_STATUS_ERROR_FAULT;
 	}
 
-	ret = CLIENT_SEND_EVENT(inst, packet);
+	ret = client_send_event(inst, packet);
 
 	if (inst->gbar.need_to_send_close_event && inst->gbar.pended_update_cnt) {
 		DbgPrint("Apply pended desc(%d) - %s\n", inst->gbar.pended_update_cnt, inst->gbar.pended_update_desc);
@@ -3401,7 +3417,7 @@ HAPI int instance_client_gbar_extra_buffer_created(struct inst_info *inst, int i
 		return DBOX_STATUS_ERROR_FAULT;
 	}
 
-	return CLIENT_SEND_EVENT(inst, packet);
+	return client_send_event(inst, packet);
 }
 
 HAPI int instance_client_gbar_extra_buffer_destroyed(struct inst_info *inst, int idx)
@@ -3422,7 +3438,7 @@ HAPI int instance_client_gbar_extra_buffer_destroyed(struct inst_info *inst, int
 		return DBOX_STATUS_ERROR_FAULT;
 	}
 
-	return CLIENT_SEND_EVENT(inst, packet);
+	return client_send_event(inst, packet);
 }
 
 HAPI int instance_client_dbox_extra_buffer_created(struct inst_info *inst, int idx)
@@ -3443,7 +3459,7 @@ HAPI int instance_client_dbox_extra_buffer_created(struct inst_info *inst, int i
 		return DBOX_STATUS_ERROR_FAULT;
 	}
 
-	return CLIENT_SEND_EVENT(inst, packet);
+	return client_send_event(inst, packet);
 }
 
 HAPI int instance_client_dbox_extra_buffer_destroyed(struct inst_info *inst, int idx)
@@ -3464,7 +3480,7 @@ HAPI int instance_client_dbox_extra_buffer_destroyed(struct inst_info *inst, int
 		return DBOX_STATUS_ERROR_FAULT;
 	}
 
-	return CLIENT_SEND_EVENT(inst, packet);
+	return client_send_event(inst, packet);
 }
 
 HAPI int instance_add_client(struct inst_info *inst, struct client_node *client)
