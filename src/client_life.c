@@ -766,6 +766,14 @@ HAPI int client_global_event_handler_del(enum client_global_event event_type, in
 HAPI int client_subscribe_category(struct client_node *client, const char *category)
 {
 	struct category_subscribe_item *item;
+	Eina_List *l;
+
+	EINA_LIST_FOREACH(client->category_subscribe_list, l, item) {
+		if (!strcasecmp(item->category, category)) {
+			DbgPrint("[%s] is already subscribed\n");
+			return DBOX_STATUS_ERROR_ALREADY;
+		}
+	}
 
 	item = malloc(sizeof(*item));
 	if (!item) {
@@ -816,7 +824,7 @@ HAPI int client_is_subscribed_by_category(struct client_node *client, const char
 	return 0;
 }
 
-HAPI int client_subscribe(struct client_node *client, const char *cluster, const char *category)
+HAPI int client_subscribe_group(struct client_node *client, const char *cluster, const char *category)
 {
 	struct subscribe_item *item;
 
@@ -845,7 +853,7 @@ HAPI int client_subscribe(struct client_node *client, const char *cluster, const
 	return DBOX_STATUS_ERROR_NONE;
 }
 
-HAPI int client_unsubscribe(struct client_node *client, const char *cluster, const char *category)
+HAPI int client_unsubscribe_group(struct client_node *client, const char *cluster, const char *category)
 {
 	struct subscribe_item *item;
 	Eina_List *l;
@@ -864,7 +872,7 @@ HAPI int client_unsubscribe(struct client_node *client, const char *cluster, con
 	return DBOX_STATUS_ERROR_NOT_EXIST;
 }
 
-HAPI int client_is_subscribed(struct client_node *client, const char *cluster, const char *category)
+HAPI int client_is_subscribed_group(struct client_node *client, const char *cluster, const char *category)
 {
 	struct subscribe_item *item;
 	Eina_List *l;
@@ -902,7 +910,7 @@ HAPI int client_browse_group_list(const char *cluster, const char *category, int
 
 	cnt = 0;
 	EINA_LIST_FOREACH(s_info.client_list, l, client) {
-		if (!client_is_subscribed(client, cluster, category)) {
+		if (!client_is_subscribed_group(client, cluster, category)) {
 			continue;
 		}
 
@@ -950,7 +958,7 @@ HAPI int client_count_of_group_subscriber(const char *cluster, const char *categ
 
 	cnt = 0;
 	EINA_LIST_FOREACH(s_info.client_list, l, client) {
-		cnt += !!client_is_subscribed(client, cluster, category);
+		cnt += !!client_is_subscribed_group(client, cluster, category);
 	}
 
 	return cnt;

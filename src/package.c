@@ -1273,7 +1273,9 @@ static int client_created_cb(struct client_node *client, void *data)
 					 * \note
 					 * Instances are lives in the system cluster/sub-cluster
 					 */
-					if (client_is_subscribed(client, instance_cluster(inst), instance_category(inst))) {
+					if (client_is_subscribed_group(client, instance_cluster(inst), instance_category(inst))
+						|| client_is_subscribed_by_category(client, package_category(instance_package(inst))))
+					{
 						instance_unicast_created_event(inst, client);
 						DbgPrint("(Subscribed) Created package: %s\n", info->dbox_id);
 					}
@@ -1523,11 +1525,13 @@ HAPI int package_alter_instances_to_client(struct client_node *client, enum alte
 
 	EINA_LIST_FOREACH(s_info.pkg_list, l, info) {
 		EINA_LIST_FOREACH(info->inst_list, i_l, inst) {
-			if (instance_client(inst)) {
+			if (instance_client(inst) == client) {
 				continue;
 			}
 
-			if (!client_is_subscribed(client, instance_cluster(inst), instance_category(inst))) {
+			if (!client_is_subscribed_group(client, instance_cluster(inst), instance_category(inst))
+				&& !client_is_subscribed_by_category(client, package_category(instance_package(inst))))
+			{
 				continue;
 			}
 
