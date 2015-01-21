@@ -91,9 +91,15 @@ extern void *client_del_data(struct client_node *client, const char *tag);
 extern void client_paused(struct client_node *client);
 extern void client_resumed(struct client_node *client);
 
+/* Related with Context-Aware service */
 extern int client_subscribe(struct client_node *client, const char *cluster, const char *category);
 extern int client_unsubscribe(struct client_node *client, const char *cluster, const char *category);
 extern int client_is_subscribed(struct client_node *client, const char *cluster, const char *category);
+
+/* Related with category */
+extern int client_subscribe_category(struct client_node *client, const char *category);
+extern int client_unsubscribe_category(struct client_node *client, const char *category);
+extern int client_is_subscribed_by_category(struct client_node *client, const char *category);
 
 extern int client_init(void);
 extern void client_fini(void);

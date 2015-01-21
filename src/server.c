@@ -6288,7 +6288,7 @@ out:
 	return NULL;
 }
 
-static struct packet *client_subscribe_category(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_subscribed_category(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
 	const char *category;
@@ -6320,13 +6320,16 @@ static struct packet *client_subscribe_category(pid_t pid, int handle, const str
 	 * 2. Send created events to the client.
 	 * 3. Add this client to "client_only_view_list"
 	 */
+	if (client_subscribe_category(client, category) == DBOX_STATUS_ERROR_NONE) {
+		package_alter_instances_to_client(client, ALTER_CREATE);
+	}
 
 out:
 	/*! \note No reply packet */
 	return NULL;
 }
 
-static struct packet *client_unsubscribe_category(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_unsubscribed_category(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
 	const char *category;
@@ -6354,16 +6357,19 @@ static struct packet *client_unsubscribe_category(pid_t pid, int handle, const s
 
 	/*!
 	 * \TODO
+	 * 0. Is this client subscribed to given "category"?
 	 * 1. Get a list of created dynamicbox instances
 	 * 2. and then send destroyed event to this client.
 	 * 3. Remove this client from the "client_only_view_list"
 	 */
+	if (client_unsubscribe_category(client, category) == DBOX_STATUS_ERROR_NONE) {
+		package_alter_instances_to_client(client, ALTER_DESTROY);
+	}
 
 out:
 	/*! \note No reply packet */
 	return NULL;
 }
-
 
 static struct packet *slave_hello(pid_t pid, int handle, const struct packet *packet) /* slave_name, ret */
 {
@@ -8708,11 +8714,11 @@ static struct method s_client_table[] = {
 	},
 	{
 		.cmd = CMD_STR_SUBSCRIBE_CATEGORY,
-		.handler = client_subscribe_category,
+		.handler = client_subscribed_category,
 	},
 	{
 		.cmd = CMD_STR_UNSUBSCRIBE_CATEGORY,
-		.handler = client_unsubscribe_category,
+		.handler = client_unsubscribed_category,
 	},
 
 	{

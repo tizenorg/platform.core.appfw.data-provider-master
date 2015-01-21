@@ -62,8 +62,12 @@ static struct {
 	.destroy_event_list = NULL,
 };
 
-struct subscribe_item {
+struct subscribe_item {	/* Cluster & Sub-cluster. related with Context-aware service */
 	char *cluster;
+	char *category;
+};
+
+struct category_subscribe_item {
 	char *category;
 };
 
@@ -100,6 +104,7 @@ struct client_node {
 
 	Eina_List *data_list;
 	Eina_List *subscribe_list;
+	Eina_List *category_subscribe_list;
 
 	int faulted;
 	char *direct_addr;
@@ -209,6 +214,7 @@ static inline void destroy_client_data(struct client_node *client)
 	struct event_item *event;
 	struct data_item *data;
 	struct subscribe_item *item;
+	struct category_subscribe_item *category_item;
 	Ecore_Timer *timer;
 
 	timer = client_del_data(client, "create,timer");
@@ -235,6 +241,11 @@ static inline void destroy_client_data(struct client_node *client)
 		DbgFree(item->cluster);
 		DbgFree(item->category);
 		DbgFree(item);
+	}
+
+	EINA_LIST_FREE(client->category_subscribe_list, category_item) {
+		DbgFree(category_item->category);
+		DbgFree(category_item);
 	}
 
 	if (client->paused) {
@@ -750,6 +761,59 @@ HAPI int client_global_event_handler_del(enum client_global_event event_type, in
 	}
 
 	return DBOX_STATUS_ERROR_NOT_EXIST;
+}
+
+HAPI int client_subscribe_category(struct client_node *client, const char *category)
+{
+	struct category_subscribe_item *item;
+
+	item = malloc(sizeof(*item));
+	if (!item) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+	}
+
+	item->category = strdup(category);
+	if (!item->category) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		DbgFree(item);
+		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+	}
+
+	client->category_subscribe_list = eina_list_append(client->category_subscribe_list, item);
+	return DBOX_STATUS_ERROR_NONE;
+}
+
+HAPI int client_unsubscribe_category(struct client_node *client, const char *category)
+{
+	struct category_subscribe_item *item;
+	Eina_List *l;
+	Eina_List *n;
+
+	EINA_LIST_FOREACH_SAFE(client->category_subscribe_list, l, n, item) {
+		if (!strcasecmp(category, item->category)) {
+			client->category_subscribe_list = eina_list_remove(client->category_subscribe_list, item);
+			DbgFree(item->category);
+			DbgFree(item);
+			return DBOX_STATUS_ERROR_NONE;
+		}
+	}
+
+	return DBOX_STATUS_ERROR_NOT_EXIST;
+}
+
+HAPI int client_is_subscribed_by_category(struct client_node *client, const char *category)
+{
+	struct category_subscribe_item *item;
+	Eina_List *l;
+
+	EINA_LIST_FOREACH(client->category_subscribe_list, l, item) {
+		if (!strcasecmp(item->category, category)) {
+			return 1;
+		}
+	}
+
+	return 0;
 }
 
 HAPI int client_subscribe(struct client_node *client, const char *cluster, const char *category)
