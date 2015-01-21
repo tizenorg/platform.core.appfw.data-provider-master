@@ -121,6 +121,7 @@ struct pkg_info {
 	char *script; /* script type: edje, ... */
 	char *abi;
 	char *hw_acceleration;
+	char *category;
 
 	int fault_count;
 	struct fault_info *fault_info;
@@ -1090,6 +1091,30 @@ HAPI int package_set_hw_acceleration(struct pkg_info *info, const char *hw_accel
 	DbgFree(info->hw_acceleration);
 	info->hw_acceleration = tmp;
 	return DBOX_STATUS_ERROR_NONE;
+}
+
+HAPI int package_set_category(struct pkg_info *info, const char *category)
+{
+	char *tmp;
+
+	if (!category || !info) {
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+
+	tmp = strdup(category);
+	if (!tmp) {
+		ErrPrint("strdup: %s\n", strerror(errno));
+		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+	}
+
+	DbgFree(info->category);
+	info->category = tmp;
+	return DBOX_STATUS_ERROR_NONE;
+}
+
+HAPI const char *package_category(struct pkg_info *info)
+{
+	return info->category;
 }
 
 /*!
