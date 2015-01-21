@@ -233,11 +233,26 @@ static inline void timer_freeze(struct inst_info *inst)
 static int viewer_deactivated_cb(struct client_node *client, void *data)
 {
 	struct inst_info *inst = data;
+	unsigned int cmd = CMD_VIEWER_DISCONNECTED;
+	struct packet *packet;
 
 	DbgPrint("%d is deleted from the list of viewer of %s(%s)\n", client_pid(client), package_name(instance_package(inst)), instance_id(inst));
 	if (!eina_list_data_find(inst->client_list, client)) {
 		ErrPrint("Not found\n");
 		return DBOX_STATUS_ERROR_NOT_EXIST;
+	}
+
+	packet = packet_create_noack((const char *)&cmd, "sss", package_name(inst->info), inst->id, client_direct_addr(inst->client));
+	if (packet) {
+		if (slave_rpc_request_only(package_slave(inst->info), package_name(inst->info), packet, 0) < 0) {
+			ErrPrint("Failed to send request to slave: %s\n", package_name(inst->info));
+			/*!
+			 * \note
+			 * From now, packet is not valid. because the slave_rpc_request_only will destroy it if it fails;)
+			 */
+		}
+	} else {
+		ErrPrint("Failed to create a packet\n");
 	}
 
 	inst->client_list = eina_list_remove(inst->client_list, client);
@@ -3483,8 +3498,16 @@ HAPI int instance_client_dbox_extra_buffer_destroyed(struct inst_info *inst, int
 	return client_send_event(inst, packet);
 }
 
+/**
+ * \note
+ *  this function will be called after checking the list.
+ *  only if the client is not in the list, this will be called.
+ */
 HAPI int instance_add_client(struct inst_info *inst, struct client_node *client)
 {
+	struct packet *packet;
+	unsigned int cmd = CMD_VIEWER_CONNECTED;
+
 	if (inst->client == client) {
 		ErrPrint("Owner cannot be the viewer\n");
 		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
@@ -3496,9 +3519,17 @@ HAPI int instance_add_client(struct inst_info *inst, struct client_node *client)
 		return DBOX_STATUS_ERROR_FAULT;
 	}
 
+	packet = packet_create_noack((const char *)&cmd, "sss", package_name(inst->info), inst->id, client_direct_addr(inst->client));
+	if (!packet) {
+		ErrPrint("Failed to create a packet\n");
+		client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, viewer_deactivated_cb, inst);
+		return DBOX_STATUS_ERROR_FAULT;
+	}
+
 	instance_ref(inst);
 	inst->client_list = eina_list_append(inst->client_list, client);
-	return DBOX_STATUS_ERROR_NONE;
+
+	return slave_rpc_request_only(package_slave(inst->info), package_name(inst->info), packet, 0);
 }
 
 HAPI int instance_del_client(struct inst_info *inst, struct client_node *client)

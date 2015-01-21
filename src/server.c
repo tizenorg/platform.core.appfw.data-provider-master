@@ -5990,7 +5990,7 @@ out:
 	return result;
 }
 
-static struct packet *client_subscribed(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_subscribed_group(pid_t pid, int handle, const struct packet *packet)
 {
 	const char *cluster;
 	const char *category;
@@ -6021,7 +6021,7 @@ static struct packet *client_subscribed(pid_t pid, int handle, const struct pack
 	 * \todo
 	 * SUBSCRIBE cluster & sub-cluster for a client.
 	 */
-	ret = client_subscribe(client, cluster, category);
+	ret = client_subscribe_group(client, cluster, category);
 	if (ret == 0) {
 		package_alter_instances_to_client(client, ALTER_CREATE);
 	}
@@ -6246,7 +6246,7 @@ out:
 	return result;
 }
 
-static struct packet *client_unsubscribed(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_unsubscribed_group(pid_t pid, int handle, const struct packet *packet)
 {
 	const char *cluster;
 	const char *category;
@@ -6278,7 +6278,7 @@ static struct packet *client_unsubscribed(pid_t pid, int handle, const struct pa
 	 * \todo
 	 * UNSUBSCRIBE cluster & sub-cluster for a client.
 	 */
-	ret = client_unsubscribe(client, cluster, category);
+	ret = client_unsubscribe_group(client, cluster, category);
 	if (ret == 0) {
 		package_alter_instances_to_client(client, ALTER_DESTROY);
 	}
@@ -8655,11 +8655,11 @@ static struct method s_client_table[] = {
 	},
 	{
 		.cmd = CMD_STR_SUBSCRIBE, /* pid, cluster, sub-cluster */
-		.handler = client_subscribed,
+		.handler = client_subscribed_group,
 	},
 	{
 		.cmd = CMD_STR_UNSUBSCRIBE, /* pid, cluster, sub-cluster */
-		.handler = client_unsubscribed,
+		.handler = client_unsubscribed_group,
 	},
 	{
 		.cmd = CMD_STR_DELETE_CLUSTER,
