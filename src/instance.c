@@ -481,7 +481,7 @@ static int instance_broadcast_created_event(struct inst_info *inst)
 	}
 
 	if (!inst->client) {
-		client_browse_list(inst->cluster, inst->category, update_client_list, inst);
+		client_browse_group_list(inst->cluster, inst->category, update_client_list, inst);
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "dsssiiiisssssdiiiiidsi", 

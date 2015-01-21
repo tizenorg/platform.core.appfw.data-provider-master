@@ -890,7 +890,7 @@ HAPI int client_is_subscribed(struct client_node *client, const char *cluster, c
 	return 0;
 }
 
-HAPI int client_browse_list(const char *cluster, const char *category, int (*cb)(struct client_node *client, void *data), void *data)
+HAPI int client_browse_group_list(const char *cluster, const char *category, int (*cb)(struct client_node *client, void *data), void *data)
 {
 	Eina_List *l;
 	struct client_node *client;
@@ -916,7 +916,33 @@ HAPI int client_browse_list(const char *cluster, const char *category, int (*cb)
 	return cnt;
 }
 
-HAPI int client_nr_of_subscriber(const char *cluster, const char *category)
+HAPI int client_browse_category_list(const char *category, int (*cb)(struct client_node *client, void *data), void *data)
+{
+	Eina_List *l;
+	struct client_node *client;
+	int cnt;
+
+	if (!cb || !category) {
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+
+	cnt = 0;
+	EINA_LIST_FOREACH(s_info.client_list, l, client) {
+		if (!client_is_subscribed_by_category(client, category)) {
+			continue;
+		}
+
+		if (cb(client, data) < 0) {
+			return DBOX_STATUS_ERROR_CANCEL;
+		}
+
+		cnt++;
+	}
+
+	return cnt;
+}
+
+HAPI int client_count_of_group_subscriber(const char *cluster, const char *category)
 {
 	Eina_List *l;
 	struct client_node *client;
