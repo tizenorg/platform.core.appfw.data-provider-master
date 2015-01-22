@@ -175,6 +175,10 @@ static int client_send_event(struct inst_info *instance, struct packet *packet)
 	 * If a instance has owner, send event to it first.
 	 */
 	if (instance->client) {
+		/*
+		 * To prevent from packet destruction
+		 */
+		packet_ref(packet);
 		client_rpc_async_request(instance->client, packet);
 	}
 
