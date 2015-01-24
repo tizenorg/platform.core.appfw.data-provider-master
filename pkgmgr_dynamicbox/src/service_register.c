@@ -215,6 +215,85 @@ static struct {
 	.handle = NULL,
 };
 
+static inline int next_state(int from, char ch)
+{
+	switch (ch)
+	{
+	case '\0':
+	case '/':
+		return 1;
+	case '.':
+		if (from == 1) {
+			return 2;
+		}
+		if (from == 2) {
+			return 3;
+		}
+	}
+
+	return 4;
+}
+
+static inline void abspath(const char* pBuffer, char* pRet)
+{
+	int idx=0;
+	int state = 1;
+	int from;
+	int src_idx = 0;
+	int src_len = strlen(pBuffer);
+	pRet[idx] = '/';
+	idx ++;
+
+	while (src_idx <= src_len) {
+		from = state;
+		state = next_state(from, pBuffer[src_idx]);
+
+		switch (from) {
+		case 1:
+			if (state != 1) {
+				pRet[idx] = pBuffer[src_idx];
+				idx++;
+			}
+			break;
+		case 2:
+			if (state == 1) {
+				if (idx > 1) {
+					idx--;
+				}
+			} else {
+				pRet[idx] = pBuffer[src_idx];
+				idx++;
+			}
+			break;
+		case 3:
+			// Only can go to the 1 or 4
+			if (state == 1) {
+				idx -= 2;
+				if (idx < 1) {
+					idx = 1;
+				}
+
+				while (idx > 1 && pRet[idx] != '/') {
+					idx--; /* Remove .. */
+				}
+				if (idx > 1 && pRet[idx] == '/') {
+					idx--;
+				}
+				while (idx > 1 && pRet[idx] != '/') {
+					idx--; /* Remove parent folder */
+				}
+			}
+		case 4:
+			pRet[idx] = pBuffer[src_idx];
+			idx++;
+			break;
+		}
+
+		pRet[idx] = '\0';
+		src_idx++;
+	}
+}
+
 static inline int begin_transaction(void)
 {
 	sqlite3_stmt *stmt;
@@ -2011,6 +2090,14 @@ static inline void update_i18n_icon(struct dynamicbox *dynamicbox, xmlNodePtr no
 			}
 
 			i18n->icon = icon;
+			icon = xmlStrdup(i18n->icon);
+			if (!icon) {
+				ErrPrint("Heap: %s\n", strerror(errno));
+			} else {
+				abspath((char *)i18n->icon, (char *)icon);
+				xmlFree(i18n->icon);
+				i18n->icon = icon;
+			}
 			return;
 		}
 	}
@@ -2024,6 +2111,15 @@ static inline void update_i18n_icon(struct dynamicbox *dynamicbox, xmlNodePtr no
 	}
 
 	i18n->icon = icon;
+	icon = xmlStrdup(i18n->icon);
+	if (!icon) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+	} else {
+		abspath((char *)i18n->icon, (char *)icon);
+		xmlFree(i18n->icon);
+		i18n->icon = icon;
+	}
+
 	i18n->lang = lang;
 	DbgPrint("Icon[%s] - [%s] added\n", i18n->lang, i18n->icon);
 	dynamicbox->i18n_list = dlist_append(dynamicbox->i18n_list, i18n);
@@ -2134,7 +2230,16 @@ static inline void update_content(struct dynamicbox *dynamicbox, xmlNodePtr node
 static void update_size_info(struct dynamicbox *dynamicbox, int idx, xmlNodePtr node)
 {
 	if (xmlHasProp(node, (const xmlChar *)"preview")) {
+		xmlChar *tmp_preview;
 		dynamicbox->preview[idx] = xmlGetProp(node, (const xmlChar *)"preview");
+		tmp_preview = xmlStrdup(dynamicbox->preview[idx]);
+		if (!tmp_preview) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+		} else {
+			abspath((char *)dynamicbox->preview[idx], (char *)tmp_preview);
+			xmlFree(dynamicbox->preview[idx]);
+			dynamicbox->preview[idx] = tmp_preview;
+		}
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"need_frame")) {
@@ -2357,6 +2462,14 @@ static void update_box(struct dynamicbox *dynamicbox, xmlNodePtr node)
 			}
 
 			dynamicbox->dbox_src = src;
+			src = xmlStrdup(dynamicbox->dbox_src);
+			if (!src) {
+				ErrPrint("Heap: %s\n", strerror(errno));
+			} else {
+				abspath((char *)dynamicbox->dbox_src, (char *)src);
+				xmlFree(dynamicbox->dbox_src);
+				dynamicbox->dbox_src = src;
+			}
 
 			if (xmlHasProp(node, (const xmlChar *)"group")) {
 				xmlChar *group;
@@ -2506,7 +2619,7 @@ static inline void update_group(struct dynamicbox *dynamicbox, xmlNodePtr node)
 	}
 }
 
-static inline void update_pd(struct dynamicbox *dynamicbox, xmlNodePtr node)
+static inline void update_gbar(struct dynamicbox *dynamicbox, xmlNodePtr node)
 {
 	if (!xmlHasProp(node, (const xmlChar *)"type")) {
 		dynamicbox->gbar_type = GBAR_TYPE_SCRIPT;
@@ -2567,6 +2680,14 @@ static inline void update_pd(struct dynamicbox *dynamicbox, xmlNodePtr node)
 			}
 
 			dynamicbox->gbar_src = src;
+			src = xmlStrdup(dynamicbox->gbar_src);
+			if (!src) {
+				ErrPrint("Heap: %s\n", strerror(errno));
+			} else {
+				abspath((char *)dynamicbox->gbar_src, (char *)src);
+				xmlFree(dynamicbox->gbar_src);
+				dynamicbox->gbar_src = src;
+			}
 
 			if (xmlHasProp(node, (const xmlChar *)"group")) {
 				xmlChar *group;
@@ -2883,12 +3004,25 @@ static int do_install(xmlNodePtr node, const char *appid)
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"libexec")) {
+		xmlChar *tmp_libexec;
+
 		dynamicbox->libexec = xmlGetProp(node, (const xmlChar *)"libexec");
 		if (!dynamicbox->libexec) {
 			ErrPrint("libexec is NIL\n");
 			dynamicbox_destroy(dynamicbox);
 			return -EFAULT;
 		}
+
+		tmp_libexec = xmlStrdup(dynamicbox->libexec);
+		if (!tmp_libexec) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			dynamicbox_destroy(dynamicbox);
+			return -EFAULT;
+		}
+
+		abspath((char *)dynamicbox->libexec, (char *)tmp_libexec);
+		xmlFree(dynamicbox->libexec);
+		dynamicbox->libexec = tmp_libexec;
 	} else if (!xmlStrcasecmp(dynamicbox->abi, (const xmlChar *)"c") || !xmlStrcasecmp(dynamicbox->abi, (const xmlChar *)"cpp")) {
 		char *filename;
 		int len;
@@ -2934,7 +3068,7 @@ static int do_install(xmlNodePtr node, const char *appid)
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"glancebar")) {
-			update_pd(dynamicbox, node);
+			update_gbar(dynamicbox, node);
 			continue;
 		}
 
