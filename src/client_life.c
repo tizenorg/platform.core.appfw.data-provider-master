@@ -768,7 +768,13 @@ HAPI int client_subscribe_category(struct client_node *client, const char *categ
 	struct category_subscribe_item *item;
 	Eina_List *l;
 
+	if (!category) {
+		ErrPrint("category: %p\n", category);
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+
 	EINA_LIST_FOREACH(client->category_subscribe_list, l, item) {
+		DbgPrint("item[%p], item->category[%p], category[%p]\n", item, item->category, category);
 		if (!strcasecmp(item->category, category)) {
 			DbgPrint("[%s] is already subscribed\n");
 			return DBOX_STATUS_ERROR_ALREADY;
@@ -788,6 +794,7 @@ HAPI int client_subscribe_category(struct client_node *client, const char *categ
 		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
+	DbgPrint("Subscribe category[%s]\n", item->category);
 	client->category_subscribe_list = eina_list_append(client->category_subscribe_list, item);
 	return DBOX_STATUS_ERROR_NONE;
 }
@@ -797,6 +804,11 @@ HAPI int client_unsubscribe_category(struct client_node *client, const char *cat
 	struct category_subscribe_item *item;
 	Eina_List *l;
 	Eina_List *n;
+
+	if (!category) {
+		ErrPrint("category: %p\n", category);
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
 
 	EINA_LIST_FOREACH_SAFE(client->category_subscribe_list, l, n, item) {
 		if (!strcasecmp(category, item->category)) {
@@ -815,7 +827,13 @@ HAPI int client_is_subscribed_by_category(struct client_node *client, const char
 	struct category_subscribe_item *item;
 	Eina_List *l;
 
+	if (!category) {
+		DbgPrint("category[%p]\n", category);
+		return 0;
+	}
+
 	EINA_LIST_FOREACH(client->category_subscribe_list, l, item) {
+		DbgPrint("item[%p], item->cateogyr[%p], category[%p]\n", item, item->category, category);
 		if (!strcasecmp(item->category, category)) {
 			return 1;
 		}
@@ -827,6 +845,11 @@ HAPI int client_is_subscribed_by_category(struct client_node *client, const char
 HAPI int client_subscribe_group(struct client_node *client, const char *cluster, const char *category)
 {
 	struct subscribe_item *item;
+
+	if (!cluster || !category) {
+		ErrPrint("Cluster[%p] Category[%p]\n", cluster, category);
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
 
 	item = malloc(sizeof(*item));
 	if (!item) {
@@ -859,6 +882,11 @@ HAPI int client_unsubscribe_group(struct client_node *client, const char *cluste
 	Eina_List *l;
 	Eina_List *n;
 
+	if (!cluster || !category) {
+		ErrPrint("cluster: %p, category: %p\n", cluster, category);
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+
 	EINA_LIST_FOREACH_SAFE(client->subscribe_list, l, n, item) {
 		if (!strcasecmp(cluster, item->cluster) && !strcasecmp(category, item->category)) {
 			client->subscribe_list = eina_list_remove(client->subscribe_list, item);
@@ -876,6 +904,11 @@ HAPI int client_is_subscribed_group(struct client_node *client, const char *clus
 {
 	struct subscribe_item *item;
 	Eina_List *l;
+
+	if (!cluster || !category) {
+		ErrPrint("cluster: %p, category: %p\n", cluster, category);
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
 
 	EINA_LIST_FOREACH(client->subscribe_list, l, item) {
 		if (!strcmp(item->cluster, "*")) {

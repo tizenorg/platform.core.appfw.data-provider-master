@@ -1526,12 +1526,14 @@ HAPI int package_alter_instances_to_client(struct client_node *client, enum alte
 	EINA_LIST_FOREACH(s_info.pkg_list, l, info) {
 		EINA_LIST_FOREACH(info->inst_list, i_l, inst) {
 			if (instance_client(inst) == client) {
+				DbgPrint("Skip owner\n");
 				continue;
 			}
 
 			if (!client_is_subscribed_group(client, instance_cluster(inst), instance_category(inst))
 				&& !client_is_subscribed_by_category(client, package_category(instance_package(inst))))
 			{
+				DbgPrint("Not subscribed [%s]\n", package_category(instance_package(inst)));
 				continue;
 			}
 
@@ -1541,11 +1543,13 @@ HAPI int package_alter_instances_to_client(struct client_node *client, enum alte
 				/* Will be send a created event after the instance gets created event */
 				switch (alter) {
 				case ALTER_CREATE:
+					DbgPrint("ALTER_CREATE\n");
 					if (!instance_has_client(inst, client)) {
 						instance_add_client(inst, client);
 					}
 					break;
 				case ALTER_DESTROY:
+					DbgPrint("ALTER_DESTROY\n");
 					if (instance_has_client(inst, client)) {
 						instance_del_client(inst, client);
 					}
@@ -1563,6 +1567,7 @@ HAPI int package_alter_instances_to_client(struct client_node *client, enum alte
 				 */
 				switch (alter) {
 				case ALTER_CREATE:
+					DbgPrint("ALTER_CREATE\n");
 					if (!instance_has_client(inst, client)) {
 						instance_unicast_created_event(inst, client);
 						instance_add_client(inst, client);
@@ -1570,6 +1575,7 @@ HAPI int package_alter_instances_to_client(struct client_node *client, enum alte
 					}
 					break;
 				case ALTER_DESTROY:
+					DbgPrint("ALTER_DESTROY\n");
 					if (instance_has_client(inst, client)) {
 						instance_unicast_deleted_event(inst, client, DBOX_STATUS_ERROR_NONE);
 						instance_del_client(inst, client);
@@ -1581,8 +1587,7 @@ HAPI int package_alter_instances_to_client(struct client_node *client, enum alte
 
 				break;
 			default:
-				DbgPrint("%s(%s) is not activated (%d)\n",
-						package_name(info), instance_id(inst), instance_state(inst));
+				DbgPrint("%s(%s) is not activated (%d)\n", package_name(info), instance_id(inst), instance_state(inst));
 				break;
 			}
 		}
