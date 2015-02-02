@@ -121,6 +121,7 @@ struct pkg_info {
 	char *script; /* script type: edje, ... */
 	char *abi;
 	char *hw_acceleration;
+	char *category;
 
 	int fault_count;
 	struct fault_info *fault_info;
@@ -1092,6 +1093,30 @@ HAPI int package_set_hw_acceleration(struct pkg_info *info, const char *hw_accel
 	return DBOX_STATUS_ERROR_NONE;
 }
 
+HAPI int package_set_category(struct pkg_info *info, const char *category)
+{
+	char *tmp;
+
+	if (!category || !info) {
+		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	}
+
+	tmp = strdup(category);
+	if (!tmp) {
+		ErrPrint("strdup: %s\n", strerror(errno));
+		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+	}
+
+	DbgFree(info->category);
+	info->category = tmp;
+	return DBOX_STATUS_ERROR_NONE;
+}
+
+HAPI const char *package_category(struct pkg_info *info)
+{
+	return info->category;
+}
+
 /*!
  * \note
  * Add the instance to the package info.
@@ -1248,7 +1273,9 @@ static int client_created_cb(struct client_node *client, void *data)
 					 * \note
 					 * Instances are lives in the system cluster/sub-cluster
 					 */
-					if (client_is_subscribed(client, instance_cluster(inst), instance_category(inst))) {
+					if (client_is_subscribed_group(client, instance_cluster(inst), instance_category(inst))
+						|| client_is_subscribed_by_category(client, package_category(instance_package(inst))))
+					{
 						instance_unicast_created_event(inst, client);
 						DbgPrint("(Subscribed) Created package: %s\n", info->dbox_id);
 					}
@@ -1498,11 +1525,13 @@ HAPI int package_alter_instances_to_client(struct client_node *client, enum alte
 
 	EINA_LIST_FOREACH(s_info.pkg_list, l, info) {
 		EINA_LIST_FOREACH(info->inst_list, i_l, inst) {
-			if (instance_client(inst)) {
+			if (instance_client(inst) == client) {
 				continue;
 			}
 
-			if (!client_is_subscribed(client, instance_cluster(inst), instance_category(inst))) {
+			if (!client_is_subscribed_group(client, instance_cluster(inst), instance_category(inst))
+				&& !client_is_subscribed_by_category(client, package_category(instance_package(inst))))
+			{
 				continue;
 			}
 

@@ -39,6 +39,7 @@ extern struct inst_info *package_find_instance_by_timestamp(const char *pkgname,
 extern int package_dump_fault_info(struct pkg_info *info);
 extern int package_set_fault_info(struct pkg_info *info, double timestamp, const char *filename, const char *function);
 extern int package_get_fault_info(struct pkg_info *info, double *timestmap, const char **filename, const char **function);
+extern int package_set_category(struct pkg_info *info, const char *category);
 
 /*!
  * \brief
@@ -62,6 +63,7 @@ extern const int const package_gbar_width(const struct pkg_info *info);
 extern const int const package_gbar_height(const struct pkg_info *info);
 extern const char * const package_name(const struct pkg_info *info);
 extern const char * const package_libexec(struct pkg_info *info);
+extern const char *package_category(struct pkg_info *info);
 extern int package_network(struct pkg_info *info);
 extern Eina_List *package_ctx_info(struct pkg_info *pkginfo);
 

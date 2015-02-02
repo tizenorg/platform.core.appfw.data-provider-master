@@ -5990,7 +5990,7 @@ out:
 	return result;
 }
 
-static struct packet *client_subscribed(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_subscribed_group(pid_t pid, int handle, const struct packet *packet)
 {
 	const char *cluster;
 	const char *category;
@@ -6021,7 +6021,7 @@ static struct packet *client_subscribed(pid_t pid, int handle, const struct pack
 	 * \todo
 	 * SUBSCRIBE cluster & sub-cluster for a client.
 	 */
-	ret = client_subscribe(client, cluster, category);
+	ret = client_subscribe_group(client, cluster, category);
 	if (ret == 0) {
 		package_alter_instances_to_client(client, ALTER_CREATE);
 	}
@@ -6246,7 +6246,7 @@ out:
 	return result;
 }
 
-static struct packet *client_unsubscribed(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_unsubscribed_group(pid_t pid, int handle, const struct packet *packet)
 {
 	const char *cluster;
 	const char *category;
@@ -6278,8 +6278,91 @@ static struct packet *client_unsubscribed(pid_t pid, int handle, const struct pa
 	 * \todo
 	 * UNSUBSCRIBE cluster & sub-cluster for a client.
 	 */
-	ret = client_unsubscribe(client, cluster, category);
+	ret = client_unsubscribe_group(client, cluster, category);
 	if (ret == 0) {
+		package_alter_instances_to_client(client, ALTER_DESTROY);
+	}
+
+out:
+	/*! \note No reply packet */
+	return NULL;
+}
+
+static struct packet *client_subscribed_category(pid_t pid, int handle, const struct packet *packet)
+{
+	struct client_node *client;
+	const char *category;
+	int ret;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "s", &category);
+	if (ret != 1) {
+		ErrPrint("Invalid argument\n");
+		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		goto out;
+	}
+
+	DbgPrint("[%d] category[%s]\n", pid, category);
+	if (!strlen(category)) {
+		ErrPrint("Invalid category name: %s\n", category);
+		goto out;
+	}
+
+	/*!
+	 * \TODO
+	 * 1. Get a list of created dynamicbox instances which are categorized by given "category"
+	 * 2. Send created events to the client.
+	 * 3. Add this client to "client_only_view_list"
+	 */
+	if (client_subscribe_category(client, category) == DBOX_STATUS_ERROR_NONE) {
+		package_alter_instances_to_client(client, ALTER_CREATE);
+	}
+
+out:
+	/*! \note No reply packet */
+	return NULL;
+}
+
+static struct packet *client_unsubscribed_category(pid_t pid, int handle, const struct packet *packet)
+{
+	struct client_node *client;
+	const char *category;
+	int ret;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "s", &category);
+	if (ret != 1) {
+		ErrPrint("Invalid argument\n");
+		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		goto out;
+	}
+
+	DbgPrint("[%d] category[%s]\n", pid, category);
+	if (!strlen(category)) {
+		ErrPrint("Invalid category name: %s\n", category);
+		goto out;
+	}
+
+	/*!
+	 * \TODO
+	 * 0. Is this client subscribed to given "category"?
+	 * 1. Get a list of created dynamicbox instances
+	 * 2. and then send destroyed event to this client.
+	 * 3. Remove this client from the "client_only_view_list"
+	 */
+	if (client_unsubscribe_category(client, category) == DBOX_STATUS_ERROR_NONE) {
 		package_alter_instances_to_client(client, ALTER_DESTROY);
 	}
 
@@ -7541,1337 +7624,1345 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 			 */
 			instance_client_gbar_destroyed(inst, ret);
 		}
-		}
-
-out:
-		result = packet_create_reply(packet, "i", ret);
-		if (!result) {
-			ErrPrint("Failed to create a packet\n");
-		}
-
-		return result;
 	}
 
-	static struct packet *slave_release_extra_buffer(pid_t pid, int handle, const struct packet *packet)
-	{
-		struct slave_node *slave;
-		struct packet *result;
-		const char *id;
-		struct buffer_info *info = NULL;
-		int ret;
-		int idx;
-		int type;
-		const char *pkgname;
-		struct inst_info *inst;
-		const struct pkg_info *pkg;
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result) {
+		ErrPrint("Failed to create a packet\n");
+	}
 
-		slave = slave_find_by_pid(pid);
-		if (!slave) {
-			ErrPrint("Slave %d is not exists\n", pid);
-			ret = DBOX_STATUS_ERROR_NOT_EXIST;
-			goto out;
-		}
+	return result;
+}
 
-		if (packet_get(packet, "issi", &type, &pkgname, &id, &idx) != 4) {
-			ErrPrint("Inavlid argument\n");
-			ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-			goto out;
-		}
+static struct packet *slave_release_extra_buffer(pid_t pid, int handle, const struct packet *packet)
+{
+	struct slave_node *slave;
+	struct packet *result;
+	const char *id;
+	struct buffer_info *info = NULL;
+	int ret;
+	int idx;
+	int type;
+	const char *pkgname;
+	struct inst_info *inst;
+	const struct pkg_info *pkg;
 
-		ret = validate_request(pkgname, id, &inst, &pkg);
-		if (ret != DBOX_STATUS_ERROR_NONE) {
-			goto out;
-		}
+	slave = slave_find_by_pid(pid);
+	if (!slave) {
+		ErrPrint("Slave %d is not exists\n", pid);
+		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
 
+	if (packet_get(packet, "issi", &type, &pkgname, &id, &idx) != 4) {
+		ErrPrint("Inavlid argument\n");
 		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-
-		if (type == TYPE_DBOX && package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-			info = instance_dbox_extra_buffer(inst, idx);
-			(void)instance_client_dbox_extra_buffer_destroyed(inst, idx);
-		} else if (type == TYPE_GBAR && package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
-			info = instance_gbar_extra_buffer(inst, idx);
-			(void)instance_client_gbar_extra_buffer_destroyed(inst, idx);
-		}
-
-		if (info) {
-			ret = buffer_handler_unload(info);
-		}
-
-out:
-		result = packet_create_reply(packet, "i", ret);
-		if (!result) {
-			ErrPrint("Failed to create a reply packet\n");
-		}
-
-		return result;
+		goto out;
 	}
 
-	static struct packet *service_instance_count(pid_t pid, int handle, const struct packet *packet)
-	{
-		struct packet *result;
-		struct pkg_info *pkg;
-		double timestamp;
-		const char *pkgname;
-		const char *cluster;
-		const char *category;
-		Eina_List *pkg_list;
-		Eina_List *l;
-		Eina_List *inst_list;
-		Eina_List *inst_l;
-		struct inst_info *inst;
-		int ret;
+	ret = validate_request(pkgname, id, &inst, &pkg);
+	if (ret != DBOX_STATUS_ERROR_NONE) {
+		goto out;
+	}
 
-		ret = packet_get(packet, "sssd", &pkgname, &cluster, &category, &timestamp);
-		if (ret != 4) {
-			ErrPrint("Invalid packet\n");
-			ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-			goto out;
+	ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+
+	if (type == TYPE_DBOX && package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
+		info = instance_dbox_extra_buffer(inst, idx);
+		(void)instance_client_dbox_extra_buffer_destroyed(inst, idx);
+	} else if (type == TYPE_GBAR && package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
+		info = instance_gbar_extra_buffer(inst, idx);
+		(void)instance_client_gbar_extra_buffer_destroyed(inst, idx);
+	}
+
+	if (info) {
+		ret = buffer_handler_unload(info);
+	}
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result) {
+		ErrPrint("Failed to create a reply packet\n");
+	}
+
+	return result;
+}
+
+static struct packet *service_instance_count(pid_t pid, int handle, const struct packet *packet)
+{
+	struct packet *result;
+	struct pkg_info *pkg;
+	double timestamp;
+	const char *pkgname;
+	const char *cluster;
+	const char *category;
+	Eina_List *pkg_list;
+	Eina_List *l;
+	Eina_List *inst_list;
+	Eina_List *inst_l;
+	struct inst_info *inst;
+	int ret;
+
+	ret = packet_get(packet, "sssd", &pkgname, &cluster, &category, &timestamp);
+	if (ret != 4) {
+		ErrPrint("Invalid packet\n");
+		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		goto out;
+	}
+
+	pkg_list = (Eina_List *)package_list();
+
+	ret = 0;
+	EINA_LIST_FOREACH(pkg_list, l, pkg) {
+		if (pkgname && pkgname[0]) {
+			if (strcmp(package_name(pkg), pkgname)) {
+				continue;
+			}
 		}
 
-		pkg_list = (Eina_List *)package_list();
-
-		ret = 0;
-		EINA_LIST_FOREACH(pkg_list, l, pkg) {
-			if (pkgname && pkgname[0]) {
-				if (strcmp(package_name(pkg), pkgname)) {
+		inst_list = package_instance_list(pkg);
+		EINA_LIST_FOREACH(inst_list, inst_l, inst) {
+			if (cluster && cluster[0]) {
+				if (strcmp(instance_cluster(inst), cluster)) {
 					continue;
 				}
 			}
 
-			inst_list = package_instance_list(pkg);
-			EINA_LIST_FOREACH(inst_list, inst_l, inst) {
-				if (cluster && cluster[0]) {
-					if (strcmp(instance_cluster(inst), cluster)) {
-						continue;
-					}
+			if (category && category[0]) {
+				if (strcmp(instance_category(inst), category)) {
+					continue;
 				}
-
-				if (category && category[0]) {
-					if (strcmp(instance_category(inst), category)) {
-						continue;
-					}
-				}
-
-				ret++;
 			}
-		}
 
-out:
-		result = packet_create_reply(packet, "i", ret);
-		if (!result) {
-			ErrPrint("Failed to create a packet\n");
+			ret++;
 		}
-
-		return result;
 	}
 
-	static struct packet *service_change_period(pid_t pid, int handle, const struct packet *packet)
-	{
-		struct inst_info *inst;
-		struct packet *result;
-		const char *pkgname;
-		const char *id;
-		double period;
-		int ret;
-
-		ret = packet_get(packet, "ssd", &pkgname, &id, &period);
-		if (ret != 3) {
-			ErrPrint("Invalid packet\n");
-			ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-			goto out;
-		}
-
-		if (!strlen(id)) {
-			struct pkg_info *pkg;
-
-			pkg = package_find(pkgname);
-			if (!pkg) {
-				ret = DBOX_STATUS_ERROR_NOT_EXIST;
-			} else if (package_is_fault(pkg)) {
-				ret = DBOX_STATUS_ERROR_FAULT;
-			} else {
-				Eina_List *inst_list;
-				Eina_List *l;
-
-				inst_list = package_instance_list(pkg);
-				EINA_LIST_FOREACH(inst_list, l, inst) {
-					ret = instance_set_period(inst, period);
-					if (ret < 0) {
-						ErrPrint("Failed to change the period of %s to (%lf)\n", pkgname, period);
-					}
-				}
-			}
-		} else {
-			ret = validate_request(pkgname, id, &inst, NULL);
-			if (ret == (int)DBOX_STATUS_ERROR_NONE) {
-				if (instance_state(inst) == INST_DESTROYED) {
-					ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
-					ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-					goto out;
-				}
-
-				ret = instance_set_period(inst, period);
-			}
-		}
-
-		DbgPrint("Change the update period: %s, %lf : %d\n", pkgname, period, ret);
 out:
-		result = packet_create_reply(packet, "i", ret);
-		if (!result) {
-			ErrPrint("Failed to create a packet\n");
-		}
-
-		return result;
+	result = packet_create_reply(packet, "i", ret);
+	if (!result) {
+		ErrPrint("Failed to create a packet\n");
 	}
 
-	static struct packet *service_update(pid_t pid, int handle, const struct packet *packet)
-	{
-		Eina_List *inst_list;
+	return result;
+}
+
+static struct packet *service_change_period(pid_t pid, int handle, const struct packet *packet)
+{
+	struct inst_info *inst;
+	struct packet *result;
+	const char *pkgname;
+	const char *id;
+	double period;
+	int ret;
+
+	ret = packet_get(packet, "ssd", &pkgname, &id, &period);
+	if (ret != 3) {
+		ErrPrint("Invalid packet\n");
+		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		goto out;
+	}
+
+	if (!strlen(id)) {
 		struct pkg_info *pkg;
-		struct packet *result;
-		const char *pkgname;
-		const char *id;
-		const char *cluster;
-		const char *category;
-		const char *content;
-		int force;
-		char *lbid;
-		int ret;
-
-		ret = packet_get(packet, "sssssi", &pkgname, &id, &cluster, &category, &content, &force);
-		if (ret != 6) {
-			ErrPrint("Invalid Packet\n");
-			ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-			goto out;
-		}
-
-		lbid = package_dbox_pkgname(pkgname);
-		if (!lbid) {
-			ErrPrint("Invalid package %s\n", pkgname);
-			ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-			goto out;
-		}
-
-		pkg = package_find(lbid);
-		if (!pkg) {
-			ret = DBOX_STATUS_ERROR_NOT_EXIST;
-			DbgFree(lbid);
-			goto out;
-		}
-
-		if (package_is_fault(pkg)) {
-			ret = DBOX_STATUS_ERROR_FAULT;
-			DbgFree(lbid);
-			goto out;
-		}
-
-		inst_list = package_instance_list(pkg);
-		if (!eina_list_count(inst_list)) {
-			ret = DBOX_STATUS_ERROR_NOT_EXIST;
-			DbgFree(lbid);
-			goto out;
-		}
-
-		if (id && strlen(id)) {
-			Eina_List *l;
-			struct inst_info *inst;
-
-			ret = DBOX_STATUS_ERROR_NOT_EXIST;
-			EINA_LIST_FOREACH(inst_list, l, inst) {
-				if (!strcmp(instance_id(inst), id)) {
-					ret = DBOX_STATUS_ERROR_NONE;
-					break;
-				}
-			}
-
-			if (ret == (int)DBOX_STATUS_ERROR_NOT_EXIST) {
-				DbgFree(lbid);
-				goto out;
-			}
-		}
-
-		/*!
-		 * \TODO
-		 * Validate the update requstor.
-		 */
-		slave_rpc_request_update(lbid, id, cluster, category, content, force);
-		DbgFree(lbid);
-		ret = DBOX_STATUS_ERROR_NONE;
-
-out:
-		result = packet_create_reply(packet, "i", ret);
-		if (!result) {
-			ErrPrint("Failed to create a packet\n");
-		}
-
-		return result;
-	}
-
-	static struct packet *liveinfo_hello(pid_t pid, int handle, const struct packet *packet)
-	{
-		struct liveinfo *info;
-		struct packet *result;
-		int ret;
-		const char *fifo_name;
-		double timestamp;
-
-		DbgPrint("Request arrived from %d\n", pid);
-
-		if (packet_get(packet, "d", &timestamp) != 1) {
-			ErrPrint("Invalid packet\n");
-			fifo_name = "";
-			ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-			goto out;
-		}
-
-		info = liveinfo_create(pid, handle);
-		if (!info) {
-			ErrPrint("Failed to create a liveinfo object\n");
-			fifo_name = "";
-			ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-			goto out;
-		}
-
-		ret = 0;
-		fifo_name = liveinfo_filename(info);
-		DbgPrint("FIFO Created: %s (Serve for %d)\n", fifo_name, pid);
-
-out:
-		result = packet_create_reply(packet, "si", fifo_name, ret);
-		if (!result) {
-			ErrPrint("Failed to create a result packet\n");
-		}
-
-		return result;
-	}
-
-	static Eina_Bool lazy_slave_list_cb(void *info)
-	{
-		FILE *fp;
-		Eina_List *list;
-		Eina_List *l;
-		struct slave_node *slave;
-
-		liveinfo_open_fifo(info);
-		fp = liveinfo_fifo(info);
-		if (!fp) {
-			liveinfo_close_fifo(info);
-			return ECORE_CALLBACK_CANCEL;
-		}
-
-		list = (Eina_List *)slave_list();
-		EINA_LIST_FOREACH(list, l, slave) {
-			fprintf(fp, "%d %s %s %s %d %d %d %s %d %d %lf\n", 
-					slave_pid(slave),
-					slave_name(slave),
-					slave_pkgname(slave),
-					slave_abi(slave),
-					slave_is_secured(slave),
-					slave_refcnt(slave),
-					slave_fault_count(slave),
-					slave_state_string(slave),
-					slave_loaded_instance(slave),
-					slave_loaded_package(slave),
-					slave_ttl(slave)
-				   );
-		}
-
-		fprintf(fp, "EOD\n");
-		liveinfo_close_fifo(info);
-		return ECORE_CALLBACK_CANCEL;
-	}
-
-	static struct packet *liveinfo_slave_list(pid_t pid, int handle, const struct packet *packet)
-	{
-		struct liveinfo *info;
-		double timestamp;
-
-		if (packet_get(packet, "d", &timestamp) != 1) {
-			ErrPrint("Invalid argument\n");
-			goto out;
-		}
-
-		info = liveinfo_find_by_pid(pid);
-		if (!info) {
-			ErrPrint("Invalid request\n");
-			goto out;
-		}
-
-		lazy_slave_list_cb(info);
-out:
-		return NULL;
-	}
-
-	static inline const char *visible_state_string(enum dynamicbox_visible_state state)
-	{
-		switch (state) {
-		case DBOX_SHOW:
-			return "Show";
-		case DBOX_HIDE:
-			return "Hide";
-		case DBOX_HIDE_WITH_PAUSE:
-			return "Paused";
-		default:
-			break;
-		}
-
-		return "Unknown";
-	}
-
-	static Eina_Bool inst_list_cb(void *info)
-	{
-		FILE *fp;
-		char *pkgname;
-		struct pkg_info *pkg;
-		Eina_List *l;
-		Eina_List *inst_list;
-		struct inst_info *inst;
-
-		pkgname = liveinfo_data(info);
-		if (!pkgname) {
-			return ECORE_CALLBACK_CANCEL;
-		}
-
-		liveinfo_open_fifo(info);
-		fp = liveinfo_fifo(info);
-		if (!fp) {
-			ErrPrint("Invalid fp\n");
-			liveinfo_close_fifo(info);
-			free(pkgname);
-			return ECORE_CALLBACK_CANCEL;
-		}
-
-		if (!package_is_dbox_pkgname(pkgname)) {
-			ErrPrint("Invalid package name\n");
-			free(pkgname);
-			goto close_out;
-		}
 
 		pkg = package_find(pkgname);
-		free(pkgname);
 		if (!pkg) {
-			ErrPrint("Package is not exists\n");
-			goto close_out;
-		}
+			ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		} else if (package_is_fault(pkg)) {
+			ret = DBOX_STATUS_ERROR_FAULT;
+		} else {
+			Eina_List *inst_list;
+			Eina_List *l;
 
-		inst_list = package_instance_list(pkg);
-		EINA_LIST_FOREACH(inst_list, l, inst) {
-			fprintf(fp, "%s %s %s %s %lf %s %d %d\n",
-					instance_id(inst),
-					buffer_handler_id(instance_dbox_buffer(inst)),
-					instance_cluster(inst),
-					instance_category(inst),
-					instance_period(inst),
-					visible_state_string(instance_visible_state(inst)),
-					instance_dbox_width(inst),
-					instance_dbox_height(inst));
-		}
-
-close_out:
-		fprintf(fp, "EOD\n");
-		liveinfo_close_fifo(info);
-
-		return ECORE_CALLBACK_CANCEL;
-	}
-
-	static struct packet *liveinfo_inst_list(pid_t pid, int handle, const struct packet *packet)
-	{
-		const char *pkgname;
-		char *dup_pkgname;
-		struct liveinfo *info;
-
-		if (packet_get(packet, "s", &pkgname) != 1) {
-			ErrPrint("Invalid argument\n");
-			goto out;
-		}
-
-		info = liveinfo_find_by_pid(pid);
-		if (!info) {
-			ErrPrint("Invalid request\n");
-			goto out;
-		}
-
-		dup_pkgname = strdup(pkgname);
-		if (!dup_pkgname) {
-			ErrPrint("Invalid request\n");
-			goto out;
-		}
-
-		liveinfo_set_data(info, dup_pkgname);
-		inst_list_cb(info);
-
-out:
-		return NULL;
-	}
-
-	static Eina_Bool pkg_list_cb(void *info)
-	{
-		FILE *fp;
-		Eina_List *l;
-		Eina_List *list;
-		Eina_List *inst_list;
-		struct pkg_info *pkg;
-		struct slave_node *slave;
-		const char *slavename;
-		pid_t pid;
-
-		liveinfo_open_fifo(info);
-		fp = liveinfo_fifo(info);
-		if (!fp) {
-			DbgPrint("Failed to open a pipe\n");
-			liveinfo_close_fifo(info);
-			return ECORE_CALLBACK_CANCEL;
-		}
-
-		list = (Eina_List *)package_list();
-		EINA_LIST_FOREACH(list, l, pkg) {
-			slave = package_slave(pkg);
-
-			if (slave) {
-				slavename = slave_name(slave);
-				pid = slave_pid(slave);
-			} else {
-				pid = (pid_t)-1;
-				slavename = "";
-			}
-
-			inst_list = (Eina_List *)package_instance_list(pkg);
-			fprintf(fp, "%d %s %s %s %d %d %d\n",
-					pid,
-					strlen(slavename) ? slavename : "(none)",
-					package_name(pkg),
-					package_abi(pkg),
-					package_refcnt(pkg),
-					package_fault_count(pkg),
-					eina_list_count(inst_list)
-				   );
-			DbgPrint("%d %s %s %s %d %d %d\n",
-					pid,
-					strlen(slavename) ? slavename : "(none)",
-					package_name(pkg),
-					package_abi(pkg),
-					package_refcnt(pkg),
-					package_fault_count(pkg),
-					eina_list_count(inst_list)
-					);
-		}
-
-		fprintf(fp, "EOD\n");
-		DbgPrint("EOD\n");
-		liveinfo_close_fifo(info);
-		return ECORE_CALLBACK_CANCEL;
-	}
-
-	static struct packet *liveinfo_pkg_list(pid_t pid, int handle, const struct packet *packet)
-	{
-		struct liveinfo *info;
-		double timestamp;
-
-		if (packet_get(packet, "d", &timestamp) != 1) {
-			ErrPrint("Invalid argument\n");
-			goto out;
-		}
-
-		DbgPrint("Package List: %lf\n", timestamp);
-
-		info = liveinfo_find_by_pid(pid);
-		if (!info) {
-			ErrPrint("Invalid request\n");
-			goto out;
-		}
-
-		pkg_list_cb(info);
-out:
-		return NULL;
-	}
-
-	static struct packet *liveinfo_slave_ctrl(pid_t pid, int handle, const struct packet *packet)
-	{
-		return NULL;
-	}
-
-	static Eina_Bool pkg_ctrl_rmpack_cb(void *info)
-	{
-		FILE *fp;
-		liveinfo_open_fifo(info);
-		fp = liveinfo_fifo(info);
-		if (!fp) {
-			liveinfo_close_fifo(info);
-			return ECORE_CALLBACK_CANCEL;
-		}
-
-		fprintf(fp, "%d\n", ENOSYS);
-		fprintf(fp, "EOD\n");
-		liveinfo_close_fifo(info);
-		return ECORE_CALLBACK_CANCEL;
-	}
-
-	static Eina_Bool pkg_ctrl_rminst_cb(void *info)
-	{
-		FILE *fp;
-
-		liveinfo_open_fifo(info);
-		fp = liveinfo_fifo(info);
-		if (!fp) {
-			liveinfo_close_fifo(info);
-			return ECORE_CALLBACK_CANCEL;
-		}
-
-		fprintf(fp, "%d\n", (int)liveinfo_data(info));
-		fprintf(fp, "EOD\n");
-		liveinfo_close_fifo(info);
-		return ECORE_CALLBACK_CANCEL;
-	}
-
-	static Eina_Bool pkg_ctrl_faultinst_cb(void *info)
-	{
-		FILE *fp;
-
-		liveinfo_open_fifo(info);
-		fp = liveinfo_fifo(info);
-		if (!fp) {
-			liveinfo_close_fifo(info);
-			return ECORE_CALLBACK_CANCEL;
-		}
-
-		fprintf(fp, "%d\n", (int)liveinfo_data(info));
-		fprintf(fp, "EOD\n");
-		liveinfo_close_fifo(info);
-		return ECORE_CALLBACK_CANCEL;
-	}
-
-	static struct packet *liveinfo_pkg_ctrl(pid_t pid, int handle, const struct packet *packet)
-	{
-		struct liveinfo *info;
-		char *cmd;
-		char *pkgname;
-		char *id;
-
-		if (packet_get(packet, "sss", &cmd, &pkgname, &id) != 3) {
-			ErrPrint("Invalid argument\n");
-			goto out;
-		}
-
-		info = liveinfo_find_by_pid(pid);
-		if (!info) {
-			ErrPrint("Invalid request\n");
-			goto out;
-		}
-
-		if (!strcmp(cmd, "rmpack")) {
-			pkg_ctrl_rmpack_cb(info);
-		} else if (!strcmp(cmd, "rminst")) {
-			struct inst_info *inst;
-			inst = package_find_instance_by_id(pkgname, id);
-			if (!inst) {
-				liveinfo_set_data(info, (void *)ENOENT);
-			} else {
-				(void)instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
-				liveinfo_set_data(info, (void *)0);
-			}
-
-			pkg_ctrl_rminst_cb(info);
-		} else if (!strcmp(cmd, "faultinst")) {
-			struct inst_info *inst;
-			inst = package_find_instance_by_id(pkgname, id);
-			if (!inst) {
-				liveinfo_set_data(info, (void *)ENOENT);
-			} else {
-				struct pkg_info *pkg;
-
-				pkg = instance_package(inst);
-				if (!pkg) {
-					liveinfo_set_data(info, (void *)EFAULT);
-				} else {
-					(void)package_faulted(pkg, 1);
-					liveinfo_set_data(info, (void *)0);
+			inst_list = package_instance_list(pkg);
+			EINA_LIST_FOREACH(inst_list, l, inst) {
+				ret = instance_set_period(inst, period);
+				if (ret < 0) {
+					ErrPrint("Failed to change the period of %s to (%lf)\n", pkgname, period);
 				}
 			}
-
-			pkg_ctrl_faultinst_cb(info);
 		}
+	} else {
+		ret = validate_request(pkgname, id, &inst, NULL);
+		if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+			if (instance_state(inst) == INST_DESTROYED) {
+				ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
+				ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+				goto out;
+			}
 
-out:
-		return NULL;
+			ret = instance_set_period(inst, period);
+		}
 	}
 
-	static Eina_Bool master_ctrl_cb(void *info)
-	{
-		FILE *fp;
+	DbgPrint("Change the update period: %s, %lf : %d\n", pkgname, period, ret);
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result) {
+		ErrPrint("Failed to create a packet\n");
+	}
 
-		liveinfo_open_fifo(info);
-		fp = liveinfo_fifo(info);
-		if (!fp) {
-			liveinfo_close_fifo(info);
-			return ECORE_CALLBACK_CANCEL;
+	return result;
+}
+
+static struct packet *service_update(pid_t pid, int handle, const struct packet *packet)
+{
+	Eina_List *inst_list;
+	struct pkg_info *pkg;
+	struct packet *result;
+	const char *pkgname;
+	const char *id;
+	const char *cluster;
+	const char *category;
+	const char *content;
+	int force;
+	char *lbid;
+	int ret;
+
+	ret = packet_get(packet, "sssssi", &pkgname, &id, &cluster, &category, &content, &force);
+	if (ret != 6) {
+		ErrPrint("Invalid Packet\n");
+		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		goto out;
+	}
+
+	lbid = package_dbox_pkgname(pkgname);
+	if (!lbid) {
+		ErrPrint("Invalid package %s\n", pkgname);
+		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		goto out;
+	}
+
+	pkg = package_find(lbid);
+	if (!pkg) {
+		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		DbgFree(lbid);
+		goto out;
+	}
+
+	if (package_is_fault(pkg)) {
+		ret = DBOX_STATUS_ERROR_FAULT;
+		DbgFree(lbid);
+		goto out;
+	}
+
+	inst_list = package_instance_list(pkg);
+	if (!eina_list_count(inst_list)) {
+		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		DbgFree(lbid);
+		goto out;
+	}
+
+	if (id && strlen(id)) {
+		Eina_List *l;
+		struct inst_info *inst;
+
+		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		EINA_LIST_FOREACH(inst_list, l, inst) {
+			if (!strcmp(instance_id(inst), id)) {
+				ret = DBOX_STATUS_ERROR_NONE;
+				break;
+			}
 		}
-		fprintf(fp, "%d\nEOD\n", (int)liveinfo_data(info));
-		liveinfo_close_fifo(info);
 
+		if (ret == (int)DBOX_STATUS_ERROR_NOT_EXIST) {
+			DbgFree(lbid);
+			goto out;
+		}
+	}
+
+	/*!
+	 * \TODO
+	 * Validate the update requstor.
+	 */
+	slave_rpc_request_update(lbid, id, cluster, category, content, force);
+	DbgFree(lbid);
+	ret = DBOX_STATUS_ERROR_NONE;
+
+out:
+	result = packet_create_reply(packet, "i", ret);
+	if (!result) {
+		ErrPrint("Failed to create a packet\n");
+	}
+
+	return result;
+}
+
+static struct packet *liveinfo_hello(pid_t pid, int handle, const struct packet *packet)
+{
+	struct liveinfo *info;
+	struct packet *result;
+	int ret;
+	const char *fifo_name;
+	double timestamp;
+
+	DbgPrint("Request arrived from %d\n", pid);
+
+	if (packet_get(packet, "d", &timestamp) != 1) {
+		ErrPrint("Invalid packet\n");
+		fifo_name = "";
+		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		goto out;
+	}
+
+	info = liveinfo_create(pid, handle);
+	if (!info) {
+		ErrPrint("Failed to create a liveinfo object\n");
+		fifo_name = "";
+		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		goto out;
+	}
+
+	ret = 0;
+	fifo_name = liveinfo_filename(info);
+	DbgPrint("FIFO Created: %s (Serve for %d)\n", fifo_name, pid);
+
+out:
+	result = packet_create_reply(packet, "si", fifo_name, ret);
+	if (!result) {
+		ErrPrint("Failed to create a result packet\n");
+	}
+
+	return result;
+}
+
+static Eina_Bool lazy_slave_list_cb(void *info)
+{
+	FILE *fp;
+	Eina_List *list;
+	Eina_List *l;
+	struct slave_node *slave;
+
+	liveinfo_open_fifo(info);
+	fp = liveinfo_fifo(info);
+	if (!fp) {
+		liveinfo_close_fifo(info);
 		return ECORE_CALLBACK_CANCEL;
 	}
 
-	static struct packet *liveinfo_master_ctrl(pid_t pid, int handle, const struct packet *packet)
-	{
-		struct liveinfo *info;
-		char *cmd;
-		char *var;
-		char *val;
-		int ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	list = (Eina_List *)slave_list();
+	EINA_LIST_FOREACH(list, l, slave) {
+		fprintf(fp, "%d %s %s %s %d %d %d %s %d %d %lf\n", 
+				slave_pid(slave),
+				slave_name(slave),
+				slave_pkgname(slave),
+				slave_abi(slave),
+				slave_is_secured(slave),
+				slave_refcnt(slave),
+				slave_fault_count(slave),
+				slave_state_string(slave),
+				slave_loaded_instance(slave),
+				slave_loaded_package(slave),
+				slave_ttl(slave)
+			   );
+	}
 
-		if (packet_get(packet, "sss", &cmd, &var, &val) != 3) {
-			ErrPrint("Invalid argument\n");
-			goto out;
-		}
+	fprintf(fp, "EOD\n");
+	liveinfo_close_fifo(info);
+	return ECORE_CALLBACK_CANCEL;
+}
 
-		info = liveinfo_find_by_pid(pid);
-		if (!info) {
-			ErrPrint("Invalid request\n");
-			goto out;
-		}
+static struct packet *liveinfo_slave_list(pid_t pid, int handle, const struct packet *packet)
+{
+	struct liveinfo *info;
+	double timestamp;
 
-		if (!strcasecmp(var, "debug")) {
-			if (!strcasecmp(cmd, "set")) {
-				g_conf.debug_mode = !strcasecmp(val, "on");
-			} else if (!strcasecmp(cmd, "get")) {
-			}
-			ret = g_conf.debug_mode;
-		} else if (!strcasecmp(var, "slave_max_load")) {
-			if (!strcasecmp(cmd, "set")) {
-				g_conf.slave_max_load = atoi(val);
-			} else if (!strcasecmp(cmd, "get")) {
-			}
-			ret = g_conf.slave_max_load;
-		}
+	if (packet_get(packet, "d", &timestamp) != 1) {
+		ErrPrint("Invalid argument\n");
+		goto out;
+	}
 
-		liveinfo_set_data(info, (void *)ret);
-		master_ctrl_cb(info);
+	info = liveinfo_find_by_pid(pid);
+	if (!info) {
+		ErrPrint("Invalid request\n");
+		goto out;
+	}
+
+	lazy_slave_list_cb(info);
+out:
+	return NULL;
+}
+
+static inline const char *visible_state_string(enum dynamicbox_visible_state state)
+{
+	switch (state) {
+	case DBOX_SHOW:
+		return "Show";
+	case DBOX_HIDE:
+		return "Hide";
+	case DBOX_HIDE_WITH_PAUSE:
+		return "Paused";
+	default:
+		break;
+	}
+
+	return "Unknown";
+}
+
+static Eina_Bool inst_list_cb(void *info)
+{
+	FILE *fp;
+	char *pkgname;
+	struct pkg_info *pkg;
+	Eina_List *l;
+	Eina_List *inst_list;
+	struct inst_info *inst;
+
+	pkgname = liveinfo_data(info);
+	if (!pkgname) {
+		return ECORE_CALLBACK_CANCEL;
+	}
+
+	liveinfo_open_fifo(info);
+	fp = liveinfo_fifo(info);
+	if (!fp) {
+		ErrPrint("Invalid fp\n");
+		liveinfo_close_fifo(info);
+		free(pkgname);
+		return ECORE_CALLBACK_CANCEL;
+	}
+
+	if (!package_is_dbox_pkgname(pkgname)) {
+		ErrPrint("Invalid package name\n");
+		free(pkgname);
+		goto close_out;
+	}
+
+	pkg = package_find(pkgname);
+	free(pkgname);
+	if (!pkg) {
+		ErrPrint("Package is not exists\n");
+		goto close_out;
+	}
+
+	inst_list = package_instance_list(pkg);
+	EINA_LIST_FOREACH(inst_list, l, inst) {
+		fprintf(fp, "%s %s %s %s %lf %s %d %d\n",
+				instance_id(inst),
+				buffer_handler_id(instance_dbox_buffer(inst)),
+				instance_cluster(inst),
+				instance_category(inst),
+				instance_period(inst),
+				visible_state_string(instance_visible_state(inst)),
+				instance_dbox_width(inst),
+				instance_dbox_height(inst));
+	}
+
+close_out:
+	fprintf(fp, "EOD\n");
+	liveinfo_close_fifo(info);
+
+	return ECORE_CALLBACK_CANCEL;
+}
+
+static struct packet *liveinfo_inst_list(pid_t pid, int handle, const struct packet *packet)
+{
+	const char *pkgname;
+	char *dup_pkgname;
+	struct liveinfo *info;
+
+	if (packet_get(packet, "s", &pkgname) != 1) {
+		ErrPrint("Invalid argument\n");
+		goto out;
+	}
+
+	info = liveinfo_find_by_pid(pid);
+	if (!info) {
+		ErrPrint("Invalid request\n");
+		goto out;
+	}
+
+	dup_pkgname = strdup(pkgname);
+	if (!dup_pkgname) {
+		ErrPrint("Invalid request\n");
+		goto out;
+	}
+
+	liveinfo_set_data(info, dup_pkgname);
+	inst_list_cb(info);
 
 out:
-		return NULL;
+	return NULL;
+}
+
+static Eina_Bool pkg_list_cb(void *info)
+{
+	FILE *fp;
+	Eina_List *l;
+	Eina_List *list;
+	Eina_List *inst_list;
+	struct pkg_info *pkg;
+	struct slave_node *slave;
+	const char *slavename;
+	pid_t pid;
+
+	liveinfo_open_fifo(info);
+	fp = liveinfo_fifo(info);
+	if (!fp) {
+		DbgPrint("Failed to open a pipe\n");
+		liveinfo_close_fifo(info);
+		return ECORE_CALLBACK_CANCEL;
 	}
 
-	static struct method s_info_table[] = {
-		{
-			.cmd = CMD_STR_INFO_HELLO,
-			.handler = liveinfo_hello,
-		},
-		{
-			.cmd = CMD_STR_INFO_SLAVE_LIST,
-			.handler = liveinfo_slave_list,
-		},
-		{
-			.cmd = CMD_STR_INFO_PKG_LIST,
-			.handler = liveinfo_pkg_list,
-		},
-		{
-			.cmd = CMD_STR_INFO_INST_LIST,
-			.handler = liveinfo_inst_list,
-		},
-		{
-			.cmd = CMD_STR_INFO_SLAVE_CTRL,
-			.handler = liveinfo_slave_ctrl,
-		},
-		{
-			.cmd = CMD_STR_INFO_PKG_CTRL,
-			.handler = liveinfo_pkg_ctrl,
-		},
-		{
-			.cmd = CMD_STR_INFO_MASTER_CTRL,
-			.handler = liveinfo_master_ctrl,
-		},
-		{
-			.cmd = NULL,
-			.handler = NULL,
-		},
-	};
+	list = (Eina_List *)package_list();
+	EINA_LIST_FOREACH(list, l, pkg) {
+		slave = package_slave(pkg);
 
-	static struct method s_client_table[] = {
-		{
-			.cmd = CMD_STR_GBAR_MOUSE_MOVE,
-			.handler = client_gbar_mouse_move, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
-		},
-		{
-			.cmd = CMD_STR_DBOX_MOUSE_MOVE,
-			.handler = client_dbox_mouse_move, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
-		},
-		{
-			.cmd = CMD_STR_GBAR_MOUSE_DOWN,
-			.handler = client_gbar_mouse_down, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
-		},
-		{
-			.cmd = CMD_STR_GBAR_MOUSE_UP,
-			.handler = client_gbar_mouse_up, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
-		},
-		{
-			.cmd = CMD_STR_DBOX_MOUSE_DOWN,
-			.handler = client_dbox_mouse_down, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
-		},
-		{
-			.cmd = CMD_STR_DBOX_MOUSE_UP,
-			.handler = client_dbox_mouse_up, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
-		},
-		{
-			.cmd = CMD_STR_GBAR_MOUSE_ENTER,
-			.handler = client_gbar_mouse_enter, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
-		},
-		{
-			.cmd = CMD_STR_GBAR_MOUSE_LEAVE,
-			.handler = client_gbar_mouse_leave, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
-		},
-		{
-			.cmd = CMD_STR_DBOX_MOUSE_ENTER,
-			.handler = client_dbox_mouse_enter, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
-		},
-		{
-			.cmd = CMD_STR_DBOX_MOUSE_LEAVE,
-			.handler = client_dbox_mouse_leave, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
-		},
-		{
-			.cmd = CMD_STR_DBOX_MOUSE_ON_SCROLL,
-			.handler = client_dbox_mouse_on_scroll,
-		},
-		{
-			.cmd = CMD_STR_DBOX_MOUSE_OFF_SCROLL,
-			.handler = client_dbox_mouse_off_scroll,
-		},
-		{
-			.cmd = CMD_STR_GBAR_MOUSE_ON_SCROLL,
-			.handler = client_gbar_mouse_on_scroll,
-		},
-		{
-			.cmd = CMD_STR_GBAR_MOUSE_OFF_SCROLL,
-			.handler = client_gbar_mouse_off_scroll,
-		},
-		{
-			.cmd = CMD_STR_DBOX_MOUSE_ON_HOLD,
-			.handler = client_dbox_mouse_on_hold,
-		},
-		{
-			.cmd = CMD_STR_DBOX_MOUSE_OFF_HOLD,
-			.handler = client_dbox_mouse_off_hold,
-		},
-		{
-			.cmd = CMD_STR_GBAR_MOUSE_ON_HOLD,
-			.handler = client_gbar_mouse_on_hold,
-		},
-		{
-			.cmd = CMD_STR_GBAR_MOUSE_OFF_HOLD,
-			.handler = client_gbar_mouse_off_hold,
-		},
-		{
-			.cmd = CMD_STR_CLICKED,
-			.handler = client_clicked, /*!< pid, pkgname, filename, event, timestamp, x, y, ret */
-		},
-		{
-			.cmd = CMD_STR_TEXT_SIGNAL,
-			.handler = client_text_signal, /* pid, pkgname, filename, emission, source, s, sy, ex, ey, ret */
-		},
-		{
-			.cmd = CMD_STR_DELETE,
-			.handler = client_delete, /* pid, pkgname, filename, ret */
-		},
-		{
-			.cmd = CMD_STR_RESIZE,
-			.handler = client_resize, /* pid, pkgname, filename, w, h, ret */
-		},
-		{
-			.cmd = CMD_STR_NEW,
-			.handler = client_new, /* pid, timestamp, pkgname, content, cluster, category, period, ret */
-		},
-		{
-			.cmd = CMD_STR_SET_PERIOD,
-			.handler = client_set_period, /* pid, pkgname, filename, period, ret, period */
-		},
-		{
-			.cmd = CMD_STR_CHANGE_GROUP,
-			.handler = client_change_group, /* pid, pkgname, filename, cluster, category, ret */
-		},
-		{
-			.cmd = CMD_STR_GBAR_MOVE,
-			.handler = client_gbar_move, /* pkgname, id, x, y */
-		},
-		{
-			.cmd = CMD_STR_GBAR_ACCESS_HL,
-			.handler = client_gbar_access_hl,
-		},
-		{
-			.cmd = CMD_STR_GBAR_ACCESS_ACTIVATE,
-			.handler = client_gbar_access_activate,
-		},
-		{
-			.cmd = CMD_STR_GBAR_ACCESS_ACTION,
-			.handler = client_gbar_access_action,
-		},
-		{
-			.cmd = CMD_STR_GBAR_ACCESS_SCROLL,
-			.handler = client_gbar_access_scroll,
-		},
-		{
-			.cmd = CMD_STR_GBAR_ACCESS_VALUE_CHANGE,
-			.handler = client_gbar_access_value_change,
-		},
-		{
-			.cmd = CMD_STR_GBAR_ACCESS_MOUSE,
-			.handler = client_gbar_access_mouse,
-		},
-		{
-			.cmd = CMD_STR_GBAR_ACCESS_BACK,
-			.handler = client_gbar_access_back,
-		},
-		{
-			.cmd = CMD_STR_GBAR_ACCESS_OVER,
-			.handler = client_gbar_access_over,
-		},
-		{
-			.cmd = CMD_STR_GBAR_ACCESS_READ,
-			.handler = client_gbar_access_read,
-		},
-		{
-			.cmd = CMD_STR_GBAR_ACCESS_ENABLE,
-			.handler = client_gbar_access_enable,
-		},
+		if (slave) {
+			slavename = slave_name(slave);
+			pid = slave_pid(slave);
+		} else {
+			pid = (pid_t)-1;
+			slavename = "";
+		}
 
-		{
-			.cmd = CMD_STR_DBOX_ACCESS_HL,
-			.handler = client_dbox_access_hl,
-		},
-		{
-			.cmd = CMD_STR_DBOX_ACCESS_ACTIVATE,
-			.handler = client_dbox_access_activate,
-		},
-		{
-			.cmd = CMD_STR_DBOX_ACCESS_ACTION,
-			.handler = client_dbox_access_action,
-		},
-		{
-			.cmd = CMD_STR_DBOX_ACCESS_SCROLL,
-			.handler = client_dbox_access_scroll,
-		},
-		{
-			.cmd = CMD_STR_DBOX_ACCESS_VALUE_CHANGE,
-			.handler = client_dbox_access_value_change,
-		},
-		{
-			.cmd = CMD_STR_DBOX_ACCESS_MOUSE,
-			.handler = client_dbox_access_mouse,
-		},
-		{
-			.cmd = CMD_STR_DBOX_ACCESS_BACK,
-			.handler = client_dbox_access_back,
-		},
-		{
-			.cmd = CMD_STR_DBOX_ACCESS_OVER,
-			.handler = client_dbox_access_over,
-		},
-		{
-			.cmd = CMD_STR_DBOX_ACCESS_READ,
-			.handler = client_dbox_access_read,
-		},
-		{
-			.cmd = CMD_STR_DBOX_ACCESS_ENABLE,
-			.handler = client_dbox_access_enable,
-		},
-		{
-			.cmd = CMD_STR_DBOX_KEY_DOWN,
-			.handler = client_dbox_key_down,
-		},
-		{
-			.cmd = CMD_STR_DBOX_KEY_UP,
-			.handler = client_dbox_key_up,
-		},
-		{
-			.cmd = CMD_STR_DBOX_KEY_FOCUS_IN,
-			.handler = client_dbox_key_focus_in,
-		},
-		{
-			.cmd = CMD_STR_DBOX_KEY_FOCUS_OUT,
-			.handler = client_dbox_key_focus_out,
-		},
-		{
-			.cmd = CMD_STR_GBAR_KEY_DOWN,
-			.handler = client_gbar_key_down,
-		},
-		{
-			.cmd = CMD_STR_GBAR_KEY_UP,
-			.handler = client_gbar_key_up,
-		},
-		{
-			.cmd = CMD_STR_GBAR_KEY_FOCUS_IN,
-			.handler = client_gbar_key_focus_in,
-		},
-		{
-			.cmd = CMD_STR_GBAR_KEY_FOCUS_OUT,
-			.handler = client_gbar_key_focus_out,
-		},
-		{
-			.cmd = CMD_STR_UPDATE_MODE,
-			.handler = client_update_mode,
-		},
-		// Cut HERE. Above list must be sync'd with provider list.
+		inst_list = (Eina_List *)package_instance_list(pkg);
+		fprintf(fp, "%d %s %s %s %d %d %d\n",
+				pid,
+				strlen(slavename) ? slavename : "(none)",
+				package_name(pkg),
+				package_abi(pkg),
+				package_refcnt(pkg),
+				package_fault_count(pkg),
+				eina_list_count(inst_list)
+			   );
+		DbgPrint("%d %s %s %s %d %d %d\n",
+				pid,
+				strlen(slavename) ? slavename : "(none)",
+				package_name(pkg),
+				package_abi(pkg),
+				package_refcnt(pkg),
+				package_fault_count(pkg),
+				eina_list_count(inst_list)
+				);
+	}
 
-		{
-			.cmd = CMD_STR_DBOX_MOUSE_SET,
-			.handler = client_dbox_mouse_set,
-		},
-		{
-			.cmd = CMD_STR_DBOX_MOUSE_UNSET,
-			.handler = client_dbox_mouse_unset,
-		},
-		{
-			.cmd = CMD_STR_GBAR_MOUSE_SET,
-			.handler = client_gbar_mouse_set,
-		},
-		{
-			.cmd = CMD_STR_GBAR_MOUSE_UNSET,
-			.handler = client_gbar_mouse_unset,
-		},
-		{
-			.cmd = CMD_STR_CHANGE_VISIBILITY,
-			.handler = client_change_visibility,
-		},
-		{
-			.cmd = CMD_STR_DBOX_ACQUIRE_PIXMAP,
-			.handler = client_dbox_acquire_pixmap,
-		},
-		{
-			.cmd = CMD_STR_DBOX_RELEASE_PIXMAP,
-			.handler = client_dbox_release_pixmap,
-		},
-		{
-			.cmd = CMD_STR_GBAR_ACQUIRE_PIXMAP,
-			.handler = client_gbar_acquire_pixmap,
-		},
-		{
-			.cmd = CMD_STR_GBAR_RELEASE_PIXMAP,
-			.handler = client_gbar_release_pixmap,
-		},
-		{
-			.cmd = CMD_STR_ACQUIRE,
-			.handler = client_acquire, /*!< pid, ret */
-		},
-		{
-			.cmd = CMD_STR_RELEASE,
-			.handler = cilent_release, /*!< pid, ret */
-		},
-		{
-			.cmd = CMD_STR_PINUP_CHANGED,
-			.handler = client_pinup_changed, /* pid, pkgname, filename, pinup, ret */
-		},
-		{
-			.cmd = CMD_STR_CREATE_GBAR,
-			.handler = client_create_gbar, /* pid, pkgname, filename, ret */
-		},
-		{
-			.cmd = CMD_STR_DESTROY_GBAR,
-			.handler = client_destroy_gbar, /* pid, pkgname, filename, ret */
-		},
-		{
-			.cmd = CMD_STR_ACTIVATE_PACKAGE,
-			.handler = client_activate_package, /* pid, pkgname, ret */
-		},
-		{
-			.cmd = CMD_STR_SUBSCRIBE, /* pid, cluster, sub-cluster */
-			.handler = client_subscribed,
-		},
-		{
-			.cmd = CMD_STR_UNSUBSCRIBE, /* pid, cluster, sub-cluster */
-			.handler = client_unsubscribed,
-		},
-		{
-			.cmd = CMD_STR_DELETE_CLUSTER,
-			.handler = client_delete_cluster,
-		},
-		{
-			.cmd = CMD_STR_DELETE_CATEGORY,
-			.handler = client_delete_category,
-		},
-		{
-			.cmd = CMD_STR_REFRESH_GROUP,
-			.handler = client_refresh_group,
-		},
-		{
-			.cmd = CMD_STR_UPDATE,
-			.handler = client_update,
-		},
+	fprintf(fp, "EOD\n");
+	DbgPrint("EOD\n");
+	liveinfo_close_fifo(info);
+	return ECORE_CALLBACK_CANCEL;
+}
 
-		{
-			.cmd = CMD_STR_DBOX_KEY_SET,
-			.handler = client_dbox_key_set,
-		},
-		{
-			.cmd = CMD_STR_DBOX_KEY_UNSET,
-			.handler = client_dbox_key_unset,
-		},
+static struct packet *liveinfo_pkg_list(pid_t pid, int handle, const struct packet *packet)
+{
+	struct liveinfo *info;
+	double timestamp;
 
-		{
-			.cmd = CMD_STR_GBAR_KEY_SET,
-			.handler = client_gbar_key_set,
-		},
-		{
-			.cmd = CMD_STR_GBAR_KEY_UNSET,
-			.handler = client_gbar_key_unset,
-		},
+	if (packet_get(packet, "d", &timestamp) != 1) {
+		ErrPrint("Invalid argument\n");
+		goto out;
+	}
 
-		{
-			.cmd = CMD_STR_CLIENT_PAUSED,
-			.handler = client_pause_request,
-		},
-		{
-			.cmd = CMD_STR_CLIENT_RESUMED,
-			.handler = client_resume_request,
-		},
-		{
-			.cmd = CMD_STR_DBOX_ACQUIRE_XPIXMAP,
-			.handler = client_dbox_acquire_xpixmap,
-		},
-		{
-			.cmd = CMD_STR_GBAR_ACQUIRE_XPIXMAP,
-			.handler = client_gbar_acquire_xpixmap,
-		},
+	DbgPrint("Package List: %lf\n", timestamp);
 
-		{
-			.cmd = NULL,
-			.handler = NULL,
-		},
-	};
+	info = liveinfo_find_by_pid(pid);
+	if (!info) {
+		ErrPrint("Invalid request\n");
+		goto out;
+	}
 
-	static struct method s_service_table[] = {
-		{
-			.cmd = CMD_STR_SERVICE_UPDATE,
-			.handler = service_update,
-		},
-		{
-			.cmd = CMD_STR_SERVICE_CHANGE_PERIOD,
-			.handler = service_change_period,
-		},
-		{
-			.cmd = CMD_STR_SERVICE_INST_CNT,
-			.handler = service_instance_count,
-		},
-		{
-			.cmd = NULL,
-			.handler = NULL,
-		},
-	};
+	pkg_list_cb(info);
+out:
+	return NULL;
+}
 
-	static struct method s_slave_table[] = {
-		{
-			.cmd = CMD_STR_UPDATED,
-			.handler = slave_updated, /* slave_name, pkgname, filename, width, height, ret */
-		},
-		{
-			.cmd = CMD_STR_DESC_UPDATED,
-			.handler = slave_desc_updated, /* slave_name, pkgname, filename, decsfile, ret */
-		},
-		{
-			.cmd = CMD_STR_EXTRA_UPDATED,
-			.handler = slave_extra_updated,
-		},
-		{
-			.cmd = CMD_STR_EXTRA_INFO,
-			.handler = slave_extra_info, /* slave_name, pkgname, filename, priority, content_info, title, icon, name */
-		},
-		{
-			.cmd = CMD_STR_DELETED,
-			.handler = slave_deleted, /* slave_name, pkgname, filename, ret */
-		},
-		{
-			.cmd = CMD_STR_FAULTED,
-			.handler = slave_faulted, /* slave_name, pkgname, id, funcname */
-		},
-		{
-			.cmd = CMD_STR_SCROLL,
-			.handler = slave_hold_scroll, /* slave_name, pkgname, id, seize */
-		},
+static struct packet *liveinfo_slave_ctrl(pid_t pid, int handle, const struct packet *packet)
+{
+	return NULL;
+}
 
-		{
-			.cmd = CMD_STR_DBOX_UPDATE_BEGIN,
-			.handler = slave_dbox_update_begin,
-		},
-		{
-			.cmd = CMD_STR_DBOX_UPDATE_END,
-			.handler = slave_dbox_update_end,
-		},
-		{
-			.cmd = CMD_STR_GBAR_UPDATE_BEGIN,
-			.handler = slave_gbar_update_begin,
-		},
-		{
-			.cmd = CMD_STR_GBAR_UPDATE_END,
-			.handler = slave_gbar_update_end,
-		},
+static Eina_Bool pkg_ctrl_rmpack_cb(void *info)
+{
+	FILE *fp;
+	liveinfo_open_fifo(info);
+	fp = liveinfo_fifo(info);
+	if (!fp) {
+		liveinfo_close_fifo(info);
+		return ECORE_CALLBACK_CANCEL;
+	}
 
-		{
-			.cmd = CMD_STR_ACCESS_STATUS,
-			.handler = slave_access_status,
-		},
-		{
-			.cmd = CMD_STR_KEY_STATUS,
-			.handler = slave_key_status,
-		},
-		{
-			.cmd = CMD_STR_CLOSE_GBAR,
-			.handler = slave_close_gbar,
-		},
+	fprintf(fp, "%d\n", ENOSYS);
+	fprintf(fp, "EOD\n");
+	liveinfo_close_fifo(info);
+	return ECORE_CALLBACK_CANCEL;
+}
 
-		{
-			.cmd = CMD_STR_CALL,
-			.handler = slave_call, /* slave_name, pkgname, filename, function, ret */
-		},
-		{
-			.cmd = CMD_STR_RET,
-			.handler = slave_ret, /* slave_name, pkgname, filename, function, ret */
-		},
-		{
-			.cmd = CMD_STR_ACQUIRE_BUFFER,
-			.handler = slave_acquire_buffer, /* slave_name, id, w, h, size, - out - type, shmid */
-		},
-		{
-			.cmd = CMD_STR_RESIZE_BUFFER,
-			.handler = slave_resize_buffer,
-		},
-		{
-			.cmd = CMD_STR_RELEASE_BUFFER,
-			.handler = slave_release_buffer, /* slave_name, id - ret */
-		},
-		{
-			.cmd = CMD_STR_HELLO,
-			.handler = slave_hello, /* slave_name, ret */
-		},
-		{
-			.cmd = CMD_STR_PING,
-			.handler = slave_ping, /* slave_name, ret */
-		},
-		{
-			.cmd = CMD_STR_CTRL,
-			.handler = slave_ctrl, /* control bits */
-		},
+static Eina_Bool pkg_ctrl_rminst_cb(void *info)
+{
+	FILE *fp;
 
-		{
-			.cmd = CMD_STR_ACQUIRE_XBUFFER,
-			.handler = slave_acquire_extra_buffer,
-		},
-		{
-			.cmd = CMD_STR_RELEASE_XBUFFER,
-			.handler = slave_release_extra_buffer,
-		},
+	liveinfo_open_fifo(info);
+	fp = liveinfo_fifo(info);
+	if (!fp) {
+		liveinfo_close_fifo(info);
+		return ECORE_CALLBACK_CANCEL;
+	}
 
-		{
-			.cmd = NULL,
-			.handler = NULL,
-		},
-	};
+	fprintf(fp, "%d\n", (int)liveinfo_data(info));
+	fprintf(fp, "EOD\n");
+	liveinfo_close_fifo(info);
+	return ECORE_CALLBACK_CANCEL;
+}
 
-	HAPI int server_init(void)
+static Eina_Bool pkg_ctrl_faultinst_cb(void *info)
+{
+	FILE *fp;
+
+	liveinfo_open_fifo(info);
+	fp = liveinfo_fifo(info);
+	if (!fp) {
+		liveinfo_close_fifo(info);
+		return ECORE_CALLBACK_CANCEL;
+	}
+
+	fprintf(fp, "%d\n", (int)liveinfo_data(info));
+	fprintf(fp, "EOD\n");
+	liveinfo_close_fifo(info);
+	return ECORE_CALLBACK_CANCEL;
+}
+
+static struct packet *liveinfo_pkg_ctrl(pid_t pid, int handle, const struct packet *packet)
+{
+	struct liveinfo *info;
+	char *cmd;
+	char *pkgname;
+	char *id;
+
+	if (packet_get(packet, "sss", &cmd, &pkgname, &id) != 3) {
+		ErrPrint("Invalid argument\n");
+		goto out;
+	}
+
+	info = liveinfo_find_by_pid(pid);
+	if (!info) {
+		ErrPrint("Invalid request\n");
+		goto out;
+	}
+
+	if (!strcmp(cmd, "rmpack")) {
+		pkg_ctrl_rmpack_cb(info);
+	} else if (!strcmp(cmd, "rminst")) {
+		struct inst_info *inst;
+		inst = package_find_instance_by_id(pkgname, id);
+		if (!inst) {
+			liveinfo_set_data(info, (void *)ENOENT);
+		} else {
+			(void)instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+			liveinfo_set_data(info, (void *)0);
+		}
+
+		pkg_ctrl_rminst_cb(info);
+	} else if (!strcmp(cmd, "faultinst")) {
+		struct inst_info *inst;
+		inst = package_find_instance_by_id(pkgname, id);
+		if (!inst) {
+			liveinfo_set_data(info, (void *)ENOENT);
+		} else {
+			struct pkg_info *pkg;
+
+			pkg = instance_package(inst);
+			if (!pkg) {
+				liveinfo_set_data(info, (void *)EFAULT);
+			} else {
+				(void)package_faulted(pkg, 1);
+				liveinfo_set_data(info, (void *)0);
+			}
+		}
+
+		pkg_ctrl_faultinst_cb(info);
+	}
+
+out:
+	return NULL;
+}
+
+static Eina_Bool master_ctrl_cb(void *info)
+{
+	FILE *fp;
+
+	liveinfo_open_fifo(info);
+	fp = liveinfo_fifo(info);
+	if (!fp) {
+		liveinfo_close_fifo(info);
+		return ECORE_CALLBACK_CANCEL;
+	}
+	fprintf(fp, "%d\nEOD\n", (int)liveinfo_data(info));
+	liveinfo_close_fifo(info);
+
+	return ECORE_CALLBACK_CANCEL;
+}
+
+static struct packet *liveinfo_master_ctrl(pid_t pid, int handle, const struct packet *packet)
+{
+	struct liveinfo *info;
+	char *cmd;
+	char *var;
+	char *val;
+	int ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+
+	if (packet_get(packet, "sss", &cmd, &var, &val) != 3) {
+		ErrPrint("Invalid argument\n");
+		goto out;
+	}
+
+	info = liveinfo_find_by_pid(pid);
+	if (!info) {
+		ErrPrint("Invalid request\n");
+		goto out;
+	}
+
+	if (!strcasecmp(var, "debug")) {
+		if (!strcasecmp(cmd, "set")) {
+			g_conf.debug_mode = !strcasecmp(val, "on");
+		} else if (!strcasecmp(cmd, "get")) {
+		}
+		ret = g_conf.debug_mode;
+	} else if (!strcasecmp(var, "slave_max_load")) {
+		if (!strcasecmp(cmd, "set")) {
+			g_conf.slave_max_load = atoi(val);
+		} else if (!strcasecmp(cmd, "get")) {
+		}
+		ret = g_conf.slave_max_load;
+	}
+
+	liveinfo_set_data(info, (void *)ret);
+	master_ctrl_cb(info);
+
+out:
+	return NULL;
+}
+
+static struct method s_info_table[] = {
 	{
-		com_core_packet_use_thread(DYNAMICBOX_CONF_COM_CORE_THREAD);
-
-		if (unlink(INFO_SOCKET) < 0) {
-			ErrPrint("info socket: %s\n", strerror(errno));
-		}
-
-		if (unlink(SLAVE_SOCKET) < 0) {
-			ErrPrint("slave socket: %s\n", strerror(errno));
-		}
-
-		if (unlink(CLIENT_SOCKET) < 0) {
-			ErrPrint("client socket: %s\n", strerror(errno));
-		}
-
-		if (unlink(SERVICE_SOCKET) < 0) {
-			ErrPrint("service socket: %s\n", strerror(errno));
-		}
-
-		s_info.info_fd = com_core_packet_server_init(INFO_SOCKET, s_info_table);
-		if (s_info.info_fd < 0) {
-			ErrPrint("Failed to create a info socket\n");
-		}
-
-		s_info.slave_fd = com_core_packet_server_init(SLAVE_SOCKET, s_slave_table);
-		if (s_info.slave_fd < 0) {
-			ErrPrint("Failed to create a slave socket\n");
-		}
-
-		smack_fsetlabel(s_info.slave_fd, "data-provider-master::provider", SMACK_LABEL_IPIN);
-		smack_fsetlabel(s_info.slave_fd, "data-provider-master::provider", SMACK_LABEL_IPOUT);
-
-		s_info.client_fd = com_core_packet_server_init(CLIENT_SOCKET, s_client_table);
-		if (s_info.client_fd < 0) {
-			ErrPrint("Failed to create a client socket\n");
-		}
-
-		smack_fsetlabel(s_info.client_fd, "data-provider-master::client", SMACK_LABEL_IPIN);
-		smack_fsetlabel(s_info.client_fd, "data-provider-master::client", SMACK_LABEL_IPOUT);
-
-		/*!
-		 * \note
-		 * remote://:8208
-		 * Skip address to use the NULL.
-		 */
-		s_info.remote_client_fd = com_core_packet_server_init("remote://:"CLIENT_PORT, s_client_table);
-		if (s_info.client_fd < 0) {
-			ErrPrint("Failed to create a remote client socket\n");
-		}
-
-		smack_fsetlabel(s_info.remote_client_fd, "data-provider-master::client", SMACK_LABEL_IPIN);
-		smack_fsetlabel(s_info.remote_client_fd, "data-provider-master::client", SMACK_LABEL_IPOUT);
-
-		s_info.service_fd = com_core_packet_server_init(SERVICE_SOCKET, s_service_table);
-		if (s_info.service_fd < 0) {
-			ErrPrint("Faild to create a service socket\n");
-		}
-
-		smack_fsetlabel(s_info.service_fd, "data-provider-master", SMACK_LABEL_IPIN);
-		smack_fsetlabel(s_info.service_fd, "data-provider-master", SMACK_LABEL_IPOUT);
-
-		if (chmod(INFO_SOCKET, 0600) < 0) {
-			ErrPrint("info socket: %s\n", strerror(errno));
-		}
-
-		if (chmod(SLAVE_SOCKET, 0666) < 0) {
-			ErrPrint("slave socket: %s\n", strerror(errno));
-		}
-
-		if (chmod(CLIENT_SOCKET, 0666) < 0) {
-			ErrPrint("client socket: %s\n", strerror(errno));
-		}
-
-		if (chmod(SERVICE_SOCKET, 0666) < 0) {
-			ErrPrint("service socket: %s\n", strerror(errno));
-		}
-
-		return 0;
-	}
-
-	HAPI int server_fini(void)
+		.cmd = CMD_STR_INFO_HELLO,
+		.handler = liveinfo_hello,
+	},
 	{
-		if (s_info.info_fd > 0) {
-			com_core_packet_server_fini(s_info.info_fd);
-			s_info.info_fd = -1;
-		}
+		.cmd = CMD_STR_INFO_SLAVE_LIST,
+		.handler = liveinfo_slave_list,
+	},
+	{
+		.cmd = CMD_STR_INFO_PKG_LIST,
+		.handler = liveinfo_pkg_list,
+	},
+	{
+		.cmd = CMD_STR_INFO_INST_LIST,
+		.handler = liveinfo_inst_list,
+	},
+	{
+		.cmd = CMD_STR_INFO_SLAVE_CTRL,
+		.handler = liveinfo_slave_ctrl,
+	},
+	{
+		.cmd = CMD_STR_INFO_PKG_CTRL,
+		.handler = liveinfo_pkg_ctrl,
+	},
+	{
+		.cmd = CMD_STR_INFO_MASTER_CTRL,
+		.handler = liveinfo_master_ctrl,
+	},
+	{
+		.cmd = NULL,
+		.handler = NULL,
+	},
+};
 
-		if (s_info.slave_fd > 0) {
-			com_core_packet_server_fini(s_info.slave_fd);
-			s_info.slave_fd = -1;
-		}
+static struct method s_client_table[] = {
+	{
+		.cmd = CMD_STR_GBAR_MOUSE_MOVE,
+		.handler = client_gbar_mouse_move, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = CMD_STR_DBOX_MOUSE_MOVE,
+		.handler = client_dbox_mouse_move, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = CMD_STR_GBAR_MOUSE_DOWN,
+		.handler = client_gbar_mouse_down, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = CMD_STR_GBAR_MOUSE_UP,
+		.handler = client_gbar_mouse_up, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = CMD_STR_DBOX_MOUSE_DOWN,
+		.handler = client_dbox_mouse_down, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = CMD_STR_DBOX_MOUSE_UP,
+		.handler = client_dbox_mouse_up, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = CMD_STR_GBAR_MOUSE_ENTER,
+		.handler = client_gbar_mouse_enter, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = CMD_STR_GBAR_MOUSE_LEAVE,
+		.handler = client_gbar_mouse_leave, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = CMD_STR_DBOX_MOUSE_ENTER,
+		.handler = client_dbox_mouse_enter, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = CMD_STR_DBOX_MOUSE_LEAVE,
+		.handler = client_dbox_mouse_leave, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+	},
+	{
+		.cmd = CMD_STR_DBOX_MOUSE_ON_SCROLL,
+		.handler = client_dbox_mouse_on_scroll,
+	},
+	{
+		.cmd = CMD_STR_DBOX_MOUSE_OFF_SCROLL,
+		.handler = client_dbox_mouse_off_scroll,
+	},
+	{
+		.cmd = CMD_STR_GBAR_MOUSE_ON_SCROLL,
+		.handler = client_gbar_mouse_on_scroll,
+	},
+	{
+		.cmd = CMD_STR_GBAR_MOUSE_OFF_SCROLL,
+		.handler = client_gbar_mouse_off_scroll,
+	},
+	{
+		.cmd = CMD_STR_DBOX_MOUSE_ON_HOLD,
+		.handler = client_dbox_mouse_on_hold,
+	},
+	{
+		.cmd = CMD_STR_DBOX_MOUSE_OFF_HOLD,
+		.handler = client_dbox_mouse_off_hold,
+	},
+	{
+		.cmd = CMD_STR_GBAR_MOUSE_ON_HOLD,
+		.handler = client_gbar_mouse_on_hold,
+	},
+	{
+		.cmd = CMD_STR_GBAR_MOUSE_OFF_HOLD,
+		.handler = client_gbar_mouse_off_hold,
+	},
+	{
+		.cmd = CMD_STR_CLICKED,
+		.handler = client_clicked, /*!< pid, pkgname, filename, event, timestamp, x, y, ret */
+	},
+	{
+		.cmd = CMD_STR_TEXT_SIGNAL,
+		.handler = client_text_signal, /* pid, pkgname, filename, emission, source, s, sy, ex, ey, ret */
+	},
+	{
+		.cmd = CMD_STR_DELETE,
+		.handler = client_delete, /* pid, pkgname, filename, ret */
+	},
+	{
+		.cmd = CMD_STR_RESIZE,
+		.handler = client_resize, /* pid, pkgname, filename, w, h, ret */
+	},
+	{
+		.cmd = CMD_STR_NEW,
+		.handler = client_new, /* pid, timestamp, pkgname, content, cluster, category, period, ret */
+	},
+	{
+		.cmd = CMD_STR_SET_PERIOD,
+		.handler = client_set_period, /* pid, pkgname, filename, period, ret, period */
+	},
+	{
+		.cmd = CMD_STR_CHANGE_GROUP,
+		.handler = client_change_group, /* pid, pkgname, filename, cluster, category, ret */
+	},
+	{
+		.cmd = CMD_STR_GBAR_MOVE,
+		.handler = client_gbar_move, /* pkgname, id, x, y */
+	},
+	{
+		.cmd = CMD_STR_GBAR_ACCESS_HL,
+		.handler = client_gbar_access_hl,
+	},
+	{
+		.cmd = CMD_STR_GBAR_ACCESS_ACTIVATE,
+		.handler = client_gbar_access_activate,
+	},
+	{
+		.cmd = CMD_STR_GBAR_ACCESS_ACTION,
+		.handler = client_gbar_access_action,
+	},
+	{
+		.cmd = CMD_STR_GBAR_ACCESS_SCROLL,
+		.handler = client_gbar_access_scroll,
+	},
+	{
+		.cmd = CMD_STR_GBAR_ACCESS_VALUE_CHANGE,
+		.handler = client_gbar_access_value_change,
+	},
+	{
+		.cmd = CMD_STR_GBAR_ACCESS_MOUSE,
+		.handler = client_gbar_access_mouse,
+	},
+	{
+		.cmd = CMD_STR_GBAR_ACCESS_BACK,
+		.handler = client_gbar_access_back,
+	},
+	{
+		.cmd = CMD_STR_GBAR_ACCESS_OVER,
+		.handler = client_gbar_access_over,
+	},
+	{
+		.cmd = CMD_STR_GBAR_ACCESS_READ,
+		.handler = client_gbar_access_read,
+	},
+	{
+		.cmd = CMD_STR_GBAR_ACCESS_ENABLE,
+		.handler = client_gbar_access_enable,
+	},
 
-		if (s_info.client_fd > 0) {
-			com_core_packet_server_fini(s_info.client_fd);
-			s_info.client_fd = -1;
-		}
+	{
+		.cmd = CMD_STR_DBOX_ACCESS_HL,
+		.handler = client_dbox_access_hl,
+	},
+	{
+		.cmd = CMD_STR_DBOX_ACCESS_ACTIVATE,
+		.handler = client_dbox_access_activate,
+	},
+	{
+		.cmd = CMD_STR_DBOX_ACCESS_ACTION,
+		.handler = client_dbox_access_action,
+	},
+	{
+		.cmd = CMD_STR_DBOX_ACCESS_SCROLL,
+		.handler = client_dbox_access_scroll,
+	},
+	{
+		.cmd = CMD_STR_DBOX_ACCESS_VALUE_CHANGE,
+		.handler = client_dbox_access_value_change,
+	},
+	{
+		.cmd = CMD_STR_DBOX_ACCESS_MOUSE,
+		.handler = client_dbox_access_mouse,
+	},
+	{
+		.cmd = CMD_STR_DBOX_ACCESS_BACK,
+		.handler = client_dbox_access_back,
+	},
+	{
+		.cmd = CMD_STR_DBOX_ACCESS_OVER,
+		.handler = client_dbox_access_over,
+	},
+	{
+		.cmd = CMD_STR_DBOX_ACCESS_READ,
+		.handler = client_dbox_access_read,
+	},
+	{
+		.cmd = CMD_STR_DBOX_ACCESS_ENABLE,
+		.handler = client_dbox_access_enable,
+	},
+	{
+		.cmd = CMD_STR_DBOX_KEY_DOWN,
+		.handler = client_dbox_key_down,
+	},
+	{
+		.cmd = CMD_STR_DBOX_KEY_UP,
+		.handler = client_dbox_key_up,
+	},
+	{
+		.cmd = CMD_STR_DBOX_KEY_FOCUS_IN,
+		.handler = client_dbox_key_focus_in,
+	},
+	{
+		.cmd = CMD_STR_DBOX_KEY_FOCUS_OUT,
+		.handler = client_dbox_key_focus_out,
+	},
+	{
+		.cmd = CMD_STR_GBAR_KEY_DOWN,
+		.handler = client_gbar_key_down,
+	},
+	{
+		.cmd = CMD_STR_GBAR_KEY_UP,
+		.handler = client_gbar_key_up,
+	},
+	{
+		.cmd = CMD_STR_GBAR_KEY_FOCUS_IN,
+		.handler = client_gbar_key_focus_in,
+	},
+	{
+		.cmd = CMD_STR_GBAR_KEY_FOCUS_OUT,
+		.handler = client_gbar_key_focus_out,
+	},
+	{
+		.cmd = CMD_STR_UPDATE_MODE,
+		.handler = client_update_mode,
+	},
+	// Cut HERE. Above list must be sync'd with provider list.
 
-		if (s_info.remote_client_fd > 0) {
-			com_core_packet_server_fini(s_info.remote_client_fd);
-			s_info.remote_client_fd = -1;
-		}
+	{
+		.cmd = CMD_STR_DBOX_MOUSE_SET,
+		.handler = client_dbox_mouse_set,
+	},
+	{
+		.cmd = CMD_STR_DBOX_MOUSE_UNSET,
+		.handler = client_dbox_mouse_unset,
+	},
+	{
+		.cmd = CMD_STR_GBAR_MOUSE_SET,
+		.handler = client_gbar_mouse_set,
+	},
+	{
+		.cmd = CMD_STR_GBAR_MOUSE_UNSET,
+		.handler = client_gbar_mouse_unset,
+	},
+	{
+		.cmd = CMD_STR_CHANGE_VISIBILITY,
+		.handler = client_change_visibility,
+	},
+	{
+		.cmd = CMD_STR_DBOX_ACQUIRE_PIXMAP,
+		.handler = client_dbox_acquire_pixmap,
+	},
+	{
+		.cmd = CMD_STR_DBOX_RELEASE_PIXMAP,
+		.handler = client_dbox_release_pixmap,
+	},
+	{
+		.cmd = CMD_STR_GBAR_ACQUIRE_PIXMAP,
+		.handler = client_gbar_acquire_pixmap,
+	},
+	{
+		.cmd = CMD_STR_GBAR_RELEASE_PIXMAP,
+		.handler = client_gbar_release_pixmap,
+	},
+	{
+		.cmd = CMD_STR_ACQUIRE,
+		.handler = client_acquire, /*!< pid, ret */
+	},
+	{
+		.cmd = CMD_STR_RELEASE,
+		.handler = cilent_release, /*!< pid, ret */
+	},
+	{
+		.cmd = CMD_STR_PINUP_CHANGED,
+		.handler = client_pinup_changed, /* pid, pkgname, filename, pinup, ret */
+	},
+	{
+		.cmd = CMD_STR_CREATE_GBAR,
+		.handler = client_create_gbar, /* pid, pkgname, filename, ret */
+	},
+	{
+		.cmd = CMD_STR_DESTROY_GBAR,
+		.handler = client_destroy_gbar, /* pid, pkgname, filename, ret */
+	},
+	{
+		.cmd = CMD_STR_ACTIVATE_PACKAGE,
+		.handler = client_activate_package, /* pid, pkgname, ret */
+	},
+	{
+		.cmd = CMD_STR_SUBSCRIBE, /* pid, cluster, sub-cluster */
+		.handler = client_subscribed_group,
+	},
+	{
+		.cmd = CMD_STR_UNSUBSCRIBE, /* pid, cluster, sub-cluster */
+		.handler = client_unsubscribed_group,
+	},
+	{
+		.cmd = CMD_STR_DELETE_CLUSTER,
+		.handler = client_delete_cluster,
+	},
+	{
+		.cmd = CMD_STR_DELETE_CATEGORY,
+		.handler = client_delete_category,
+	},
+	{
+		.cmd = CMD_STR_REFRESH_GROUP,
+		.handler = client_refresh_group,
+	},
+	{
+		.cmd = CMD_STR_UPDATE,
+		.handler = client_update,
+	},
 
-		if (s_info.service_fd > 0) {
-			com_core_packet_server_fini(s_info.service_fd);
-			s_info.service_fd = -1;
-		}
+	{
+		.cmd = CMD_STR_DBOX_KEY_SET,
+		.handler = client_dbox_key_set,
+	},
+	{
+		.cmd = CMD_STR_DBOX_KEY_UNSET,
+		.handler = client_dbox_key_unset,
+	},
 
-		return 0;
+	{
+		.cmd = CMD_STR_GBAR_KEY_SET,
+		.handler = client_gbar_key_set,
+	},
+	{
+		.cmd = CMD_STR_GBAR_KEY_UNSET,
+		.handler = client_gbar_key_unset,
+	},
+
+	{
+		.cmd = CMD_STR_CLIENT_PAUSED,
+		.handler = client_pause_request,
+	},
+	{
+		.cmd = CMD_STR_CLIENT_RESUMED,
+		.handler = client_resume_request,
+	},
+	{
+		.cmd = CMD_STR_DBOX_ACQUIRE_XPIXMAP,
+		.handler = client_dbox_acquire_xpixmap,
+	},
+	{
+		.cmd = CMD_STR_GBAR_ACQUIRE_XPIXMAP,
+		.handler = client_gbar_acquire_xpixmap,
+	},
+	{
+		.cmd = CMD_STR_SUBSCRIBE_CATEGORY,
+		.handler = client_subscribed_category,
+	},
+	{
+		.cmd = CMD_STR_UNSUBSCRIBE_CATEGORY,
+		.handler = client_unsubscribed_category,
+	},
+
+	{
+		.cmd = NULL,
+		.handler = NULL,
+	},
+};
+
+static struct method s_service_table[] = {
+	{
+		.cmd = CMD_STR_SERVICE_UPDATE,
+		.handler = service_update,
+	},
+	{
+		.cmd = CMD_STR_SERVICE_CHANGE_PERIOD,
+		.handler = service_change_period,
+	},
+	{
+		.cmd = CMD_STR_SERVICE_INST_CNT,
+		.handler = service_instance_count,
+	},
+	{
+		.cmd = NULL,
+		.handler = NULL,
+	},
+};
+
+static struct method s_slave_table[] = {
+	{
+		.cmd = CMD_STR_UPDATED,
+		.handler = slave_updated, /* slave_name, pkgname, filename, width, height, ret */
+	},
+	{
+		.cmd = CMD_STR_DESC_UPDATED,
+		.handler = slave_desc_updated, /* slave_name, pkgname, filename, decsfile, ret */
+	},
+	{
+		.cmd = CMD_STR_EXTRA_UPDATED,
+		.handler = slave_extra_updated,
+	},
+	{
+		.cmd = CMD_STR_EXTRA_INFO,
+		.handler = slave_extra_info, /* slave_name, pkgname, filename, priority, content_info, title, icon, name */
+	},
+	{
+		.cmd = CMD_STR_DELETED,
+		.handler = slave_deleted, /* slave_name, pkgname, filename, ret */
+	},
+	{
+		.cmd = CMD_STR_FAULTED,
+		.handler = slave_faulted, /* slave_name, pkgname, id, funcname */
+	},
+	{
+		.cmd = CMD_STR_SCROLL,
+		.handler = slave_hold_scroll, /* slave_name, pkgname, id, seize */
+	},
+
+	{
+		.cmd = CMD_STR_DBOX_UPDATE_BEGIN,
+		.handler = slave_dbox_update_begin,
+	},
+	{
+		.cmd = CMD_STR_DBOX_UPDATE_END,
+		.handler = slave_dbox_update_end,
+	},
+	{
+		.cmd = CMD_STR_GBAR_UPDATE_BEGIN,
+		.handler = slave_gbar_update_begin,
+	},
+	{
+		.cmd = CMD_STR_GBAR_UPDATE_END,
+		.handler = slave_gbar_update_end,
+	},
+
+	{
+		.cmd = CMD_STR_ACCESS_STATUS,
+		.handler = slave_access_status,
+	},
+	{
+		.cmd = CMD_STR_KEY_STATUS,
+		.handler = slave_key_status,
+	},
+	{
+		.cmd = CMD_STR_CLOSE_GBAR,
+		.handler = slave_close_gbar,
+	},
+
+	{
+		.cmd = CMD_STR_CALL,
+		.handler = slave_call, /* slave_name, pkgname, filename, function, ret */
+	},
+	{
+		.cmd = CMD_STR_RET,
+		.handler = slave_ret, /* slave_name, pkgname, filename, function, ret */
+	},
+	{
+		.cmd = CMD_STR_ACQUIRE_BUFFER,
+		.handler = slave_acquire_buffer, /* slave_name, id, w, h, size, - out - type, shmid */
+	},
+	{
+		.cmd = CMD_STR_RESIZE_BUFFER,
+		.handler = slave_resize_buffer,
+	},
+	{
+		.cmd = CMD_STR_RELEASE_BUFFER,
+		.handler = slave_release_buffer, /* slave_name, id - ret */
+	},
+	{
+		.cmd = CMD_STR_HELLO,
+		.handler = slave_hello, /* slave_name, ret */
+	},
+	{
+		.cmd = CMD_STR_PING,
+		.handler = slave_ping, /* slave_name, ret */
+	},
+	{
+		.cmd = CMD_STR_CTRL,
+		.handler = slave_ctrl, /* control bits */
+	},
+
+	{
+		.cmd = CMD_STR_ACQUIRE_XBUFFER,
+		.handler = slave_acquire_extra_buffer,
+	},
+	{
+		.cmd = CMD_STR_RELEASE_XBUFFER,
+		.handler = slave_release_extra_buffer,
+	},
+
+	{
+		.cmd = NULL,
+		.handler = NULL,
+	},
+};
+
+HAPI int server_init(void)
+{
+	com_core_packet_use_thread(DYNAMICBOX_CONF_COM_CORE_THREAD);
+
+	if (unlink(INFO_SOCKET) < 0) {
+		ErrPrint("info socket: %s\n", strerror(errno));
 	}
 
-	/* End of a file */
+	if (unlink(SLAVE_SOCKET) < 0) {
+		ErrPrint("slave socket: %s\n", strerror(errno));
+	}
+
+	if (unlink(CLIENT_SOCKET) < 0) {
+		ErrPrint("client socket: %s\n", strerror(errno));
+	}
+
+	if (unlink(SERVICE_SOCKET) < 0) {
+		ErrPrint("service socket: %s\n", strerror(errno));
+	}
+
+	s_info.info_fd = com_core_packet_server_init(INFO_SOCKET, s_info_table);
+	if (s_info.info_fd < 0) {
+		ErrPrint("Failed to create a info socket\n");
+	}
+
+	s_info.slave_fd = com_core_packet_server_init(SLAVE_SOCKET, s_slave_table);
+	if (s_info.slave_fd < 0) {
+		ErrPrint("Failed to create a slave socket\n");
+	}
+
+	smack_fsetlabel(s_info.slave_fd, "data-provider-master::provider", SMACK_LABEL_IPIN);
+	smack_fsetlabel(s_info.slave_fd, "data-provider-master::provider", SMACK_LABEL_IPOUT);
+
+	s_info.client_fd = com_core_packet_server_init(CLIENT_SOCKET, s_client_table);
+	if (s_info.client_fd < 0) {
+		ErrPrint("Failed to create a client socket\n");
+	}
+
+	smack_fsetlabel(s_info.client_fd, "data-provider-master::client", SMACK_LABEL_IPIN);
+	smack_fsetlabel(s_info.client_fd, "data-provider-master::client", SMACK_LABEL_IPOUT);
+
+	/*!
+	 * \note
+	 * remote://:8208
+	 * Skip address to use the NULL.
+	 */
+	s_info.remote_client_fd = com_core_packet_server_init("remote://:"CLIENT_PORT, s_client_table);
+	if (s_info.client_fd < 0) {
+		ErrPrint("Failed to create a remote client socket\n");
+	}
+
+	smack_fsetlabel(s_info.remote_client_fd, "data-provider-master::client", SMACK_LABEL_IPIN);
+	smack_fsetlabel(s_info.remote_client_fd, "data-provider-master::client", SMACK_LABEL_IPOUT);
+
+	s_info.service_fd = com_core_packet_server_init(SERVICE_SOCKET, s_service_table);
+	if (s_info.service_fd < 0) {
+		ErrPrint("Faild to create a service socket\n");
+	}
+
+	smack_fsetlabel(s_info.service_fd, "data-provider-master", SMACK_LABEL_IPIN);
+	smack_fsetlabel(s_info.service_fd, "data-provider-master", SMACK_LABEL_IPOUT);
+
+	if (chmod(INFO_SOCKET, 0600) < 0) {
+		ErrPrint("info socket: %s\n", strerror(errno));
+	}
+
+	if (chmod(SLAVE_SOCKET, 0666) < 0) {
+		ErrPrint("slave socket: %s\n", strerror(errno));
+	}
+
+	if (chmod(CLIENT_SOCKET, 0666) < 0) {
+		ErrPrint("client socket: %s\n", strerror(errno));
+	}
+
+	if (chmod(SERVICE_SOCKET, 0666) < 0) {
+		ErrPrint("service socket: %s\n", strerror(errno));
+	}
+
+	return 0;
+}
+
+HAPI int server_fini(void)
+{
+	if (s_info.info_fd > 0) {
+		com_core_packet_server_fini(s_info.info_fd);
+		s_info.info_fd = -1;
+	}
+
+	if (s_info.slave_fd > 0) {
+		com_core_packet_server_fini(s_info.slave_fd);
+		s_info.slave_fd = -1;
+	}
+
+	if (s_info.client_fd > 0) {
+		com_core_packet_server_fini(s_info.client_fd);
+		s_info.client_fd = -1;
+	}
+
+	if (s_info.remote_client_fd > 0) {
+		com_core_packet_server_fini(s_info.remote_client_fd);
+		s_info.remote_client_fd = -1;
+	}
+
+	if (s_info.service_fd > 0) {
+		com_core_packet_server_fini(s_info.service_fd);
+		s_info.service_fd = -1;
+	}
+
+	return 0;
+}
+
+/* End of a file */
