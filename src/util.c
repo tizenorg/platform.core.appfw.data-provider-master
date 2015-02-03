@@ -28,6 +28,7 @@
 #include <ctype.h>
 #include <sys/statvfs.h>
 #include <sys/mount.h>
+#include <strings.h>
 
 #include <sys/smack.h>
 #include <dlog.h>
@@ -44,6 +45,8 @@
 #include "util.h"
 #include "debug.h"
 #include "conf.h"
+
+#define DELIM ';'
 
 static struct info {
 	int emergency_mounted;
@@ -662,6 +665,38 @@ HAPI void util_setup_log_disk(void)
 HAPI int util_service_is_enabled(const char *tag)
 {
 	return !!strcasestr(DYNAMICBOX_CONF_SERVICES, tag);
+}
+
+HAPI int util_string_is_in_list(const char *str, const char *haystack)
+{
+	int len;
+	const char *ptr;
+	const char *check;
+
+	if (!str) {
+		return 0;
+	}
+
+	check = ptr = haystack;
+	len = 0;
+	while (*ptr) {
+		switch (*ptr++) {
+		case DELIM:
+			if (len > 0) {
+				if (!strncasecmp(str, check, len) && str[len] == '\0') {
+					return 1;
+				}
+			}
+			check = ptr;
+			len = 0;
+			break;
+		default:
+			len++;
+			break;
+		}
+	}
+
+	return (len > 0 && !strncmp(str, check, len) && str[len] == '\0');
 }
 
 /* End of a file */

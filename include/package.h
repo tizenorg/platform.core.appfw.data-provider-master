@@ -118,5 +118,5 @@ extern int package_fini(void);
 
 extern int package_is_enabled(const char *appid);
 extern int package_faulted(struct pkg_info *info, int broadcast);
-
+extern char *package_get_pkgid(const char *appid);
 /* End of a file */

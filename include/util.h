@@ -32,6 +32,7 @@ extern void util_remove_emergency_disk(void);
 extern void util_prepare_emergency_disk(void);
 extern int util_emergency_disk_is_mounted(void);
 extern int util_service_is_enabled(const char *tag);
+extern int util_string_is_in_list(const char *str, const char *haystack);
 
 extern int util_screen_size_get(int *width, int *height);
 extern int util_screen_init(void);

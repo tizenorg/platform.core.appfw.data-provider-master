@@ -4881,7 +4881,6 @@ static int release_pixmap_cb(struct client_node *client, void *canvas)
 	return -1; /* Delete this callback */
 }
 
-
 static struct packet *client_dbox_acquire_xpixmap(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct packet *result;
@@ -6375,63 +6374,163 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 {
 	struct slave_node *slave;
 	const char *slavename;
+	const char *acceleration;
+	const char *abi;
+	int secured;
 	int ret;
 
-	ret = packet_get(packet, "s", &slavename);
-	if (ret != 1) {
+	ret = packet_get(packet, "isss", &secured, &slavename, &acceleration, &abi);
+	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
 		goto out;
+	}
+
+	if (acceleration[0] == '\0') {
+		acceleration = NULL;
 	}
 
 	DbgPrint("New slave[%s](%d) is arrived\n", slavename, pid);
 
 	slave = slave_find_by_name(slavename);
-
 	if (!slave) { /* Try again to find a slave using pid */
 		slave = slave_find_by_pid(pid);
 	}
 
 	if (!slave) {
+		char pkgname[pathconf("/", _PC_PATH_MAX)];
+
+		if (aul_app_get_pkgname_bypid(pid, pkgname, sizeof(pkgname)) != AUL_R_OK) {
+			ErrPrint("pid[%d] is not authroized provider package, try to find it using its name[%s]\n", pid, slavename);
+			goto out;
+		}
+
 		if (DYNAMICBOX_CONF_DEBUG_MODE || g_conf.debug_mode) {
-			char pkgname[pathconf("/", _PC_PATH_MAX)];
-			const char *abi;
-
-			if (aul_app_get_pkgname_bypid(pid, pkgname, sizeof(pkgname)) != AUL_R_OK) {
-				ErrPrint("pid[%d] is not authroized provider package, try to find it using its name[%s]\n", pid, slavename);
-				slave = slave_find_by_name(slavename);
-				pkgname[0] = '\0'; /* Reset the pkgname */
-			} else {
-				slave = slave_find_by_pkgname(pkgname);
-			}
-
+			slave = slave_find_by_pkgname(pkgname);
 			if (!slave) {
-				abi = abi_find_by_pkgname(pkgname);
-				if (!abi) {
-					abi = DYNAMICBOX_CONF_DEFAULT_ABI;
-					DbgPrint("Slave pkgname is invalid, ABI is replaced with '%s'(default)\n", abi);
-				}
-
-				slave = slave_create(slavename, 1, abi, pkgname, 0, NULL);
+				slave = slave_create(slavename, secured, abi, pkgname, 0, acceleration);
 				if (!slave) {
 					ErrPrint("Failed to create a new slave for %s\n", slavename);
 					goto out;
 				}
 
-				DbgPrint("New slave is created (net: 0)\n");
+				DbgPrint("New slave is created net(%d) abi(%s) secured(%d) accel(%s)\n", 0, abi, secured, acceleration);
 			} else {
 				DbgPrint("Registered slave is replaced with this new one\n");
-				abi = slave_abi(slave);
-				if (!abi) {
-					ErrPrint("ABI is not valid: %s\n", slavename);
-					abi = DYNAMICBOX_CONF_DEFAULT_ABI;
-				}
 			}
 
 			slave_set_pid(slave, pid);
 			DbgPrint("Provider is forcely activated, pkgname(%s), abi(%s), slavename(%s)\n", pkgname, abi, slavename);
 		} else {
-			ErrPrint("Slave[%d, %s] is not exists\n", pid, slavename);
-			goto out;
+			dynamicbox_pkglist_h list_handle;
+			const char *tmp;
+
+			tmp = abi_find_slave(abi);
+			if (!strcmp(tmp, pkgname)) {
+				ErrPrint("Only 3rd or 2nd party can be connected without request of master (%s)\n", pkgname);
+				goto out;
+			} else {
+				/* In this case, we should check the whole dbox packages */
+				char *pkgid;
+				int matched;
+				char *dbox_id;
+				char *provider_pkgname;
+				int network = 0;
+
+				pkgid = package_get_pkgid(pkgname);
+				if (!pkgid) {
+					ErrPrint("Unknown package (%s)\n", pkgname);
+					goto out;
+				}
+
+				/*
+				 * Verify the dbox provider app package name
+				 */
+				list_handle = dynamicbox_service_pkglist_create(pkgid, NULL);
+				DbgFree(pkgid);
+
+				matched = 0;
+
+				while (dynamicbox_service_get_pkglist_item(list_handle, NULL, &dbox_id, NULL) == DBOX_STATUS_ERROR_NONE) {
+					if (!dbox_id) {
+						ErrPrint("Invalid dbox_id\n");
+						continue;
+					}
+
+					provider_pkgname = util_replace_string(tmp, DYNAMICBOX_CONF_REPLACE_TAG_APPID, dbox_id);
+					if (!provider_pkgname) {
+						DbgFree(dbox_id);
+						dbox_id = NULL;
+						continue;
+					}
+
+					/* Verify the Package Name */
+					matched = !strcmp(pkgname, provider_pkgname);
+					DbgFree(provider_pkgname);
+					
+					if (matched) {
+						struct pkg_info *info;
+
+						info = package_find(dbox_id);
+						DbgFree(dbox_id);
+						matched = 0;
+
+						if (!info) {
+							DbgPrint("There is no loaded package information\n");
+						} else {
+							const char *category;
+							const char *db_acceleration;
+							int db_secured;
+
+							category = package_category(info);
+							tmp = package_abi(info);
+							db_secured = package_secured(info);
+							db_acceleration = package_hw_acceleration(info);
+
+							if (db_secured != secured) {
+								DbgPrint("%s secured (%d)\n", pkgname, db_secured);
+								break;
+							}
+
+							if (strcmp(tmp, abi)) {
+								DbgPrint("%s abi (%s)\n", pkgname, tmp);
+								break;
+							}
+
+							if (strcmp(acceleration, db_acceleration)) {
+								DbgPrint("%s accel (%s)\n", pkgname, db_acceleration);
+								break;
+							}
+
+							if (util_string_is_in_list(category, DYNAMICBOX_CONF_CATEGORY_LIST) == 0) {
+								DbgPrint("%s category (%s)\n", pkgname, category);
+								break;
+							}
+
+							network = package_network(info);
+							matched = 1;
+						}
+
+						break;
+					}
+
+					DbgFree(dbox_id);
+				}
+
+				dynamicbox_service_pkglist_destroy(list_handle);
+				if (!matched) {
+					ErrPrint("Invalid package: %s\n", pkgname);
+					goto out;
+				}
+
+				slave = slave_create(slavename, secured, abi, pkgname, network, acceleration);
+				if (!slave) {
+					ErrPrint("Failed to create a new slave for %s\n", slavename);
+					goto out;
+				}
+
+				slave_set_pid(slave, pid);
+				DbgPrint("Slave is activated by request: %d (%s)/(%s)\n", pid, pkgname, slavename);
+			}
 		}
 	} else {
 		if (slave_pid(slave) != pid) {

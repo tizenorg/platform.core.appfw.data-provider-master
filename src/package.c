@@ -1656,4 +1656,35 @@ HAPI int package_faulted(struct pkg_info *pkg, int broadcast)
 	return DBOX_STATUS_ERROR_NONE;
 }
 
+HAPI char *package_get_pkgid(const char *appid)
+{
+	int ret;
+	pkgmgrinfo_appinfo_h handle;
+	char *new_appid = NULL;
+	char *pkgid = NULL;
+
+	ret = pkgmgrinfo_appinfo_get_appinfo(appid, &handle);
+	if (ret != PMINFO_R_OK) {
+		ErrPrint("Failed to get appinfo\n");
+		return NULL;
+	}
+
+	ret = pkgmgrinfo_appinfo_get_pkgid(handle, &new_appid);
+	if (ret != PMINFO_R_OK) {
+		pkgmgrinfo_appinfo_destroy_appinfo(handle);
+		ErrPrint("Failed to get pkgname for (%s)\n", appid);
+		return NULL;
+	}
+
+	if (new_appid && new_appid[0] != '\0') {
+		pkgid = strdup(new_appid);
+		if (!pkgid) {
+			ErrPrint("strdup: %s\n", strerror(errno));
+		}
+	}
+	pkgmgrinfo_appinfo_destroy_appinfo(handle);
+
+	return pkgid;
+}
+
 /* End of a file */
