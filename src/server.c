@@ -106,6 +106,86 @@ struct deleted_item {
 	struct inst_info *inst;
 };
 
+/**
+ * Returns DBox Id from provider Id
+ */
+static char *is_valid_slave(pid_t pid, struct slave_node *slave, const char *provider_pkgname)
+{
+	char pid_pkgname[pathconf("/", _PC_PATH_MAX)];
+	const char *abi;
+	const char *abi_pkgname;
+	dynamicbox_pkglist_h list_handle;
+	char *pkgid;
+	char *dbox_id;
+	char *converted_provider_pkgname = NULL;
+	int verified;
+
+	if (aul_app_get_pkgname_bypid(pid, pid_pkgname, sizeof(pid_pkgname)) != AUL_R_OK) {
+		ErrPrint("pid[%d] is not authroized provider package, try to find it using its name[%s]\n", pid, slave_name(slave));
+		return NULL;
+	}
+
+	abi = slave_abi(slave);
+	if (!abi) {
+		ErrPrint("Slave doesn't have valid abi\n");
+		return NULL;
+	}
+
+	abi_pkgname = abi_find_slave(abi);
+	if (!abi_pkgname) {
+		ErrPrint("ABI has no valid entry[%s]\n", abi);
+		return NULL;
+	}
+
+	if (!strcmp(abi_pkgname, pid_pkgname)) {
+		/*!
+		 * This request is comes from predefined service provider.
+		 * In this case, we should believe its request.
+		 */
+		return strdup(provider_pkgname);
+	}
+
+	/*!
+	 * This request is comes from standalone dbox provider (not the predefined service provider)
+	 */
+	pkgid = package_get_pkgid(provider_pkgname);
+	list_handle = dynamicbox_service_pkglist_create(pkgid, NULL);
+	DbgFree(pkgid);
+
+	verified = 0;
+	dbox_id = NULL;
+	while (dynamicbox_service_get_pkglist_item(list_handle, NULL, &dbox_id, NULL) == DBOX_STATUS_ERROR_NONE) {
+		if (!dbox_id) {
+			ErrPrint("Invalid dbox_id\n");
+			continue;
+		}
+
+		// tmp == /APPID/.provider <<- PROVIDER UI-APP
+		// dbox_id == com.samsung.watch-hello <<-- DBOX ID
+		// provider_pkgname == com.samsung.watch-hello.provider
+		converted_provider_pkgname = util_replace_string(abi_pkgname, DYNAMICBOX_CONF_REPLACE_TAG_APPID, dbox_id);
+		if (!converted_provider_pkgname) {
+			DbgFree(dbox_id);
+			dbox_id = NULL;
+			continue;
+		}
+
+		/* Verify the Package Name */
+		verified = !strcmp(converted_provider_pkgname, provider_pkgname);
+		DbgFree(converted_provider_pkgname);
+
+		if (verified) {
+			break;
+		}
+
+		DbgFree(dbox_id);
+		dbox_id = NULL;
+	}
+
+	dynamicbox_service_pkglist_destroy(list_handle);
+	return dbox_id;
+}
+
 static Eina_Bool lazy_key_status_cb(void *data)
 {
 	struct event_cbdata *cbdata = data;
@@ -843,12 +923,34 @@ out:
 	return result;
 }
 
-static int validate_request(const char *pkgname, const char *id, struct inst_info **out_inst, const struct pkg_info **out_pkg)
+static int validate_request(pid_t pid, struct slave_node *slave, const char *pkgname, const char *id, struct inst_info **out_inst, const struct pkg_info **out_pkg)
 {
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
 
-	inst = package_find_instance_by_id(pkgname, id);
+	if (slave) {
+		char *dbox_id;
+		/*!
+		 * \note
+		 * This call can decrease the performance of event handling.
+		 * We should consider this to keep or find other way.
+		 *
+		 * However, we have to conver the provider_pkgname to dbox_id anyway.
+		 * Because, the service providers will use the dbox_id
+		 * But the standalone providers will use its package id (ui-app, provider id)
+		 * For later case, we should convert the provider pkgname to dbox id
+		 */
+		dbox_id = is_valid_slave(pid, slave, pkgname);
+		if (!dbox_id) {
+			return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		}
+
+		inst = package_find_instance_by_id(dbox_id, id);
+		DbgFree(dbox_id);
+	} else {
+		inst = package_find_instance_by_id(pkgname, id);
+	}
+
 	if (!inst) {
 		ErrPrint("Instance is not exists (%s)\n", id);
 		return DBOX_STATUS_ERROR_NOT_EXIST;
@@ -861,7 +963,7 @@ static int validate_request(const char *pkgname, const char *id, struct inst_inf
 	}
 
 	if (package_is_fault(pkg)) {
-		ErrPrint("Faulted package: %s\n", pkgname);
+		ErrPrint("Faulted package: %s\n", package_name(pkg));
 		return DBOX_STATUS_ERROR_FAULT;
 	}
 
@@ -906,7 +1008,7 @@ static struct packet *client_clicked(pid_t pid, int handle, const struct packet 
 	 * Trust the package name which are sent by the client.
 	 * The package has to be a dynamicbox package name.
 	 */
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
 	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
 		(void)instance_clicked(inst, event, timestamp, x, y);
 	}
@@ -940,7 +1042,7 @@ static struct packet *client_update_mode(pid_t pid, int handle, const struct pac
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
 	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
 		/*!
 		 * \note
@@ -993,7 +1095,7 @@ static struct packet *client_text_signal(pid_t pid, int handle, const struct pac
 	 * Trust the package name which are sent by the client.
 	 * The package has to be a dynamicbox package name.
 	 */
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
 	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
 		ret = instance_text_signal_emit(inst, emission, source, sx, sy, ex, ey);
 	}
@@ -1066,7 +1168,7 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 	 * Trust the package name which are sent by the client.
 	 * The package has to be a dynamicbox package name.
 	 */
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		DbgPrint("Failed to find by id(%s), try to find it using timestamp(%lf)\n", id, timestamp);
 		inst = package_find_instance_by_timestamp(pkgname, timestamp);
@@ -1176,7 +1278,7 @@ static struct packet *client_resize(pid_t pid, int handle, const struct packet *
 	 * Trust the package name which are sent by the client.
 	 * The package has to be a dynamicbox package name.
 	 */
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -1322,7 +1424,7 @@ static struct packet *client_change_visibility(pid_t pid, int handle, const stru
 	 * Trust the package name which are sent by the client.
 	 * The package has to be a dynamicbox package name.
 	 */
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -1369,7 +1471,7 @@ static struct packet *client_set_period(pid_t pid, int handle, const struct pack
 	 * Trust the package name which are sent by the client.
 	 * The package has to be a dynamicbox package name.
 	 */
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -1421,7 +1523,7 @@ static struct packet *client_change_group(pid_t pid, int handle, const struct pa
 	 * Trust the package name which are sent by the client.
 	 * The package has to be a dynamicbox package name.
 	 */
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -1467,7 +1569,7 @@ static struct packet *client_gbar_mouse_enter(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -1522,7 +1624,7 @@ static struct packet *client_gbar_mouse_leave(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -1577,7 +1679,7 @@ static struct packet *client_gbar_mouse_down(pid_t pid, int handle, const struct
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -1632,7 +1734,7 @@ static struct packet *client_gbar_mouse_up(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -1687,7 +1789,7 @@ static struct packet *client_gbar_mouse_move(pid_t pid, int handle, const struct
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -1742,7 +1844,7 @@ static struct packet *client_dbox_mouse_move(pid_t pid, int handle, const struct
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -1820,7 +1922,7 @@ static struct packet *client_gbar_key_set(pid_t pid, int handle, const struct pa
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -1885,7 +1987,7 @@ static struct packet *client_gbar_key_unset(pid_t pid, int handle, const struct 
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -1952,7 +2054,7 @@ static struct packet *client_dbox_key_set(pid_t pid, int handle, const struct pa
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -2017,7 +2119,7 @@ static struct packet *client_dbox_key_unset(pid_t pid, int handle, const struct 
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -2084,7 +2186,7 @@ static struct packet *client_dbox_mouse_set(pid_t pid, int handle, const struct 
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -2157,7 +2259,7 @@ static struct packet *client_dbox_mouse_unset(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -2232,7 +2334,7 @@ static struct packet *client_gbar_mouse_set(pid_t pid, int handle, const struct 
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -2306,7 +2408,7 @@ static struct packet *client_dbox_mouse_on_scroll(pid_t pid, int handle, const s
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -2361,7 +2463,7 @@ static struct packet *client_dbox_mouse_off_scroll(pid_t pid, int handle, const 
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -2416,7 +2518,7 @@ static struct packet *client_dbox_mouse_on_hold(pid_t pid, int handle, const str
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -2471,7 +2573,7 @@ static struct packet *client_dbox_mouse_off_hold(pid_t pid, int handle, const st
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -2526,7 +2628,7 @@ static struct packet *client_gbar_mouse_on_scroll(pid_t pid, int handle, const s
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -2581,7 +2683,7 @@ static struct packet *client_gbar_mouse_off_scroll(pid_t pid, int handle, const 
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -2636,7 +2738,7 @@ static struct packet *client_gbar_mouse_on_hold(pid_t pid, int handle, const str
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -2691,7 +2793,7 @@ static struct packet *client_gbar_mouse_off_hold(pid_t pid, int handle, const st
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -2746,7 +2848,7 @@ static struct packet *client_gbar_mouse_unset(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -2821,7 +2923,7 @@ static struct packet *client_dbox_mouse_enter(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -2876,7 +2978,7 @@ static struct packet *client_dbox_mouse_leave(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -2931,7 +3033,7 @@ static struct packet *client_dbox_mouse_down(pid_t pid, int handle, const struct
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -2986,7 +3088,7 @@ static struct packet *client_dbox_mouse_up(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -3041,7 +3143,7 @@ static struct packet *client_gbar_access_action(pid_t pid, int handle, const str
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -3102,7 +3204,7 @@ static struct packet *client_gbar_access_scroll(pid_t pid, int handle, const str
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -3163,7 +3265,7 @@ static struct packet *client_gbar_access_value_change(pid_t pid, int handle, con
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -3224,7 +3326,7 @@ static struct packet *client_gbar_access_mouse(pid_t pid, int handle, const stru
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -3285,7 +3387,7 @@ static struct packet *client_gbar_access_back(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -3346,7 +3448,7 @@ static struct packet *client_gbar_access_over(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -3407,7 +3509,7 @@ static struct packet *client_gbar_access_read(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -3468,7 +3570,7 @@ static struct packet *client_gbar_access_enable(pid_t pid, int handle, const str
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -3532,7 +3634,7 @@ static struct packet *client_gbar_access_hl(pid_t pid, int handle, const struct 
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -3612,7 +3714,7 @@ static struct packet *client_gbar_access_activate(pid_t pid, int handle, const s
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -3673,7 +3775,7 @@ static struct packet *client_gbar_key_focus_in(pid_t pid, int handle, const stru
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -3734,7 +3836,7 @@ static struct packet *client_gbar_key_focus_out(pid_t pid, int handle, const str
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -3795,7 +3897,7 @@ static struct packet *client_gbar_key_down(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -3914,7 +4016,7 @@ static struct packet *client_gbar_key_up(pid_t pid, int handle, const struct pac
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -3975,7 +4077,7 @@ static struct packet *client_dbox_access_hl(pid_t pid, int handle, const struct 
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -4055,7 +4157,7 @@ static struct packet *client_dbox_access_action(pid_t pid, int handle, const str
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -4122,7 +4224,7 @@ static struct packet *client_dbox_access_scroll(pid_t pid, int handle, const str
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -4189,7 +4291,7 @@ static struct packet *client_dbox_access_value_change(pid_t pid, int handle, con
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -4256,7 +4358,7 @@ static struct packet *client_dbox_access_mouse(pid_t pid, int handle, const stru
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -4323,7 +4425,7 @@ static struct packet *client_dbox_access_back(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -4390,7 +4492,7 @@ static struct packet *client_dbox_access_over(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -4457,7 +4559,7 @@ static struct packet *client_dbox_access_read(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -4524,7 +4626,7 @@ static struct packet *client_dbox_access_enable(pid_t pid, int handle, const str
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -4594,7 +4696,7 @@ static struct packet *client_dbox_access_activate(pid_t pid, int handle, const s
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -4656,7 +4758,7 @@ static struct packet *client_dbox_key_down(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -4717,7 +4819,7 @@ static struct packet *client_dbox_key_focus_in(pid_t pid, int handle, const stru
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -4778,7 +4880,7 @@ static struct packet *client_dbox_key_focus_out(pid_t pid, int handle, const str
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -4839,7 +4941,7 @@ static struct packet *client_dbox_key_up(pid_t pid, int handle, const struct pac
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -4914,7 +5016,7 @@ static struct packet *client_dbox_acquire_xpixmap(pid_t pid, int handle, const s
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -4976,7 +5078,7 @@ static struct packet *client_dbox_acquire_pixmap(pid_t pid, int handle, const st
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -5046,7 +5148,7 @@ static struct packet *client_dbox_release_pixmap(pid_t pid, int handle, const st
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, NULL, NULL);
+	ret = validate_request(pid, NULL, pkgname, id, NULL, NULL);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		DbgPrint("It seems that the instance is already deleted: %s\n", id);
 	}
@@ -5100,7 +5202,7 @@ static struct packet *client_gbar_acquire_xpixmap(pid_t pid, int handle, const s
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -5162,7 +5264,7 @@ static struct packet *client_gbar_acquire_pixmap(pid_t pid, int handle, const st
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -5237,7 +5339,7 @@ static struct packet *client_gbar_release_pixmap(pid_t pid, int handle, const st
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, NULL, NULL);
+	ret = validate_request(pid, NULL, pkgname, id, NULL, NULL);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		DbgPrint("It seems that the instance is already deleted: %s\n", id);
 	}
@@ -5283,7 +5385,7 @@ static struct packet *client_pinup_changed(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
 	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
 		ret = instance_set_pinup(inst, pinup);
 	}
@@ -5395,7 +5497,7 @@ static struct packet *client_gbar_move(pid_t pid, int handle, const struct packe
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -5514,7 +5616,7 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -5736,7 +5838,7 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -6131,7 +6233,7 @@ static struct packet *client_update(pid_t pid, int handle, const struct packet *
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -6425,6 +6527,9 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 			const char *tmp;
 
 			tmp = abi_find_slave(abi);
+// abi == app
+// tmp == /APPID/
+// pkgname = com.samsung.watch-sample (from pid, aul_get_pkgname)
 			if (!strcmp(tmp, pkgname)) {
 				ErrPrint("Only 3rd or 2nd party can be connected without request of master (%s)\n", pkgname);
 				goto out;
@@ -6436,6 +6541,7 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 				char *provider_pkgname;
 				int network = 0;
 
+				// ui-app -> PACKAGE ID
 				pkgid = package_get_pkgid(pkgname);
 				if (!pkgid) {
 					ErrPrint("Unknown package (%s)\n", pkgname);
@@ -6456,6 +6562,9 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 						continue;
 					}
 
+					// tmp == /APPID/.provider <<- PROVIDER UI-APP
+					// dbox_id == com.samsung.watch-hello <<-- DBOX ID
+					// provider_pkgname == com.samsung.watch-hello.provider
 					provider_pkgname = util_replace_string(tmp, DYNAMICBOX_CONF_REPLACE_TAG_APPID, dbox_id);
 					if (!provider_pkgname) {
 						DbgFree(dbox_id);
@@ -6508,6 +6617,8 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 
 							network = package_network(info);
 							matched = 1;
+
+							//instance_create(....)
 						}
 
 						break;
@@ -6530,6 +6641,8 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 
 				slave_set_pid(slave, pid);
 				DbgPrint("Slave is activated by request: %d (%s)/(%s)\n", pid, pkgname, slavename);
+
+				// instance_create
 			}
 		}
 	} else {
@@ -6663,7 +6776,7 @@ static struct packet *slave_dbox_update_begin(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -6707,7 +6820,7 @@ static struct packet *slave_dbox_update_end(pid_t pid, int handle, const struct 
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -6751,7 +6864,7 @@ static struct packet *slave_gbar_update_begin(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -6792,7 +6905,7 @@ static struct packet *slave_key_status(pid_t pid, int handle, const struct packe
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
 	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
@@ -6826,7 +6939,7 @@ static struct packet *slave_access_status(pid_t pid, int handle, const struct pa
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
 	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
@@ -6860,7 +6973,7 @@ static struct packet *slave_close_gbar(pid_t pid, int handle, const struct packe
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
 	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
@@ -6894,7 +7007,7 @@ static struct packet *slave_gbar_update_end(pid_t pid, int handle, const struct 
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -6993,7 +7106,7 @@ static struct packet *slave_extra_info(pid_t pid, int handle, const struct packe
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
 	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
@@ -7035,7 +7148,7 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
 	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
@@ -7094,7 +7207,7 @@ static struct packet *slave_hold_scroll(pid_t pid, int handle, const struct pack
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
 	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
@@ -7133,7 +7246,7 @@ static struct packet *slave_extra_updated(pid_t pid, int handle, const struct pa
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -7173,7 +7286,7 @@ static struct packet *slave_desc_updated(pid_t pid, int handle, const struct pac
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -7224,7 +7337,7 @@ static struct packet *slave_deleted(pid_t pid, int handle, const struct packet *
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, NULL);
+	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
 	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
 		ret = instance_destroyed(inst, DBOX_STATUS_ERROR_NONE);
 	}
@@ -7266,7 +7379,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
 	id = "";
 
 	if (ret != DBOX_STATUS_ERROR_NONE) {
@@ -7276,7 +7389,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 	ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
 
 	if (instance_state(inst) == INST_DESTROYED) {
-		ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
+		ErrPrint("Package[%s] instance is already destroyed\n", package_name(pkg));
 		goto out;
 	}
 
@@ -7335,7 +7448,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 		ecore_timer_del(gbar_monitor);
 		inst = instance_unref(inst);
 		if (!inst) {
-			ErrPrint("Instance refcnt is ZERO: %s\n", pkgname);
+			ErrPrint("Instance refcnt is ZERO: %s\n", package_name(pkg));
 			goto out;
 		}
 
@@ -7417,7 +7530,7 @@ static struct packet *slave_acquire_extra_buffer(pid_t pid, int handle, const st
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
 	id = "";
 
 	if (ret != DBOX_STATUS_ERROR_NONE) {
@@ -7542,7 +7655,7 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
 	id = "";
 
 	if (ret != DBOX_STATUS_ERROR_NONE) {
@@ -7630,7 +7743,7 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -7760,7 +7873,7 @@ static struct packet *slave_release_extra_buffer(pid_t pid, int handle, const st
 		goto out;
 	}
 
-	ret = validate_request(pkgname, id, &inst, &pkg);
+	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
 	if (ret != DBOX_STATUS_ERROR_NONE) {
 		goto out;
 	}
@@ -7884,7 +7997,7 @@ static struct packet *service_change_period(pid_t pid, int handle, const struct 
 			}
 		}
 	} else {
-		ret = validate_request(pkgname, id, &inst, NULL);
+		ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
 		if (ret == (int)DBOX_STATUS_ERROR_NONE) {
 			if (instance_state(inst) == INST_DESTROYED) {
 				ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
