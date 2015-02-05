@@ -1681,8 +1681,12 @@ static void processing_line_buffer(const char *buffer)
 		break;
 	case INST_LIST:
 		if (sscanf(buffer, "%[^ ] %[^ ] %[^ ] %[^ ] %[^ ] %[^ ] %d %d", inst_id, buf_id, cluster, category, str_period, state, &width, &height) != 8) {
-			printf("Invalid format : [%s]\n", buffer);
-			return;
+			if (sscanf(buffer, "%[^ ] %[^ ] %[^ ] %[^ ] %[^ ] %d %d", inst_id, cluster, category, str_period, state, &width, &height) != 7) {
+				printf("Invalid format : [%s]\n", buffer);
+				return;
+			} else {
+				buf_id[0] = '\0';
+			}
 		}
 
 		period = strtod(str_period, NULL);
@@ -1712,10 +1716,15 @@ static void processing_line_buffer(const char *buffer)
 		node_set_age(node, s_info.age);
 
 		free(instinfo->id);
+		instinfo->id = NULL;
 		free(instinfo->buf_id);
+		instinfo->buf_id = NULL;
 		free(instinfo->cluster);
+		instinfo->cluster = NULL;
 		free(instinfo->category);
+		instinfo->category = NULL;
 		free(instinfo->state);
+		instinfo->state = NULL;
 
 		instinfo->id = strdup(inst_id);
 		if (!instinfo->id) {
