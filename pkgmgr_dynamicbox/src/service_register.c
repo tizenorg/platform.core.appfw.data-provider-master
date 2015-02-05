@@ -2090,7 +2090,7 @@ static inline void update_i18n_icon(struct dynamicbox *dynamicbox, xmlNodePtr no
 			}
 
 			i18n->icon = icon;
-			icon = xmlStrdup(i18n->icon);
+			icon = xmlMalloc(xmlStrlen(i18n->icon) + 2);
 			if (!icon) {
 				ErrPrint("Heap: %s\n", strerror(errno));
 			} else {
@@ -2111,7 +2111,7 @@ static inline void update_i18n_icon(struct dynamicbox *dynamicbox, xmlNodePtr no
 	}
 
 	i18n->icon = icon;
-	icon = xmlStrdup(i18n->icon);
+	icon = xmlMalloc(xmlStrlen(i18n->icon) + 2);
 	if (!icon) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 	} else {
@@ -2232,7 +2232,7 @@ static void update_size_info(struct dynamicbox *dynamicbox, int idx, xmlNodePtr 
 	if (xmlHasProp(node, (const xmlChar *)"preview")) {
 		xmlChar *tmp_preview;
 		dynamicbox->preview[idx] = xmlGetProp(node, (const xmlChar *)"preview");
-		tmp_preview = xmlStrdup(dynamicbox->preview[idx]);
+		tmp_preview = xmlMalloc(xmlStrlen(dynamicbox->preview[idx]) + 2);
 		if (!tmp_preview) {
 			ErrPrint("Heap: %s\n", strerror(errno));
 		} else {
@@ -2462,7 +2462,7 @@ static void update_box(struct dynamicbox *dynamicbox, xmlNodePtr node)
 			}
 
 			dynamicbox->dbox_src = src;
-			src = xmlStrdup(dynamicbox->dbox_src);
+			src = xmlMalloc(xmlStrlen(dynamicbox->dbox_src) + 2);
 			if (!src) {
 				ErrPrint("Heap: %s\n", strerror(errno));
 			} else {
@@ -2680,7 +2680,7 @@ static inline void update_gbar(struct dynamicbox *dynamicbox, xmlNodePtr node)
 			}
 
 			dynamicbox->gbar_src = src;
-			src = xmlStrdup(dynamicbox->gbar_src);
+			src = xmlMalloc(xmlStrlen(dynamicbox->gbar_src) + 2);
 			if (!src) {
 				ErrPrint("Heap: %s\n", strerror(errno));
 			} else {
@@ -3013,7 +3013,7 @@ static int do_install(xmlNodePtr node, const char *appid)
 			return -EFAULT;
 		}
 
-		tmp_libexec = xmlStrdup(dynamicbox->libexec);
+		tmp_libexec = xmlMalloc(xmlStrlen(dynamicbox->libexec) + 2);
 		if (!tmp_libexec) {
 			ErrPrint("Heap: %s\n", strerror(errno));
 			dynamicbox_destroy(dynamicbox);
