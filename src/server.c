@@ -1305,7 +1305,7 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 	struct pkg_info *info;
 	int width;
 	int height;
-	char *lbid;
+	char *dbox_id;
 	char *mainappid;
 
 	client = client_find_by_rpc_handle(handle);
@@ -1325,34 +1325,35 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 	DbgPrint("pid[%d] period[%lf] pkgname[%s] content[%s] cluster[%s] category[%s] period[%lf]\n",
 			pid, timestamp, pkgname, content, cluster, category, period);
 
-	lbid = package_dbox_pkgname(pkgname);
-	if (!lbid) {
+	dbox_id = package_dbox_pkgname(pkgname);
+	if (!dbox_id) {
 		ErrPrint("This %s has no dynamicbox package\n", pkgname);
 		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
-	mainappid = dynamicbox_service_mainappid(lbid);
+	mainappid = dynamicbox_service_mainappid(dbox_id);
 	if (!package_is_enabled(mainappid)) {
+		ErrPrint("%s is disabled\n", mainappid);
 		DbgFree(mainappid);
-		DbgFree(lbid);
+		DbgFree(dbox_id);
 		ret = DBOX_STATUS_ERROR_DISABLED;
 		goto out;
 	}
 	DbgFree(mainappid);
 
-	info = package_find(lbid);
+	info = package_find(dbox_id);
 	if (!info) {
 		char *pkgid;
-		pkgid = dynamicbox_service_package_id(lbid);
+		pkgid = dynamicbox_service_package_id(dbox_id);
 		if (!pkgid) {
 			DbgFree(mainappid);
-			DbgFree(lbid);
+			DbgFree(dbox_id);
 			ret = DBOX_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
-		info = package_create(pkgid, lbid);
+		info = package_create(pkgid, dbox_id);
 		DbgFree(pkgid);
 	}
 
@@ -1370,7 +1371,7 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 			period = DYNAMICBOX_CONF_MINIMUM_PERIOD;
 		}
 
-		inst = instance_create(client, timestamp, lbid, content, cluster, category, period, width, height);
+		inst = instance_create(client, timestamp, dbox_id, content, cluster, category, period, width, height);
 		/*!
 		 * \note
 		 * Using the "inst" without validate its value is at my disposal. ;)
@@ -1378,7 +1379,7 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		ret = inst ? 0 : DBOX_STATUS_ERROR_FAULT;
 	}
 
-	DbgFree(lbid);
+	DbgFree(dbox_id);
 
 out:
 	result = packet_create_reply(packet, "i", ret);
@@ -7959,7 +7960,7 @@ static struct packet *service_update(pid_t pid, int handle, const struct packet 
 	const char *category;
 	const char *content;
 	int force;
-	char *lbid;
+	char *dbox_id;
 	int ret;
 
 	ret = packet_get(packet, "sssssi", &pkgname, &id, &cluster, &category, &content, &force);
@@ -7969,30 +7970,30 @@ static struct packet *service_update(pid_t pid, int handle, const struct packet 
 		goto out;
 	}
 
-	lbid = package_dbox_pkgname(pkgname);
-	if (!lbid) {
+	dbox_id = package_dbox_pkgname(pkgname);
+	if (!dbox_id) {
 		ErrPrint("Invalid package %s\n", pkgname);
 		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
-	pkg = package_find(lbid);
+	pkg = package_find(dbox_id);
 	if (!pkg) {
 		ret = DBOX_STATUS_ERROR_NOT_EXIST;
-		DbgFree(lbid);
+		DbgFree(dbox_id);
 		goto out;
 	}
 
 	if (package_is_fault(pkg)) {
 		ret = DBOX_STATUS_ERROR_FAULT;
-		DbgFree(lbid);
+		DbgFree(dbox_id);
 		goto out;
 	}
 
 	inst_list = package_instance_list(pkg);
 	if (!eina_list_count(inst_list)) {
 		ret = DBOX_STATUS_ERROR_NOT_EXIST;
-		DbgFree(lbid);
+		DbgFree(dbox_id);
 		goto out;
 	}
 
@@ -8009,7 +8010,7 @@ static struct packet *service_update(pid_t pid, int handle, const struct packet 
 		}
 
 		if (ret == (int)DBOX_STATUS_ERROR_NOT_EXIST) {
-			DbgFree(lbid);
+			DbgFree(dbox_id);
 			goto out;
 		}
 	}
@@ -8018,8 +8019,8 @@ static struct packet *service_update(pid_t pid, int handle, const struct packet 
 	 * \TODO
 	 * Validate the update requstor.
 	 */
-	slave_rpc_request_update(lbid, id, cluster, category, content, force);
-	DbgFree(lbid);
+	slave_rpc_request_update(dbox_id, id, cluster, category, content, force);
+	DbgFree(dbox_id);
 	ret = DBOX_STATUS_ERROR_NONE;
 
 out:
