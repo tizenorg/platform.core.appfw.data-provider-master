@@ -350,6 +350,12 @@ int main(int argc, char *argv[])
 		return -EFAULT;
 	}
 
+	ecore_app_args_set(argc, (const char **)argv);
+
+#if (GLIB_MAJOR_VERSION <= 2 && GLIB_MINOR_VERSION < 36)
+	g_type_init();
+#endif
+
 	if (util_screen_init() <= 0) {
 		ecore_shutdown();
 		return -EFAULT;
@@ -412,12 +418,6 @@ int main(int argc, char *argv[])
 		signal_handler = ecore_main_fd_handler_add(ret, ECORE_FD_READ, signal_cb, NULL, NULL, NULL);
 		CRITICAL_LOG("Signal handler initiated: %d\n", ret);
 	}
-
-	ecore_app_args_set(argc, (const char **)argv);
-
-#if (GLIB_MAJOR_VERSION <= 2 && GLIB_MINOR_VERSION < 36)
-	g_type_init();
-#endif
 
 	app_create();
 	sd_notify(0, "READY=1");
