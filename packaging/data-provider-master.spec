@@ -1,7 +1,7 @@
 %bcond_with wayland
 
 Name: data-provider-master
-Summary: Master service provider for dynamicboxes
+Summary: Master service provider for widgetes
 Version: 1.0.0
 Release: 1
 Group: HomeTF/DynamicBox
@@ -39,7 +39,7 @@ BuildRequires: pkgconfig(com-core)
 BuildRequires: pkgconfig(libxml-2.0)
 BuildRequires: pkgconfig(pkgmgr)
 BuildRequires: pkgconfig(pkgmgr-info)
-BuildRequires: pkgconfig(dynamicbox_service)
+BuildRequires: pkgconfig(widget_service)
 BuildRequires: pkgconfig(notification)
 BuildRequires: pkgconfig(notification-service)
 BuildRequires: pkgconfig(badge)
@@ -52,8 +52,8 @@ Requires(post): sys-assert
 Requires(post): dbus
 
 %description
-Manage the 2nd stage dynamicbox service provider and communicate with the viewer application.
-Keep trace on the life-cycle of the dynamicbox and status of the service providers, viewer applications.
+Manage the 2nd stage widget service provider and communicate with the viewer application.
+Keep trace on the life-cycle of the widget and status of the service providers, viewer applications.
 
 %prep
 %setup -q
@@ -119,11 +119,11 @@ mkdir -p %{buildroot}/opt/usr/share/live_magazine/reader
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/always
 mkdir -p %{buildroot}/opt/usr/devel/usr/bin
 mkdir -p %{buildroot}/opt/dbspace
-touch %{buildroot}/opt/dbspace/.dynamicbox.db
-touch %{buildroot}/opt/dbspace/.dynamicbox.db-journal
-if [ ! -s %{buildroot}/opt/dbspace/.dynamicbox.db ]; then
+touch %{buildroot}/opt/dbspace/.widget.db
+touch %{buildroot}/opt/dbspace/.widget.db-journal
+if [ ! -s %{buildroot}/opt/dbspace/.widget.db ]; then
 echo "DynamicBox DB file is not exists, initiate it"
-sqlite3 %{buildroot}/opt/dbspace/.dynamicbox.db <<EOF
+sqlite3 %{buildroot}/opt/dbspace/.widget.db <<EOF
 CREATE TABLE version ( version INTEGER );
 CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, preview TEXT, touch_effect INTEGER, need_frame INTEGER, mouse_event INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
 CREATE TABLE client (pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch TEXT, gbar_size TEXT, content TEXT, nodisplay INTEGER, setup TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
@@ -151,10 +151,10 @@ chown 5000:5000 /opt/usr/share/live_magazine/reader
 chmod 750 /opt/usr/share/live_magazine/reader
 chown 5000:5000 /opt/usr/share/live_magazine/always
 chmod 750 /opt/usr/share/live_magazine/always
-chown 0:5000 /opt/dbspace/.dynamicbox.db
-chmod 640 /opt/dbspace/.dynamicbox.db
-chown 0:5000 /opt/dbspace/.dynamicbox.db-journal
-chmod 640 /opt/dbspace/.dynamicbox.db-journal
+chown 0:5000 /opt/dbspace/.widget.db
+chmod 640 /opt/dbspace/.widget.db
+chown 0:5000 /opt/dbspace/.widget.db-journal
+chmod 640 /opt/dbspace/.widget.db-journal
 vconftool set -t bool "memory/data-provider-master/started" 0 -i -u 5000 -f -s system::vconf_system
 vconftool set -t int "memory/private/data-provider-master/restart_count" 0 -i -u 5000 -f -s data-provider-master
 vconftool set -t string "db/data-provider-master/serveraddr" "/opt/usr/share/live_magazine/.client.socket" -i -u 5000 -f -s system::vconf_system
@@ -173,9 +173,9 @@ echo "%{_sysconfdir}/init.d/data-provider-master start"
 %endif
 %{_prefix}/etc/package-manager/parserlib/*
 %{_datarootdir}/data-provider-master/*
-/opt/etc/dump.d/module.d/dump_dynamicbox.sh
+/opt/etc/dump.d/module.d/dump_widget.sh
 /opt/usr/share/live_magazine/*
-/opt/dbspace/.dynamicbox.db
-/opt/dbspace/.dynamicbox.db-journal
+/opt/dbspace/.widget.db
+/opt/dbspace/.widget.db-journal
 
 # End of a file

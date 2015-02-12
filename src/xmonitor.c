@@ -31,8 +31,8 @@
 
 #include <gio/gio.h>
 #include <dlog.h>
-#include <dynamicbox_errno.h>
-#include <dynamicbox_conf.h>
+#include <widget_errno.h>
+#include <widget_conf.h>
 
 #include "conf.h"
 #include "debug.h"
@@ -73,7 +73,7 @@ static struct info {
 static inline void touch_paused_file(void)
 {
 	int fd;
-	fd = creat(DYNAMICBOX_CONF_PAUSED_FILE, 0644);
+	fd = creat(WIDGET_CONF_PAUSED_FILE, 0644);
 	if (fd >= 0) {
 		if (close(fd) < 0) {
 			ErrPrint("close: %s\n", strerror(errno));
@@ -85,7 +85,7 @@ static inline void touch_paused_file(void)
 
 static inline void remove_paused_file(void)
 {
-	if (unlink(DYNAMICBOX_CONF_PAUSED_FILE) < 0) {
+	if (unlink(WIDGET_CONF_PAUSED_FILE) < 0) {
 		ErrPrint("Unlink .live.paused: %s\n", strerror(errno));
 	}
 }
@@ -102,14 +102,14 @@ static inline int get_pid(Ecore_X_Window win)
 				sizeof(int), &in_pid, &num) == EINA_FALSE) {
 		if (ecore_x_netwm_pid_get(win, &pid) == EINA_FALSE) {
 			ErrPrint("Failed to get PID from a window 0x%X\n", win);
-			return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		}
 	} else if (in_pid) {
 		pid = *(int *)in_pid;
 		DbgFree(in_pid);
 	} else {
 		ErrPrint("Failed to get PID\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	return pid;
@@ -150,7 +150,7 @@ HAPI void xmonitor_handle_state_changes(void)
 
 		touch_paused_file();
 
-		sqlite3_release_memory(DYNAMICBOX_CONF_SQLITE_FLUSH_MAX);
+		sqlite3_release_memory(WIDGET_CONF_SQLITE_FLUSH_MAX);
 		malloc_trim(0);
 	} else {
 		remove_paused_file();
@@ -169,8 +169,8 @@ HAPI int xmonitor_update_state(int target_pid)
 	struct client_node *client;
 	int pid;
 
-	if (!DYNAMICBOX_CONF_USE_XMONITOR || target_pid < 0) {
-		return DBOX_STATUS_ERROR_NONE;
+	if (!WIDGET_CONF_USE_XMONITOR || target_pid < 0) {
+		return WIDGET_STATUS_ERROR_NONE;
 	}
 
 	win = ecore_x_window_focus_get();
@@ -183,7 +183,7 @@ HAPI int xmonitor_update_state(int target_pid)
 			DbgPrint("Client window has no focus now\n");
 			client_paused(client);
 		}
-		return DBOX_STATUS_ERROR_NOT_EXIST;
+		return WIDGET_STATUS_ERROR_NOT_EXIST;
 	}
 
 	client = client_find_by_pid(pid);
@@ -194,7 +194,7 @@ HAPI int xmonitor_update_state(int target_pid)
 			DbgPrint("Client window has no focus now\n");
 			client_paused(client);
 		}
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	if (target_pid != pid) {
@@ -206,7 +206,7 @@ HAPI int xmonitor_update_state(int target_pid)
 	}
 
 	xmonitor_handle_state_changes();
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 static Eina_Bool client_cb(void *data, int type, void *event)
@@ -331,7 +331,7 @@ HAPI int xmonitor_pause(struct client_node *client)
 	DbgPrint("%d is paused\n", client_pid(client));
 	client_paused(client);
 	xmonitor_handle_state_changes();
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int xmonitor_resume(struct client_node *client)
@@ -339,7 +339,7 @@ HAPI int xmonitor_resume(struct client_node *client)
 	DbgPrint("%d is resumed\n", client_pid(client));
 	client_resumed(client);
 	xmonitor_handle_state_changes();
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 static inline void disable_xmonitor(void)
@@ -364,7 +364,7 @@ static inline int enable_xmonitor(void)
 				create_cb, NULL);
 	if (!s_info.create_handler) {
 		ErrPrint("Failed to add create event handler\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	s_info.destroy_handler =
@@ -374,7 +374,7 @@ static inline int enable_xmonitor(void)
 		ErrPrint("Failed to add destroy event handler\n");
 		ecore_event_handler_del(s_info.create_handler);
 		s_info.create_handler = NULL;
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	s_info.client_handler =
@@ -386,16 +386,16 @@ static inline int enable_xmonitor(void)
 		ecore_event_handler_del(s_info.destroy_handler);
 		s_info.create_handler = NULL;
 		s_info.destroy_handler = NULL;
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	sniff_all_windows();
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int xmonitor_init(void)
 {
-	if (DYNAMICBOX_CONF_USE_XMONITOR) {
+	if (WIDGET_CONF_USE_XMONITOR) {
 		int ret;
 		ret = enable_xmonitor();
 		if (ret < 0) {
@@ -410,12 +410,12 @@ HAPI int xmonitor_init(void)
 		remove_paused_file();
 	}
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI void xmonitor_fini(void)
 {
-	if (DYNAMICBOX_CONF_USE_XMONITOR) {
+	if (WIDGET_CONF_USE_XMONITOR) {
 		disable_xmonitor();
 	}
 }
@@ -427,7 +427,7 @@ HAPI int xmonitor_add_event_callback(enum xmonitor_event event, int (*cb)(void *
 	item = malloc(sizeof(*item));
 	if (!item) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	item->cb = cb;
@@ -443,10 +443,10 @@ HAPI int xmonitor_add_event_callback(enum xmonitor_event event, int (*cb)(void *
 	default:
 		ErrPrint("Invalid event type\n");
 		DbgFree(item);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int xmonitor_del_event_callback(enum xmonitor_event event, int (*cb)(void *user_data), void *user_data)
@@ -461,7 +461,7 @@ HAPI int xmonitor_del_event_callback(enum xmonitor_event event, int (*cb)(void *
 			if (item->cb == cb && item->user_data == user_data) {
 				s_info.pause_list = eina_list_remove(s_info.pause_list, item);
 				DbgFree(item);
-				return DBOX_STATUS_ERROR_NONE;
+				return WIDGET_STATUS_ERROR_NONE;
 			}
 		}
 		break;
@@ -471,16 +471,16 @@ HAPI int xmonitor_del_event_callback(enum xmonitor_event event, int (*cb)(void *
 			if (item->cb == cb && item->user_data == user_data) {
 				s_info.resume_list = eina_list_remove(s_info.resume_list, item);
 				DbgFree(item);
-				return DBOX_STATUS_ERROR_NONE;
+				return WIDGET_STATUS_ERROR_NONE;
 			}
 		}
 		break;
 	default:
 		ErrPrint("Invalid event type\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
-	return DBOX_STATUS_ERROR_NOT_EXIST;
+	return WIDGET_STATUS_ERROR_NOT_EXIST;
 }
 
 HAPI int xmonitor_is_paused(void)

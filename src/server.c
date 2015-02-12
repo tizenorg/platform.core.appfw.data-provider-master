@@ -27,11 +27,11 @@
 
 #include <packet.h>
 #include <com-core_packet.h>
-#include <dynamicbox_errno.h>
-#include <dynamicbox_service.h>
-#include <dynamicbox_cmd_list.h>
-#include <dynamicbox_conf.h>
-#include <dynamicbox_script.h>
+#include <widget_errno.h>
+#include <widget_service.h>
+#include <widget_cmd_list.h>
+#include <widget_conf.h>
+#include <widget_script.h>
 
 #include "critical_log.h"
 #include "conf.h"
@@ -91,7 +91,7 @@ struct access_info {
 
 /* Share this with provider */
 enum target_type {
-	TYPE_DBOX,
+	TYPE_WIDGET,
 	TYPE_GBAR,
 	TYPE_ERROR
 };
@@ -113,9 +113,9 @@ static char *is_valid_slave(pid_t pid, const char *abi, const char *provider_pkg
 {
 	char pid_pkgname[pathconf("/", _PC_PATH_MAX)];
 	const char *abi_pkgname;
-	dynamicbox_pkglist_h list_handle;
+	widget_pkglist_h list_handle;
 	char *pkgid;
-	char *dbox_id;
+	char *widget_id;
 	char *converted_provider_pkgname = NULL;
 	int verified;
 
@@ -139,27 +139,27 @@ static char *is_valid_slave(pid_t pid, const char *abi, const char *provider_pkg
 	}
 
 	/*!
-	 * This request is comes from standalone dbox provider (not the predefined service provider)
+	 * This request is comes from standalone widget provider (not the predefined service provider)
 	 */
 	pkgid = package_get_pkgid(provider_pkgname);
-	list_handle = dynamicbox_service_pkglist_create(pkgid, NULL);
+	list_handle = widget_service_pkglist_create(pkgid, NULL);
 	DbgFree(pkgid);
 
 	verified = 0;
-	dbox_id = NULL;
-	while (dynamicbox_service_get_pkglist_item(list_handle, NULL, &dbox_id, NULL) == DBOX_STATUS_ERROR_NONE) {
-		if (!dbox_id) {
-			ErrPrint("Invalid dbox_id\n");
+	widget_id = NULL;
+	while (widget_service_get_pkglist_item(list_handle, NULL, &widget_id, NULL) == WIDGET_STATUS_ERROR_NONE) {
+		if (!widget_id) {
+			ErrPrint("Invalid widget_id\n");
 			continue;
 		}
 
 		// tmp == /APPID/.provider <<- PROVIDER UI-APP
-		// dbox_id == com.samsung.watch-hello <<-- DBOX ID
+		// widget_id == com.samsung.watch-hello <<-- WIDGET ID
 		// provider_pkgname == com.samsung.watch-hello.provider
-		converted_provider_pkgname = util_replace_string(abi_pkgname, DYNAMICBOX_CONF_REPLACE_TAG_APPID, dbox_id);
+		converted_provider_pkgname = util_replace_string(abi_pkgname, WIDGET_CONF_REPLACE_TAG_APPID, widget_id);
 		if (!converted_provider_pkgname) {
-			DbgFree(dbox_id);
-			dbox_id = NULL;
+			DbgFree(widget_id);
+			widget_id = NULL;
 			continue;
 		}
 
@@ -171,12 +171,12 @@ static char *is_valid_slave(pid_t pid, const char *abi, const char *provider_pkg
 			break;
 		}
 
-		DbgFree(dbox_id);
-		dbox_id = NULL;
+		DbgFree(widget_id);
+		widget_id = NULL;
 	}
 
-	dynamicbox_service_pkglist_destroy(list_handle);
-	return dbox_id;
+	widget_service_pkglist_destroy(list_handle);
+	return widget_id;
 }
 
 static Eina_Bool lazy_key_status_cb(void *data)
@@ -219,7 +219,7 @@ int send_delayed_key_status(struct inst_info *inst, int ret)
 
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
-		ret = DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		ret = WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	} else {
 		cbdata->inst = instance_ref(inst);
 		cbdata->status = ret;
@@ -227,9 +227,9 @@ int send_delayed_key_status(struct inst_info *inst, int ret)
 		if (!ecore_timer_add(DELAY_TIME, lazy_key_status_cb, cbdata)) {
 			(void)instance_unref(cbdata->inst);
 			DbgFree(cbdata);
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 		} else {
-			ret = DBOX_STATUS_ERROR_NONE;
+			ret = WIDGET_STATUS_ERROR_NONE;
 		}
 	}
 
@@ -242,7 +242,7 @@ int send_delayed_access_status(struct inst_info *inst, int ret)
 
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
-		ret = DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		ret = WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	} else {
 		cbdata->inst = instance_ref(inst);
 		cbdata->status = ret;
@@ -250,32 +250,32 @@ int send_delayed_access_status(struct inst_info *inst, int ret)
 		if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
 			(void)instance_unref(cbdata->inst);
 			DbgFree(cbdata);
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 		} else {
-			ret = DBOX_STATUS_ERROR_NONE;
+			ret = WIDGET_STATUS_ERROR_NONE;
 		}
 	}
 
 	return ret;
 }
 
-static int forward_dbox_event_packet(const struct pkg_info *pkg, struct inst_info *inst, const struct packet *packet)
+static int forward_widget_event_packet(const struct pkg_info *pkg, struct inst_info *inst, const struct packet *packet)
 {
 	struct buffer_info *buffer;
 	struct slave_node *slave;
 	int ret;
 
-	buffer = instance_dbox_buffer(inst);
+	buffer = instance_widget_buffer(inst);
 	if (!buffer) {
 		ErrPrint("Instance[%s] has no buffer\n", instance_id(inst));
-		ret = DBOX_STATUS_ERROR_FAULT;
+		ret = WIDGET_STATUS_ERROR_FAULT;
 		goto out;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
 		ErrPrint("Package[%s] has no slave\n", package_name(pkg));
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -295,14 +295,14 @@ static int forward_gbar_event_packet(const struct pkg_info *pkg, struct inst_inf
 	buffer = instance_gbar_buffer(inst);
 	if (!buffer) {
 		ErrPrint("Instance[%s] has no buffer\n", instance_id(inst));
-		ret = DBOX_STATUS_ERROR_FAULT;
+		ret = WIDGET_STATUS_ERROR_FAULT;
 		goto out;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
 		ErrPrint("Package[%s] has no slave\n", package_name(pkg));
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -323,14 +323,14 @@ static int forward_gbar_access_packet(const struct pkg_info *pkg, struct inst_in
 	buffer = instance_gbar_buffer(inst);
 	if (!buffer) {
 		ErrPrint("Instance[%s] has no buffer\n", instance_id(inst));
-		ret = DBOX_STATUS_ERROR_FAULT;
+		ret = WIDGET_STATUS_ERROR_FAULT;
 		goto out;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
 		ErrPrint("Package[%s] has no slave\n", package_name(pkg));
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -341,24 +341,24 @@ out:
 	return ret;
 }
 
-static int forward_dbox_access_packet(const struct pkg_info *pkg, struct inst_info *inst, const char *command, double timestamp, struct access_info *event)
+static int forward_widget_access_packet(const struct pkg_info *pkg, struct inst_info *inst, const char *command, double timestamp, struct access_info *event)
 {
 	int ret;
 	struct buffer_info *buffer;
 	struct slave_node *slave;
 	struct packet *p;
 
-	buffer = instance_dbox_buffer(inst);
+	buffer = instance_widget_buffer(inst);
 	if (!buffer) {
 		ErrPrint("Instance[%s] has no buffer\n", instance_id(inst));
-		ret = DBOX_STATUS_ERROR_FAULT;
+		ret = WIDGET_STATUS_ERROR_FAULT;
 		goto out;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
 		ErrPrint("Package[%s] has no slave\n", package_name(pkg));
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -376,17 +376,17 @@ static int forward_gbar_key_packet(const struct pkg_info *pkg, struct inst_info 
 	struct slave_node *slave;
 	struct packet *p;
 
-	buffer = instance_dbox_buffer(inst);
+	buffer = instance_widget_buffer(inst);
 	if (!buffer) {
 		ErrPrint("Instance[%s] has no buffer\n", instance_id(inst));
-		ret = DBOX_STATUS_ERROR_FAULT;
+		ret = WIDGET_STATUS_ERROR_FAULT;
 		goto out;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
 		ErrPrint("Package[%s] has no slave\n", package_name(pkg));
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -397,24 +397,24 @@ out:
 	return ret;
 }
 
-static int forward_dbox_key_packet(const struct pkg_info *pkg, struct inst_info *inst, const char *command, double timestamp, unsigned int keycode)
+static int forward_widget_key_packet(const struct pkg_info *pkg, struct inst_info *inst, const char *command, double timestamp, unsigned int keycode)
 {
 	int ret;
 	struct buffer_info *buffer;
 	struct slave_node *slave;
 	struct packet *p;
 
-	buffer = instance_dbox_buffer(inst);
+	buffer = instance_widget_buffer(inst);
 	if (!buffer) {
 		ErrPrint("Instance[%s] has no buffer\n", instance_id(inst));
-		ret = DBOX_STATUS_ERROR_FAULT;
+		ret = WIDGET_STATUS_ERROR_FAULT;
 		goto out;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
 		ErrPrint("Package[%s] has no slave\n", package_name(pkg));
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -430,8 +430,8 @@ static int slave_fault_open_script_cb(struct slave_node *slave, void *data)
 	Ecore_Timer *timer;
 
 	(void)script_handler_unload(instance_gbar_script(data), 1);
-	(void)instance_slave_close_gbar(data, instance_gbar_owner(data), DBOX_CLOSE_GBAR_FAULT);
-	(void)instance_client_gbar_created(data, DBOX_STATUS_ERROR_FAULT);
+	(void)instance_slave_close_gbar(data, instance_gbar_owner(data), WIDGET_CLOSE_GBAR_FAULT);
+	(void)instance_client_gbar_created(data, WIDGET_STATUS_ERROR_FAULT);
 
 	timer = instance_del_data(data, LAZY_GBAR_OPEN_TAG);
 	if (timer) {
@@ -447,8 +447,8 @@ static int slave_fault_open_buffer_cb(struct slave_node *slave, void *data)
 {
 	Ecore_Timer *timer;
 
-	(void)instance_slave_close_gbar(data, instance_gbar_owner(data), DBOX_CLOSE_GBAR_FAULT);
-	(void)instance_client_gbar_created(data, DBOX_STATUS_ERROR_FAULT);
+	(void)instance_slave_close_gbar(data, instance_gbar_owner(data), WIDGET_CLOSE_GBAR_FAULT);
+	(void)instance_client_gbar_created(data, WIDGET_STATUS_ERROR_FAULT);
 
 	timer = instance_del_data(data, GBAR_OPEN_MONITOR_TAG);
 	if (timer) {
@@ -464,7 +464,7 @@ static int slave_fault_close_script_cb(struct slave_node *slave, void *data)
 {
 	Ecore_Timer *timer;
 
-	(void)instance_client_gbar_destroyed(data, DBOX_STATUS_ERROR_FAULT);
+	(void)instance_client_gbar_destroyed(data, WIDGET_STATUS_ERROR_FAULT);
 
 	timer = instance_del_data(data, LAZY_GBAR_CLOSE_TAG);
 	if (timer) {
@@ -480,7 +480,7 @@ static int slave_fault_close_buffer_cb(struct slave_node *slave, void *data)
 {
 	Ecore_Timer *timer;
 
-	(void)instance_client_gbar_destroyed(data, DBOX_STATUS_ERROR_FAULT);
+	(void)instance_client_gbar_destroyed(data, WIDGET_STATUS_ERROR_FAULT);
 
 	timer = instance_del_data(data, LAZY_GBAR_CLOSE_TAG);
 	if (!timer) {
@@ -500,8 +500,8 @@ static int slave_fault_resize_buffer_cb(struct slave_node *slave, void *data)
 {
 	Ecore_Timer *timer;
 
-	(void)instance_slave_close_gbar(data, instance_gbar_owner(data), DBOX_CLOSE_GBAR_FAULT);
-	(void)instance_client_gbar_destroyed(data, DBOX_STATUS_ERROR_FAULT);
+	(void)instance_slave_close_gbar(data, instance_gbar_owner(data), WIDGET_CLOSE_GBAR_FAULT);
+	(void)instance_client_gbar_destroyed(data, WIDGET_STATUS_ERROR_FAULT);
 
 	timer = instance_del_data(data, GBAR_RESIZE_MONITOR_TAG);
 	if (timer) {
@@ -513,7 +513,7 @@ static int slave_fault_resize_buffer_cb(struct slave_node *slave, void *data)
 	return -1; /* remove this handler */
 }
 
-static int key_event_dbox_route_cb(enum event_state state, struct event_data *event_info, void *data)
+static int key_event_widget_route_cb(enum event_state state, struct event_data *event_info, void *data)
 {
 	struct inst_info *inst = data;
 	const struct pkg_info *pkg;
@@ -523,42 +523,42 @@ static int key_event_dbox_route_cb(enum event_state state, struct event_data *ev
 
 	if (!inst) {
 		DbgPrint("Instance is deleted.\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	pkg = instance_package(inst);
 	if (!pkg) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	switch (state) {
 	case EVENT_STATE_ACTIVATE:
-		cmd = CMD_DBOX_KEY_DOWN;
+		cmd = CMD_WIDGET_KEY_DOWN;
 		break;
 	case EVENT_STATE_ACTIVATED:
-		cmd = CMD_DBOX_KEY_DOWN;
+		cmd = CMD_WIDGET_KEY_DOWN;
 		break;
 	case EVENT_STATE_DEACTIVATE:
-		cmd = CMD_DBOX_KEY_UP;
+		cmd = CMD_WIDGET_KEY_UP;
 		break;
 	default:
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssdi", package_name(pkg), instance_id(inst), event_info->tv, event_info->keycode);
 	if (!packet) {
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return slave_rpc_request_only(slave, package_name(pkg), packet, 0);
 }
 
-static int mouse_event_dbox_route_cb(enum event_state state, struct event_data *event_info, void *data)
+static int mouse_event_widget_route_cb(enum event_state state, struct event_data *event_info, void *data)
 {
 	struct inst_info *inst = data;
 	const struct pkg_info *pkg;
@@ -568,42 +568,42 @@ static int mouse_event_dbox_route_cb(enum event_state state, struct event_data *
 
 	if (!inst) {
 		DbgPrint("Instance is deleted.\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	pkg = instance_package(inst);
 	if (!pkg) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	switch (state) {
 	case EVENT_STATE_ACTIVATE:
-		cmd = CMD_DBOX_MOUSE_DOWN;
+		cmd = CMD_WIDGET_MOUSE_DOWN;
 		break;
 	case EVENT_STATE_ACTIVATED:
-		cmd = CMD_DBOX_MOUSE_MOVE;
+		cmd = CMD_WIDGET_MOUSE_MOVE;
 		break;
 	case EVENT_STATE_DEACTIVATE:
-		cmd = CMD_DBOX_MOUSE_UP;
+		cmd = CMD_WIDGET_MOUSE_UP;
 		break;
 	default:
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssdii", package_name(pkg), instance_id(inst), event_info->tv, event_info->x, event_info->y);
 	if (!packet) {
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return slave_rpc_request_only(slave, package_name(pkg), packet, 0);
 }
 
-static int key_event_dbox_consume_cb(enum event_state state, struct event_data *event_info, void *data)
+static int key_event_widget_consume_cb(enum event_state state, struct event_data *event_info, void *data)
 {
 	struct script_info *script;
 	struct inst_info *inst = data;
@@ -615,9 +615,9 @@ static int key_event_dbox_consume_cb(enum event_state state, struct event_data *
 		return 0;
 	}
 
-	script = instance_dbox_script(inst);
+	script = instance_widget_script(inst);
 	if (!script) {
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	timestamp = event_info->tv;
@@ -625,15 +625,15 @@ static int key_event_dbox_consume_cb(enum event_state state, struct event_data *
 	switch (state) {
 	case EVENT_STATE_ACTIVATE:
 		script_handler_update_keycode(script, event_info->keycode);
-		(void)script_handler_feed_event(script, DBOX_SCRIPT_KEY_DOWN, timestamp);
+		(void)script_handler_feed_event(script, WIDGET_SCRIPT_KEY_DOWN, timestamp);
 		break;
 	case EVENT_STATE_ACTIVATED:
 		script_handler_update_keycode(script, event_info->keycode);
-		(void)script_handler_feed_event(script, DBOX_SCRIPT_KEY_DOWN, timestamp);
+		(void)script_handler_feed_event(script, WIDGET_SCRIPT_KEY_DOWN, timestamp);
 		break;
 	case EVENT_STATE_DEACTIVATE:
 		script_handler_update_keycode(script, event_info->keycode);
-		(void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_UP, timestamp);
+		(void)script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_UP, timestamp);
 		break;
 	default:
 		ErrPrint("Unknown event\n");
@@ -643,7 +643,7 @@ static int key_event_dbox_consume_cb(enum event_state state, struct event_data *
 	return 0;
 }
 
-static int mouse_event_dbox_consume_cb(enum event_state state, struct event_data *event_info, void *data)
+static int mouse_event_widget_consume_cb(enum event_state state, struct event_data *event_info, void *data)
 {
 	struct script_info *script;
 	struct inst_info *inst = data;
@@ -655,9 +655,9 @@ static int mouse_event_dbox_consume_cb(enum event_state state, struct event_data
 		return 0;
 	}
 
-	script = instance_dbox_script(inst);
+	script = instance_widget_script(inst);
 	if (!script) {
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	timestamp = event_info->tv;
@@ -665,15 +665,15 @@ static int mouse_event_dbox_consume_cb(enum event_state state, struct event_data
 	switch (state) {
 	case EVENT_STATE_ACTIVATE:
 		script_handler_update_pointer(script, event_info->x, event_info->y, 1);
-		(void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_DOWN, timestamp);
+		(void)script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_DOWN, timestamp);
 		break;
 	case EVENT_STATE_ACTIVATED:
 		script_handler_update_pointer(script, event_info->x, event_info->y, -1);
-		(void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_MOVE, timestamp);
+		(void)script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_MOVE, timestamp);
 		break;
 	case EVENT_STATE_DEACTIVATE:
 		script_handler_update_pointer(script, event_info->x, event_info->y, 0);
-		(void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_UP, timestamp);
+		(void)script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_UP, timestamp);
 		break;
 	default:
 		break;
@@ -692,17 +692,17 @@ static int key_event_gbar_route_cb(enum event_state state, struct event_data *ev
 
 	if (!inst) {
 		DbgPrint("Instance is deleted.\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	pkg = instance_package(inst);
 	if (!pkg) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	switch (state) {
@@ -716,12 +716,12 @@ static int key_event_gbar_route_cb(enum event_state state, struct event_data *ev
 		cmd = CMD_GBAR_KEY_UP;
 		break;
 	default:
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssdi", package_name(pkg), instance_id(inst), event_info->tv, event_info->keycode);
 	if (!packet) {
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return slave_rpc_request_only(slave, package_name(pkg), packet, 0);
@@ -737,17 +737,17 @@ static int mouse_event_gbar_route_cb(enum event_state state, struct event_data *
 
 	if (!inst) {
 		DbgPrint("Instance is deleted.\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	pkg = instance_package(inst);
 	if (!pkg) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	switch (state) {
@@ -761,12 +761,12 @@ static int mouse_event_gbar_route_cb(enum event_state state, struct event_data *
 		cmd = CMD_GBAR_MOUSE_UP;
 		break;
 	default:
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssdii", package_name(pkg), instance_id(inst), event_info->tv, event_info->x, event_info->y);
 	if (!packet) {
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return slave_rpc_request_only(slave, package_name(pkg), packet, 0);
@@ -786,7 +786,7 @@ static int key_event_gbar_consume_cb(enum event_state state, struct event_data *
 
 	script = instance_gbar_script(inst);
 	if (!script) {
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	timestamp = event_info->tv;
@@ -794,15 +794,15 @@ static int key_event_gbar_consume_cb(enum event_state state, struct event_data *
 	switch (state) {
 	case EVENT_STATE_ACTIVATE:
 		script_handler_update_keycode(script, event_info->keycode);
-		(void)script_handler_feed_event(script, DBOX_SCRIPT_KEY_DOWN, timestamp);
+		(void)script_handler_feed_event(script, WIDGET_SCRIPT_KEY_DOWN, timestamp);
 		break;
 	case EVENT_STATE_ACTIVATED:
 		script_handler_update_keycode(script, event_info->keycode);
-		(void)script_handler_feed_event(script, DBOX_SCRIPT_KEY_DOWN, timestamp);
+		(void)script_handler_feed_event(script, WIDGET_SCRIPT_KEY_DOWN, timestamp);
 		break;
 	case EVENT_STATE_DEACTIVATE:
 		script_handler_update_keycode(script, event_info->keycode);
-		(void)script_handler_feed_event(script, DBOX_SCRIPT_KEY_UP, timestamp);
+		(void)script_handler_feed_event(script, WIDGET_SCRIPT_KEY_UP, timestamp);
 		break;
 	default:
 		ErrPrint("Unknown event\n");
@@ -826,7 +826,7 @@ static int mouse_event_gbar_consume_cb(enum event_state state, struct event_data
 
 	script = instance_gbar_script(inst);
 	if (!script) {
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	timestamp = event_info->tv;
@@ -834,15 +834,15 @@ static int mouse_event_gbar_consume_cb(enum event_state state, struct event_data
 	switch (state) {
 	case EVENT_STATE_ACTIVATE:
 		script_handler_update_pointer(script, event_info->x, event_info->y, 1);
-		(void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_DOWN, timestamp);
+		(void)script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_DOWN, timestamp);
 		break;
 	case EVENT_STATE_ACTIVATED:
 		script_handler_update_pointer(script, event_info->x, event_info->y, -1);
-		(void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_MOVE, timestamp);
+		(void)script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_MOVE, timestamp);
 		break;
 	case EVENT_STATE_DEACTIVATE:
 		script_handler_update_pointer(script, event_info->x, event_info->y, 0);
-		(void)script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_UP, timestamp);
+		(void)script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_UP, timestamp);
 		break;
 	default:
 		break;
@@ -861,13 +861,13 @@ static struct packet *client_acquire(pid_t pid, int handle, const struct packet 
 	client = client_find_by_rpc_handle(handle);
 	if (client) {
 		ErrPrint("Client is already exists %d\n", pid);
-		ret = DBOX_STATUS_ERROR_EXIST;
+		ret = WIDGET_STATUS_ERROR_EXIST;
 		goto out;
 	}
 
 	if (packet_get(packet, "ds", &timestamp, &direct_addr) != 2) {
 		ErrPrint("Invalid arguemnt\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -879,11 +879,11 @@ static struct packet *client_acquire(pid_t pid, int handle, const struct packet 
 	client = client_create(pid, handle, direct_addr);
 	if (!client) {
 		ErrPrint("Failed to create a new client for %d\n", pid);
-		ret = DBOX_STATUS_ERROR_FAULT;
+		ret = WIDGET_STATUS_ERROR_FAULT;
 	}
 
 out:
-	result = packet_create_reply(packet, "ii", ret, DYNAMICBOX_CONF_EXTRA_BUFFER_COUNT);
+	result = packet_create_reply(packet, "ii", ret, WIDGET_CONF_EXTRA_BUFFER_COUNT);
 	if (!result) {
 		ErrPrint("Failed to create a packet\n");
 	}
@@ -900,7 +900,7 @@ static struct packet *cilent_release(pid_t pid, int handle, const struct packet 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
@@ -922,42 +922,42 @@ static int validate_request(pid_t pid, struct slave_node *slave, const char *pkg
 	const struct pkg_info *pkg;
 
 	if (slave) {
-		char *dbox_id;
+		char *widget_id;
 		/*!
 		 * \note
 		 * This call can decrease the performance of event handling.
 		 * We should consider this to keep or find other way.
 		 *
-		 * However, we have to conver the provider_pkgname to dbox_id anyway.
-		 * Because, the service providers will use the dbox_id
+		 * However, we have to conver the provider_pkgname to widget_id anyway.
+		 * Because, the service providers will use the widget_id
 		 * But the standalone providers will use its package id (ui-app, provider id)
-		 * For later case, we should convert the provider pkgname to dbox id
+		 * For later case, we should convert the provider pkgname to widget id
 		 */
-		dbox_id = is_valid_slave(pid, slave_abi(slave), pkgname);
-		if (!dbox_id) {
-			return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		widget_id = is_valid_slave(pid, slave_abi(slave), pkgname);
+		if (!widget_id) {
+			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		}
 
-		inst = package_find_instance_by_id(dbox_id, id);
-		DbgFree(dbox_id);
+		inst = package_find_instance_by_id(widget_id, id);
+		DbgFree(widget_id);
 	} else {
 		inst = package_find_instance_by_id(pkgname, id);
 	}
 
 	if (!inst) {
 		ErrPrint("Instance is not exists (%s)\n", id);
-		return DBOX_STATUS_ERROR_NOT_EXIST;
+		return WIDGET_STATUS_ERROR_NOT_EXIST;
 	}
 
 	pkg = instance_package(inst);
 	if (!pkg) {
 		ErrPrint("System error - instance has no package?\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	if (package_is_fault(pkg)) {
 		ErrPrint("Faulted package: %s\n", package_name(pkg));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	if (out_inst) {
@@ -968,7 +968,7 @@ static int validate_request(pid_t pid, struct slave_node *slave, const char *pkg
 		*out_pkg = pkg;
 	}
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 /*!< pid, pkgname, filename, event, timestamp, x, y, ret */
@@ -999,10 +999,10 @@ static struct packet *client_clicked(pid_t pid, int handle, const struct packet 
 	/*!
 	 * \NOTE:
 	 * Trust the package name which are sent by the client.
-	 * The package has to be a dynamicbox package name.
+	 * The package has to be a widget package name.
 	 */
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 		(void)instance_clicked(inst, event, timestamp, x, y);
 	}
 
@@ -1024,19 +1024,19 @@ static struct packet *client_update_mode(pid_t pid, int handle, const struct pac
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssi", &pkgname, &id, &active_update);
 	if (ret != 3) {
 		ErrPrint("Invalid argument\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 		/*!
 		 * \note
 		 * Send change update mode request to a slave
@@ -1072,24 +1072,24 @@ static struct packet *client_text_signal(pid_t pid, int handle, const struct pac
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssssdddd", &pkgname, &id, &emission, &source, &sx, &sy, &ex, &ey);
 	if (ret != 8) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	/*!
 	 * \NOTE:
 	 * Trust the package name which are sent by the client.
-	 * The package has to be a dynamicbox package name.
+	 * The package has to be a widget package name.
 	 */
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 		ret = instance_text_signal_emit(inst, emission, source, sx, sy, ex, ey);
 	}
 
@@ -1112,7 +1112,7 @@ static Eina_Bool lazy_delete_cb(void *data)
 	 * So check it again
 	 */
 	if (instance_has_client(item->inst, item->client)) {
-		(void)instance_unicast_deleted_event(item->inst, item->client, DBOX_STATUS_ERROR_NONE);
+		(void)instance_unicast_deleted_event(item->inst, item->client, WIDGET_STATUS_ERROR_NONE);
 		(void)instance_del_client(item->inst, item->client);
 	}
 
@@ -1137,32 +1137,32 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssid", &pkgname, &id, &type, &timestamp);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 	/*!
 	 * \note
-	 * Below two types must has to be sync'd with dynamicbox-viewer
+	 * Below two types must has to be sync'd with widget-viewer
 	 *
-	 * DBOX_DELETE_PERMANENTLY = 0x01,
-	 * DBOX_DELETE_TEMPORARY = 0x02,
+	 * WIDGET_DELETE_PERMANENTLY = 0x01,
+	 * WIDGET_DELETE_TEMPORARY = 0x02,
 	 *
 	 */
 
 	/*!
 	 * \NOTE:
 	 * Trust the package name which are sent by the client.
-	 * The package has to be a dynamicbox package name.
+	 * The package has to be a widget package name.
 	 */
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		DbgPrint("Failed to find by id(%s), try to find it using timestamp(%lf)\n", id, timestamp);
 		inst = package_find_instance_by_timestamp(pkgname, timestamp);
 		if (!inst) {
@@ -1178,7 +1178,7 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 
 	if (package_is_fault(pkg)) {
 		DbgPrint("Faulted package. will be deleted soon: %s\n", id);
-		ret = DBOX_STATUS_ERROR_FAULT;
+		ret = WIDGET_STATUS_ERROR_FAULT;
 		goto out;
 	}
 
@@ -1189,7 +1189,7 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 			item = malloc(sizeof(*item));
 			if (!item) {
 				ErrPrint("Heap: %s\n", strerror(errno));
-				ret = DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+				ret = WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 			} else {
 				/*!
 				 * \NOTE:
@@ -1208,22 +1208,22 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 					(void)client_unref(client);
 					(void)instance_unref(inst);
 					DbgFree(item);
-					ret = DBOX_STATUS_ERROR_FAULT;
+					ret = WIDGET_STATUS_ERROR_FAULT;
 				} else {
-					ret = DBOX_STATUS_ERROR_NONE;
+					ret = WIDGET_STATUS_ERROR_NONE;
 				}
 			}
 		} else {
 			ErrPrint("Client has no permission\n");
-			ret = DBOX_STATUS_ERROR_PERMISSION_DENIED;
+			ret = WIDGET_STATUS_ERROR_PERMISSION_DENIED;
 		}
 	} else {
 		switch (type) {
-		case DBOX_DELETE_PERMANENTLY:
-			ret = instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+		case WIDGET_DELETE_PERMANENTLY:
+			ret = instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
 			break;
-		case DBOX_DELETE_TEMPORARY:
-			ret = instance_destroy(inst, DBOX_DESTROY_TYPE_TEMPORARY);
+		case WIDGET_DELETE_TEMPORARY:
+			ret = instance_destroy(inst, WIDGET_DESTROY_TYPE_TEMPORARY);
 			break;
 		default:
 			break;
@@ -1253,14 +1253,14 @@ static struct packet *client_resize(pid_t pid, int handle, const struct packet *
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssii", &pkgname, &id, &w, &h);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -1269,15 +1269,15 @@ static struct packet *client_resize(pid_t pid, int handle, const struct packet *
 	/*!
 	 * \NOTE:
 	 * Trust the package name which are sent by the client.
-	 * The package has to be a dynamicbox package name.
+	 * The package has to be a widget package name.
 	 */
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
 	if (instance_client(inst) != client) {
-		ret = DBOX_STATUS_ERROR_PERMISSION_DENIED;
+		ret = WIDGET_STATUS_ERROR_PERMISSION_DENIED;
 	} else {
 		ret = instance_resize(inst, w, h);
 	}
@@ -1305,81 +1305,81 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 	struct pkg_info *info;
 	int width;
 	int height;
-	char *dbox_id;
+	char *widget_id;
 	char *mainappid;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "dssssdii", &timestamp, &pkgname, &content, &cluster, &category, &period, &width, &height);
 	if (ret != 8) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	DbgPrint("pid[%d] period[%lf] pkgname[%s] content[%s] cluster[%s] category[%s] period[%lf]\n",
 			pid, timestamp, pkgname, content, cluster, category, period);
 
-	dbox_id = package_dbox_pkgname(pkgname);
-	if (!dbox_id) {
-		ErrPrint("This %s has no dynamicbox package\n", pkgname);
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	widget_id = package_widget_pkgname(pkgname);
+	if (!widget_id) {
+		ErrPrint("This %s has no widget package\n", pkgname);
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
-	mainappid = dynamicbox_service_mainappid(dbox_id);
+	mainappid = widget_service_mainappid(widget_id);
 	if (!package_is_enabled(mainappid)) {
 		ErrPrint("%s is disabled\n", mainappid);
 		DbgFree(mainappid);
-		DbgFree(dbox_id);
-		ret = DBOX_STATUS_ERROR_DISABLED;
+		DbgFree(widget_id);
+		ret = WIDGET_STATUS_ERROR_DISABLED;
 		goto out;
 	}
 	DbgFree(mainappid);
 
-	info = package_find(dbox_id);
+	info = package_find(widget_id);
 	if (!info) {
 		char *pkgid;
-		pkgid = dynamicbox_service_package_id(dbox_id);
+		pkgid = widget_service_package_id(widget_id);
 		if (!pkgid) {
 			DbgFree(mainappid);
-			DbgFree(dbox_id);
-			ret = DBOX_STATUS_ERROR_FAULT;
+			DbgFree(widget_id);
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
-		info = package_create(pkgid, dbox_id);
+		info = package_create(pkgid, widget_id);
 		DbgFree(pkgid);
 	}
 
 	if (!info) {
-		ret = DBOX_STATUS_ERROR_FAULT;
+		ret = WIDGET_STATUS_ERROR_FAULT;
 	} else if (package_is_fault(info)) {
-		ret = DBOX_STATUS_ERROR_FAULT;
-	} else if (util_free_space(DYNAMICBOX_CONF_IMAGE_PATH) <= DYNAMICBOX_CONF_MINIMUM_SPACE) {
+		ret = WIDGET_STATUS_ERROR_FAULT;
+	} else if (util_free_space(WIDGET_CONF_IMAGE_PATH) <= WIDGET_CONF_MINIMUM_SPACE) {
 		ErrPrint("Not enough space\n");
-		ret = DBOX_STATUS_ERROR_NO_SPACE;
+		ret = WIDGET_STATUS_ERROR_NO_SPACE;
 	} else {
 		struct inst_info *inst;
 
-		if (period > 0.0f && period < DYNAMICBOX_CONF_MINIMUM_PERIOD) {
-			period = DYNAMICBOX_CONF_MINIMUM_PERIOD;
+		if (period > 0.0f && period < WIDGET_CONF_MINIMUM_PERIOD) {
+			period = WIDGET_CONF_MINIMUM_PERIOD;
 		}
 
-		inst = instance_create(client, timestamp, dbox_id, content, cluster, category, period, width, height);
+		inst = instance_create(client, timestamp, widget_id, content, cluster, category, period, width, height);
 		/*!
 		 * \note
 		 * Using the "inst" without validate its value is at my disposal. ;)
 		 */
-		ret = inst ? 0 : DBOX_STATUS_ERROR_FAULT;
+		ret = inst ? 0 : WIDGET_STATUS_ERROR_FAULT;
 	}
 
-	DbgFree(dbox_id);
+	DbgFree(widget_id);
 
 out:
 	result = packet_create_reply(packet, "i", ret);
@@ -1395,36 +1395,36 @@ static struct packet *client_change_visibility(pid_t pid, int handle, const stru
 	struct client_node *client;
 	const char *pkgname;
 	const char *id;
-	enum dynamicbox_visible_state state;
+	enum widget_visible_state state;
 	int ret;
 	struct inst_info *inst;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssi", &pkgname, &id, (int *)&state);
 	if (ret != 3) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	/*!
 	 * \NOTE:
 	 * Trust the package name which are sent by the client.
-	 * The package has to be a dynamicbox package name.
+	 * The package has to be a widget package name.
 	 */
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
 	if (instance_client(inst) != client) {
-		ret = DBOX_STATUS_ERROR_PERMISSION_DENIED;
+		ret = WIDGET_STATUS_ERROR_PERMISSION_DENIED;
 	} else {
 		ret = instance_set_visible_state(inst, state);
 	}
@@ -1447,14 +1447,14 @@ static struct packet *client_set_period(pid_t pid, int handle, const struct pack
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssd", &pkgname, &id, &period);
 	if (ret != 3) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -1463,15 +1463,15 @@ static struct packet *client_set_period(pid_t pid, int handle, const struct pack
 	/*!
 	 * \NOTE:
 	 * Trust the package name which are sent by the client.
-	 * The package has to be a dynamicbox package name.
+	 * The package has to be a widget package name.
 	 */
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
 	if (instance_client(inst) != client) {
-		ret = DBOX_STATUS_ERROR_PERMISSION_DENIED;
+		ret = WIDGET_STATUS_ERROR_PERMISSION_DENIED;
 	} else {
 		ret = instance_set_period(inst, period);
 	}
@@ -1499,14 +1499,14 @@ static struct packet *client_change_group(pid_t pid, int handle, const struct pa
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssss", &pkgname, &id, &cluster, &category);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -1515,15 +1515,15 @@ static struct packet *client_change_group(pid_t pid, int handle, const struct pa
 	/*!
 	 * \NOTE:
 	 * Trust the package name which are sent by the client.
-	 * The package has to be a dynamicbox package name.
+	 * The package has to be a widget package name.
 	 */
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
 	if (instance_client(inst) != client) {
-		ret = DBOX_STATUS_ERROR_PERMISSION_DENIED;
+		ret = WIDGET_STATUS_ERROR_PERMISSION_DENIED;
 	} else {
 		ret = instance_change_group(inst, cluster, category);
 	}
@@ -1552,19 +1552,19 @@ static struct packet *client_gbar_mouse_enter(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Invalid parameter\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -1575,16 +1575,16 @@ static struct packet *client_gbar_mouse_enter(pid_t pid, int handle, const struc
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_IN, timestamp);
+		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_IN, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -1607,19 +1607,19 @@ static struct packet *client_gbar_mouse_leave(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -1630,16 +1630,16 @@ static struct packet *client_gbar_mouse_leave(pid_t pid, int handle, const struc
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_OUT, timestamp);
+		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_OUT, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -1662,19 +1662,19 @@ static struct packet *client_gbar_mouse_down(pid_t pid, int handle, const struct
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -1685,16 +1685,16 @@ static struct packet *client_gbar_mouse_down(pid_t pid, int handle, const struct
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, x, y, 1);
-		script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_DOWN, timestamp);
+		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_DOWN, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -1717,19 +1717,19 @@ static struct packet *client_gbar_mouse_up(pid_t pid, int handle, const struct p
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -1740,16 +1740,16 @@ static struct packet *client_gbar_mouse_up(pid_t pid, int handle, const struct p
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, x, y, 0);
-		script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_UP, timestamp);
+		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_UP, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -1772,19 +1772,19 @@ static struct packet *client_gbar_mouse_move(pid_t pid, int handle, const struct
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -1795,16 +1795,16 @@ static struct packet *client_gbar_mouse_move(pid_t pid, int handle, const struct
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_MOVE, timestamp);
+		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_MOVE, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -1812,7 +1812,7 @@ out:
 	return NULL;
 }
 
-static struct packet *client_dbox_mouse_move(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+static struct packet *client_widget_mouse_move(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
 	const char *pkgname;
@@ -1827,39 +1827,39 @@ static struct packet *client_dbox_mouse_move(pid_t pid, int handle, const struct
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_event_packet(pkg, inst, packet);
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_event_packet(pkg, inst, packet);
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_MOVE, timestamp);
+		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_MOVE, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -1882,8 +1882,8 @@ static int inst_del_cb(struct inst_info *inst, void *data)
 	ret = event_reset_cbdata(data, inst, NULL);
 	DbgPrint("Instance delete callback called: %s (%d)\n", instance_id(inst), ret);
 
-	if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-		(void)slave_set_priority(package_slave(instance_package(inst)), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF);
+	if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
+		(void)slave_set_priority(package_slave(instance_package(inst)), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
 	}
 
 	return -1; /* Delete this callback */
@@ -1905,37 +1905,37 @@ static struct packet *client_gbar_key_set(pid_t pid, int handle, const struct pa
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
 		ret = event_activate(0, 0, key_event_gbar_route_cb, inst);
-		if (ret == DBOX_STATUS_ERROR_NONE) {
-			if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-				(void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON);
+		if (ret == WIDGET_STATUS_ERROR_NONE) {
+			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
+				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
 			}
 			if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_gbar_route_cb) <= 0) {
 				instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_gbar_route_cb);
 			}
 		}
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		ret = event_activate(0, 0, key_event_gbar_consume_cb, inst);
-		if (ret == DBOX_STATUS_ERROR_NONE) {
-			if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-				(void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON);
+		if (ret == WIDGET_STATUS_ERROR_NONE) {
+			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
+				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
 			}
 			if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_gbar_consume_cb) <= 0) {
 				instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_gbar_consume_cb);
@@ -1943,7 +1943,7 @@ static struct packet *client_gbar_key_set(pid_t pid, int handle, const struct pa
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -1970,26 +1970,26 @@ static struct packet *client_gbar_key_unset(pid_t pid, int handle, const struct 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
 		ret = event_deactivate(key_event_gbar_route_cb, inst);
-		if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-			(void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF);
+		if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
+			(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
 		}
 		/*
 		 * This delete callback will be removed when the instance will be destroyed.
@@ -1997,10 +1997,10 @@ static struct packet *client_gbar_key_unset(pid_t pid, int handle, const struct 
 		 instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_gbar_route_cb);
 		 }
 		 */
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		ret = event_deactivate(key_event_gbar_consume_cb, inst);
-		if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-			(void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF);
+		if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
+			(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
 		}
 		/*
 		 * This delete callback will be removed when the instance will be destroyed.
@@ -2010,7 +2010,7 @@ static struct packet *client_gbar_key_unset(pid_t pid, int handle, const struct 
 		 */
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2022,7 +2022,7 @@ out:
 	return result;
 }
 
-static struct packet *client_dbox_key_set(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_key_set(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
 	const char *pkgname;
@@ -2037,45 +2037,45 @@ static struct packet *client_dbox_key_set(pid_t pid, int handle, const struct pa
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = event_activate(0, 0, key_event_dbox_route_cb, inst);
-		if (ret == DBOX_STATUS_ERROR_NONE) {
-			if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-				(void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON);
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = event_activate(0, 0, key_event_widget_route_cb, inst);
+		if (ret == WIDGET_STATUS_ERROR_NONE) {
+			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
+				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
 			}
-			if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_dbox_route_cb) <= 0) {
-				instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_dbox_route_cb);
+			if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_widget_route_cb) <= 0) {
+				instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_widget_route_cb);
 			}
 		}
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
-		ret = event_activate(0, 0, key_event_dbox_consume_cb, inst);
-		if (ret == DBOX_STATUS_ERROR_NONE) {
-			if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-				(void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON);
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
+		ret = event_activate(0, 0, key_event_widget_consume_cb, inst);
+		if (ret == WIDGET_STATUS_ERROR_NONE) {
+			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
+				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
 			}
-			if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_dbox_consume_cb) <= 0) {
-				instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_dbox_consume_cb);
+			if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_widget_consume_cb) <= 0) {
+				instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_widget_consume_cb);
 			}
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2087,7 +2087,7 @@ out:
 	return result;
 }
 
-static struct packet *client_dbox_key_unset(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_key_unset(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
 	const char *pkgname;
@@ -2102,47 +2102,47 @@ static struct packet *client_dbox_key_unset(pid_t pid, int handle, const struct 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = event_deactivate(key_event_dbox_route_cb, inst);
-		if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-			(void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF);
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = event_deactivate(key_event_widget_route_cb, inst);
+		if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
+			(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
 		}
 		/*
 		 * This delete callback will be removed when the instance will be destroyed.
 		 if (ret == 0) {
-		 instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_dbox_route_cb);
+		 instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_widget_route_cb);
 		 }
 		 */
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
-		ret = event_deactivate(key_event_dbox_consume_cb, inst);
-		if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-			(void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF);
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
+		ret = event_deactivate(key_event_widget_consume_cb, inst);
+		if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
+			(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
 		}
 		/*
 		 * This delete callback will be removed when the instance will be destroyed.
 		 if (ret == 0) {
-		 instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_dbox_consume_cb);
+		 instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, key_event_widget_consume_cb);
 		 }
 		 */
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2154,7 +2154,7 @@ out:
 	return result;
 }
 
-static struct packet *client_dbox_mouse_set(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_mouse_set(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
 	const char *pkgname;
@@ -2169,31 +2169,31 @@ static struct packet *client_dbox_mouse_set(pid_t pid, int handle, const struct 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
 		if (package_direct_input(pkg) == 0 || packet_set_fd((struct packet *)packet, event_input_fd()) < 0) {
-			ret = event_activate(x, y, mouse_event_dbox_route_cb, inst);
-			if (ret == DBOX_STATUS_ERROR_NONE) {
-				if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-					(void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON);
+			ret = event_activate(x, y, mouse_event_widget_route_cb, inst);
+			if (ret == WIDGET_STATUS_ERROR_NONE) {
+				if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
+					(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
 				}
-				if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_dbox_route_cb) <= 0) {
-					instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_dbox_route_cb);
+				if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_widget_route_cb) <= 0) {
+					instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_widget_route_cb);
 				}
 			}
 		} else {
@@ -2206,28 +2206,28 @@ static struct packet *client_dbox_mouse_set(pid_t pid, int handle, const struct 
 				ret = slave_rpc_request_only(slave, pkgname, (struct packet *)packet, 0);
 			} else {
 				ErrPrint("Unable to find a slave for %s\n", pkgname);
-				ret = DBOX_STATUS_ERROR_FAULT;
+				ret = WIDGET_STATUS_ERROR_FAULT;
 			}
 		}
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
-		ret = event_activate(x, y, mouse_event_dbox_consume_cb, inst);
-		if (ret == DBOX_STATUS_ERROR_NONE) {
-			if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-				(void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON);
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
+		ret = event_activate(x, y, mouse_event_widget_consume_cb, inst);
+		if (ret == WIDGET_STATUS_ERROR_NONE) {
+			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
+				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
 			}
-			if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_dbox_consume_cb) <= 0) {
-				instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_dbox_consume_cb);
+			if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_widget_consume_cb) <= 0) {
+				instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_widget_consume_cb);
 			}
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 out:
 	return NULL;
 }
 
-static struct packet *client_dbox_mouse_unset(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_mouse_unset(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
 	const char *pkgname;
@@ -2242,32 +2242,32 @@ static struct packet *client_dbox_mouse_unset(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
 		if (package_direct_input(pkg) == 0) {
-			ret = event_deactivate(mouse_event_dbox_route_cb, inst);
-			if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-				(void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF);
+			ret = event_deactivate(mouse_event_widget_route_cb, inst);
+			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
+				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
 			}
 			/*
 			 * This delete callback will be removed when the instance will be destroyed.
 			 if (ret == 0) {
-			 instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_dbox_route_cb);
+			 instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_widget_route_cb);
 			 }
 			 */
 		} else {
@@ -2280,23 +2280,23 @@ static struct packet *client_dbox_mouse_unset(pid_t pid, int handle, const struc
 				ret = slave_rpc_request_only(slave, pkgname, (struct packet *)packet, 0);
 			} else {
 				ErrPrint("Unable to find a slave for %s\n", pkgname);
-				ret = DBOX_STATUS_ERROR_FAULT;
+				ret = WIDGET_STATUS_ERROR_FAULT;
 			}
 		}
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
-		ret = event_deactivate(mouse_event_dbox_consume_cb, inst);
-		if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-			(void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF);
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
+		ret = event_deactivate(mouse_event_widget_consume_cb, inst);
+		if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
+			(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
 		}
 		/*
 		 * This delete callback will be removed when the instance will be destroyed.
 		 if (ret == 0) {
-		 instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_dbox_consume_cb);
+		 instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_widget_consume_cb);
 		 }
 		 */
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 out:
 	return NULL;
@@ -2317,28 +2317,28 @@ static struct packet *client_gbar_mouse_set(pid_t pid, int handle, const struct 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
 	if (package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
 		if (package_direct_input(pkg) == 0 || packet_set_fd((struct packet *)packet, event_input_fd()) < 0) {
 			ret = event_activate(x, y, mouse_event_gbar_route_cb, inst);
-			if (ret == DBOX_STATUS_ERROR_NONE) {
-				if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-					(void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON);
+			if (ret == WIDGET_STATUS_ERROR_NONE) {
+				if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
+					(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
 				}
 				if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_gbar_route_cb) <= 0) {
 					instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_gbar_route_cb);
@@ -2354,14 +2354,14 @@ static struct packet *client_gbar_mouse_set(pid_t pid, int handle, const struct 
 				ret = slave_rpc_request_only(slave, pkgname, (struct packet *)packet, 0);
 			} else {
 				ErrPrint("Unable to find a slave for %s\n", pkgname);
-				ret = DBOX_STATUS_ERROR_FAULT;
+				ret = WIDGET_STATUS_ERROR_FAULT;
 			}
 		}
 	} else if (package_gbar_type(pkg) == GBAR_TYPE_SCRIPT) {
 		ret = event_activate(x, y, mouse_event_gbar_consume_cb, inst);
-		if (ret == DBOX_STATUS_ERROR_NONE) {
-			if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-				(void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON);
+		if (ret == WIDGET_STATUS_ERROR_NONE) {
+			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
+				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
 			}
 			if (instance_event_callback_is_added(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_gbar_consume_cb) <= 0) {
 				instance_event_callback_add(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_gbar_consume_cb);
@@ -2369,14 +2369,14 @@ static struct packet *client_gbar_mouse_set(pid_t pid, int handle, const struct 
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
 	return NULL;
 }
 
-static struct packet *client_dbox_mouse_on_scroll(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_mouse_on_scroll(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
 	const char *pkgname;
@@ -2391,94 +2391,39 @@ static struct packet *client_dbox_mouse_on_scroll(pid_t pid, int handle, const s
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_event_packet(pkg, inst, packet);
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_event_packet(pkg, inst, packet);
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_ON_SCROLL, timestamp);
+		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_ON_SCROLL, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-	}
-
-out:
-	/*! \note No reply packet */
-	return NULL;
-}
-
-static struct packet *client_dbox_mouse_off_scroll(pid_t pid, int handle, const struct packet *packet)
-{
-	struct client_node *client;
-	const char *pkgname;
-	const char *id;
-	int ret;
-	double timestamp;
-	int x;
-	int y;
-	struct inst_info *inst;
-	const struct pkg_info *pkg;
-
-	client = client_find_by_rpc_handle(handle);
-	if (!client) {
-		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
-		goto out;
-	}
-
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
-		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
-		goto out;
-	}
-
-	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
-		goto out;
-	}
-
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_event_packet(pkg, inst, packet);
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
-		struct script_info *script;
-
-		script = instance_dbox_script(inst);
-		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
-			goto out;
-		}
-
-		script_handler_update_pointer(script, x, y, -1);
-		script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_OFF_SCROLL, timestamp);
-		ret = 0;
-	} else {
-		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2486,7 +2431,7 @@ out:
 	return NULL;
 }
 
-static struct packet *client_dbox_mouse_on_hold(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_mouse_off_scroll(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
 	const char *pkgname;
@@ -2501,39 +2446,39 @@ static struct packet *client_dbox_mouse_on_hold(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_event_packet(pkg, inst, packet);
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_event_packet(pkg, inst, packet);
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_ON_HOLD, timestamp);
+		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_OFF_SCROLL, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2541,7 +2486,7 @@ out:
 	return NULL;
 }
 
-static struct packet *client_dbox_mouse_off_hold(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_mouse_on_hold(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
 	const char *pkgname;
@@ -2556,39 +2501,94 @@ static struct packet *client_dbox_mouse_off_hold(pid_t pid, int handle, const st
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_event_packet(pkg, inst, packet);
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_event_packet(pkg, inst, packet);
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_OFF_HOLD, timestamp);
+		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_ON_HOLD, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+	}
+
+out:
+	/*! \note No reply packet */
+	return NULL;
+}
+
+static struct packet *client_widget_mouse_off_hold(pid_t pid, int handle, const struct packet *packet)
+{
+	struct client_node *client;
+	const char *pkgname;
+	const char *id;
+	int ret;
+	double timestamp;
+	int x;
+	int y;
+	struct inst_info *inst;
+	const struct pkg_info *pkg;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exists\n", pid);
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		goto out;
+	}
+
+	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
+	if (ret != 5) {
+		ErrPrint("Parameter is not matched\n");
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		goto out;
+	}
+
+	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
+		goto out;
+	}
+
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_event_packet(pkg, inst, packet);
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
+		struct script_info *script;
+
+		script = instance_widget_script(inst);
+		if (!script) {
+			ret = WIDGET_STATUS_ERROR_FAULT;
+			goto out;
+		}
+
+		script_handler_update_pointer(script, x, y, -1);
+		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_OFF_HOLD, timestamp);
+		ret = 0;
+	} else {
+		ErrPrint("Unsupported package\n");
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2611,19 +2611,19 @@ static struct packet *client_gbar_mouse_on_scroll(pid_t pid, int handle, const s
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -2634,16 +2634,16 @@ static struct packet *client_gbar_mouse_on_scroll(pid_t pid, int handle, const s
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_ON_SCROLL, timestamp);
+		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_ON_SCROLL, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2666,19 +2666,19 @@ static struct packet *client_gbar_mouse_off_scroll(pid_t pid, int handle, const 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -2689,16 +2689,16 @@ static struct packet *client_gbar_mouse_off_scroll(pid_t pid, int handle, const 
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_OFF_SCROLL, timestamp);
+		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_OFF_SCROLL, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2721,19 +2721,19 @@ static struct packet *client_gbar_mouse_on_hold(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -2744,16 +2744,16 @@ static struct packet *client_gbar_mouse_on_hold(pid_t pid, int handle, const str
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_ON_HOLD, timestamp);
+		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_ON_HOLD, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2776,19 +2776,19 @@ static struct packet *client_gbar_mouse_off_hold(pid_t pid, int handle, const st
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -2799,16 +2799,16 @@ static struct packet *client_gbar_mouse_off_hold(pid_t pid, int handle, const st
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_OFF_HOLD, timestamp);
+		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_OFF_HOLD, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2831,27 +2831,27 @@ static struct packet *client_gbar_mouse_unset(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
 	if (package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
 		if (package_direct_input(pkg) == 0) {
 			ret = event_deactivate(mouse_event_gbar_route_cb, inst);
-			if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-				(void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF);
+			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
+				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
 			}
 			/*
 			 * This delete callback will be removed when the instance will be destroyed.
@@ -2869,13 +2869,13 @@ static struct packet *client_gbar_mouse_unset(pid_t pid, int handle, const struc
 				ret = slave_rpc_request_only(slave, pkgname, (struct packet *)packet, 0);
 			} else {
 				ErrPrint("Unable to find a slave for %s\n", pkgname);
-				ret = DBOX_STATUS_ERROR_FAULT;
+				ret = WIDGET_STATUS_ERROR_FAULT;
 			}
 		}
 	} else if (package_gbar_type(pkg) == GBAR_TYPE_SCRIPT) {
 		ret = event_deactivate(mouse_event_gbar_consume_cb, inst);
-		if (DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF != DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_ON) {
-			(void)slave_set_priority(package_slave(pkg), DYNAMICBOX_CONF_SLAVE_EVENT_BOOST_OFF);
+		if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
+			(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
 		}
 		/*
 		 * This delete callback will be removed when the instance will be destroyed.
@@ -2885,13 +2885,13 @@ static struct packet *client_gbar_mouse_unset(pid_t pid, int handle, const struc
 		 */
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 out:
 	return NULL;
 }
 
-static struct packet *client_dbox_mouse_enter(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+static struct packet *client_widget_mouse_enter(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
 	const char *pkgname;
@@ -2906,39 +2906,39 @@ static struct packet *client_dbox_mouse_enter(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_event_packet(pkg, inst, packet);
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_event_packet(pkg, inst, packet);
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_IN, timestamp);
+		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_IN, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2946,7 +2946,7 @@ out:
 	return NULL;
 }
 
-static struct packet *client_dbox_mouse_leave(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+static struct packet *client_widget_mouse_leave(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
 	const char *pkgname;
@@ -2961,39 +2961,39 @@ static struct packet *client_dbox_mouse_leave(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_event_packet(pkg, inst, packet);
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_event_packet(pkg, inst, packet);
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, x, y, -1);
-		script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_OUT, timestamp);
+		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_OUT, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3001,7 +3001,7 @@ out:
 	return NULL;
 }
 
-static struct packet *client_dbox_mouse_down(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+static struct packet *client_widget_mouse_down(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
 	const char *pkgname;
@@ -3016,39 +3016,39 @@ static struct packet *client_dbox_mouse_down(pid_t pid, int handle, const struct
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_event_packet(pkg, inst, packet);
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_event_packet(pkg, inst, packet);
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, x, y, 1);
-		script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_DOWN, timestamp);
+		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_DOWN, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3056,7 +3056,7 @@ out:
 	return NULL;
 }
 
-static struct packet *client_dbox_mouse_up(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+static struct packet *client_widget_mouse_up(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct client_node *client;
 	const char *pkgname;
@@ -3071,39 +3071,39 @@ static struct packet *client_dbox_mouse_up(pid_t pid, int handle, const struct p
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_event_packet(pkg, inst, packet);
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_event_packet(pkg, inst, packet);
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, x, y, 0);
-		script_handler_feed_event(script, DBOX_SCRIPT_MOUSE_UP, timestamp);
+		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_UP, timestamp);
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3126,19 +3126,19 @@ static struct packet *client_gbar_access_action(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3149,18 +3149,18 @@ static struct packet *client_gbar_access_action(pid_t pid, int handle, const str
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, event.x, event.y, event.type);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_ACCESS_ACTION, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_ACTION, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3187,19 +3187,19 @@ static struct packet *client_gbar_access_scroll(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3210,18 +3210,18 @@ static struct packet *client_gbar_access_scroll(pid_t pid, int handle, const str
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, event.x, event.y, event.type);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_ACCESS_SCROLL, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_SCROLL, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3248,19 +3248,19 @@ static struct packet *client_gbar_access_value_change(pid_t pid, int handle, con
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3271,18 +3271,18 @@ static struct packet *client_gbar_access_value_change(pid_t pid, int handle, con
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, event.x, event.y, event.type);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_ACCESS_VALUE_CHANGE, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_VALUE_CHANGE, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3309,19 +3309,19 @@ static struct packet *client_gbar_access_mouse(pid_t pid, int handle, const stru
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3332,18 +3332,18 @@ static struct packet *client_gbar_access_mouse(pid_t pid, int handle, const stru
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, event.x, event.y, event.type);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_ACCESS_MOUSE, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_MOUSE, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3370,19 +3370,19 @@ static struct packet *client_gbar_access_back(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3393,18 +3393,18 @@ static struct packet *client_gbar_access_back(pid_t pid, int handle, const struc
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, event.x, event.y, event.type);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_ACCESS_BACK, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_BACK, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3431,19 +3431,19 @@ static struct packet *client_gbar_access_over(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3454,18 +3454,18 @@ static struct packet *client_gbar_access_over(pid_t pid, int handle, const struc
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, event.x, event.y, event.type);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_ACCESS_OVER, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_OVER, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3492,19 +3492,19 @@ static struct packet *client_gbar_access_read(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3515,18 +3515,18 @@ static struct packet *client_gbar_access_read(pid_t pid, int handle, const struc
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, event.x, event.y, event.type);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_ACCESS_READ, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_READ, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3553,19 +3553,19 @@ static struct packet *client_gbar_access_enable(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3577,11 +3577,11 @@ static struct packet *client_gbar_access_enable(pid_t pid, int handle, const str
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
-		type = (event.type == 0) ? DBOX_SCRIPT_ACCESS_DISABLE : DBOX_SCRIPT_ACCESS_ENABLE;
+		type = (event.type == 0) ? WIDGET_SCRIPT_ACCESS_DISABLE : WIDGET_SCRIPT_ACCESS_ENABLE;
 
 		script_handler_update_pointer(script, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, type, timestamp);
@@ -3590,7 +3590,7 @@ static struct packet *client_gbar_access_enable(pid_t pid, int handle, const str
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3617,19 +3617,19 @@ static struct packet *client_gbar_access_hl(pid_t pid, int handle, const struct 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3641,25 +3641,25 @@ static struct packet *client_gbar_access_hl(pid_t pid, int handle, const struct 
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		switch (event.type) {
 		case ACCESS_TYPE_CUR:
-			type = DBOX_SCRIPT_ACCESS_HIGHLIGHT;
+			type = WIDGET_SCRIPT_ACCESS_HIGHLIGHT;
 			break;
 		case ACCESS_TYPE_NEXT:
-			type = DBOX_SCRIPT_ACCESS_HIGHLIGHT_NEXT;
+			type = WIDGET_SCRIPT_ACCESS_HIGHLIGHT_NEXT;
 			break;
 		case ACCESS_TYPE_PREV:
-			type = DBOX_SCRIPT_ACCESS_HIGHLIGHT_PREV;
+			type = WIDGET_SCRIPT_ACCESS_HIGHLIGHT_PREV;
 			break;
 		case ACCESS_TYPE_OFF:
-			type = DBOX_SCRIPT_ACCESS_UNHIGHLIGHT;
+			type = WIDGET_SCRIPT_ACCESS_UNHIGHLIGHT;
 			break;
 		default:
-			ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+			ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 			goto out;
 		}
 
@@ -3670,7 +3670,7 @@ static struct packet *client_gbar_access_hl(pid_t pid, int handle, const struct 
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3697,19 +3697,19 @@ static struct packet *client_gbar_access_activate(pid_t pid, int handle, const s
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3720,18 +3720,18 @@ static struct packet *client_gbar_access_activate(pid_t pid, int handle, const s
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, event.x, event.y, event.type);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_ACCESS_ACTIVATE, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_ACTIVATE, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3758,19 +3758,19 @@ static struct packet *client_gbar_key_focus_in(pid_t pid, int handle, const stru
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Invalid parameter\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3781,18 +3781,18 @@ static struct packet *client_gbar_key_focus_in(pid_t pid, int handle, const stru
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_keycode(script, keycode);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_KEY_FOCUS_IN, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_KEY_FOCUS_IN, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_key_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3819,19 +3819,19 @@ static struct packet *client_gbar_key_focus_out(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Invalid parameter\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3842,18 +3842,18 @@ static struct packet *client_gbar_key_focus_out(pid_t pid, int handle, const str
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_keycode(script, keycode);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_KEY_FOCUS_OUT, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_KEY_FOCUS_OUT, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_key_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3880,19 +3880,19 @@ static struct packet *client_gbar_key_down(pid_t pid, int handle, const struct p
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Invalid parameter\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3903,18 +3903,18 @@ static struct packet *client_gbar_key_down(pid_t pid, int handle, const struct p
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_keycode(script, keycode);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_KEY_DOWN, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_KEY_DOWN, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_key_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3935,18 +3935,18 @@ static struct packet *client_pause_request(pid_t pid, int handle, const struct p
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is paused - manually reported\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "d", &timestamp);
 	if (ret != 1) {
 		ErrPrint("Invalid parameter\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
-	if (DYNAMICBOX_CONF_USE_XMONITOR) {
+	if (WIDGET_CONF_USE_XMONITOR) {
 		DbgPrint("XMONITOR enabled. ignore client paused request\n");
 	} else {
 		xmonitor_pause(client);
@@ -3974,7 +3974,7 @@ static struct packet *client_resume_request(pid_t pid, int handle, const struct 
 		goto out;
 	}
 
-	if (DYNAMICBOX_CONF_USE_XMONITOR) {
+	if (WIDGET_CONF_USE_XMONITOR) {
 		DbgPrint("XMONITOR enabled. ignore client resumed request\n");
 	} else {
 		xmonitor_resume(client);
@@ -3999,19 +3999,19 @@ static struct packet *client_gbar_key_up(pid_t pid, int handle, const struct pac
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Invalid parameter\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -4022,18 +4022,18 @@ static struct packet *client_gbar_key_up(pid_t pid, int handle, const struct pac
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_keycode(script, keycode);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_KEY_UP, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_KEY_UP, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_key_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4045,7 +4045,7 @@ out:
 	return result;
 }
 
-static struct packet *client_dbox_access_hl(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_access_hl(pid_t pid, int handle, const struct packet *packet)
 {
 	struct packet *result;
 	struct client_node *client;
@@ -4060,49 +4060,49 @@ static struct packet *client_dbox_access_hl(pid_t pid, int handle, const struct 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 		int type;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		switch (event.type) {
 		case ACCESS_TYPE_CUR:
-			type = DBOX_SCRIPT_ACCESS_HIGHLIGHT;
+			type = WIDGET_SCRIPT_ACCESS_HIGHLIGHT;
 			break;
 		case ACCESS_TYPE_NEXT:
-			type = DBOX_SCRIPT_ACCESS_HIGHLIGHT_NEXT;
+			type = WIDGET_SCRIPT_ACCESS_HIGHLIGHT_NEXT;
 			break;
 		case ACCESS_TYPE_PREV:
-			type = DBOX_SCRIPT_ACCESS_HIGHLIGHT_PREV;
+			type = WIDGET_SCRIPT_ACCESS_HIGHLIGHT_PREV;
 			break;
 		case ACCESS_TYPE_OFF:
-			type = DBOX_SCRIPT_ACCESS_UNHIGHLIGHT;
+			type = WIDGET_SCRIPT_ACCESS_UNHIGHLIGHT;
 			break;
 		default:
-			ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+			ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 			goto out;
 		}
 
@@ -4113,7 +4113,7 @@ static struct packet *client_dbox_access_hl(pid_t pid, int handle, const struct 
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4125,7 +4125,7 @@ out:
 	return result;
 }
 
-static struct packet *client_dbox_access_action(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_access_action(pid_t pid, int handle, const struct packet *packet)
 {
 	struct packet *result;
 	struct client_node *client;
@@ -4140,47 +4140,47 @@ static struct packet *client_dbox_access_action(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exist\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
 		/*!
 		 * Enen if it fails to send packet,
 		 * The packet will be unref'd
 		 * So we don't need to check the ret value.
 		 */
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, event.x, event.y, event.type);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_ACCESS_ACTION, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_ACTION, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4192,7 +4192,7 @@ out:
 	return result;
 }
 
-static struct packet *client_dbox_access_scroll(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_access_scroll(pid_t pid, int handle, const struct packet *packet)
 {
 	struct packet *result;
 	struct client_node *client;
@@ -4207,47 +4207,47 @@ static struct packet *client_dbox_access_scroll(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exist\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
 		/*!
 		 * Enen if it fails to send packet,
 		 * The packet will be unref'd
 		 * So we don't need to check the ret value.
 		 */
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, event.x, event.y, event.type);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_ACCESS_SCROLL, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_SCROLL, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4259,7 +4259,7 @@ out:
 	return result;
 }
 
-static struct packet *client_dbox_access_value_change(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_access_value_change(pid_t pid, int handle, const struct packet *packet)
 {
 	struct packet *result;
 	struct client_node *client;
@@ -4274,47 +4274,47 @@ static struct packet *client_dbox_access_value_change(pid_t pid, int handle, con
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exist\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
 		/*!
 		 * Enen if it fails to send packet,
 		 * The packet will be unref'd
 		 * So we don't need to check the ret value.
 		 */
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, event.x, event.y, event.type);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_ACCESS_VALUE_CHANGE, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_VALUE_CHANGE, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4326,7 +4326,7 @@ out:
 	return result;
 }
 
-static struct packet *client_dbox_access_mouse(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_access_mouse(pid_t pid, int handle, const struct packet *packet)
 {
 	struct packet *result;
 	struct client_node *client;
@@ -4341,47 +4341,47 @@ static struct packet *client_dbox_access_mouse(pid_t pid, int handle, const stru
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exist\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
 		/*!
 		 * Enen if it fails to send packet,
 		 * The packet will be unref'd
 		 * So we don't need to check the ret value.
 		 */
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, event.x, event.y, event.type);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_ACCESS_MOUSE, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_MOUSE, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4393,7 +4393,7 @@ out:
 	return result;
 }
 
-static struct packet *client_dbox_access_back(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_access_back(pid_t pid, int handle, const struct packet *packet)
 {
 	struct packet *result;
 	struct client_node *client;
@@ -4408,47 +4408,47 @@ static struct packet *client_dbox_access_back(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exist\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
 		/*!
 		 * Enen if it fails to send packet,
 		 * The packet will be unref'd
 		 * So we don't need to check the ret value.
 		 */
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, event.x, event.y, event.type);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_ACCESS_BACK, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_BACK, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4460,7 +4460,7 @@ out:
 	return result;
 }
 
-static struct packet *client_dbox_access_over(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_access_over(pid_t pid, int handle, const struct packet *packet)
 {
 	struct packet *result;
 	struct client_node *client;
@@ -4475,47 +4475,47 @@ static struct packet *client_dbox_access_over(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exist\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
 		/*!
 		 * Enen if it fails to send packet,
 		 * The packet will be unref'd
 		 * So we don't need to check the ret value.
 		 */
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, event.x, event.y, event.type);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_ACCESS_OVER, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_OVER, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4527,7 +4527,7 @@ out:
 	return result;
 }
 
-static struct packet *client_dbox_access_read(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_access_read(pid_t pid, int handle, const struct packet *packet)
 {
 	struct packet *result;
 	struct client_node *client;
@@ -4542,47 +4542,47 @@ static struct packet *client_dbox_access_read(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exist\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
 		/*!
 		 * Enen if it fails to send packet,
 		 * The packet will be unref'd
 		 * So we don't need to check the ret value.
 		 */
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, event.x, event.y, event.type);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_ACCESS_READ, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_READ, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4594,7 +4594,7 @@ out:
 	return result;
 }
 
-static struct packet *client_dbox_access_enable(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_access_enable(pid_t pid, int handle, const struct packet *packet)
 {
 	struct packet *result;
 	struct client_node *client;
@@ -4609,41 +4609,41 @@ static struct packet *client_dbox_access_enable(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exist\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
 		/*!
 		 * Enen if it fails to send packet,
 		 * The packet will be unref'd
 		 * So we don't need to check the ret value.
 		 */
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 		int type;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
-		type = (event.type == 0) ? DBOX_SCRIPT_ACCESS_DISABLE : DBOX_SCRIPT_ACCESS_ENABLE;
+		type = (event.type == 0) ? WIDGET_SCRIPT_ACCESS_DISABLE : WIDGET_SCRIPT_ACCESS_ENABLE;
 
 		script_handler_update_pointer(script, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, type, timestamp);
@@ -4652,7 +4652,7 @@ static struct packet *client_dbox_access_enable(pid_t pid, int handle, const str
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4664,7 +4664,7 @@ out:
 	return result;
 }
 
-static struct packet *client_dbox_access_activate(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_access_activate(pid_t pid, int handle, const struct packet *packet)
 {
 	struct packet *result;
 	struct client_node *client;
@@ -4679,42 +4679,42 @@ static struct packet *client_dbox_access_activate(pid_t pid, int handle, const s
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_access_packet(pkg, inst, packet_command(packet), timestamp, &event);
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_pointer(script, event.x, event.y, event.type);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_ACCESS_ACTIVATE, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_ACTIVATE, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4726,7 +4726,7 @@ out:
 	return result;
 }
 
-static struct packet *client_dbox_key_down(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_key_down(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
 	const char *pkgname;
@@ -4741,41 +4741,41 @@ static struct packet *client_dbox_key_down(pid_t pid, int handle, const struct p
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_keycode(script, keycode);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_KEY_DOWN, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_KEY_DOWN, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_key_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4787,7 +4787,7 @@ out:
 	return result;
 }
 
-static struct packet *client_dbox_key_focus_in(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_key_focus_in(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
 	const char *pkgname;
@@ -4802,41 +4802,41 @@ static struct packet *client_dbox_key_focus_in(pid_t pid, int handle, const stru
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_keycode(script, keycode);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_KEY_FOCUS_IN, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_KEY_FOCUS_IN, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_key_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4848,7 +4848,7 @@ out:
 	return result;
 }
 
-static struct packet *client_dbox_key_focus_out(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_key_focus_out(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
 	const char *pkgname;
@@ -4863,41 +4863,41 @@ static struct packet *client_dbox_key_focus_out(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_keycode(script, keycode);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_KEY_FOCUS_OUT, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_KEY_FOCUS_OUT, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_key_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4909,7 +4909,7 @@ out:
 	return result;
 }
 
-static struct packet *client_dbox_key_up(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_key_up(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
 	const char *pkgname;
@@ -4924,41 +4924,41 @@ static struct packet *client_dbox_key_up(pid_t pid, int handle, const struct pac
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = forward_dbox_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
-	} else if (package_dbox_type(pkg) == DBOX_TYPE_SCRIPT) {
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = forward_widget_key_packet(pkg, inst, packet_command(packet), timestamp, keycode);
+	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		struct script_info *script;
 
-		script = instance_dbox_script(inst);
+		script = instance_widget_script(inst);
 		if (!script) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		script_handler_update_keycode(script, keycode);
-		ret = script_handler_feed_event(script, DBOX_SCRIPT_KEY_UP, timestamp);
+		ret = script_handler_feed_event(script, WIDGET_SCRIPT_KEY_UP, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_key_status(inst, ret);
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4977,7 +4977,7 @@ static int release_pixmap_cb(struct client_node *client, void *canvas)
 	return -1; /* Delete this callback */
 }
 
-static struct packet *client_dbox_acquire_xpixmap(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+static struct packet *client_widget_acquire_xpixmap(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct packet *result;
 	const char *pkgname;
@@ -4993,29 +4993,29 @@ static struct packet *client_dbox_acquire_xpixmap(pid_t pid, int handle, const s
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssi", &pkgname, &id, &idx);
 	if (ret != 3) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
-	if (idx >= DYNAMICBOX_CONF_EXTRA_BUFFER_COUNT || idx < 0) {
+	if (idx >= WIDGET_CONF_EXTRA_BUFFER_COUNT || idx < 0) {
 		DbgPrint("Index is not valid: %d\n", idx);
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	buffer = instance_dbox_extra_buffer(inst, idx);
+	buffer = instance_widget_extra_buffer(inst, idx);
 	if (!buffer) {
 		ErrPrint("Extra buffer for %d is not available\n", idx);
 		goto out;
@@ -5024,7 +5024,7 @@ static struct packet *client_dbox_acquire_xpixmap(pid_t pid, int handle, const s
 	buf_ptr = buffer_handler_pixmap_ref(buffer);
 	if (!buf_ptr) {
 		ErrPrint("Failed to ref pixmap\n");
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
@@ -5034,7 +5034,7 @@ static struct packet *client_dbox_acquire_xpixmap(pid_t pid, int handle, const s
 		buffer_handler_pixmap_unref(buf_ptr);
 	} else {
 		pixmap = buffer_handler_pixmap(buffer);
-		ret = DBOX_STATUS_ERROR_NONE;
+		ret = WIDGET_STATUS_ERROR_NONE;
 	}
 
 out:
@@ -5046,7 +5046,7 @@ out:
 	return result;
 }
 
-static struct packet *client_dbox_acquire_pixmap(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+static struct packet *client_widget_acquire_pixmap(pid_t pid, int handle, const struct packet *packet) /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 {
 	struct packet *result;
 	const char *pkgname;
@@ -5061,37 +5061,37 @@ static struct packet *client_dbox_acquire_pixmap(pid_t pid, int handle, const st
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ss", &pkgname, &id);
 	if (ret != 2) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	buffer = instance_dbox_buffer(inst);
+	buffer = instance_widget_buffer(inst);
 	if (!buffer) {
 		struct script_info *script_info;
 
-		script_info = instance_dbox_script(inst);
+		script_info = instance_widget_script(inst);
 		if (!script_info) {
-			ErrPrint("Unable to get DBOX buffer: %s\n", id);
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ErrPrint("Unable to get WIDGET buffer: %s\n", id);
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		buffer = script_handler_buffer_info(script_info);
 		if (!buffer) {
 			ErrPrint("Unable to get buffer_info: %s\n", id);
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 	}
@@ -5099,7 +5099,7 @@ static struct packet *client_dbox_acquire_pixmap(pid_t pid, int handle, const st
 	buf_ptr = buffer_handler_pixmap_ref(buffer);
 	if (!buf_ptr) {
 		ErrPrint("Failed to ref pixmap\n");
-		ret = DBOX_STATUS_ERROR_FAULT;
+		ret = WIDGET_STATUS_ERROR_FAULT;
 		goto out;
 	}
 
@@ -5109,7 +5109,7 @@ static struct packet *client_dbox_acquire_pixmap(pid_t pid, int handle, const st
 		buffer_handler_pixmap_unref(buf_ptr);
 	} else {
 		pixmap = buffer_handler_pixmap(buffer);
-		ret = DBOX_STATUS_ERROR_NONE;
+		ret = WIDGET_STATUS_ERROR_NONE;
 	}
 
 out:
@@ -5121,7 +5121,7 @@ out:
 	return result;
 }
 
-static struct packet *client_dbox_release_pixmap(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_widget_release_pixmap(pid_t pid, int handle, const struct packet *packet)
 {
 	const char *pkgname;
 	const char *id;
@@ -5143,7 +5143,7 @@ static struct packet *client_dbox_release_pixmap(pid_t pid, int handle, const st
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, NULL, NULL);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		DbgPrint("It seems that the instance is already deleted: %s\n", id);
 	}
 
@@ -5179,38 +5179,38 @@ static struct packet *client_gbar_acquire_xpixmap(pid_t pid, int handle, const s
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		ErrPrint("Client %d is not exists\n", pid);
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssi", &pkgname, &id, &idx);
 	if (ret != 3) {
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		ErrPrint("Parameter is not matched\n");
 		goto out;
 	}
 
-	if (idx >= DYNAMICBOX_CONF_EXTRA_BUFFER_COUNT || idx < 0) {
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	if (idx >= WIDGET_CONF_EXTRA_BUFFER_COUNT || idx < 0) {
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
 	buffer = instance_gbar_extra_buffer(inst, idx);
 	if (!buffer) {
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	buf_ptr = buffer_handler_pixmap_ref(buffer);
 	if (!buf_ptr) {
 		ErrPrint("Failed to ref pixmap\n");
-		ret = DBOX_STATUS_ERROR_FAULT;
+		ret = WIDGET_STATUS_ERROR_FAULT;
 		goto out;
 	}
 
@@ -5220,7 +5220,7 @@ static struct packet *client_gbar_acquire_xpixmap(pid_t pid, int handle, const s
 		buffer_handler_pixmap_unref(buf_ptr);
 	} else {
 		pixmap = buffer_handler_pixmap(buffer);
-		ret = DBOX_STATUS_ERROR_NONE;
+		ret = WIDGET_STATUS_ERROR_NONE;
 	}
 
 out:
@@ -5246,25 +5246,25 @@ static struct packet *client_gbar_acquire_pixmap(pid_t pid, int handle, const st
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		ErrPrint("Client %d is not exists\n", pid);
 		goto out;
 	}
 
 	ret = packet_get(packet, "ss", &pkgname, &id);
 	if (ret != 2) {
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		ErrPrint("Parameter is not matched\n");
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
 	if (instance_get_data(inst, GBAR_RESIZE_MONITOR_TAG)) {
-		ret = DBOX_STATUS_ERROR_BUSY;
+		ret = WIDGET_STATUS_ERROR_BUSY;
 		goto out;
 	}
 
@@ -5274,15 +5274,15 @@ static struct packet *client_gbar_acquire_pixmap(pid_t pid, int handle, const st
 
 		script_info = instance_gbar_script(inst);
 		if (!script_info) {
-			ErrPrint("Unable to get DBOX buffer: %s\n", id);
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ErrPrint("Unable to get WIDGET buffer: %s\n", id);
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 
 		buffer = script_handler_buffer_info(script_info);
 		if (!buffer) {
 			ErrPrint("Unable to get buffer_info: %s\n", id);
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 			goto out;
 		}
 	}
@@ -5290,7 +5290,7 @@ static struct packet *client_gbar_acquire_pixmap(pid_t pid, int handle, const st
 	buf_ptr = buffer_handler_pixmap_ref(buffer);
 	if (!buf_ptr) {
 		ErrPrint("Failed to ref pixmap\n");
-		ret = DBOX_STATUS_ERROR_FAULT;
+		ret = WIDGET_STATUS_ERROR_FAULT;
 		goto out;
 	}
 
@@ -5300,7 +5300,7 @@ static struct packet *client_gbar_acquire_pixmap(pid_t pid, int handle, const st
 		buffer_handler_pixmap_unref(buf_ptr);
 	} else {
 		pixmap = buffer_handler_pixmap(buffer);
-		ret = DBOX_STATUS_ERROR_NONE;
+		ret = WIDGET_STATUS_ERROR_NONE;
 	}
 
 out:
@@ -5334,7 +5334,7 @@ static struct packet *client_gbar_release_pixmap(pid_t pid, int handle, const st
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, NULL, NULL);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		DbgPrint("It seems that the instance is already deleted: %s\n", id);
 	}
 
@@ -5366,7 +5366,7 @@ static struct packet *client_pinup_changed(pid_t pid, int handle, const struct p
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		pinup = 0;
 		goto out;
 	}
@@ -5374,13 +5374,13 @@ static struct packet *client_pinup_changed(pid_t pid, int handle, const struct p
 	ret = packet_get(packet, "ssi", &pkgname, &id, &pinup);
 	if (ret != 3) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		pinup = 0;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 		ret = instance_set_pinup(inst, pinup);
 	}
 
@@ -5418,7 +5418,7 @@ static Eina_Bool lazy_gbar_created_cb(void *inst)
 	 */
 	if (instance_unref(inst)) {
 		int ret;
-		ret = instance_client_gbar_created(inst, DBOX_STATUS_ERROR_NONE);
+		ret = instance_client_gbar_created(inst, WIDGET_STATUS_ERROR_NONE);
 		if (ret < 0) {
 			DbgPrint("Send GBAR Create event (%d) to client\n", ret);
 		}
@@ -5457,7 +5457,7 @@ static Eina_Bool lazy_gbar_destroyed_cb(void *inst)
 		/*!
 		 * If the instance is not deleted, we should send pd-destroy event from here.
 		 */
-		ret = instance_client_gbar_destroyed(inst, DBOX_STATUS_ERROR_NONE);
+		ret = instance_client_gbar_destroyed(inst, WIDGET_STATUS_ERROR_NONE);
 		if (ret < 0) {
 			ErrPrint("Failed sending GBAR Destroy event (%d)\n", ret);
 		}
@@ -5480,19 +5480,19 @@ static struct packet *client_gbar_move(pid_t pid, int handle, const struct packe
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdd", &pkgname, &id, &x, &y);
 	if (ret != 4) {
 		ErrPrint("Parameter is not correct\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -5510,7 +5510,7 @@ static struct packet *client_gbar_move(pid_t pid, int handle, const struct packe
 		ret = instance_signal_emit(inst, "pd,move", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
 	} else {
 		ErrPrint("Invalid GBAR type\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 out:
 	DbgPrint("Update GBAR position: %d\n", ret);
@@ -5531,11 +5531,11 @@ static Eina_Bool gbar_open_monitor_cb(void *inst)
 		}
 	}
 
-	(void)instance_slave_close_gbar(inst, instance_gbar_owner(inst), DBOX_CLOSE_GBAR_TIMEOUT);
-	(void)instance_client_gbar_created(inst, DBOX_STATUS_ERROR_TIMEOUT);
+	(void)instance_slave_close_gbar(inst, instance_gbar_owner(inst), WIDGET_CLOSE_GBAR_TIMEOUT);
+	(void)instance_client_gbar_created(inst, WIDGET_STATUS_ERROR_TIMEOUT);
 	(void)instance_del_data(inst, GBAR_OPEN_MONITOR_TAG);
 	(void)instance_unref(inst);
-	ErrPrint("GBAR Open request is timed-out (%lf)\n", DYNAMICBOX_CONF_GBAR_REQUEST_TIMEOUT);
+	ErrPrint("GBAR Open request is timed-out (%lf)\n", WIDGET_CONF_GBAR_REQUEST_TIMEOUT);
 	return ECORE_CALLBACK_CANCEL;
 }
 
@@ -5553,10 +5553,10 @@ static Eina_Bool gbar_close_monitor_cb(void *inst)
 		}
 	}
 
-	(void)instance_client_gbar_destroyed(inst, DBOX_STATUS_ERROR_TIMEOUT);
+	(void)instance_client_gbar_destroyed(inst, WIDGET_STATUS_ERROR_TIMEOUT);
 	(void)instance_del_data(inst, GBAR_CLOSE_MONITOR_TAG);
 	(void)instance_unref(inst);
-	ErrPrint("GBAR Close request is not processed in %lf seconds\n", DYNAMICBOX_CONF_GBAR_REQUEST_TIMEOUT);
+	ErrPrint("GBAR Close request is not processed in %lf seconds\n", WIDGET_CONF_GBAR_REQUEST_TIMEOUT);
 	return ECORE_CALLBACK_CANCEL;
 }
 
@@ -5573,11 +5573,11 @@ static Eina_Bool gbar_resize_monitor_cb(void *inst)
 		}
 	}
 
-	(void)instance_slave_close_gbar(inst, instance_gbar_owner(inst), DBOX_CLOSE_GBAR_TIMEOUT);
-	(void)instance_client_gbar_destroyed(inst, DBOX_STATUS_ERROR_TIMEOUT);
+	(void)instance_slave_close_gbar(inst, instance_gbar_owner(inst), WIDGET_CLOSE_GBAR_TIMEOUT);
+	(void)instance_client_gbar_destroyed(inst, WIDGET_STATUS_ERROR_TIMEOUT);
 	(void)instance_del_data(inst, GBAR_RESIZE_MONITOR_TAG);
 	(void)instance_unref(inst);
-	ErrPrint("GBAR Resize request is not processed in %lf seconds\n", DYNAMICBOX_CONF_GBAR_REQUEST_TIMEOUT);
+	ErrPrint("GBAR Resize request is not processed in %lf seconds\n", WIDGET_CONF_GBAR_REQUEST_TIMEOUT);
 	return ECORE_CALLBACK_CANCEL;
 }
 
@@ -5594,30 +5594,30 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 	double x;
 	double y;
 
-	DbgPrint("PERF_DBOX\n");
+	DbgPrint("PERF_WIDGET\n");
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdd", &pkgname, &id, &x, &y);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
 	if (instance_gbar_owner(inst)) {
 		ErrPrint("GBAR is already owned\n");
-		ret = DBOX_STATUS_ERROR_ALREADY;
+		ret = WIDGET_STATUS_ERROR_ALREADY;
 	} else if (package_gbar_type(instance_package(inst)) == GBAR_TYPE_BUFFER) {
 		gbar_monitor = instance_get_data(inst, LAZY_GBAR_CLOSE_TAG);
 		if (gbar_monitor) {
@@ -5628,19 +5628,19 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 
 		if (instance_get_data(inst, GBAR_OPEN_MONITOR_TAG)) {
 			DbgPrint("GBAR Open request is already processed\n");
-			ret = DBOX_STATUS_ERROR_ALREADY;
+			ret = WIDGET_STATUS_ERROR_ALREADY;
 			goto out;
 		}
 
 		if (instance_get_data(inst, GBAR_CLOSE_MONITOR_TAG)) {
 			DbgPrint("GBAR Close request is already in process\n");
-			ret = DBOX_STATUS_ERROR_BUSY;
+			ret = WIDGET_STATUS_ERROR_BUSY;
 			goto out;
 		}
 
 		if (instance_get_data(inst, GBAR_RESIZE_MONITOR_TAG)) {
 			DbgPrint("GBAR resize request is already in process\n");
-			ret = DBOX_STATUS_ERROR_BUSY;
+			ret = WIDGET_STATUS_ERROR_BUSY;
 			goto out;
 		}
 
@@ -5651,17 +5651,17 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 		 * The SLAVE must has to repsonse this via "release_buffer" method.
 		 */
 		ret = instance_slave_open_gbar(inst, client);
-		if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+		if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 			ret = instance_signal_emit(inst, "gbar,show", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
-			if (ret != DBOX_STATUS_ERROR_NONE) {
+			if (ret != WIDGET_STATUS_ERROR_NONE) {
 				int tmp_ret;
 
-				tmp_ret = instance_slave_close_gbar(inst, client, DBOX_CLOSE_GBAR_FAULT);
+				tmp_ret = instance_slave_close_gbar(inst, client, WIDGET_CLOSE_GBAR_FAULT);
 				if (tmp_ret < 0) {
 					ErrPrint("Unable to send script event for openning GBAR [%s], %d\n", pkgname, tmp_ret);
 				}
 			} else {
-				gbar_monitor = ecore_timer_add(DYNAMICBOX_CONF_GBAR_REQUEST_TIMEOUT, gbar_open_monitor_cb, instance_ref(inst));
+				gbar_monitor = ecore_timer_add(WIDGET_CONF_GBAR_REQUEST_TIMEOUT, gbar_open_monitor_cb, instance_ref(inst));
 				if (!gbar_monitor) {
 					(void)instance_unref(inst);
 					ErrPrint("Failed to create a timer for GBAR Open monitor\n");
@@ -5676,7 +5676,7 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 						goto out;
 					}
 
-					if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_open_buffer_cb, inst) != DBOX_STATUS_ERROR_NONE) {
+					if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_open_buffer_cb, inst) != WIDGET_STATUS_ERROR_NONE) {
 						ErrPrint("Failed to add fault handler: %s\n");
 					}
 				}
@@ -5720,14 +5720,14 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 		script_handler_update_pointer(instance_gbar_script(inst), ix, iy, 0);
 
 		ret = instance_slave_open_gbar(inst, client);
-		if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+		if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 			ret = script_handler_load(instance_gbar_script(inst), 1);
 
 			/*!
 			 * \note
 			 * Send the GBAR created event to the clients,
 			 */
-			if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+			if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 
 				/*!
 				 * \note
@@ -5754,7 +5754,7 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 					ret = script_handler_unload(instance_gbar_script(inst), 1);
 					ErrPrint("Unload script: %d\n", ret);
 
-					ret = instance_slave_close_gbar(inst, client, DBOX_CLOSE_GBAR_NORMAL);
+					ret = instance_slave_close_gbar(inst, client, WIDGET_CLOSE_GBAR_NORMAL);
 					ErrPrint("Close GBAR %d\n", ret);
 
 					inst = instance_unref(inst);
@@ -5764,7 +5764,7 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 
 					ErrPrint("Instance: %s\n", pkgname);
 
-					ret = DBOX_STATUS_ERROR_FAULT;
+					ret = WIDGET_STATUS_ERROR_FAULT;
 				} else {
 					struct slave_node *slave;
 
@@ -5776,13 +5776,13 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 						goto out;
 					}
 
-					if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_open_script_cb, inst) != DBOX_STATUS_ERROR_NONE) {
+					if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_open_script_cb, inst) != WIDGET_STATUS_ERROR_NONE) {
 						ErrPrint("Failed to add fault callback: %s\n", pkgname);
 					}
 				}
 			} else {
 				int tmp_ret;
-				tmp_ret = instance_slave_close_gbar(inst, client, DBOX_CLOSE_GBAR_FAULT);
+				tmp_ret = instance_slave_close_gbar(inst, client, WIDGET_CLOSE_GBAR_FAULT);
 				if (tmp_ret < 0) {
 					ErrPrint("Unable to load script: %d, (close: %d)\n", ret, tmp_ret);
 				}
@@ -5792,7 +5792,7 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 		}
 	} else {
 		ErrPrint("Invalid GBAR TYPE\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -5816,40 +5816,40 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 	Ecore_Timer *gbar_monitor;
 	struct slave_node *slave;
 
-	DbgPrint("PERF_DBOX\n");
+	DbgPrint("PERF_WIDGET\n");
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ss", &pkgname, &id);
 	if (ret != 2) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	if (instance_gbar_owner(inst) != client) {
 		if (instance_gbar_owner(inst) == NULL) {
 			ErrPrint("GBAR looks already closed\n");
-			ret = DBOX_STATUS_ERROR_ALREADY;
+			ret = WIDGET_STATUS_ERROR_ALREADY;
 		} else {
 			ErrPrint("GBAR owner mimatched\n");
-			ret = DBOX_STATUS_ERROR_PERMISSION_DENIED;
+			ret = WIDGET_STATUS_ERROR_PERMISSION_DENIED;
 		}
 	} else if (package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
 		DbgPrint("Buffer type GBAR\n");
@@ -5869,12 +5869,12 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 			 * The client will permanently waiting destroyed event.
 			 * Because they understand that the destroy request is successfully processed.
 			 */
-			ret = instance_client_gbar_created(inst, DBOX_STATUS_ERROR_CANCEL);
+			ret = instance_client_gbar_created(inst, WIDGET_STATUS_ERROR_CANCEL);
 			if (ret < 0) {
 				ErrPrint("GBAR client create event: %d\n", ret);
 			}
 
-			ret = instance_client_gbar_destroyed(inst, DBOX_STATUS_ERROR_NONE);
+			ret = instance_client_gbar_destroyed(inst, WIDGET_STATUS_ERROR_NONE);
 			if (ret < 0) {
 				ErrPrint("GBAR client destroy event: %d\n", ret);
 			}
@@ -5884,7 +5884,7 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 				ErrPrint("GBAR close signal emit failed: %d\n", ret);
 			}
 
-			ret = instance_slave_close_gbar(inst, client, DBOX_CLOSE_GBAR_NORMAL);
+			ret = instance_slave_close_gbar(inst, client, WIDGET_CLOSE_GBAR_NORMAL);
 			if (ret < 0) {
 				ErrPrint("GBAR close request failed: %d\n", ret);
 			}
@@ -5896,7 +5896,7 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 			}
 		} else if (instance_get_data(inst, LAZY_GBAR_CLOSE_TAG) || instance_get_data(inst, GBAR_CLOSE_MONITOR_TAG)) {
 			DbgPrint("Close monitor is already fired\n");
-			ret = DBOX_STATUS_ERROR_ALREADY;
+			ret = WIDGET_STATUS_ERROR_ALREADY;
 		} else {
 			int resize_aborted = 0;
 
@@ -5923,7 +5923,7 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 				ErrPrint("GBAR close signal emit failed: %d\n", ret);
 			}
 
-			ret = instance_slave_close_gbar(inst, client, DBOX_CLOSE_GBAR_NORMAL);
+			ret = instance_slave_close_gbar(inst, client, WIDGET_CLOSE_GBAR_NORMAL);
 			if (ret < 0) {
 				ErrPrint("GBAR close request failed: %d\n", ret);
 			} else if (resize_aborted) {
@@ -5942,7 +5942,7 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 					}
 				}
 			} else {
-				gbar_monitor = ecore_timer_add(DYNAMICBOX_CONF_GBAR_REQUEST_TIMEOUT, gbar_close_monitor_cb, instance_ref(inst));
+				gbar_monitor = ecore_timer_add(WIDGET_CONF_GBAR_REQUEST_TIMEOUT, gbar_close_monitor_cb, instance_ref(inst));
 				if (!gbar_monitor) {
 					ErrPrint("Failed to add pd close monitor\n");
 					inst = instance_unref(inst);
@@ -5963,7 +5963,7 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 			 * release_buffer will be called by the slave after this routine.
 			 * It will send the "gbar_destroyed" event to the client
 			 *
-			 * instance_client_gbar_destroyed(inst, DBOX_STATUS_ERROR_NONE);
+			 * instance_client_gbar_destroyed(inst, WIDGET_STATUS_ERROR_NONE);
 			 *
 			 * Or the "gbar_close_monitor_cb" or "lazy_gbar_destroyed_cb" will be called.
 			 */
@@ -5986,7 +5986,7 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 		 * Send request to the slave.
 		 * The SLAVE must has to repsonse this via "release_buffer" method.
 		 */
-		ret = instance_slave_close_gbar(inst, client, DBOX_CLOSE_GBAR_NORMAL);
+		ret = instance_slave_close_gbar(inst, client, WIDGET_CLOSE_GBAR_NORMAL);
 		if (ret < 0) {
 			ErrPrint("Unable to close the GBAR: %s, %d\n", pkgname, ret);
 		}
@@ -5995,7 +5995,7 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 		 * \note
 		 * Send the destroyed GBAR event to the client
 		 */
-		if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+		if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 			/*!
 			 * \note
 			 * 13-05-28
@@ -6020,7 +6020,7 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 		}
 	} else {
 		ErrPrint("Invalid GBAR TYPE\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -6043,7 +6043,7 @@ static struct packet *client_activate_package(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		pkgname = "";
 		goto out;
 	}
@@ -6051,7 +6051,7 @@ static struct packet *client_activate_package(pid_t pid, int handle, const struc
 	ret = packet_get(packet, "s", &pkgname);
 	if (ret != 1) {
 		ErrPrint("Parameter is not matched\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		pkgname = "";
 		goto out;
 	}
@@ -6060,18 +6060,18 @@ static struct packet *client_activate_package(pid_t pid, int handle, const struc
 
 	/*!
 	 * \NOTE:
-	 * Validate the dynamicbox package name.
+	 * Validate the widget package name.
 	 */
-	if (!package_is_dbox_pkgname(pkgname)) {
-		ErrPrint("%s is not a valid dynamicbox package\n", pkgname);
+	if (!package_is_widget_pkgname(pkgname)) {
+		ErrPrint("%s is not a valid widget package\n", pkgname);
 		pkgname = "";
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	info = package_find(pkgname);
 	if (!info) {
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 	} else {
 		ret = package_clear_fault(info);
 	}
@@ -6095,19 +6095,19 @@ static struct packet *client_subscribed_group(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ss", &cluster, &category);
 	if (ret != 2) {
 		ErrPrint("Invalid argument\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	DbgPrint("[%d] cluster[%s] category[%s]\n", pid, cluster, category);
-	if (!strlen(cluster) || !strcasecmp(cluster, DYNAMICBOX_CONF_DEFAULT_CLUSTER)) {
+	if (!strlen(cluster) || !strcasecmp(cluster, WIDGET_CONF_DEFAULT_CLUSTER)) {
 		ErrPrint("Invalid cluster name\n");
 		goto out;
 	}
@@ -6136,29 +6136,29 @@ static struct packet *client_delete_cluster(pid_t pid, int handle, const struct 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "s", &cluster);
 	if (ret != 1) {
 		ErrPrint("Invalid parameters\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	DbgPrint("pid[%d] cluster[%s]\n", pid, cluster);
 
-	if (!strlen(cluster) || !strcasecmp(cluster, DYNAMICBOX_CONF_DEFAULT_CLUSTER)) {
+	if (!strlen(cluster) || !strcasecmp(cluster, WIDGET_CONF_DEFAULT_CLUSTER)) {
 		ErrPrint("Invalid cluster: %s\n", cluster);
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	/*!
 	 * \todo
 	 */
-	ret = DBOX_STATUS_ERROR_NOT_IMPLEMENTED;
+	ret = WIDGET_STATUS_ERROR_NOT_IMPLEMENTED;
 
 out:
 	result = packet_create_reply(packet, "i", ret);
@@ -6186,7 +6186,7 @@ static inline int update_pkg_cb(struct category *category, const char *pkgname, 
 	slave_rpc_request_update(pkgname, "", c_name, s_name, NULL, force);
 
 	/* Just try to create a new package */
-	if (util_free_space(DYNAMICBOX_CONF_IMAGE_PATH) > DYNAMICBOX_CONF_MINIMUM_SPACE) {
+	if (util_free_space(WIDGET_CONF_IMAGE_PATH) > WIDGET_CONF_MINIMUM_SPACE) {
 		double timestamp;
 		struct inst_info *inst;
 
@@ -6197,7 +6197,7 @@ static inline int update_pkg_cb(struct category *category, const char *pkgname, 
 		 * Because this callback is called by the requests of clients.
 		 * It means. some clients wants to handle this instances ;)
 		 */
-		inst = instance_create(NULL, timestamp, pkgname, "", c_name, s_name, DYNAMICBOX_CONF_DEFAULT_PERIOD, 0, 0);
+		inst = instance_create(NULL, timestamp, pkgname, "", c_name, s_name, WIDGET_CONF_DEFAULT_PERIOD, 0, 0);
 		if (!inst) {
 			ErrPrint("Failed to create a new instance\n");
 		}
@@ -6228,7 +6228,7 @@ static struct packet *client_update(pid_t pid, int handle, const struct packet *
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -6271,7 +6271,7 @@ static struct packet *client_refresh_group(pid_t pid, int handle, const struct p
 
 	DbgPrint("[%d] cluster[%s] category[%s]\n", pid, cluster_id, category_id);
 
-	if (!strlen(cluster_id) || !strcasecmp(cluster_id, DYNAMICBOX_CONF_DEFAULT_CLUSTER)) {
+	if (!strlen(cluster_id) || !strcasecmp(cluster_id, WIDGET_CONF_DEFAULT_CLUSTER)) {
 		ErrPrint("Invalid cluster name: %s\n", cluster_id);
 		goto out;
 	}
@@ -6309,28 +6309,28 @@ static struct packet *client_delete_category(pid_t pid, int handle, const struct
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ss", &cluster, &category);
 	if (ret != 2) {
 		ErrPrint("Invalid paramenters\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	DbgPrint("pid[%d] cluster[%s] category[%s]\n", pid, cluster, category);
-	if (!strlen(cluster) || !strcasecmp(cluster, DYNAMICBOX_CONF_DEFAULT_CLUSTER)) {
+	if (!strlen(cluster) || !strcasecmp(cluster, WIDGET_CONF_DEFAULT_CLUSTER)) {
 		ErrPrint("Invalid cluster: %s\n", cluster);
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	/*!
 	 * \todo
 	 */
-	ret = DBOX_STATUS_ERROR_NOT_IMPLEMENTED;
+	ret = WIDGET_STATUS_ERROR_NOT_IMPLEMENTED;
 
 out:
 	result = packet_create_reply(packet, "i", ret);
@@ -6351,20 +6351,20 @@ static struct packet *client_unsubscribed_group(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ss", &cluster, &category);
 	if (ret != 2) {
 		ErrPrint("Invalid argument\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	DbgPrint("[%d] cluster[%s] category[%s]\n", pid, cluster, category);
 
-	if (!strlen(cluster) || !strcasecmp(cluster, DYNAMICBOX_CONF_DEFAULT_CLUSTER)) {
+	if (!strlen(cluster) || !strcasecmp(cluster, WIDGET_CONF_DEFAULT_CLUSTER)) {
 		ErrPrint("Invalid cluster name: %s\n", cluster);
 		goto out;
 	}
@@ -6392,14 +6392,14 @@ static struct packet *client_subscribed_category(pid_t pid, int handle, const st
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "s", &category);
 	if (ret != 1) {
 		ErrPrint("Invalid argument\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -6411,11 +6411,11 @@ static struct packet *client_subscribed_category(pid_t pid, int handle, const st
 
 	/*!
 	 * \TODO
-	 * 1. Get a list of created dynamicbox instances which are categorized by given "category"
+	 * 1. Get a list of created widget instances which are categorized by given "category"
 	 * 2. Send created events to the client.
 	 * 3. Add this client to "client_only_view_list"
 	 */
-	if (client_subscribe_category(client, category) == DBOX_STATUS_ERROR_NONE) {
+	if (client_subscribe_category(client, category) == WIDGET_STATUS_ERROR_NONE) {
 		package_alter_instances_to_client(client, ALTER_CREATE);
 	}
 
@@ -6433,14 +6433,14 @@ static struct packet *client_unsubscribed_category(pid_t pid, int handle, const 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "s", &category);
 	if (ret != 1) {
 		ErrPrint("Invalid argument\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -6453,11 +6453,11 @@ static struct packet *client_unsubscribed_category(pid_t pid, int handle, const 
 	/*!
 	 * \TODO
 	 * 0. Is this client subscribed to given "category"?
-	 * 1. Get a list of created dynamicbox instances
+	 * 1. Get a list of created widget instances
 	 * 2. and then send destroyed event to this client.
 	 * 3. Remove this client from the "client_only_view_list"
 	 */
-	if (client_unsubscribe_category(client, category) == DBOX_STATUS_ERROR_NONE) {
+	if (client_unsubscribe_category(client, category) == WIDGET_STATUS_ERROR_NONE) {
 		package_alter_instances_to_client(client, ALTER_DESTROY);
 	}
 
@@ -6500,7 +6500,7 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 			goto out;
 		}
 
-		if (DYNAMICBOX_CONF_DEBUG_MODE || g_conf.debug_mode) {
+		if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
 			slave = slave_find_by_pkgname(pkgname);
 			if (!slave) {
 				slave = slave_create(slavename, secured, abi, pkgname, 0, acceleration);
@@ -6517,17 +6517,17 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 			slave_set_pid(slave, pid);
 			DbgPrint("Provider is forcely activated, pkgname(%s), abi(%s), slavename(%s)\n", pkgname, abi, slavename);
 		} else {
-			char *dbox_id;
+			char *widget_id;
 			struct pkg_info *info;
 			int network;
 
-			dbox_id = is_valid_slave(pid, abi, pkgname);
-			if (!dbox_id) {
+			widget_id = is_valid_slave(pid, abi, pkgname);
+			if (!widget_id) {
 				goto out;
 			}
 
-			info = package_find(dbox_id);
-			DbgFree(dbox_id);
+			info = package_find(widget_id);
+			DbgFree(widget_id);
 
 			if (!info) {
 				DbgPrint("There is no loaded package information\n");
@@ -6558,7 +6558,7 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 					goto out;
 				}
 
-				if (util_string_is_in_list(category, DYNAMICBOX_CONF_CATEGORY_LIST) == 0) {
+				if (util_string_is_in_list(category, WIDGET_CONF_CATEGORY_LIST) == 0) {
 					DbgPrint("%s category (%s)\n", pkgname, category);
 					goto out;
 				}
@@ -6682,7 +6682,7 @@ out:
 	return NULL;
 }
 
-static struct packet *slave_dbox_update_begin(pid_t pid, int handle, const struct packet *packet)
+static struct packet *slave_widget_update_begin(pid_t pid, int handle, const struct packet *packet)
 {
 	struct slave_node *slave;
 	struct inst_info *inst;
@@ -6707,7 +6707,7 @@ static struct packet *slave_dbox_update_begin(pid_t pid, int handle, const struc
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -6716,9 +6716,9 @@ static struct packet *slave_dbox_update_begin(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = instance_dbox_update_begin(inst, priority, content, title);
-		if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = instance_widget_update_begin(inst, priority, content, title);
+		if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 			slave_freeze_ttl(slave);
 		}
 	} else {
@@ -6729,7 +6729,7 @@ out:
 	return NULL;
 }
 
-static struct packet *slave_dbox_update_end(pid_t pid, int handle, const struct packet *packet)
+static struct packet *slave_widget_update_end(pid_t pid, int handle, const struct packet *packet)
 {
 	struct slave_node *slave;
 	struct inst_info *inst;
@@ -6751,7 +6751,7 @@ static struct packet *slave_dbox_update_end(pid_t pid, int handle, const struct 
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -6760,9 +6760,9 @@ static struct packet *slave_dbox_update_end(pid_t pid, int handle, const struct 
 		goto out;
 	}
 
-	if (package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		ret = instance_dbox_update_end(inst);
-		if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		ret = instance_widget_update_end(inst);
+		if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 			slave_thaw_ttl(slave);
 		}
 	} else {
@@ -6795,7 +6795,7 @@ static struct packet *slave_gbar_update_begin(pid_t pid, int handle, const struc
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -6836,7 +6836,7 @@ static struct packet *slave_key_status(pid_t pid, int handle, const struct packe
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
-	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
 		} else {
@@ -6870,7 +6870,7 @@ static struct packet *slave_access_status(pid_t pid, int handle, const struct pa
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
-	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
 		} else {
@@ -6904,7 +6904,7 @@ static struct packet *slave_close_gbar(pid_t pid, int handle, const struct packe
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
-	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
 		} else {
@@ -6938,7 +6938,7 @@ static struct packet *slave_gbar_update_end(pid_t pid, int handle, const struct 
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -7037,13 +7037,13 @@ static struct packet *slave_extra_info(pid_t pid, int handle, const struct packe
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
-	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
 			goto out;
 		}
 
-		instance_set_dbox_info(inst, priority, content_info, title);
+		instance_set_widget_info(inst, priority, content_info, title);
 		instance_set_alt_info(inst, icon, name);
 		instance_extra_info_updated_by_instance(inst);
 		slave_give_more_ttl(slave);
@@ -7079,15 +7079,15 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
-	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
 			goto out;
 		}
 
-		switch (package_dbox_type(instance_package(inst))) {
-		case DBOX_TYPE_SCRIPT:
-			script_handler_resize(instance_dbox_script(inst), w, h);
+		switch (package_widget_type(instance_package(inst))) {
+		case WIDGET_TYPE_SCRIPT:
+			script_handler_resize(instance_widget_script(inst), w, h);
 			if (safe_filename) {
 				(void)script_handler_parse_desc(inst, safe_filename, 0);
 			} else {
@@ -7099,13 +7099,13 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 				ErrPrint("unlink: %s - %s\n", strerror(errno), safe_filename);
 			}
 			break;
-		case DBOX_TYPE_BUFFER:
+		case WIDGET_TYPE_BUFFER:
 		default:
 			/*!
 			 * \check
 			 * text format (inst)
 			 */
-			instance_dbox_updated_by_instance(inst, safe_filename, x, y, w, h);
+			instance_widget_updated_by_instance(inst, safe_filename, x, y, w, h);
 			break;
 		}
 
@@ -7138,7 +7138,7 @@ static struct packet *slave_hold_scroll(pid_t pid, int handle, const struct pack
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
-	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
 		} else {
@@ -7177,7 +7177,7 @@ static struct packet *slave_extra_updated(pid_t pid, int handle, const struct pa
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -7217,7 +7217,7 @@ static struct packet *slave_desc_updated(pid_t pid, int handle, const struct pac
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
@@ -7268,8 +7268,8 @@ static struct packet *slave_deleted(pid_t pid, int handle, const struct packet *
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
-	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
-		ret = instance_destroyed(inst, DBOX_STATUS_ERROR_NONE);
+	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+		ret = instance_destroyed(inst, WIDGET_STATUS_ERROR_NONE);
 	}
 
 out:
@@ -7297,7 +7297,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 	if (!slave) {
 		ErrPrint("Failed to find a slave\n");
 		id = "";
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
@@ -7305,38 +7305,38 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 	if (ret != 6) {
 		ErrPrint("Invalid argument\n");
 		id = "";
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
 	id = "";
 
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 
 	if (instance_state(inst) == INST_DESTROYED) {
 		ErrPrint("Package[%s] instance is already destroyed\n", package_name(pkg));
 		goto out;
 	}
 
-	if (target == TYPE_DBOX && package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
+	if (target == TYPE_WIDGET && package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
 		struct buffer_info *info;
 
-		info = instance_dbox_buffer(inst);
+		info = instance_widget_buffer(inst);
 		if (!info) {
-			if (!instance_create_dbox_buffer(inst, pixel_size)) {
-				ErrPrint("Failed to create a DBOX buffer\n");
-				ret = DBOX_STATUS_ERROR_FAULT;
+			if (!instance_create_widget_buffer(inst, pixel_size)) {
+				ErrPrint("Failed to create a WIDGET buffer\n");
+				ret = WIDGET_STATUS_ERROR_FAULT;
 				goto out;
 			}
 
-			info = instance_dbox_buffer(inst);
+			info = instance_widget_buffer(inst);
 			if (!info) {
-				ErrPrint("DBOX buffer is not valid\n");
+				ErrPrint("WIDGET buffer is not valid\n");
 				/*!
 				 * \NOTE
 				 * ret value should not be changed.
@@ -7348,8 +7348,8 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 		ret = buffer_handler_resize(info, w, h);
 		ret = buffer_handler_load(info);
 		if (ret == 0) {
-			instance_set_dbox_size(inst, w, h);
-			instance_set_dbox_info(inst, DYNAMICBOX_CONF_PRIORITY_NO_CHANGE, DYNAMICBOX_CONF_CONTENT_NO_CHANGE, DYNAMICBOX_CONF_TITLE_NO_CHANGE);
+			instance_set_widget_size(inst, w, h);
+			instance_set_widget_info(inst, WIDGET_CONF_PRIORITY_NO_CHANGE, WIDGET_CONF_CONTENT_NO_CHANGE, WIDGET_CONF_TITLE_NO_CHANGE);
 			id = buffer_handler_id(info);
 		} else {
 			ErrPrint("Failed to load a buffer(%d)\n", ret);
@@ -7386,7 +7386,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 		if (!info) {
 			if (!instance_create_gbar_buffer(inst, pixel_size)) {
 				ErrPrint("Failed to create a GBAR buffer\n");
-				ret = DBOX_STATUS_ERROR_FAULT;
+				ret = WIDGET_STATUS_ERROR_FAULT;
 				instance_client_gbar_created(inst, ret);
 				goto out;
 			}
@@ -7447,7 +7447,7 @@ static struct packet *slave_acquire_extra_buffer(pid_t pid, int handle, const st
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
 		ErrPrint("Slave %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		id = "";
 		goto out;
 	}
@@ -7455,7 +7455,7 @@ static struct packet *slave_acquire_extra_buffer(pid_t pid, int handle, const st
 	ret = packet_get(packet, "issiiii", &target, &pkgname, &id, &w, &h, &pixel_size, &idx);
 	if (ret != 7) {
 		ErrPrint("Invalid parameters\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		id = "";
 		goto out;
 	}
@@ -7463,31 +7463,31 @@ static struct packet *slave_acquire_extra_buffer(pid_t pid, int handle, const st
 	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
 	id = "";
 
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 
 	if (instance_state(inst) == INST_DESTROYED) {
 		ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
 		goto out;
 	}
 
-	if (target == TYPE_DBOX && package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
+	if (target == TYPE_WIDGET && package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
 		struct buffer_info *info;
 
-		info = instance_dbox_extra_buffer(inst, idx);
+		info = instance_widget_extra_buffer(inst, idx);
 		if (!info) {
-			if (!instance_create_dbox_extra_buffer(inst, pixel_size, idx)) {
-				ErrPrint("Failed to create a DBOX buffer\n");
-				ret = DBOX_STATUS_ERROR_FAULT;
+			if (!instance_create_widget_extra_buffer(inst, pixel_size, idx)) {
+				ErrPrint("Failed to create a WIDGET buffer\n");
+				ret = WIDGET_STATUS_ERROR_FAULT;
 				goto out;
 			}
 
-			info = instance_dbox_extra_buffer(inst, idx);
+			info = instance_widget_extra_buffer(inst, idx);
 			if (!info) {
-				ErrPrint("DBOX extra buffer is not valid\n");
+				ErrPrint("WIDGET extra buffer is not valid\n");
 				/*!
 				 * \NOTE
 				 * ret value should not be changed.
@@ -7506,7 +7506,7 @@ static struct packet *slave_acquire_extra_buffer(pid_t pid, int handle, const st
 			 */
 			id = buffer_handler_id(info);
 			DbgPrint("Extra buffer is loaded: %s\n", id);
-			(void)instance_client_dbox_extra_buffer_created(inst, idx);
+			(void)instance_client_widget_extra_buffer_created(inst, idx);
 		} else {
 			ErrPrint("Failed to load a buffer(%d)\n", ret);
 		}
@@ -7517,7 +7517,7 @@ static struct packet *slave_acquire_extra_buffer(pid_t pid, int handle, const st
 		if (!info) {
 			if (!instance_create_gbar_extra_buffer(inst, pixel_size, idx)) {
 				ErrPrint("Failed to create a GBAR buffer\n");
-				ret = DBOX_STATUS_ERROR_FAULT;
+				ret = WIDGET_STATUS_ERROR_FAULT;
 				goto out;
 			}
 
@@ -7572,7 +7572,7 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
 		ErrPrint("Failed to find a slave\n");
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		id = "";
 		goto out;
 	}
@@ -7580,7 +7580,7 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 	ret = packet_get(packet, "issii", &type, &pkgname, &id, &w, &h);
 	if (ret != 5) {
 		ErrPrint("Invalid argument\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		id = "";
 		goto out;
 	}
@@ -7588,11 +7588,11 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
 	id = "";
 
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	/*!
 	 * \note
 	 * Reset "id", It will be re-used from here
@@ -7603,10 +7603,10 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 		goto out;
 	}
 
-	if (type == TYPE_DBOX && package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
+	if (type == TYPE_WIDGET && package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
 		struct buffer_info *info;
 
-		info = instance_dbox_buffer(inst);
+		info = instance_widget_buffer(inst);
 		if (!info) {
 			goto out;
 		}
@@ -7616,10 +7616,10 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 		 * \note
 		 * id is resued for newly assigned ID
 		 */
-		if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+		if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 			id = buffer_handler_id(info);
-			instance_set_dbox_size(inst, w, h);
-			instance_set_dbox_info(inst, DYNAMICBOX_CONF_PRIORITY_NO_CHANGE, DYNAMICBOX_CONF_CONTENT_NO_CHANGE, DYNAMICBOX_CONF_TITLE_NO_CHANGE);
+			instance_set_widget_size(inst, w, h);
+			instance_set_widget_info(inst, WIDGET_CONF_PRIORITY_NO_CHANGE, WIDGET_CONF_CONTENT_NO_CHANGE, WIDGET_CONF_TITLE_NO_CHANGE);
 		}
 	} else if (type == TYPE_GBAR && package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
 		struct buffer_info *info;
@@ -7634,7 +7634,7 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 		 * \note
 		 * id is resued for newly assigned ID
 		 */
-		if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+		if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 			id = buffer_handler_id(info);
 			instance_set_gbar_size(inst, w, h);
 		}
@@ -7663,27 +7663,27 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
 		ErrPrint("Failed to find a slave\n");
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	if (packet_get(packet, "iss", &type, &pkgname, &id) != 3) {
 		ErrPrint("Inavlid argument\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 
-	if (type == TYPE_DBOX && package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
+	if (type == TYPE_WIDGET && package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
 		struct buffer_info *info;
 
-		info = instance_dbox_buffer(inst);
+		info = instance_widget_buffer(inst);
 		ret = buffer_handler_unload(info);
 	} else if (type == TYPE_GBAR && package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
 		struct buffer_info *info;
@@ -7722,8 +7722,8 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 			info = instance_gbar_buffer(inst);
 			ret = buffer_handler_unload(info);
 
-			if (ret == (int)DBOX_STATUS_ERROR_NONE) {
-				gbar_monitor = ecore_timer_add(DYNAMICBOX_CONF_GBAR_REQUEST_TIMEOUT, gbar_resize_monitor_cb, instance_ref(inst));
+			if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+				gbar_monitor = ecore_timer_add(WIDGET_CONF_GBAR_REQUEST_TIMEOUT, gbar_resize_monitor_cb, instance_ref(inst));
 				if (!gbar_monitor) {
 					ErrPrint("Failed to create a timer for GBAR Open monitor\n");
 					inst = instance_unref(inst);
@@ -7732,7 +7732,7 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 					}
 				} else {
 					(void)instance_set_data(inst, GBAR_RESIZE_MONITOR_TAG, gbar_monitor);
-					if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_resize_buffer_cb, inst) != DBOX_STATUS_ERROR_NONE) {
+					if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_resize_buffer_cb, inst) != WIDGET_STATUS_ERROR_NONE) {
 						ErrPrint("Failed to add event handler: %s\n", pkgname);
 					}
 				}
@@ -7749,7 +7749,7 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 				inst = instance_unref(inst);
 				if (!inst) {
 					ErrPrint("Instance is released: %s\n", pkgname);
-					ret = DBOX_STATUS_ERROR_FAULT;
+					ret = WIDGET_STATUS_ERROR_FAULT;
 					goto out;
 				}
 			} /* else {
@@ -7793,26 +7793,26 @@ static struct packet *slave_release_extra_buffer(pid_t pid, int handle, const st
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
 		ErrPrint("Slave %d is not exists\n", pid);
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	if (packet_get(packet, "issi", &type, &pkgname, &id, &idx) != 4) {
 		ErrPrint("Inavlid argument\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		goto out;
 	}
 
-	ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 
-	if (type == TYPE_DBOX && package_dbox_type(pkg) == DBOX_TYPE_BUFFER) {
-		info = instance_dbox_extra_buffer(inst, idx);
-		(void)instance_client_dbox_extra_buffer_destroyed(inst, idx);
+	if (type == TYPE_WIDGET && package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+		info = instance_widget_extra_buffer(inst, idx);
+		(void)instance_client_widget_extra_buffer_destroyed(inst, idx);
 	} else if (type == TYPE_GBAR && package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
 		info = instance_gbar_extra_buffer(inst, idx);
 		(void)instance_client_gbar_extra_buffer_destroyed(inst, idx);
@@ -7849,7 +7849,7 @@ static struct packet *service_instance_count(pid_t pid, int handle, const struct
 	ret = packet_get(packet, "sssd", &pkgname, &cluster, &category, &timestamp);
 	if (ret != 4) {
 		ErrPrint("Invalid packet\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -7902,7 +7902,7 @@ static struct packet *service_change_period(pid_t pid, int handle, const struct 
 	ret = packet_get(packet, "ssd", &pkgname, &id, &period);
 	if (ret != 3) {
 		ErrPrint("Invalid packet\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -7911,9 +7911,9 @@ static struct packet *service_change_period(pid_t pid, int handle, const struct 
 
 		pkg = package_find(pkgname);
 		if (!pkg) {
-			ret = DBOX_STATUS_ERROR_NOT_EXIST;
+			ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		} else if (package_is_fault(pkg)) {
-			ret = DBOX_STATUS_ERROR_FAULT;
+			ret = WIDGET_STATUS_ERROR_FAULT;
 		} else {
 			Eina_List *inst_list;
 			Eina_List *l;
@@ -7928,10 +7928,10 @@ static struct packet *service_change_period(pid_t pid, int handle, const struct 
 		}
 	} else {
 		ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-		if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+		if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 			if (instance_state(inst) == INST_DESTROYED) {
 				ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
-				ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+				ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 				goto out;
 			}
 
@@ -7960,40 +7960,40 @@ static struct packet *service_update(pid_t pid, int handle, const struct packet 
 	const char *category;
 	const char *content;
 	int force;
-	char *dbox_id;
+	char *widget_id;
 	int ret;
 
 	ret = packet_get(packet, "sssssi", &pkgname, &id, &cluster, &category, &content, &force);
 	if (ret != 6) {
 		ErrPrint("Invalid Packet\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
-	dbox_id = package_dbox_pkgname(pkgname);
-	if (!dbox_id) {
+	widget_id = package_widget_pkgname(pkgname);
+	if (!widget_id) {
 		ErrPrint("Invalid package %s\n", pkgname);
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
-	pkg = package_find(dbox_id);
+	pkg = package_find(widget_id);
 	if (!pkg) {
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
-		DbgFree(dbox_id);
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		DbgFree(widget_id);
 		goto out;
 	}
 
 	if (package_is_fault(pkg)) {
-		ret = DBOX_STATUS_ERROR_FAULT;
-		DbgFree(dbox_id);
+		ret = WIDGET_STATUS_ERROR_FAULT;
+		DbgFree(widget_id);
 		goto out;
 	}
 
 	inst_list = package_instance_list(pkg);
 	if (!eina_list_count(inst_list)) {
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
-		DbgFree(dbox_id);
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		DbgFree(widget_id);
 		goto out;
 	}
 
@@ -8001,16 +8001,16 @@ static struct packet *service_update(pid_t pid, int handle, const struct packet 
 		Eina_List *l;
 		struct inst_info *inst;
 
-		ret = DBOX_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
 		EINA_LIST_FOREACH(inst_list, l, inst) {
 			if (!strcmp(instance_id(inst), id)) {
-				ret = DBOX_STATUS_ERROR_NONE;
+				ret = WIDGET_STATUS_ERROR_NONE;
 				break;
 			}
 		}
 
-		if (ret == (int)DBOX_STATUS_ERROR_NOT_EXIST) {
-			DbgFree(dbox_id);
+		if (ret == (int)WIDGET_STATUS_ERROR_NOT_EXIST) {
+			DbgFree(widget_id);
 			goto out;
 		}
 	}
@@ -8019,9 +8019,9 @@ static struct packet *service_update(pid_t pid, int handle, const struct packet 
 	 * \TODO
 	 * Validate the update requstor.
 	 */
-	slave_rpc_request_update(dbox_id, id, cluster, category, content, force);
-	DbgFree(dbox_id);
-	ret = DBOX_STATUS_ERROR_NONE;
+	slave_rpc_request_update(widget_id, id, cluster, category, content, force);
+	DbgFree(widget_id);
+	ret = WIDGET_STATUS_ERROR_NONE;
 
 out:
 	result = packet_create_reply(packet, "i", ret);
@@ -8045,7 +8045,7 @@ static struct packet *liveinfo_hello(pid_t pid, int handle, const struct packet 
 	if (packet_get(packet, "d", &timestamp) != 1) {
 		ErrPrint("Invalid packet\n");
 		fifo_name = "";
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -8053,7 +8053,7 @@ static struct packet *liveinfo_hello(pid_t pid, int handle, const struct packet 
 	if (!info) {
 		ErrPrint("Failed to create a liveinfo object\n");
 		fifo_name = "";
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -8127,14 +8127,14 @@ out:
 	return NULL;
 }
 
-static inline const char *visible_state_string(enum dynamicbox_visible_state state)
+static inline const char *visible_state_string(enum widget_visible_state state)
 {
 	switch (state) {
-	case DBOX_SHOW:
+	case WIDGET_SHOW:
 		return "Show";
-	case DBOX_HIDE:
+	case WIDGET_HIDE:
 		return "Hide";
-	case DBOX_HIDE_WITH_PAUSE:
+	case WIDGET_HIDE_WITH_PAUSE:
 		return "Paused";
 	default:
 		break;
@@ -8166,7 +8166,7 @@ static Eina_Bool inst_list_cb(void *info)
 		return ECORE_CALLBACK_CANCEL;
 	}
 
-	if (!package_is_dbox_pkgname(pkgname)) {
+	if (!package_is_widget_pkgname(pkgname)) {
 		ErrPrint("Invalid package name\n");
 		free(pkgname);
 		goto close_out;
@@ -8183,13 +8183,13 @@ static Eina_Bool inst_list_cb(void *info)
 	EINA_LIST_FOREACH(inst_list, l, inst) {
 		fprintf(fp, "%s %s %s %s %lf %s %d %d\n",
 				instance_id(inst),
-				buffer_handler_id(instance_dbox_buffer(inst)),
+				buffer_handler_id(instance_widget_buffer(inst)),
 				instance_cluster(inst),
 				instance_category(inst),
 				instance_period(inst),
 				visible_state_string(instance_visible_state(inst)),
-				instance_dbox_width(inst),
-				instance_dbox_height(inst));
+				instance_widget_width(inst),
+				instance_widget_height(inst));
 	}
 
 close_out:
@@ -8391,7 +8391,7 @@ static struct packet *liveinfo_pkg_ctrl(pid_t pid, int handle, const struct pack
 		if (!inst) {
 			liveinfo_set_data(info, (void *)ENOENT);
 		} else {
-			(void)instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+			(void)instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
 			liveinfo_set_data(info, (void *)0);
 		}
 
@@ -8442,7 +8442,7 @@ static struct packet *liveinfo_master_ctrl(pid_t pid, int handle, const struct p
 	char *cmd;
 	char *var;
 	char *val;
-	int ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	int ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 
 	if (packet_get(packet, "sss", &cmd, &var, &val) != 3) {
 		ErrPrint("Invalid argument\n");
@@ -8517,8 +8517,8 @@ static struct method s_client_table[] = {
 		.handler = client_gbar_mouse_move, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 	},
 	{
-		.cmd = CMD_STR_DBOX_MOUSE_MOVE,
-		.handler = client_dbox_mouse_move, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+		.cmd = CMD_STR_WIDGET_MOUSE_MOVE,
+		.handler = client_widget_mouse_move, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 	},
 	{
 		.cmd = CMD_STR_GBAR_MOUSE_DOWN,
@@ -8529,12 +8529,12 @@ static struct method s_client_table[] = {
 		.handler = client_gbar_mouse_up, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 	},
 	{
-		.cmd = CMD_STR_DBOX_MOUSE_DOWN,
-		.handler = client_dbox_mouse_down, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+		.cmd = CMD_STR_WIDGET_MOUSE_DOWN,
+		.handler = client_widget_mouse_down, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 	},
 	{
-		.cmd = CMD_STR_DBOX_MOUSE_UP,
-		.handler = client_dbox_mouse_up, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+		.cmd = CMD_STR_WIDGET_MOUSE_UP,
+		.handler = client_widget_mouse_up, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 	},
 	{
 		.cmd = CMD_STR_GBAR_MOUSE_ENTER,
@@ -8545,20 +8545,20 @@ static struct method s_client_table[] = {
 		.handler = client_gbar_mouse_leave, /* pid, pkgname, id, width, height, timestamp, x, y, ret */
 	},
 	{
-		.cmd = CMD_STR_DBOX_MOUSE_ENTER,
-		.handler = client_dbox_mouse_enter, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+		.cmd = CMD_STR_WIDGET_MOUSE_ENTER,
+		.handler = client_widget_mouse_enter, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 	},
 	{
-		.cmd = CMD_STR_DBOX_MOUSE_LEAVE,
-		.handler = client_dbox_mouse_leave, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
+		.cmd = CMD_STR_WIDGET_MOUSE_LEAVE,
+		.handler = client_widget_mouse_leave, /* pid, pkgname, filename, width, height, timestamp, x, y, ret */
 	},
 	{
-		.cmd = CMD_STR_DBOX_MOUSE_ON_SCROLL,
-		.handler = client_dbox_mouse_on_scroll,
+		.cmd = CMD_STR_WIDGET_MOUSE_ON_SCROLL,
+		.handler = client_widget_mouse_on_scroll,
 	},
 	{
-		.cmd = CMD_STR_DBOX_MOUSE_OFF_SCROLL,
-		.handler = client_dbox_mouse_off_scroll,
+		.cmd = CMD_STR_WIDGET_MOUSE_OFF_SCROLL,
+		.handler = client_widget_mouse_off_scroll,
 	},
 	{
 		.cmd = CMD_STR_GBAR_MOUSE_ON_SCROLL,
@@ -8569,12 +8569,12 @@ static struct method s_client_table[] = {
 		.handler = client_gbar_mouse_off_scroll,
 	},
 	{
-		.cmd = CMD_STR_DBOX_MOUSE_ON_HOLD,
-		.handler = client_dbox_mouse_on_hold,
+		.cmd = CMD_STR_WIDGET_MOUSE_ON_HOLD,
+		.handler = client_widget_mouse_on_hold,
 	},
 	{
-		.cmd = CMD_STR_DBOX_MOUSE_OFF_HOLD,
-		.handler = client_dbox_mouse_off_hold,
+		.cmd = CMD_STR_WIDGET_MOUSE_OFF_HOLD,
+		.handler = client_widget_mouse_off_hold,
 	},
 	{
 		.cmd = CMD_STR_GBAR_MOUSE_ON_HOLD,
@@ -8658,60 +8658,60 @@ static struct method s_client_table[] = {
 	},
 
 	{
-		.cmd = CMD_STR_DBOX_ACCESS_HL,
-		.handler = client_dbox_access_hl,
+		.cmd = CMD_STR_WIDGET_ACCESS_HL,
+		.handler = client_widget_access_hl,
 	},
 	{
-		.cmd = CMD_STR_DBOX_ACCESS_ACTIVATE,
-		.handler = client_dbox_access_activate,
+		.cmd = CMD_STR_WIDGET_ACCESS_ACTIVATE,
+		.handler = client_widget_access_activate,
 	},
 	{
-		.cmd = CMD_STR_DBOX_ACCESS_ACTION,
-		.handler = client_dbox_access_action,
+		.cmd = CMD_STR_WIDGET_ACCESS_ACTION,
+		.handler = client_widget_access_action,
 	},
 	{
-		.cmd = CMD_STR_DBOX_ACCESS_SCROLL,
-		.handler = client_dbox_access_scroll,
+		.cmd = CMD_STR_WIDGET_ACCESS_SCROLL,
+		.handler = client_widget_access_scroll,
 	},
 	{
-		.cmd = CMD_STR_DBOX_ACCESS_VALUE_CHANGE,
-		.handler = client_dbox_access_value_change,
+		.cmd = CMD_STR_WIDGET_ACCESS_VALUE_CHANGE,
+		.handler = client_widget_access_value_change,
 	},
 	{
-		.cmd = CMD_STR_DBOX_ACCESS_MOUSE,
-		.handler = client_dbox_access_mouse,
+		.cmd = CMD_STR_WIDGET_ACCESS_MOUSE,
+		.handler = client_widget_access_mouse,
 	},
 	{
-		.cmd = CMD_STR_DBOX_ACCESS_BACK,
-		.handler = client_dbox_access_back,
+		.cmd = CMD_STR_WIDGET_ACCESS_BACK,
+		.handler = client_widget_access_back,
 	},
 	{
-		.cmd = CMD_STR_DBOX_ACCESS_OVER,
-		.handler = client_dbox_access_over,
+		.cmd = CMD_STR_WIDGET_ACCESS_OVER,
+		.handler = client_widget_access_over,
 	},
 	{
-		.cmd = CMD_STR_DBOX_ACCESS_READ,
-		.handler = client_dbox_access_read,
+		.cmd = CMD_STR_WIDGET_ACCESS_READ,
+		.handler = client_widget_access_read,
 	},
 	{
-		.cmd = CMD_STR_DBOX_ACCESS_ENABLE,
-		.handler = client_dbox_access_enable,
+		.cmd = CMD_STR_WIDGET_ACCESS_ENABLE,
+		.handler = client_widget_access_enable,
 	},
 	{
-		.cmd = CMD_STR_DBOX_KEY_DOWN,
-		.handler = client_dbox_key_down,
+		.cmd = CMD_STR_WIDGET_KEY_DOWN,
+		.handler = client_widget_key_down,
 	},
 	{
-		.cmd = CMD_STR_DBOX_KEY_UP,
-		.handler = client_dbox_key_up,
+		.cmd = CMD_STR_WIDGET_KEY_UP,
+		.handler = client_widget_key_up,
 	},
 	{
-		.cmd = CMD_STR_DBOX_KEY_FOCUS_IN,
-		.handler = client_dbox_key_focus_in,
+		.cmd = CMD_STR_WIDGET_KEY_FOCUS_IN,
+		.handler = client_widget_key_focus_in,
 	},
 	{
-		.cmd = CMD_STR_DBOX_KEY_FOCUS_OUT,
-		.handler = client_dbox_key_focus_out,
+		.cmd = CMD_STR_WIDGET_KEY_FOCUS_OUT,
+		.handler = client_widget_key_focus_out,
 	},
 	{
 		.cmd = CMD_STR_GBAR_KEY_DOWN,
@@ -8736,12 +8736,12 @@ static struct method s_client_table[] = {
 	// Cut HERE. Above list must be sync'd with provider list.
 
 	{
-		.cmd = CMD_STR_DBOX_MOUSE_SET,
-		.handler = client_dbox_mouse_set,
+		.cmd = CMD_STR_WIDGET_MOUSE_SET,
+		.handler = client_widget_mouse_set,
 	},
 	{
-		.cmd = CMD_STR_DBOX_MOUSE_UNSET,
-		.handler = client_dbox_mouse_unset,
+		.cmd = CMD_STR_WIDGET_MOUSE_UNSET,
+		.handler = client_widget_mouse_unset,
 	},
 	{
 		.cmd = CMD_STR_GBAR_MOUSE_SET,
@@ -8756,12 +8756,12 @@ static struct method s_client_table[] = {
 		.handler = client_change_visibility,
 	},
 	{
-		.cmd = CMD_STR_DBOX_ACQUIRE_PIXMAP,
-		.handler = client_dbox_acquire_pixmap,
+		.cmd = CMD_STR_WIDGET_ACQUIRE_PIXMAP,
+		.handler = client_widget_acquire_pixmap,
 	},
 	{
-		.cmd = CMD_STR_DBOX_RELEASE_PIXMAP,
-		.handler = client_dbox_release_pixmap,
+		.cmd = CMD_STR_WIDGET_RELEASE_PIXMAP,
+		.handler = client_widget_release_pixmap,
 	},
 	{
 		.cmd = CMD_STR_GBAR_ACQUIRE_PIXMAP,
@@ -8821,12 +8821,12 @@ static struct method s_client_table[] = {
 	},
 
 	{
-		.cmd = CMD_STR_DBOX_KEY_SET,
-		.handler = client_dbox_key_set,
+		.cmd = CMD_STR_WIDGET_KEY_SET,
+		.handler = client_widget_key_set,
 	},
 	{
-		.cmd = CMD_STR_DBOX_KEY_UNSET,
-		.handler = client_dbox_key_unset,
+		.cmd = CMD_STR_WIDGET_KEY_UNSET,
+		.handler = client_widget_key_unset,
 	},
 
 	{
@@ -8847,8 +8847,8 @@ static struct method s_client_table[] = {
 		.handler = client_resume_request,
 	},
 	{
-		.cmd = CMD_STR_DBOX_ACQUIRE_XPIXMAP,
-		.handler = client_dbox_acquire_xpixmap,
+		.cmd = CMD_STR_WIDGET_ACQUIRE_XPIXMAP,
+		.handler = client_widget_acquire_xpixmap,
 	},
 	{
 		.cmd = CMD_STR_GBAR_ACQUIRE_XPIXMAP,
@@ -8919,12 +8919,12 @@ static struct method s_slave_table[] = {
 	},
 
 	{
-		.cmd = CMD_STR_DBOX_UPDATE_BEGIN,
-		.handler = slave_dbox_update_begin,
+		.cmd = CMD_STR_WIDGET_UPDATE_BEGIN,
+		.handler = slave_widget_update_begin,
 	},
 	{
-		.cmd = CMD_STR_DBOX_UPDATE_END,
-		.handler = slave_dbox_update_end,
+		.cmd = CMD_STR_WIDGET_UPDATE_END,
+		.handler = slave_widget_update_end,
 	},
 	{
 		.cmd = CMD_STR_GBAR_UPDATE_BEGIN,
@@ -8998,7 +8998,7 @@ static struct method s_slave_table[] = {
 
 HAPI int server_init(void)
 {
-	com_core_packet_use_thread(DYNAMICBOX_CONF_COM_CORE_THREAD);
+	com_core_packet_use_thread(WIDGET_CONF_COM_CORE_THREAD);
 
 	if (unlink(INFO_SOCKET) < 0) {
 		ErrPrint("info socket: %s\n", strerror(errno));

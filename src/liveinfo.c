@@ -27,7 +27,7 @@
 #include <Eina.h>
 
 #include <dlog.h>
-#include <dynamicbox_errno.h>
+#include <widget_errno.h>
 
 #include "util.h"
 #include "debug.h"
@@ -93,7 +93,7 @@ static inline int valid_requestor(pid_t pid)
 		return 1;
 	}
 
-	if (stat("/opt/usr/devel/usr/bin/dbox-mgr", &src) < 0) {
+	if (stat("/opt/usr/devel/usr/bin/widget-mgr", &src) < 0) {
 		ErrPrint("Error: %s\n", strerror(errno));
 		return 0;
 	}
@@ -151,10 +151,10 @@ HAPI int liveinfo_open_fifo(struct liveinfo *info)
 	info->fp = fopen(info->fifo_name, "w");
 	if (!info->fp) {
 		ErrPrint("open: %s\n", strerror(errno));
-		return DBOX_STATUS_ERROR_IO_ERROR;
+		return WIDGET_STATUS_ERROR_IO_ERROR;
 	}
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI void liveinfo_close_fifo(struct liveinfo *info)

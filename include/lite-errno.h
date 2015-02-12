@@ -14,39 +14,39 @@
  * limitations under the License.
  */
 
-#ifndef __DYNAMICBOX_ERRNO_H
-#define __DYNAMICBOX_ERRNO_H
+#ifndef __WIDGET_ERRNO_H
+#define __WIDGET_ERRNO_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- * @addtogroup CAPI_DYNAMICBOX_SERVICE_MODULE
+ * @addtogroup CAPI_WIDGET_SERVICE_MODULE
  * @{
  */
 
 /**
  * @brief
- * Definitions for the result status of dynamicbox operation.
+ * Definitions for the result status of widget operation.
  */
-enum dynamicbox_status {
-	DBOX_STATUS_ERROR_NONE = 0x00000000, /**< Operation is successfully completed */
-	DBOX_STATUS_ERROR = 0x80000000, /**< This will be OR'd with other specific error value */
-	DBOX_STATUS_ERROR_INVALID_PARAMETER = DBOX_STATUS_ERROR | 0x0001, /**< Invalid request */
-	DBOX_STATUS_ERROR_FAULT = DBOX_STATUS_ERROR | 0x0002, /**< Fault - Unable to recover from the error */
-	DBOX_STATUS_ERROR_OUT_OF_MEMORY = DBOX_STATUS_ERROR | 0x0004, /**< Memory is not enough to do this operation */
-	DBOX_STATUS_ERROR_EXIST = DBOX_STATUS_ERROR | 0x0008, /**< Already exists */
-	DBOX_STATUS_ERROR_BUSY = DBOX_STATUS_ERROR | 0x0010, /**< Busy so the operation is not started(accepted), try again */
-	DBOX_STATUS_ERROR_PERMISSION_DENIED = DBOX_STATUS_ERROR | 0x0020, /**< Permission error */
-	DBOX_STATUS_ERROR_ALREADY = DBOX_STATUS_ERROR | 0x0040, /**< Operation is already started */
-	DBOX_STATUS_ERROR_CANCEL = DBOX_STATUS_ERROR | 0x0080, /**< Operation is canceled */
-	DBOX_STATUS_ERROR_IO_ERROR = DBOX_STATUS_ERROR | 0x0100, /**< I/O Error */
-	DBOX_STATUS_ERROR_NOT_EXIST = DBOX_STATUS_ERROR | 0x0200, /**< Not exists */
-	DBOX_STATUS_ERROR_TIMEOUT = DBOX_STATUS_ERROR | 0x0400, /**< Timeout */
-	DBOX_STATUS_ERROR_NOT_IMPLEMENTED = DBOX_STATUS_ERROR | 0x0800, /**< Operation is not implemented */
-	DBOX_STATUS_ERROR_NO_SPACE = DBOX_STATUS_ERROR | 0x1000, /**< No space to operate */
-	DBOX_STATUS_ERROR_DISABLED = DBOX_STATUS_ERROR | 0x2000 /**< Disabled */
+enum widget_status {
+	WIDGET_STATUS_ERROR_NONE = 0x00000000, /**< Operation is successfully completed */
+	WIDGET_STATUS_ERROR = 0x80000000, /**< This will be OR'd with other specific error value */
+	WIDGET_STATUS_ERROR_INVALID_PARAMETER = WIDGET_STATUS_ERROR | 0x0001, /**< Invalid request */
+	WIDGET_STATUS_ERROR_FAULT = WIDGET_STATUS_ERROR | 0x0002, /**< Fault - Unable to recover from the error */
+	WIDGET_STATUS_ERROR_OUT_OF_MEMORY = WIDGET_STATUS_ERROR | 0x0004, /**< Memory is not enough to do this operation */
+	WIDGET_STATUS_ERROR_EXIST = WIDGET_STATUS_ERROR | 0x0008, /**< Already exists */
+	WIDGET_STATUS_ERROR_BUSY = WIDGET_STATUS_ERROR | 0x0010, /**< Busy so the operation is not started(accepted), try again */
+	WIDGET_STATUS_ERROR_PERMISSION_DENIED = WIDGET_STATUS_ERROR | 0x0020, /**< Permission error */
+	WIDGET_STATUS_ERROR_ALREADY = WIDGET_STATUS_ERROR | 0x0040, /**< Operation is already started */
+	WIDGET_STATUS_ERROR_CANCEL = WIDGET_STATUS_ERROR | 0x0080, /**< Operation is canceled */
+	WIDGET_STATUS_ERROR_IO_ERROR = WIDGET_STATUS_ERROR | 0x0100, /**< I/O Error */
+	WIDGET_STATUS_ERROR_NOT_EXIST = WIDGET_STATUS_ERROR | 0x0200, /**< Not exists */
+	WIDGET_STATUS_ERROR_TIMEOUT = WIDGET_STATUS_ERROR | 0x0400, /**< Timeout */
+	WIDGET_STATUS_ERROR_NOT_IMPLEMENTED = WIDGET_STATUS_ERROR | 0x0800, /**< Operation is not implemented */
+	WIDGET_STATUS_ERROR_NO_SPACE = WIDGET_STATUS_ERROR | 0x1000, /**< No space to operate */
+	WIDGET_STATUS_ERROR_DISABLED = WIDGET_STATUS_ERROR | 0x2000 /**< Disabled */
 };
 
 
@@ -55,7 +55,7 @@ enum dynamicbox_status {
  * \param[in] s
  * \return 1 or 0
  */
-#define DBOX_STATUS_IS_ERROR(s)	(!!((s) & DBOX_STATUS_ERROR))
+#define WIDGET_STATUS_IS_ERROR(s)	(!!((s) & WIDGET_STATUS_ERROR))
 
 /*!
  * \}

@@ -28,16 +28,16 @@ extern const char *parser_group_str(struct parser *handle);
 extern int parser_secured(struct parser *handle);
 extern int parser_pinup(struct parser *handler);
 
-extern const char *parser_dbox_path(struct parser *handle);
-extern const char *parser_dbox_group(struct parser *handle);
+extern const char *parser_widget_path(struct parser *handle);
+extern const char *parser_widget_group(struct parser *handle);
 extern const char *parser_gbar_path(struct parser *handle);
 extern const char *parser_gbar_group(struct parser *handle);
 
 extern const char *parser_abi(struct parser *handle);
 
 extern int parser_text_gbar(struct parser *handle);
-extern int parser_text_dbox(struct parser *handle);
-extern int parser_buffer_dbox(struct parser *handle);
+extern int parser_text_widget(struct parser *handle);
+extern int parser_buffer_widget(struct parser *handle);
 extern int parser_buffer_gbar(struct parser *handle);
 
 extern const char *parser_script(struct parser *handle);

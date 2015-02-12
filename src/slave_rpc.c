@@ -28,10 +28,10 @@
 
 #include <packet.h>
 #include <com-core_packet.h>
-#include <dynamicbox_errno.h>
-#include <dynamicbox_service.h>
-#include <dynamicbox_cmd_list.h>
-#include <dynamicbox_conf.h>
+#include <widget_errno.h>
+#include <widget_service.h>
+#include <widget_cmd_list.h>
+#include <widget_conf.h>
 
 #include "debug.h"
 #include "slave_life.h"
@@ -128,7 +128,7 @@ static int slave_async_cb(pid_t pid, int handle, const struct packet *packet, vo
 
 	if (!command) {
 		ErrPrint("Command is NIL\n");
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	}
 
 	/*!
@@ -166,7 +166,7 @@ static int slave_async_cb(pid_t pid, int handle, const struct packet *packet, vo
 
 out:
 	destroy_command(command);
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 static Eina_Bool command_consumer_cb(void *data)
@@ -262,7 +262,7 @@ static void prepend_command(struct command *command)
 		return;
 	}
 
-	s_info.command_consuming_timer = ecore_timer_add(DYNAMICBOX_CONF_PACKET_TIME, command_consumer_cb, NULL);
+	s_info.command_consuming_timer = ecore_timer_add(WIDGET_CONF_PACKET_TIME, command_consumer_cb, NULL);
 	if (!s_info.command_consuming_timer) {
 		ErrPrint("Failed to add command consumer\n");
 		s_info.command_list = eina_list_remove(s_info.command_list, command);
@@ -278,7 +278,7 @@ static void push_command(struct command *command)
 		return;
 	}
 
-	s_info.command_consuming_timer = ecore_timer_add(DYNAMICBOX_CONF_PACKET_TIME, command_consumer_cb, NULL);
+	s_info.command_consuming_timer = ecore_timer_add(WIDGET_CONF_PACKET_TIME, command_consumer_cb, NULL);
 	if (!s_info.command_consuming_timer) {
 		ErrPrint("Failed to add command consumer\n");
 		s_info.command_list = eina_list_remove(s_info.command_list, command);
@@ -299,7 +299,7 @@ static int slave_deactivate_cb(struct slave_node *slave, void *data)
 		 * \note
 		 * Return negative value will remove this callback from the event list of the slave
 		 */
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	if (rpc->pong_timer) {
@@ -342,7 +342,7 @@ static int slave_deactivate_cb(struct slave_node *slave, void *data)
 	 */
 	rpc->ping_count = 0;
 	rpc->next_ping_count = 1;
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 static Eina_Bool ping_timeout_cb(void *data)
@@ -393,7 +393,7 @@ HAPI int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, 
 		}
 
 		packet_unref(packet);
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	command->ret_cb = ret_cb;
@@ -407,18 +407,18 @@ HAPI int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, 
 			ret_cb(slave, NULL, data);
 		}
 		destroy_command(command);
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	if (rpc->handle < 0) {
 		DbgPrint("RPC handle is not ready to use it\n");
-		if (((slave_control_option(slave) & PROVIDER_CTRL_MANUAL_REACTIVATION) == PROVIDER_CTRL_MANUAL_REACTIVATION || slave_is_secured(slave) || (DBOX_IS_INHOUSE(slave_abi(slave)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL))
+		if (((slave_control_option(slave) & PROVIDER_CTRL_MANUAL_REACTIVATION) == PROVIDER_CTRL_MANUAL_REACTIVATION || slave_is_secured(slave) || (WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL))
 				&& !slave_is_activated(slave))
 		{
 			int ret;
 			DbgPrint("Activate slave forcely\n");
 			ret = slave_activate(slave);
-			if (ret < 0 && ret != DBOX_STATUS_ERROR_ALREADY) {
+			if (ret < 0 && ret != WIDGET_STATUS_ERROR_ALREADY) {
 
 				if (ret_cb) {
 					ret_cb(slave, NULL, data);
@@ -435,7 +435,7 @@ HAPI int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, 
 			rpc->pending_list = eina_list_append(rpc->pending_list, command);
 		}
 
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	}
 
 	if (urgent) {
@@ -444,7 +444,7 @@ HAPI int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, 
 		push_command(command);
 	}
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, struct packet *packet, int urgent)
@@ -456,7 +456,7 @@ HAPI int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, s
 	if (!command) {
 		ErrPrint("Failed to create a command\n");
 		packet_unref(packet);
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	command->ret_cb = NULL;
@@ -467,19 +467,19 @@ HAPI int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, s
 	if (!rpc) {
 		ErrPrint("Slave has no RPC\n");
 		destroy_command(command);
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	if (rpc->handle < 0) {
 		DbgPrint("RPC handle is not ready to use it\n");
-		if (((slave_control_option(slave) & PROVIDER_CTRL_MANUAL_REACTIVATION) == PROVIDER_CTRL_MANUAL_REACTIVATION || slave_is_secured(slave) || (DBOX_IS_INHOUSE(slave_abi(slave)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL))
+		if (((slave_control_option(slave) & PROVIDER_CTRL_MANUAL_REACTIVATION) == PROVIDER_CTRL_MANUAL_REACTIVATION || slave_is_secured(slave) || (WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL))
 				&& !slave_is_activated(slave))
 		{
 			int ret;
 
 			DbgPrint("Activate slave forcely\n");
 			ret = slave_activate(slave);
-			if (ret < 0 && ret != DBOX_STATUS_ERROR_ALREADY) {
+			if (ret < 0 && ret != WIDGET_STATUS_ERROR_ALREADY) {
 				destroy_command(command);
 				return ret;
 			}
@@ -491,7 +491,7 @@ HAPI int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, s
 			rpc->pending_list = eina_list_append(rpc->pending_list, command);
 		}
 
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	}
 
 	if (urgent) {
@@ -500,7 +500,7 @@ HAPI int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, s
 		push_command(command);
 	}
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int slave_rpc_update_handle(struct slave_node *slave, int handle)
@@ -510,7 +510,7 @@ HAPI int slave_rpc_update_handle(struct slave_node *slave, int handle)
 
 	rpc = slave_data(slave, "rpc");
 	if (!rpc) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	DbgPrint("SLAVE: New handle assigned for %d, %d\n", slave_pid(slave), handle);
@@ -519,7 +519,7 @@ HAPI int slave_rpc_update_handle(struct slave_node *slave, int handle)
 		ecore_timer_del(rpc->pong_timer);
 	}
 
-	rpc->pong_timer = ecore_timer_add(DYNAMICBOX_CONF_DEFAULT_PING_TIME, ping_timeout_cb, slave);
+	rpc->pong_timer = ecore_timer_add(WIDGET_CONF_DEFAULT_PING_TIME, ping_timeout_cb, slave);
 	if (!rpc->pong_timer) {
 		ErrPrint("Failed to add ping timer\n");
 	}
@@ -536,7 +536,7 @@ HAPI int slave_rpc_update_handle(struct slave_node *slave, int handle)
 		push_command(command);
 	}
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int slave_rpc_init(struct slave_node *slave)
@@ -546,12 +546,12 @@ HAPI int slave_rpc_init(struct slave_node *slave)
 	rpc = calloc(1, sizeof(*rpc));
 	if (!rpc) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	if (slave_set_data(slave, "rpc", rpc) < 0) {
 		DbgFree(rpc);
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivate_cb, NULL) < 0) {
@@ -562,7 +562,7 @@ HAPI int slave_rpc_init(struct slave_node *slave)
 	rpc->next_ping_count = 1;
 	rpc->handle = -1;
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int slave_rpc_fini(struct slave_node *slave)
@@ -571,7 +571,7 @@ HAPI int slave_rpc_fini(struct slave_node *slave)
 
 	rpc = slave_del_data(slave, "rpc");
 	if (!rpc) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivate_cb, NULL);
@@ -581,7 +581,7 @@ HAPI int slave_rpc_fini(struct slave_node *slave)
 	}
 
 	DbgFree(rpc);
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int slave_rpc_ping(struct slave_node *slave)
@@ -591,12 +591,12 @@ HAPI int slave_rpc_ping(struct slave_node *slave)
 	rpc = slave_data(slave, "rpc");
 	if (!rpc) {
 		ErrPrint("Slave RPC is not valid\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	if (!slave_is_activated(slave)) {
 		ErrPrint("Slave is not activated\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	rpc->ping_count++;
@@ -607,7 +607,7 @@ HAPI int slave_rpc_ping(struct slave_node *slave)
 	rpc->next_ping_count++;
 
 	ecore_timer_reset(rpc->pong_timer);
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int slave_rpc_ping_freeze(struct slave_node *slave)
@@ -617,16 +617,16 @@ HAPI int slave_rpc_ping_freeze(struct slave_node *slave)
 	rpc = slave_data(slave, "rpc");
 	if (!rpc) {
 		ErrPrint("Slave RPC is not valid\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	if (!slave_is_activated(slave)) {
 		ErrPrint("Slave is not activated\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	ecore_timer_freeze(rpc->pong_timer);
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int slave_rpc_ping_thaw(struct slave_node *slave)
@@ -636,16 +636,16 @@ HAPI int slave_rpc_ping_thaw(struct slave_node *slave)
 	rpc = slave_data(slave, "rpc");
 	if (!rpc) {
 		ErrPrint("Slave RPC is not valid\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	if (!slave_is_activated(slave)) {
 		ErrPrint("Slave is not activated\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	ecore_timer_thaw(rpc->pong_timer);
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI void slave_rpc_request_update(const char *pkgname, const char *id, const char *cluster, const char *category, const char *content, int force)
@@ -683,7 +683,7 @@ HAPI int slave_rpc_handle(struct slave_node *slave)
 	rpc = slave_data(slave, "rpc");
 	if (!rpc) {
 		DbgPrint("Slave RPC is not initiated\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	return rpc->handle;
@@ -697,7 +697,7 @@ HAPI int slave_rpc_disconnect(struct slave_node *slave)
 	packet = packet_create_noack((const char *)&cmd, "d", util_timestamp());
 	if (!packet) {
 		ErrPrint("Failed to create a packet\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	DbgPrint("Send disconnection request packet\n");

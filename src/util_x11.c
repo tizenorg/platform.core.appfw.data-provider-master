@@ -2,7 +2,7 @@
 #include <dlog.h>
 
 #if defined(HAVE_LIVEBOX)
-#include <dynamicbox_errno.h>
+#include <widget_errno.h>
 #else
 #include "lite-errno.h"
 #endif
@@ -19,10 +19,10 @@ int util_screen_size_get(int *width, int *height)
 {
 	if (!s_info.initialized) {
 		ErrPrint("Not initialized\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 	ecore_x_window_size_get(0, width, height);
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 int util_screen_init(void)

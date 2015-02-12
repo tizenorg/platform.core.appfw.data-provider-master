@@ -1,6 +1,6 @@
-PROJECT(dynamicbox C)
+PROJECT(widget C)
 
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/pkgmgr_dynamicbox/include)
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/pkgmgr_widget/include)
 
 INCLUDE(FindPkgConfig)
 pkg_check_modules(bin_pkgs REQUIRED
@@ -8,7 +8,7 @@ pkg_check_modules(bin_pkgs REQUIRED
 	sqlite3
 	libxml-2.0
 	db-util
-	dynamicbox_service
+	widget_service
 )
 
 FOREACH(flag ${bin_pkgs_CFLAGS})

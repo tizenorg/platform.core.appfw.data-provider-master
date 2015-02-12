@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <manifest xmlns="http://tizen.org/ns/packages" package="org.tizen.nicesj" version="1.0" install-location="auto">
 
-<dynamicbox appid="org.tizen.nicesj.dynamicbox" primary="true" secured="false" network="false" abi="c" timeout="20" period="10.0" libexec="/usr/apps/org.tizen.myapp/libexec/liblive-org.tizen.nicesj.so" pinup="false" script="edje" nodisplay="false">
+<widget appid="org.tizen.nicesj.widget" primary="true" secured="false" network="false" abi="c" timeout="20" period="10.0" libexec="/usr/apps/org.tizen.myapp/libexec/liblive-org.tizen.nicesj.so" pinup="false" script="edje" nodisplay="false">
 	<label>My Dynamic Box</label>
 	<icon>/usr/share/icons/small/org.tizen.live-nicesj.png</icon>
 	<label xml:lang="en_US">Sample</label>
 	<label xml:lang="ko_KR">Hangul</label>
-	<content>Content information</content>	<!-- This string will be passed to the dynamicbox_create -->
-	<category name="http://tizen.org/dynamicbox/default"></category>	<!-- Used for categorizing a package -->
+	<content>Content information</content>	<!-- This string will be passed to the widget_create -->
+	<category name="http://tizen.org/widget/default"></category>	<!-- Used for categorizing a package -->
 
 	<launch>org.tizen.nicesj</launch> <!-- Launch this app from homescreen directly -->
 
@@ -77,5 +77,5 @@
 		     MUSIC_PLAYED_FREQUENTLY(DATA_PROVIDER, TIME_SPAN, RESULT_SIZE)
 		-->
 	</group>
-</dynamicbox>
+</widget>
 </manifest>

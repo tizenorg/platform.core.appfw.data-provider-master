@@ -18,7 +18,7 @@ struct buffer_info;
 struct inst_info;
 struct buffer;
 
-#include <dynamicbox_buffer.h>
+#include <widget_buffer.h>
 
 /*!
  * \brief
@@ -28,7 +28,7 @@ struct buffer;
  * \param[in] pixel_size
  * \return buffer_info
  */
-extern struct buffer_info *buffer_handler_create(struct inst_info *inst, enum dynamicbox_fb_type type, int w, int h, int pixel_size);
+extern struct buffer_info *buffer_handler_create(struct inst_info *inst, enum widget_fb_type type, int w, int h, int pixel_size);
 
 /*!
  * \brief
@@ -85,9 +85,9 @@ extern const char *buffer_handler_id(const struct buffer_info *info);
 
 /*!
  * \param[in] info
- * \return dynamicbox_fb_type
+ * \return widget_fb_type
  */
-extern enum dynamicbox_fb_type buffer_handler_type(const struct buffer_info *info);
+extern enum widget_fb_type buffer_handler_type(const struct buffer_info *info);
 
 /*!
  * \brief This API is not supported for Pixmap.
@@ -244,14 +244,14 @@ extern struct inst_info *buffer_handler_instance(struct buffer_info *info);
  * \remarks
  * \param[in] type
  * \param[in] resource
- * \return dynamicbox_fb_t 
+ * \return widget_fb_t 
  * \retval NULL
  * \retval address
  * \pre
  * \post
  * \sa
  */
-extern dynamicbox_fb_t buffer_handler_raw_open(enum dynamicbox_fb_type type, void *resource);
+extern widget_fb_t buffer_handler_raw_open(enum widget_fb_type type, void *resource);
 
 /*!
  * \brief
@@ -264,7 +264,7 @@ extern dynamicbox_fb_t buffer_handler_raw_open(enum dynamicbox_fb_type type, voi
  * \post
  * \sa
  */
-extern int buffer_handler_raw_close(dynamicbox_fb_t buffer);
+extern int buffer_handler_raw_close(widget_fb_t buffer);
 
 /*!
  * \brief
@@ -277,7 +277,7 @@ extern int buffer_handler_raw_close(dynamicbox_fb_t buffer);
  * \post
  * \sa
  */
-extern void *buffer_handler_raw_data(dynamicbox_fb_t buffer);
+extern void *buffer_handler_raw_data(widget_fb_t buffer);
 
 /*!
  * \brief
@@ -290,7 +290,7 @@ extern void *buffer_handler_raw_data(dynamicbox_fb_t buffer);
  * \post
  * \sa
  */
-extern int buffer_handler_raw_size(dynamicbox_fb_t buffer);
+extern int buffer_handler_raw_size(widget_fb_t buffer);
 
 /*!
  * \brief

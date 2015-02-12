@@ -20,7 +20,7 @@
 
 #include <dlog.h>
 #if defined(HAVE_LIVEBOX)
-#include <dynamicbox_errno.h>
+#include <widget_errno.h>
 #else
 #include "lite-errno.h"
 #endif
@@ -547,13 +547,13 @@ HAPI int badge_service_init(void)
 {
 	if (s_info.svc_ctx) {
 		ErrPrint("Already initialized\n");
-		return DBOX_STATUS_ERROR_ALREADY;
+		return WIDGET_STATUS_ERROR_ALREADY;
 	}
 
 	s_info.svc_ctx = service_common_create(BADGE_SOCKET, service_thread_main, NULL);
 	if (!s_info.svc_ctx) {
 		ErrPrint("Unable to activate service thread\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	if (smack_fsetlabel(service_common_fd(s_info.svc_ctx), BADGE_SMACK_LABEL, SMACK_LABEL_IPOUT) != 0) {
@@ -561,7 +561,7 @@ HAPI int badge_service_init(void)
 			ErrPrint("Unable to set SMACK label(%d)\n", errno);
 			service_common_destroy(s_info.svc_ctx);
 			s_info.svc_ctx = NULL;
-			return DBOX_STATUS_ERROR_FAULT;
+			return WIDGET_STATUS_ERROR_FAULT;
 		}
 	}
 
@@ -570,24 +570,24 @@ HAPI int badge_service_init(void)
 			ErrPrint("Unable to set SMACK label(%d)\n", errno);
 			service_common_destroy(s_info.svc_ctx);
 			s_info.svc_ctx = NULL;
-			return DBOX_STATUS_ERROR_FAULT;
+			return WIDGET_STATUS_ERROR_FAULT;
 		}
 	}
 
 	DbgPrint("Successfully initiated\n");
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int badge_service_fini(void)
 {
 	if (!s_info.svc_ctx) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	service_common_destroy(s_info.svc_ctx);
 	s_info.svc_ctx = NULL;
 	DbgPrint("Successfully finalized\n");
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 /* End of a file */

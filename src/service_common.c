@@ -30,7 +30,7 @@
 #include <Eina.h>
 #include <com-core.h>
 #if defined(HAVE_LIVEBOX)
-#include <dynamicbox_errno.h>
+#include <widget_errno.h>
 #else
 #include <lite-errno.h>
 #endif
@@ -353,7 +353,7 @@ HAPI int service_register_tcb_callback(struct service_context *svc_ctx, struct t
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	cbdata->tcb = tcb;
@@ -372,10 +372,10 @@ HAPI int service_register_tcb_callback(struct service_context *svc_ctx, struct t
 		break;
 	default:
 		DbgFree(cbdata);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 /*!
@@ -393,7 +393,7 @@ HAPI int service_unregister_tcb_callback(struct service_context *svc_ctx, struct
 			if (cbdata->tcb == tcb && cbdata->cb == cb && cbdata->data == data) {
 				svc_ctx->tcb_create_cb_list = eina_list_remove(svc_ctx->tcb_create_cb_list, cbdata);
 				DbgFree(cbdata);
-				return DBOX_STATUS_ERROR_NONE;
+				return WIDGET_STATUS_ERROR_NONE;
 			}
 		}
 		break;
@@ -402,15 +402,15 @@ HAPI int service_unregister_tcb_callback(struct service_context *svc_ctx, struct
 			if (cbdata->tcb == tcb && cbdata->cb == cb && cbdata->data == data) {
 				svc_ctx->tcb_destroy_cb_list = eina_list_remove(svc_ctx->tcb_destroy_cb_list, cbdata);
 				DbgFree(cbdata);
-				return DBOX_STATUS_ERROR_NONE;
+				return WIDGET_STATUS_ERROR_NONE;
 			}
 		}
 		break;
 	default:
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
-	return DBOX_STATUS_ERROR_NOT_EXIST;
+	return WIDGET_STATUS_ERROR_NOT_EXIST;
 }
 
 /*!

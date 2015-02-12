@@ -27,7 +27,7 @@ pkg_check_modules(pkg REQUIRED
 
 IF (LIVEBOX)
 pkg_check_modules(pkg_livebox REQUIRED
-	dynamicbox_service
+	widget_service
 )
 ENDIF (LIVEBOX)
 
@@ -212,7 +212,7 @@ INSTALL(TARGETS ${PROJECT_NAME} DESTINATION /usr/bin PERMISSIONS OWNER_READ OWNE
 ADD_SUBDIRECTORY(res)
 ADD_SUBDIRECTORY(data)
 IF (LIVEBOX)
-ADD_SUBDIRECTORY(pkgmgr_dynamicbox)
+ADD_SUBDIRECTORY(pkgmgr_widget)
 ENDIF (LIVEBOX)
 
 IF (X11_SUPPORT)

@@ -35,11 +35,11 @@
 #include <Eina.h>
 #include <Ecore.h>
 #if defined(HAVE_LIVEBOX)
-#include <dynamicbox_errno.h>
-#include <dynamicbox_conf.h>
+#include <widget_errno.h>
+#include <widget_conf.h>
 #else
 #include "lite-errno.h"
-#define DYNAMICBOX_CONF_IMAGE_PATH "/tmp/"
+#define WIDGET_CONF_IMAGE_PATH "/tmp/"
 #endif
 
 #include "util.h"
@@ -92,13 +92,13 @@ HAPI int util_check_ext(const char *filename, const char *check_ptr)
 	name_len = strlen(filename);
 	while (--name_len >= 0 && *check_ptr) {
 		if (filename[name_len] != *check_ptr) {
-			return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		}
 
 		check_ptr ++;
 	}
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int util_unlink(const char *filename)
@@ -108,28 +108,28 @@ HAPI int util_unlink(const char *filename)
 	int ret;
 
 	if (!filename) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	desclen = strlen(filename) + 6; /* .desc */
 	descfile = malloc(desclen);
 	if (!descfile) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	ret = snprintf(descfile, desclen, "%s.desc", filename);
 	if (ret < 0) {
 		ErrPrint("Error: %s\n", strerror(errno));
 		DbgFree(descfile);
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	(void)unlink(descfile);
 	DbgFree(descfile);
 	(void)unlink(filename);
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI char *util_slavename(void)
@@ -377,18 +377,18 @@ HAPI int util_unlink_files(const char *folder)
 
 	if (lstat(folder, &info) < 0) {
 		ErrPrint("Error: %s\n", strerror(errno));
-		return DBOX_STATUS_ERROR_IO_ERROR;
+		return WIDGET_STATUS_ERROR_IO_ERROR;
 	}
 
 	if (!S_ISDIR(info.st_mode)) {
 		ErrPrint("Error: %s is not a folder", folder);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	handle = opendir(folder);
 	if (!handle) {
 		ErrPrint("Error: %s\n", strerror(errno));
-		return DBOX_STATUS_ERROR_IO_ERROR;
+		return WIDGET_STATUS_ERROR_IO_ERROR;
 	}
 
 	while ((entry = readdir(handle))) {
@@ -418,18 +418,18 @@ HAPI int util_unlink_files(const char *folder)
 	if (closedir(handle) < 0) {
 		ErrPrint("closedir: %s\n", strerror(errno));
 	}
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI void util_remove_emergency_disk(void)
 {
 	int ret;
-	ret = umount(DYNAMICBOX_CONF_IMAGE_PATH);
+	ret = umount(WIDGET_CONF_IMAGE_PATH);
 	if (ret < 0) {
 		ErrPrint("umount: %s\n", strerror(errno));
 	}
 
-	DbgPrint("Try to unmount[%s] %d\n", DYNAMICBOX_CONF_IMAGE_PATH, ret);
+	DbgPrint("Try to unmount[%s] %d\n", WIDGET_CONF_IMAGE_PATH, ret);
 	s_info.emergency_mounted = 0;
 }
 
@@ -458,7 +458,7 @@ HAPI void util_prepare_emergency_disk(void)
 		TAG_ERROR
 	};
 
-	buf = strdup(DYNAMICBOX_CONF_EMERGENCY_DISK);
+	buf = strdup(WIDGET_CONF_EMERGENCY_DISK);
 	if (!buf) {
 		ErrPrint("Failed to prepare emergency disk info\n");
 		return;
@@ -559,67 +559,67 @@ HAPI void util_prepare_emergency_disk(void)
 
 	DbgPrint("source[%s] type[%s] option[%s]\n", source, type, option);
 
-	ret = mount(source, DYNAMICBOX_CONF_IMAGE_PATH, type, MS_NOSUID | MS_NOEXEC, option);
+	ret = mount(source, WIDGET_CONF_IMAGE_PATH, type, MS_NOSUID | MS_NOEXEC, option);
 	DbgFree(buf);
 	if (ret < 0) {
 		ErrPrint("Failed to mount: %s\n", strerror(errno));
 		return;
 	}
 
-	ErrPrint("Disk space is not enough, use the tmpfs. Currently required minimum space is %lu bytes\n", DYNAMICBOX_CONF_MINIMUM_SPACE);
-	if (chmod(DYNAMICBOX_CONF_IMAGE_PATH, 0750) < 0) {
+	ErrPrint("Disk space is not enough, use the tmpfs. Currently required minimum space is %lu bytes\n", WIDGET_CONF_MINIMUM_SPACE);
+	if (chmod(WIDGET_CONF_IMAGE_PATH, 0750) < 0) {
 		ErrPrint("chmod: %s\n", strerror(errno));
 	}
 
-	if (chown(DYNAMICBOX_CONF_IMAGE_PATH, 5000, 5000) < 0) {
+	if (chown(WIDGET_CONF_IMAGE_PATH, 5000, 5000) < 0) {
 		ErrPrint("chown: %s\n", strerror(errno));
 	}
 
-	ret = smack_setlabel(DYNAMICBOX_CONF_IMAGE_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
+	ret = smack_setlabel(WIDGET_CONF_IMAGE_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
 	if (ret != 0) {
-		ErrPrint("Failed to set SMACK for %s (%d)\n", DYNAMICBOX_CONF_IMAGE_PATH, ret);
+		ErrPrint("Failed to set SMACK for %s (%d)\n", WIDGET_CONF_IMAGE_PATH, ret);
 	} else {
-		ret = smack_setlabel(DYNAMICBOX_CONF_IMAGE_PATH, "1", SMACK_LABEL_TRANSMUTE);
-		DbgPrint("[%s] is successfully created (t: %d)\n", DYNAMICBOX_CONF_IMAGE_PATH, ret);
+		ret = smack_setlabel(WIDGET_CONF_IMAGE_PATH, "1", SMACK_LABEL_TRANSMUTE);
+		DbgPrint("[%s] is successfully created (t: %d)\n", WIDGET_CONF_IMAGE_PATH, ret);
 	}
 
-	if (mkdir(DYNAMICBOX_CONF_ALWAYS_PATH, 0755) < 0) {
-		ErrPrint("mkdir: (%s) %s\n", DYNAMICBOX_CONF_ALWAYS_PATH, strerror(errno));
+	if (mkdir(WIDGET_CONF_ALWAYS_PATH, 0755) < 0) {
+		ErrPrint("mkdir: (%s) %s\n", WIDGET_CONF_ALWAYS_PATH, strerror(errno));
 	} else {
-		if (chmod(DYNAMICBOX_CONF_ALWAYS_PATH, 0750) < 0) {
+		if (chmod(WIDGET_CONF_ALWAYS_PATH, 0750) < 0) {
 			ErrPrint("chmod: %s\n", strerror(errno));
 		}
 
-		if (chown(DYNAMICBOX_CONF_ALWAYS_PATH, 5000, 5000) < 0) {
+		if (chown(WIDGET_CONF_ALWAYS_PATH, 5000, 5000) < 0) {
 			ErrPrint("chown: %s\n", strerror(errno));
 		}
 
-		ret = smack_setlabel(DYNAMICBOX_CONF_ALWAYS_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
+		ret = smack_setlabel(WIDGET_CONF_ALWAYS_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
 		if (ret != 0) {
-			ErrPrint("Failed to set SMACK for %s (%d)\n", DYNAMICBOX_CONF_ALWAYS_PATH, ret);
+			ErrPrint("Failed to set SMACK for %s (%d)\n", WIDGET_CONF_ALWAYS_PATH, ret);
 		} else {
-			ret = smack_setlabel(DYNAMICBOX_CONF_ALWAYS_PATH, "1", SMACK_LABEL_TRANSMUTE);
-			DbgPrint("[%s] is successfully created (t: %d)\n", DYNAMICBOX_CONF_ALWAYS_PATH, ret);
+			ret = smack_setlabel(WIDGET_CONF_ALWAYS_PATH, "1", SMACK_LABEL_TRANSMUTE);
+			DbgPrint("[%s] is successfully created (t: %d)\n", WIDGET_CONF_ALWAYS_PATH, ret);
 		}
 	}
 
-	if (mkdir(DYNAMICBOX_CONF_READER_PATH, 0755) < 0) {
-		ErrPrint("mkdir: (%s) %s\n", DYNAMICBOX_CONF_READER_PATH, strerror(errno));
+	if (mkdir(WIDGET_CONF_READER_PATH, 0755) < 0) {
+		ErrPrint("mkdir: (%s) %s\n", WIDGET_CONF_READER_PATH, strerror(errno));
 	} else {
-		if (chmod(DYNAMICBOX_CONF_READER_PATH, 0750) < 0) {
+		if (chmod(WIDGET_CONF_READER_PATH, 0750) < 0) {
 			ErrPrint("chmod: %s\n", strerror(errno));
 		}
 
-		if (chown(DYNAMICBOX_CONF_READER_PATH, 5000, 5000) < 0) {
+		if (chown(WIDGET_CONF_READER_PATH, 5000, 5000) < 0) {
 			ErrPrint("chown: %s\n", strerror(errno));
 		}
 
-		ret = smack_setlabel(DYNAMICBOX_CONF_READER_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
+		ret = smack_setlabel(WIDGET_CONF_READER_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
 		if (ret != 0) {
-			ErrPrint("Failed to set SMACK for %s (%d)\n", DYNAMICBOX_CONF_READER_PATH, ret);
+			ErrPrint("Failed to set SMACK for %s (%d)\n", WIDGET_CONF_READER_PATH, ret);
 		} else {
-			ret = smack_setlabel(DYNAMICBOX_CONF_READER_PATH, "1", SMACK_LABEL_TRANSMUTE);
-			DbgPrint("[%s] is successfully created (t: %d)\n", DYNAMICBOX_CONF_READER_PATH, ret);
+			ret = smack_setlabel(WIDGET_CONF_READER_PATH, "1", SMACK_LABEL_TRANSMUTE);
+			DbgPrint("[%s] is successfully created (t: %d)\n", WIDGET_CONF_READER_PATH, ret);
 		}
 	}
 
@@ -635,36 +635,36 @@ HAPI void util_setup_log_disk(void)
 {
 	int ret;
 
-	if (access(DYNAMICBOX_CONF_LOG_PATH, R_OK | W_OK | X_OK) == 0) {
-		DbgPrint("[%s] is already accessible\n", DYNAMICBOX_CONF_LOG_PATH);
+	if (access(WIDGET_CONF_LOG_PATH, R_OK | W_OK | X_OK) == 0) {
+		DbgPrint("[%s] is already accessible\n", WIDGET_CONF_LOG_PATH);
 		return;
 	}
 
-	DbgPrint("Initiate the critical log folder [%s]\n", DYNAMICBOX_CONF_LOG_PATH);
-	if (mkdir(DYNAMICBOX_CONF_LOG_PATH, 0755) < 0) {
+	DbgPrint("Initiate the critical log folder [%s]\n", WIDGET_CONF_LOG_PATH);
+	if (mkdir(WIDGET_CONF_LOG_PATH, 0755) < 0) {
 		ErrPrint("mkdir: %s\n", strerror(errno));
 	} else {
-		if (chmod(DYNAMICBOX_CONF_LOG_PATH, 0750) < 0) {
+		if (chmod(WIDGET_CONF_LOG_PATH, 0750) < 0) {
 			ErrPrint("chmod: %s\n", strerror(errno));
 		}
 
-		if (chown(DYNAMICBOX_CONF_LOG_PATH, 5000, 5000) < 0) {
+		if (chown(WIDGET_CONF_LOG_PATH, 5000, 5000) < 0) {
 			ErrPrint("chown: %s\n", strerror(errno));
 		}
 
-		ret = smack_setlabel(DYNAMICBOX_CONF_LOG_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
+		ret = smack_setlabel(WIDGET_CONF_LOG_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
 		if (ret != 0) {
-			ErrPrint("Failed to set SMACK for %s (%d)\n", DYNAMICBOX_CONF_LOG_PATH, ret);
+			ErrPrint("Failed to set SMACK for %s (%d)\n", WIDGET_CONF_LOG_PATH, ret);
 		} else {
-			ret = smack_setlabel(DYNAMICBOX_CONF_LOG_PATH, "1", SMACK_LABEL_TRANSMUTE);
-			DbgPrint("[%s] is successfully created (t: %d)\n", DYNAMICBOX_CONF_LOG_PATH, ret);
+			ret = smack_setlabel(WIDGET_CONF_LOG_PATH, "1", SMACK_LABEL_TRANSMUTE);
+			DbgPrint("[%s] is successfully created (t: %d)\n", WIDGET_CONF_LOG_PATH, ret);
 		}
 	}
 }
 
 HAPI int util_service_is_enabled(const char *tag)
 {
-	return !!strcasestr(DYNAMICBOX_CONF_SERVICES, tag);
+	return !!strcasestr(WIDGET_CONF_SERVICES, tag);
 }
 
 HAPI int util_string_is_in_list(const char *str, const char *haystack)

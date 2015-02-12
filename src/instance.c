@@ -25,11 +25,11 @@
 
 #include <packet.h>
 #include <com-core_packet.h>
-#include <dynamicbox_service.h>
-#include <dynamicbox_errno.h>
-#include <dynamicbox_cmd_list.h>
-#include <dynamicbox_buffer.h>
-#include <dynamicbox_conf.h>
+#include <widget_service.h>
+#include <widget_errno.h>
+#include <widget_cmd_list.h>
+#include <widget_buffer.h>
+#include <widget_conf.h>
 
 #include "conf.h"
 #include "util.h"
@@ -47,9 +47,9 @@
 int errno;
 
 static struct info {
-	enum dynamicbox_fb_type env_buf_type;
+	enum widget_fb_type env_buf_type;
 } s_info = {
-	.env_buf_type = DBOX_FB_TYPE_FILE,
+	.env_buf_type = WIDGET_FB_TYPE_FILE,
 };
 
 struct set_pinup_cbdata {
@@ -95,7 +95,7 @@ struct inst_info {
 
 	enum instance_state state; /*!< Represents current state */
 	enum instance_state requested_state; /*!< Only ACTIVATED | DESTROYED is acceptable */
-	dynamicbox_destroy_type_e destroy_type;
+	widget_destroy_type_e destroy_type;
 	int changing_state;
 	int unicast_delete_event;
 
@@ -114,7 +114,7 @@ struct inst_info {
 	char *icon;
 	char *name;
 
-	enum dynamicbox_visible_state visible;
+	enum widget_visible_state visible;
 
 	struct {
 		int width;
@@ -129,7 +129,7 @@ struct inst_info {
 		struct buffer_info **extra_buffer;
 
 		double period;
-	} dbox;
+	} widget;
 
 	struct {
 		int width;
@@ -155,7 +155,7 @@ struct inst_info {
 	Eina_List *client_list; /*!< Viewer list */
 	int refcnt;
 
-	Ecore_Timer *update_timer; /*!< Only used for secured dynamicbox */
+	Ecore_Timer *update_timer; /*!< Only used for secured widget */
 
 	enum event_process {
 		INST_EVENT_PROCESS_IDLE = 0x00,
@@ -243,7 +243,7 @@ static int viewer_deactivated_cb(struct client_node *client, void *data)
 	DbgPrint("%d is deleted from the list of viewer of %s(%s)\n", client_pid(client), package_name(instance_package(inst)), instance_id(inst));
 	if (!eina_list_data_find(inst->client_list, client)) {
 		ErrPrint("Not found\n");
-		return DBOX_STATUS_ERROR_NOT_EXIST;
+		return WIDGET_STATUS_ERROR_NOT_EXIST;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "sss", package_name(inst->info), inst->id, client_direct_addr(inst->client));
@@ -262,37 +262,37 @@ static int viewer_deactivated_cb(struct client_node *client, void *data)
 	inst->client_list = eina_list_remove(inst->client_list, client);
 	if (!inst->client_list && !inst->client) {
 		DbgPrint("Has no clients\n");
-		instance_destroy(inst, DBOX_DESTROY_TYPE_FAULT);
+		instance_destroy(inst, WIDGET_DESTROY_TYPE_FAULT);
 	}
 
 	instance_unref(inst);
 	return -1; /*!< Remove this callback from the cb list */
 }
 
-static int pause_dynamicbox(struct inst_info *inst)
+static int pause_widget(struct inst_info *inst)
 {
 	struct packet *packet;
-	unsigned int cmd = CMD_DBOX_PAUSE;
+	unsigned int cmd = CMD_WIDGET_PAUSE;
 
 	packet = packet_create_noack((const char *)&cmd, "ss", package_name(inst->info), inst->id);
 	if (!packet) {
 		ErrPrint("Failed to create a new packet\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return slave_rpc_request_only(package_slave(inst->info), package_name(inst->info), packet, 0);
 }
 
 /*! \TODO Wake up the freeze'd timer */
-static int resume_dynamicbox(struct inst_info *inst)
+static int resume_widget(struct inst_info *inst)
 {
 	struct packet *packet;
-	unsigned int cmd = CMD_DBOX_RESUME;
+	unsigned int cmd = CMD_WIDGET_RESUME;
 
 	packet = packet_create_noack((const char *)&cmd, "ss", package_name(inst->info), inst->id);
 	if (!packet) {
 		ErrPrint("Failed to create a new packet\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return slave_rpc_request_only(package_slave(inst->info), package_name(inst->info), packet, 0);
@@ -303,19 +303,19 @@ static inline int instance_recover_visible_state(struct inst_info *inst)
 	int ret;
 
 	switch (inst->visible) {
-	case DBOX_SHOW:
-	case DBOX_HIDE:
+	case WIDGET_SHOW:
+	case WIDGET_HIDE:
 		instance_thaw_updator(inst);
 
 		ret = 0;
 		break;
-	case DBOX_HIDE_WITH_PAUSE:
-		ret = pause_dynamicbox(inst);
+	case WIDGET_HIDE_WITH_PAUSE:
+		ret = pause_widget(inst);
 
 		instance_freeze_updator(inst);
 		break;
 	default:
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		break;
 	}
 
@@ -360,7 +360,7 @@ static inline void instance_send_update_id(struct inst_info *inst)
 static inline void instance_send_resized_event(struct inst_info *inst, int is_gbar, int w, int h, int status)
 {
 	struct packet *packet;
-	enum dynamicbox_dbox_type dbox_type;
+	enum widget_widget_type widget_type;
 	const char *pkgname;
 	const char *id;
 	unsigned int cmd = CMD_SIZE_CHANGED;
@@ -372,11 +372,11 @@ static inline void instance_send_resized_event(struct inst_info *inst, int is_gb
 
 	pkgname = package_name(inst->info);
 
-	dbox_type = package_dbox_type(inst->info);
-	if (dbox_type == DBOX_TYPE_SCRIPT) {
-		id = script_handler_buffer_id(inst->dbox.canvas.script);
-	} else if (dbox_type == DBOX_TYPE_BUFFER) {
-		id = buffer_handler_id(inst->dbox.canvas.buffer);
+	widget_type = package_widget_type(inst->info);
+	if (widget_type == WIDGET_TYPE_SCRIPT) {
+		id = script_handler_buffer_id(inst->widget.canvas.script);
+	} else if (widget_type == WIDGET_TYPE_BUFFER) {
+		id = buffer_handler_id(inst->widget.canvas.buffer);
 	} else {
 		id = "";
 	}
@@ -396,17 +396,17 @@ static void update_mode_cb(struct slave_node *slave, const struct packet *packet
 
 	if (!packet) {
 		ErrPrint("Invalid packet\n");
-		ret = DBOX_STATUS_ERROR_FAULT;
+		ret = WIDGET_STATUS_ERROR_FAULT;
 		goto out;
 	}
 
 	if (packet_get(packet, "i", &ret) != 1) {
 		ErrPrint("Invalid parameters\n");
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
-	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 		cbdata->inst->active_update = cbdata->active_update;
 	}
 
@@ -419,28 +419,28 @@ out:
 HAPI int instance_unicast_created_event(struct inst_info *inst, struct client_node *client)
 {
 	struct packet *packet;
-	enum dynamicbox_dbox_type dbox_type;
-	enum dynamicbox_gbar_type gbar_type;
-	const char *dbox_file;
+	enum widget_widget_type widget_type;
+	enum widget_gbar_type gbar_type;
+	const char *widget_file;
 	const char *gbar_file;
 	unsigned int cmd = CMD_CREATED;
 
 	if (!client) {
 		client = inst->client;
 		if (!client) {
-			return DBOX_STATUS_ERROR_NONE;
+			return WIDGET_STATUS_ERROR_NONE;
 		}
 	}
 
-	dbox_type = package_dbox_type(inst->info);
+	widget_type = package_widget_type(inst->info);
 	gbar_type = package_gbar_type(inst->info);
 
-	if (dbox_type == DBOX_TYPE_SCRIPT) {
-		dbox_file = script_handler_buffer_id(inst->dbox.canvas.script);
-	} else if (dbox_type == DBOX_TYPE_BUFFER) {
-		dbox_file = buffer_handler_id(inst->dbox.canvas.buffer);
+	if (widget_type == WIDGET_TYPE_SCRIPT) {
+		widget_file = script_handler_buffer_id(inst->widget.canvas.script);
+	} else if (widget_type == WIDGET_TYPE_BUFFER) {
+		widget_file = buffer_handler_id(inst->widget.canvas.buffer);
 	} else {
-		dbox_file = "";
+		widget_file = "";
 	}
 
 	if (gbar_type == GBAR_TYPE_SCRIPT) {
@@ -454,21 +454,21 @@ HAPI int instance_unicast_created_event(struct inst_info *inst, struct client_no
 	packet = packet_create_noack((const char *)&cmd, "dsssiiiisssssdiiiiidsi",
 			inst->timestamp,
 			package_name(inst->info), inst->id, inst->content,
-			inst->dbox.width, inst->dbox.height,
+			inst->widget.width, inst->widget.height,
 			inst->gbar.width, inst->gbar.height,
 			inst->cluster, inst->category,
-			dbox_file, gbar_file,
+			widget_file, gbar_file,
 			package_auto_launch(inst->info),
-			inst->dbox.priority,
+			inst->widget.priority,
 			package_size_list(inst->info),
 			!!inst->client,
 			package_pinup(inst->info),
-			dbox_type, gbar_type,
-			inst->dbox.period, inst->title,
+			widget_type, gbar_type,
+			inst->widget.period, inst->title,
 			inst->is_pinned_up);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return client_rpc_async_request(client, packet);
@@ -482,27 +482,27 @@ static int update_client_list(struct client_node *client, void *data)
 		instance_add_client(inst, client);
 	}
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 static int instance_broadcast_created_event(struct inst_info *inst)
 {
 	struct packet *packet;
-	enum dynamicbox_dbox_type dbox_type;
-	enum dynamicbox_gbar_type gbar_type;
-	const char *dbox_file;
+	enum widget_widget_type widget_type;
+	enum widget_gbar_type gbar_type;
+	const char *widget_file;
 	const char *gbar_file;
 	unsigned int cmd = CMD_CREATED;
 
-	dbox_type = package_dbox_type(inst->info);
+	widget_type = package_widget_type(inst->info);
 	gbar_type = package_gbar_type(inst->info);
 
-	if (dbox_type == DBOX_TYPE_SCRIPT) {
-		dbox_file = script_handler_buffer_id(inst->dbox.canvas.script);
-	} else if (dbox_type == DBOX_TYPE_BUFFER) {
-		dbox_file = buffer_handler_id(inst->dbox.canvas.buffer);
+	if (widget_type == WIDGET_TYPE_SCRIPT) {
+		widget_file = script_handler_buffer_id(inst->widget.canvas.script);
+	} else if (widget_type == WIDGET_TYPE_BUFFER) {
+		widget_file = buffer_handler_id(inst->widget.canvas.buffer);
 	} else {
-		dbox_file = "";
+		widget_file = "";
 	}
 
 	if (gbar_type == GBAR_TYPE_SCRIPT) {
@@ -522,21 +522,21 @@ static int instance_broadcast_created_event(struct inst_info *inst)
 	packet = packet_create_noack((const char *)&cmd, "dsssiiiisssssdiiiiidsi", 
 			inst->timestamp,
 			package_name(inst->info), inst->id, inst->content,
-			inst->dbox.width, inst->dbox.height,
+			inst->widget.width, inst->widget.height,
 			inst->gbar.width, inst->gbar.height,
 			inst->cluster, inst->category,
-			dbox_file, gbar_file,
+			widget_file, gbar_file,
 			package_auto_launch(inst->info),
-			inst->dbox.priority,
+			inst->widget.priority,
 			package_size_list(inst->info),
 			!!inst->client,
 			package_pinup(inst->info),
-			dbox_type, gbar_type,
-			inst->dbox.period, inst->title,
+			widget_type, gbar_type,
+			inst->widget.period, inst->title,
 			inst->is_pinned_up);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	inst->unicast_delete_event = 0;
@@ -551,14 +551,14 @@ HAPI int instance_unicast_deleted_event(struct inst_info *inst, struct client_no
 	if (!client) {
 		client = inst->client;
 		if (!client) {
-			return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		}
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssdi", package_name(inst->info), inst->id, inst->timestamp, reason);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return client_rpc_async_request(client, packet);
@@ -576,7 +576,7 @@ static int instance_broadcast_deleted_event(struct inst_info *inst, int reason)
 	packet = packet_create_noack((const char *)&cmd, "ssdi", package_name(inst->info), inst->id, inst->timestamp, reason);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	ret = client_send_event(inst, packet);
@@ -591,8 +591,8 @@ static int instance_broadcast_deleted_event(struct inst_info *inst, int reason)
 static int client_deactivated_cb(struct client_node *client, void *data)
 {
 	struct inst_info *inst = data;
-	instance_destroy(inst, DBOX_DESTROY_TYPE_FAULT);
-	return DBOX_STATUS_ERROR_NONE;
+	instance_destroy(inst, WIDGET_DESTROY_TYPE_FAULT);
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 static int send_gbar_destroyed_to_client(struct inst_info *inst, int status)
@@ -600,15 +600,15 @@ static int send_gbar_destroyed_to_client(struct inst_info *inst, int status)
 	struct packet *packet;
 	unsigned int cmd = CMD_GBAR_DESTROYED;
 
-	if (!inst->gbar.need_to_send_close_event && status != DBOX_STATUS_ERROR_FAULT) {
+	if (!inst->gbar.need_to_send_close_event && status != WIDGET_STATUS_ERROR_FAULT) {
 		ErrPrint("GBAR is not created\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssi", package_name(inst->info), inst->id, status);
 	if (!packet) {
 		ErrPrint("Failed to create a packet\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	inst->gbar.need_to_send_close_event = 0;
@@ -638,7 +638,7 @@ HAPI int instance_event_callback_is_added(struct inst_info *inst, enum instance_
 	Eina_List *l;
 
 	if (!event_cb) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	switch (type) {
@@ -651,7 +651,7 @@ HAPI int instance_event_callback_is_added(struct inst_info *inst, enum instance_
 
 		break;
 	default:
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	return 0;
@@ -662,7 +662,7 @@ HAPI int instance_event_callback_add(struct inst_info *inst, enum instance_event
 	struct event_item *item;
 
 	if (!event_cb) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	switch (type) {
@@ -670,7 +670,7 @@ HAPI int instance_event_callback_add(struct inst_info *inst, enum instance_event
 		item = malloc(sizeof(*item));
 		if (!item) {
 			ErrPrint("Heap: %s\n", strerror(errno));
-			return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+			return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 		}
 
 		item->event_cb = event_cb;
@@ -680,10 +680,10 @@ HAPI int instance_event_callback_add(struct inst_info *inst, enum instance_event
 		inst->delete_event_list = eina_list_append(inst->delete_event_list, item);
 		break;
 	default:
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int instance_event_callback_del(struct inst_info *inst, enum instance_event type, int (*event_cb)(struct inst_info *inst, void *data), void *data)
@@ -702,7 +702,7 @@ HAPI int instance_event_callback_del(struct inst_info *inst, enum instance_event
 					inst->delete_event_list = eina_list_remove(inst->delete_event_list, item);
 					DbgFree(item);
 				}
-				return DBOX_STATUS_ERROR_NONE;
+				return WIDGET_STATUS_ERROR_NONE;
 			}
 		}
 		break;
@@ -710,80 +710,80 @@ HAPI int instance_event_callback_del(struct inst_info *inst, enum instance_event
 		break;
 	}
 
-	return DBOX_STATUS_ERROR_NOT_EXIST;
+	return WIDGET_STATUS_ERROR_NOT_EXIST;
 }
 
 static inline void destroy_instance(struct inst_info *inst)
 {
 	struct pkg_info *pkg;
-	enum dynamicbox_dbox_type dbox_type;
-	enum dynamicbox_gbar_type gbar_type;
+	enum widget_widget_type widget_type;
+	enum widget_gbar_type gbar_type;
 	struct slave_node *slave;
 	struct event_item *item;
 	struct tag_item *tag_item;
 
-	(void)send_gbar_destroyed_to_client(inst, DBOX_STATUS_ERROR_NONE);
+	(void)send_gbar_destroyed_to_client(inst, WIDGET_STATUS_ERROR_NONE);
 
 	invoke_delete_callbacks(inst);
 
 	pkg = inst->info;
 
-	dbox_type = package_dbox_type(pkg);
+	widget_type = package_widget_type(pkg);
 	gbar_type = package_gbar_type(pkg);
 	slave = package_slave(inst->info);
 
 	DbgPrint("Instance is destroyed (%p), slave(%p)\n", inst, slave);
 
-	if (dbox_type == DBOX_TYPE_SCRIPT) {
-		(void)script_handler_unload(inst->dbox.canvas.script, 0);
-		if (script_handler_destroy(inst->dbox.canvas.script) == (int)DBOX_STATUS_ERROR_NONE) {
-			inst->dbox.canvas.script = NULL;
+	if (widget_type == WIDGET_TYPE_SCRIPT) {
+		(void)script_handler_unload(inst->widget.canvas.script, 0);
+		if (script_handler_destroy(inst->widget.canvas.script) == (int)WIDGET_STATUS_ERROR_NONE) {
+			inst->widget.canvas.script = NULL;
 		}
-	} else if (dbox_type == DBOX_TYPE_BUFFER) {
-		(void)buffer_handler_unload(inst->dbox.canvas.buffer);
-		if (buffer_handler_destroy(inst->dbox.canvas.buffer) == (int)DBOX_STATUS_ERROR_NONE) {
-			inst->dbox.canvas.buffer = NULL;
+	} else if (widget_type == WIDGET_TYPE_BUFFER) {
+		(void)buffer_handler_unload(inst->widget.canvas.buffer);
+		if (buffer_handler_destroy(inst->widget.canvas.buffer) == (int)WIDGET_STATUS_ERROR_NONE) {
+			inst->widget.canvas.buffer = NULL;
 		}
 
-		if (inst->dbox.extra_buffer) {
+		if (inst->widget.extra_buffer) {
 			int i;
 
-			for (i = 0; i < DYNAMICBOX_CONF_EXTRA_BUFFER_COUNT; i++) {
-				if (!inst->dbox.extra_buffer[i]) {
+			for (i = 0; i < WIDGET_CONF_EXTRA_BUFFER_COUNT; i++) {
+				if (!inst->widget.extra_buffer[i]) {
 					continue;
 				}
 
-				(void)buffer_handler_unload(inst->dbox.extra_buffer[i]);
-				if (buffer_handler_destroy(inst->dbox.extra_buffer[i]) == (int)DBOX_STATUS_ERROR_NONE) {
-					inst->dbox.extra_buffer[i] = NULL;
+				(void)buffer_handler_unload(inst->widget.extra_buffer[i]);
+				if (buffer_handler_destroy(inst->widget.extra_buffer[i]) == (int)WIDGET_STATUS_ERROR_NONE) {
+					inst->widget.extra_buffer[i] = NULL;
 				}
 			}
 
-			DbgFree(inst->dbox.extra_buffer);
-			inst->dbox.extra_buffer = NULL;
+			DbgFree(inst->widget.extra_buffer);
+			inst->widget.extra_buffer = NULL;
 		}
 	}
 
 	if (gbar_type == GBAR_TYPE_SCRIPT) {
 		(void)script_handler_unload(inst->gbar.canvas.script, 1);
-		if (script_handler_destroy(inst->gbar.canvas.script) == (int)DBOX_STATUS_ERROR_NONE) {
+		if (script_handler_destroy(inst->gbar.canvas.script) == (int)WIDGET_STATUS_ERROR_NONE) {
 			inst->gbar.canvas.script = NULL;
 		}
 	} else if (gbar_type == GBAR_TYPE_BUFFER) {
 		(void)buffer_handler_unload(inst->gbar.canvas.buffer);
-		if (buffer_handler_destroy(inst->gbar.canvas.buffer) == (int)DBOX_STATUS_ERROR_NONE) {
+		if (buffer_handler_destroy(inst->gbar.canvas.buffer) == (int)WIDGET_STATUS_ERROR_NONE) {
 			inst->gbar.canvas.buffer = NULL;
 		}
 		if (inst->gbar.extra_buffer) {
 			int i;
 
-			for (i = 0; i < DYNAMICBOX_CONF_EXTRA_BUFFER_COUNT; i++) {
+			for (i = 0; i < WIDGET_CONF_EXTRA_BUFFER_COUNT; i++) {
 				if (!inst->gbar.extra_buffer[i]) {
 					continue;
 				}
 
 				(void)buffer_handler_unload(inst->gbar.extra_buffer[i]);
-				if (buffer_handler_destroy(inst->gbar.extra_buffer[i]) == (int)DBOX_STATUS_ERROR_NONE) {
+				if (buffer_handler_destroy(inst->gbar.extra_buffer[i]) == (int)WIDGET_STATUS_ERROR_NONE) {
 					inst->gbar.extra_buffer[i] = NULL;
 				}
 			}
@@ -842,27 +842,27 @@ static inline int fork_package(struct inst_info *inst, const char *pkgname)
 	info = package_find(pkgname);
 	if (!info) {
 		ErrPrint("%s is not found\n", pkgname);
-		return DBOX_STATUS_ERROR_NOT_EXIST;
+		return WIDGET_STATUS_ERROR_NOT_EXIST;
 	}
 
-	len = strlen(SCHEMA_FILE "%s%s_%d_%lf.png") + strlen(DYNAMICBOX_CONF_IMAGE_PATH) + strlen(package_name(info)) + 50;
+	len = strlen(SCHEMA_FILE "%s%s_%d_%lf.png") + strlen(WIDGET_CONF_IMAGE_PATH) + strlen(package_name(info)) + 50;
 	inst->id = malloc(len);
 	if (!inst->id) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
-	snprintf(inst->id, len, SCHEMA_FILE "%s%s_%d_%lf.png", DYNAMICBOX_CONF_IMAGE_PATH, package_name(info), client_pid(inst->client), inst->timestamp);
+	snprintf(inst->id, len, SCHEMA_FILE "%s%s_%d_%lf.png", WIDGET_CONF_IMAGE_PATH, package_name(info), client_pid(inst->client), inst->timestamp);
 
 	instance_set_gbar_size(inst, package_gbar_width(info), package_gbar_height(info));
 
-	inst->dbox.period = package_period(info);
+	inst->widget.period = package_period(info);
 
 	inst->info = info;
 
-	if (package_secured(info) || (DBOX_IS_INHOUSE(package_abi(info)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL)) {
-		if (inst->dbox.period > 0.0f) {
-			inst->update_timer = util_timer_add(inst->dbox.period, update_timer_cb, inst);
+	if (package_secured(info) || (WIDGET_IS_INHOUSE(package_abi(info)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL)) {
+		if (inst->widget.period > 0.0f) {
+			inst->update_timer = util_timer_add(inst->widget.period, update_timer_cb, inst);
 			if (!inst->update_timer) {
 				ErrPrint("Failed to add an update timer for instance %s\n", inst->id);
 			} else {
@@ -873,7 +873,7 @@ static inline int fork_package(struct inst_info *inst, const char *pkgname)
 		}
 	}
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI struct inst_info *instance_create(struct client_node *client, double timestamp, const char *pkgname, const char *content, const char *cluster, const char *category, double period, int width, int height)
@@ -887,8 +887,8 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 	}
 
 	inst->timestamp = timestamp;
-	inst->dbox.width = width;
-	inst->dbox.height = height;
+	inst->widget.width = width;
+	inst->widget.height = height;
 
 	inst->content = strdup(content);
 	if (!inst->content) {
@@ -914,7 +914,7 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 		return NULL;
 	}
 
-	inst->title = strdup(DYNAMICBOX_CONF_DEFAULT_TITLE); /*!< Use the DEFAULT Title "" */
+	inst->title = strdup(WIDGET_CONF_DEFAULT_TITLE); /*!< Use the DEFAULT Title "" */
 	if (!inst->title) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		DbgFree(inst->category);
@@ -944,13 +944,13 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 	inst->unicast_delete_event = 1;
 	inst->state = INST_INIT;
 	inst->requested_state = INST_INIT;
-	if (DYNAMICBOX_CONF_EXTRA_BUFFER_COUNT) {
-		inst->dbox.extra_buffer = calloc(DYNAMICBOX_CONF_EXTRA_BUFFER_COUNT, sizeof(*inst->dbox.extra_buffer));
-		if (!inst->dbox.extra_buffer) {
-			ErrPrint("Failed to allocate buffer for dbox extra buffer\n");
+	if (WIDGET_CONF_EXTRA_BUFFER_COUNT) {
+		inst->widget.extra_buffer = calloc(WIDGET_CONF_EXTRA_BUFFER_COUNT, sizeof(*inst->widget.extra_buffer));
+		if (!inst->widget.extra_buffer) {
+			ErrPrint("Failed to allocate buffer for widget extra buffer\n");
 		}
 
-		inst->gbar.extra_buffer = calloc(DYNAMICBOX_CONF_EXTRA_BUFFER_COUNT, sizeof(*inst->gbar.extra_buffer));
+		inst->gbar.extra_buffer = calloc(WIDGET_CONF_EXTRA_BUFFER_COUNT, sizeof(*inst->gbar.extra_buffer));
 		if (!inst->gbar.extra_buffer) {
 			ErrPrint("Failed to allocate buffer for gbar extra buffer\n");
 		}
@@ -958,7 +958,7 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 	instance_ref(inst);
 
 	if (package_add_instance(inst->info, inst) < 0) {
-		instance_destroy(inst, DBOX_DESTROY_TYPE_FAULT);
+		instance_destroy(inst, WIDGET_DESTROY_TYPE_FAULT);
 		return NULL;
 	}
 
@@ -969,7 +969,7 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 
 	if (instance_activate(inst) < 0) {
 		instance_state_reset(inst);
-		instance_destroy(inst, DBOX_DESTROY_TYPE_FAULT);
+		instance_destroy(inst, WIDGET_DESTROY_TYPE_FAULT);
 		inst = NULL;
 	}
 
@@ -1060,19 +1060,19 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 				instance_broadcast_deleted_event(inst, ret);
 			}
 			instance_state_reset(inst);
-			instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+			instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
 		default:
 			/*!< Unable to reach here */
 			break;
 		}
 
 		break;
-	case DBOX_STATUS_ERROR_INVALID_PARAMETER:
+	case WIDGET_STATUS_ERROR_INVALID_PARAMETER:
 		/*!
 		 * \note
 		 * Slave has no instance of this package.
 		 */
-	case DBOX_STATUS_ERROR_NOT_EXIST:
+	case WIDGET_STATUS_ERROR_NOT_EXIST:
 		/*!
 		 * \note
 		 * This instance's previous state is only can be the INST_ACTIVATED.
@@ -1089,12 +1089,12 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 		/*!
 		 * \note
 		 * Failed to unload this instance.
-		 * This is not possible, slave will always return DBOX_STATUS_ERROR_NOT_EXIST, DBOX_STATUS_ERROR_INVALID_PARAMETER, or 0.
+		 * This is not possible, slave will always return WIDGET_STATUS_ERROR_NOT_EXIST, WIDGET_STATUS_ERROR_INVALID_PARAMETER, or 0.
 		 * but care this exceptional case.
 		 */
 		instance_broadcast_deleted_event(inst, ret);
 		instance_state_reset(inst);
-		instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+		instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
 		break;
 	}
 
@@ -1109,8 +1109,8 @@ out:
 static void reactivate_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	struct inst_info *inst = data;
-	enum dynamicbox_dbox_type dbox_type;
-	enum dynamicbox_gbar_type gbar_type;
+	enum widget_widget_type widget_type;
+	enum widget_gbar_type gbar_type;
 	int ret;
 	const char *content;
 	const char *title;
@@ -1170,11 +1170,11 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 		inst->state = INST_ACTIVATED;
 		switch (inst->requested_state) {
 		case INST_DESTROYED:
-			instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+			instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
 			break;
 		case INST_ACTIVATED:
 			inst->is_pinned_up = is_pinned_up;
-			dbox_type = package_dbox_type(inst->info);
+			widget_type = package_widget_type(inst->info);
 			gbar_type = package_gbar_type(inst->info);
 
 			/*!
@@ -1189,10 +1189,10 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 			 *   Just leave it only for now.
 			 */
 
-			if (dbox_type == DBOX_TYPE_SCRIPT && inst->dbox.canvas.script) {
-				script_handler_load(inst->dbox.canvas.script, 0);
-			} else if (dbox_type == DBOX_TYPE_BUFFER && inst->dbox.canvas.buffer) {
-				buffer_handler_load(inst->dbox.canvas.buffer);
+			if (widget_type == WIDGET_TYPE_SCRIPT && inst->widget.canvas.script) {
+				script_handler_load(inst->widget.canvas.script, 0);
+			} else if (widget_type == WIDGET_TYPE_BUFFER && inst->widget.canvas.buffer) {
+				buffer_handler_load(inst->widget.canvas.buffer);
 			}
 
 			if (gbar_type == GBAR_TYPE_SCRIPT && inst->gbar.canvas.script && inst->gbar.is_opened_for_reactivate) {
@@ -1201,7 +1201,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 				 * \note
 				 * We should to send a request to open a GBAR to slave.
 				 * if we didn't send it, the slave will not recognize the state of a GBAR.
-				 * We have to keep the view of GBAR seamless even if the dynamicbox is reactivated.
+				 * We have to keep the view of GBAR seamless even if the widget is reactivated.
 				 * To do that, send open request from here.
 				 */
 				ret = instance_slave_open_gbar(inst, NULL);
@@ -1223,7 +1223,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 				 * \note
 				 * We should to send a request to open a GBAR to slave.
 				 * if we didn't send it, the slave will not recognize the state of a GBAR.
-				 * We have to keep the view of GBAR seamless even if the dynamicbox is reactivated.
+				 * We have to keep the view of GBAR seamless even if the widget is reactivated.
 				 * To do that, send open request from here.
 				 */
 				ret = instance_slave_open_gbar(inst, NULL);
@@ -1238,15 +1238,15 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 			/*!
 			 * \note
 			 * After create an instance again,
-			 * Send resize request to the dynamicbox.
-			 * instance_resize(inst, inst->dbox.width, inst->dbox.height);
+			 * Send resize request to the widget.
+			 * instance_resize(inst, inst->widget.width, inst->widget.height);
 			 *
-			 * renew request will resize the dynamicbox while creating it again
+			 * renew request will resize the widget while creating it again
 			 */
 
 			/*!
 			 * \note
-			 * This function will check the visiblity of a dynamicbox and
+			 * This function will check the visiblity of a widget and
 			 * make decision whether it thaw the update timer or not.
 			 */
 			instance_recover_visible_state(inst);
@@ -1257,7 +1257,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 	default:
 		instance_broadcast_deleted_event(inst, ret);
 		instance_state_reset(inst);
-		instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+		instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
 		break;
 	}
 
@@ -1307,11 +1307,11 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 
 	switch (ret) {
 	case 1: /*!< need to create */
-		if (util_free_space(DYNAMICBOX_CONF_IMAGE_PATH) > DYNAMICBOX_CONF_MINIMUM_SPACE) {
+		if (util_free_space(WIDGET_CONF_IMAGE_PATH) > WIDGET_CONF_MINIMUM_SPACE) {
 			struct inst_info *new_inst;
 			new_inst = instance_create(inst->client, util_timestamp(), package_name(inst->info),
 					inst->content, inst->cluster, inst->category,
-					inst->dbox.period, 0, 0);
+					inst->widget.period, 0, 0);
 			if (!new_inst) {
 				ErrPrint("Failed to create a new instance\n");
 			}
@@ -1325,8 +1325,8 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 		 * just increase the loaded instance counter
 		 * And then reset jobs.
 		 */
-		instance_set_dbox_size(inst, w, h);
-		instance_set_dbox_info(inst, priority, content, title);
+		instance_set_widget_size(inst, w, h);
+		instance_set_widget_info(inst, priority, content, title);
 
 		inst->state = INST_ACTIVATED;
 
@@ -1335,32 +1335,32 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 			/**
 			 * In this case, we should destroy the instance.
 			 */
-			instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+			instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
 			break;
 		case INST_ACTIVATED:
 		default:
 			/**
 			 * @note
-			 * DBOX should be created at the create time
+			 * WIDGET should be created at the create time
 			 */
 			inst->is_pinned_up = is_pinned_up;
-			if (package_dbox_type(inst->info) == DBOX_TYPE_SCRIPT) {
-				if (inst->dbox.width == 0 && inst->dbox.height == 0) {
-					dynamicbox_service_get_size(DBOX_SIZE_TYPE_1x1, &inst->dbox.width, &inst->dbox.height);
+			if (package_widget_type(inst->info) == WIDGET_TYPE_SCRIPT) {
+				if (inst->widget.width == 0 && inst->widget.height == 0) {
+					widget_service_get_size(WIDGET_SIZE_TYPE_1x1, &inst->widget.width, &inst->widget.height);
 				}
 
-				inst->dbox.canvas.script = script_handler_create(inst,
-						package_dbox_path(inst->info),
-						package_dbox_group(inst->info),
-						inst->dbox.width, inst->dbox.height);
+				inst->widget.canvas.script = script_handler_create(inst,
+						package_widget_path(inst->info),
+						package_widget_group(inst->info),
+						inst->widget.width, inst->widget.height);
 
-				if (!inst->dbox.canvas.script) {
-					ErrPrint("Failed to create DBOX\n");
+				if (!inst->widget.canvas.script) {
+					ErrPrint("Failed to create WIDGET\n");
 				} else {
-					script_handler_load(inst->dbox.canvas.script, 0);
+					script_handler_load(inst->widget.canvas.script, 0);
 				}
-			} else if (package_dbox_type(inst->info) == DBOX_TYPE_BUFFER) {
-				instance_create_dbox_buffer(inst, DYNAMICBOX_CONF_DEFAULT_PIXELS);
+			} else if (package_widget_type(inst->info) == WIDGET_TYPE_BUFFER) {
+				instance_create_widget_buffer(inst, WIDGET_CONF_DEFAULT_PIXELS);
 			}
 
 			if (package_gbar_type(inst->info) == GBAR_TYPE_SCRIPT) {
@@ -1377,7 +1377,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 					ErrPrint("Failed to create GBAR\n");
 				}
 			} else if (package_gbar_type(inst->info) == GBAR_TYPE_BUFFER) {
-				instance_create_gbar_buffer(inst, DYNAMICBOX_CONF_DEFAULT_PIXELS);
+				instance_create_gbar_buffer(inst, WIDGET_CONF_DEFAULT_PIXELS);
 			}
 
 			instance_broadcast_created_event(inst);
@@ -1389,7 +1389,7 @@ static void activate_cb(struct slave_node *slave, const struct packet *packet, v
 	default:
 		instance_unicast_deleted_event(inst, NULL, ret);
 		instance_state_reset(inst);
-		instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+		instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
 		break;
 	}
 
@@ -1437,55 +1437,55 @@ HAPI int instance_create_gbar_extra_buffer(struct inst_info *inst, int pixels, i
 	return !!inst->gbar.extra_buffer[idx];
 }
 
-HAPI int instance_create_dbox_buffer(struct inst_info *inst, int pixels)
+HAPI int instance_create_widget_buffer(struct inst_info *inst, int pixels)
 {
-	if (inst->dbox.width == 0 && inst->dbox.height == 0) {
-		dynamicbox_service_get_size(DBOX_SIZE_TYPE_1x1, &inst->dbox.width, &inst->dbox.height);
+	if (inst->widget.width == 0 && inst->widget.height == 0) {
+		widget_service_get_size(WIDGET_SIZE_TYPE_1x1, &inst->widget.width, &inst->widget.height);
 	}
 
-	if (!inst->dbox.canvas.buffer) {
+	if (!inst->widget.canvas.buffer) {
 		/*!
 		 * \note
 		 * Slave doesn't call the acquire_buffer.
 		 * In this case, create the buffer from here.
 		 */
-		inst->dbox.canvas.buffer = buffer_handler_create(inst, s_info.env_buf_type, inst->dbox.width, inst->dbox.height, pixels);
-		if (!inst->dbox.canvas.buffer) {
-			ErrPrint("Failed to create DBOX\n");
+		inst->widget.canvas.buffer = buffer_handler_create(inst, s_info.env_buf_type, inst->widget.width, inst->widget.height, pixels);
+		if (!inst->widget.canvas.buffer) {
+			ErrPrint("Failed to create WIDGET\n");
 		}
 	}
 
-	return !!inst->dbox.canvas.buffer;
+	return !!inst->widget.canvas.buffer;
 }
 
-HAPI int instance_create_dbox_extra_buffer(struct inst_info *inst, int pixels, int idx)
+HAPI int instance_create_widget_extra_buffer(struct inst_info *inst, int pixels, int idx)
 {
-	if (!inst->dbox.extra_buffer) {
+	if (!inst->widget.extra_buffer) {
 		return 0;
 	}
 
-	if (inst->dbox.width == 0 && inst->dbox.height == 0) {
-		dynamicbox_service_get_size(DBOX_SIZE_TYPE_1x1, &inst->dbox.width, &inst->dbox.height);
+	if (inst->widget.width == 0 && inst->widget.height == 0) {
+		widget_service_get_size(WIDGET_SIZE_TYPE_1x1, &inst->widget.width, &inst->widget.height);
 	}
 
-	if (!inst->dbox.extra_buffer[idx]) {
-		inst->dbox.extra_buffer[idx] = buffer_handler_create(inst, s_info.env_buf_type, inst->dbox.width, inst->dbox.height, pixels);
-		if (!inst->dbox.extra_buffer[idx]) {
+	if (!inst->widget.extra_buffer[idx]) {
+		inst->widget.extra_buffer[idx] = buffer_handler_create(inst, s_info.env_buf_type, inst->widget.width, inst->widget.height, pixels);
+		if (!inst->widget.extra_buffer[idx]) {
 			ErrPrint("Failed to create DBox Extra buffer\n");
 		}
 	}
 
-	return !!inst->dbox.extra_buffer[idx];
+	return !!inst->widget.extra_buffer[idx];
 }
 
-HAPI int instance_destroy(struct inst_info *inst, dynamicbox_destroy_type_e type)
+HAPI int instance_destroy(struct inst_info *inst, widget_destroy_type_e type)
 {
 	struct packet *packet;
 	unsigned int cmd = CMD_DELETE;
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	switch (inst->state) {
@@ -1493,15 +1493,15 @@ HAPI int instance_destroy(struct inst_info *inst, dynamicbox_destroy_type_e type
 	case INST_REQUEST_TO_DESTROY:
 	case INST_REQUEST_TO_REACTIVATE:
 		inst->requested_state = INST_DESTROYED;
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	case INST_INIT:
 		inst->state = INST_DESTROYED;
 		inst->requested_state = INST_DESTROYED;
 		(void)instance_unref(inst);
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	case INST_DESTROYED:
 		inst->requested_state = INST_DESTROYED;
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	default:
 		break;
 	}
@@ -1509,7 +1509,7 @@ HAPI int instance_destroy(struct inst_info *inst, dynamicbox_destroy_type_e type
 	packet = packet_create((const char *)&cmd, "ssi", package_name(inst->info), inst->id, type);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	inst->destroy_type = type;
@@ -1519,7 +1519,7 @@ HAPI int instance_destroy(struct inst_info *inst, dynamicbox_destroy_type_e type
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, deactivate_cb, instance_ref(inst), 0);
 }
 
-HAPI int instance_reload(struct inst_info *inst, dynamicbox_destroy_type_e type)
+HAPI int instance_reload(struct inst_info *inst, widget_destroy_type_e type)
 {
 	struct packet *packet;
 	unsigned int cmd = CMD_DELETE;
@@ -1527,7 +1527,7 @@ HAPI int instance_reload(struct inst_info *inst, dynamicbox_destroy_type_e type)
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	DbgPrint("Reload instance (%s)\n", instance_id(inst));
@@ -1535,17 +1535,17 @@ HAPI int instance_reload(struct inst_info *inst, dynamicbox_destroy_type_e type)
 	switch (inst->state) {
 	case INST_REQUEST_TO_ACTIVATE:
 	case INST_REQUEST_TO_REACTIVATE:
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	case INST_INIT:
 		ret = instance_activate(inst);
 		if (ret < 0) {
 			ErrPrint("Failed to activate instance: %d (%s)\n", ret, instance_id(inst));
 		}
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	case INST_DESTROYED:
 	case INST_REQUEST_TO_DESTROY:
 		DbgPrint("Instance is destroying now\n");
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	default:
 		break;
 	}
@@ -1553,7 +1553,7 @@ HAPI int instance_reload(struct inst_info *inst, dynamicbox_destroy_type_e type)
 	packet = packet_create((const char *)&cmd, "ssi", package_name(inst->info), inst->id, type);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	inst->destroy_type = type;
@@ -1568,7 +1568,7 @@ static int gbar_buffer_close_cb(struct client_node *client, void *inst)
 {
 	int ret;
 
-	ret = instance_slave_close_gbar(inst, client, DBOX_CLOSE_GBAR_NORMAL);
+	ret = instance_slave_close_gbar(inst, client, WIDGET_CLOSE_GBAR_NORMAL);
 	if (ret < 0) {
 		DbgPrint("Forcely close the GBAR ret: %d\n", ret);
 	}
@@ -1588,7 +1588,7 @@ static int gbar_script_close_cb(struct client_node *client, void *inst)
 		DbgPrint("Unload script: %d\n", ret);
 	}
 
-	ret = instance_slave_close_gbar(inst, client, DBOX_CLOSE_GBAR_NORMAL);
+	ret = instance_slave_close_gbar(inst, client, WIDGET_CLOSE_GBAR_NORMAL);
 	if (ret < 0) {
 		DbgPrint("Forcely close the GBAR ret: %d\n", ret);
 	}
@@ -1637,25 +1637,25 @@ static inline void release_resource_for_closing_gbar(struct pkg_info *info, stru
 
 HAPI int instance_state_reset(struct inst_info *inst)
 {
-	enum dynamicbox_dbox_type dbox_type;
-	enum dynamicbox_gbar_type gbar_type;
+	enum widget_widget_type widget_type;
+	enum widget_gbar_type gbar_type;
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	if (inst->state == INST_DESTROYED) {
 		goto out;
 	}
 
-	dbox_type = package_dbox_type(inst->info);
+	widget_type = package_widget_type(inst->info);
 	gbar_type = package_gbar_type(inst->info);
 
-	if (dbox_type == DBOX_TYPE_SCRIPT && inst->dbox.canvas.script) {
-		script_handler_unload(inst->dbox.canvas.script, 0);
-	} else if (dbox_type == DBOX_TYPE_BUFFER && inst->dbox.canvas.buffer) {
-		buffer_handler_unload(inst->dbox.canvas.buffer);
+	if (widget_type == WIDGET_TYPE_SCRIPT && inst->widget.canvas.script) {
+		script_handler_unload(inst->widget.canvas.script, 0);
+	} else if (widget_type == WIDGET_TYPE_BUFFER && inst->widget.canvas.buffer) {
+		buffer_handler_unload(inst->widget.canvas.buffer);
 	}
 
 	if (gbar_type == GBAR_TYPE_SCRIPT && inst->gbar.canvas.script) {
@@ -1671,7 +1671,7 @@ HAPI int instance_state_reset(struct inst_info *inst)
 out:
 	inst->state = INST_INIT;
 	inst->requested_state = INST_INIT;
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int instance_reactivate(struct inst_info *inst)
@@ -1682,12 +1682,12 @@ HAPI int instance_reactivate(struct inst_info *inst)
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	if (package_is_fault(inst->info)) {
 		ErrPrint("Fault package [%s]\n", package_name(inst->info));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	switch (inst->state) {
@@ -1695,10 +1695,10 @@ HAPI int instance_reactivate(struct inst_info *inst)
 	case INST_REQUEST_TO_ACTIVATE:
 	case INST_REQUEST_TO_REACTIVATE:
 		inst->requested_state = INST_ACTIVATED;
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	case INST_DESTROYED:
 	case INST_ACTIVATED:
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	case INST_INIT:
 	default:
 		break;
@@ -1709,22 +1709,22 @@ HAPI int instance_reactivate(struct inst_info *inst)
 			inst->id,
 			inst->content,
 			package_timeout(inst->info),
-			!!package_dbox_path(inst->info),
-			inst->dbox.period,
+			!!package_widget_path(inst->info),
+			inst->widget.period,
 			inst->cluster,
 			inst->category,
-			inst->dbox.width, inst->dbox.height,
+			inst->widget.width, inst->widget.height,
 			package_abi(inst->info),
 			inst->scroll_locked,
 			inst->active_update,
 			client_direct_addr(inst->client));
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	ret = slave_activate(package_slave(inst->info));
-	if (ret < 0 && ret != DBOX_STATUS_ERROR_ALREADY) {
+	if (ret < 0 && ret != WIDGET_STATUS_ERROR_ALREADY) {
 		/*!
 		 * \note
 		 * If the master failed to launch the slave,
@@ -1750,12 +1750,12 @@ HAPI int instance_activate(struct inst_info *inst)
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	if (package_is_fault(inst->info)) {
 		ErrPrint("Fault package [%s]\n", package_name(inst->info));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	switch (inst->state) {
@@ -1763,10 +1763,10 @@ HAPI int instance_activate(struct inst_info *inst)
 	case INST_REQUEST_TO_ACTIVATE:
 	case INST_REQUEST_TO_DESTROY:
 		inst->requested_state = INST_ACTIVATED;
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	case INST_ACTIVATED:
 	case INST_DESTROYED:
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	case INST_INIT:
 	default:
 		break;
@@ -1777,22 +1777,22 @@ HAPI int instance_activate(struct inst_info *inst)
 			inst->id,
 			inst->content,
 			package_timeout(inst->info),
-			!!package_dbox_path(inst->info),
-			inst->dbox.period,
+			!!package_widget_path(inst->info),
+			inst->widget.period,
 			inst->cluster,
 			inst->category,
 			!!inst->client,
 			package_abi(inst->info),
-			inst->dbox.width,
-			inst->dbox.height,
+			inst->widget.width,
+			inst->widget.height,
 			client_direct_addr(inst->client));
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	ret = slave_activate(package_slave(inst->info));
-	if (ret < 0 && ret != DBOX_STATUS_ERROR_ALREADY) {
+	if (ret < 0 && ret != WIDGET_STATUS_ERROR_ALREADY) {
 		/*!
 		 * \note
 		 * If the master failed to launch the slave,
@@ -1814,78 +1814,78 @@ HAPI int instance_activate(struct inst_info *inst)
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, activate_cb, instance_ref(inst), 1);
 }
 
-HAPI int instance_dbox_update_begin(struct inst_info *inst, double priority, const char *content, const char *title)
+HAPI int instance_widget_update_begin(struct inst_info *inst, double priority, const char *content, const char *title)
 {
 	struct packet *packet;
 	const char *fbfile;
-	unsigned int cmd = CMD_DBOX_UPDATE_BEGIN;
+	unsigned int cmd = CMD_WIDGET_UPDATE_BEGIN;
 
 	if (!inst->active_update) {
 		ErrPrint("Invalid request [%s]\n", inst->id);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
-	switch (package_dbox_type(inst->info)) {
-	case DBOX_TYPE_BUFFER:
-		if (!inst->dbox.canvas.buffer) {
+	switch (package_widget_type(inst->info)) {
+	case WIDGET_TYPE_BUFFER:
+		if (!inst->widget.canvas.buffer) {
 			ErrPrint("Buffer is null [%s]\n", inst->id);
-			return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		}
-		fbfile = buffer_handler_id(inst->dbox.canvas.buffer);
+		fbfile = buffer_handler_id(inst->widget.canvas.buffer);
 		break;
-	case DBOX_TYPE_SCRIPT:
-		if (!inst->dbox.canvas.script) {
+	case WIDGET_TYPE_SCRIPT:
+		if (!inst->widget.canvas.script) {
 			ErrPrint("Script is null [%s]\n", inst->id);
-			return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		}
-		fbfile = script_handler_buffer_id(inst->dbox.canvas.script);
+		fbfile = script_handler_buffer_id(inst->widget.canvas.script);
 		break;
 	default:
 		ErrPrint("Invalid request[%s]\n", inst->id);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssdsss", package_name(inst->info), inst->id, priority, content, title, fbfile);
 	if (!packet) {
 		ErrPrint("Unable to create a packet\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return client_send_event(inst, packet);
 }
 
-HAPI int instance_dbox_update_end(struct inst_info *inst)
+HAPI int instance_widget_update_end(struct inst_info *inst)
 {
 	struct packet *packet;
-	unsigned int cmd = CMD_DBOX_UPDATE_END;
+	unsigned int cmd = CMD_WIDGET_UPDATE_END;
 
 	if (!inst->active_update) {
 		ErrPrint("Invalid request [%s]\n", inst->id);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
-	switch (package_dbox_type(inst->info)) {
-	case DBOX_TYPE_BUFFER:
-		if (!inst->dbox.canvas.buffer) {
+	switch (package_widget_type(inst->info)) {
+	case WIDGET_TYPE_BUFFER:
+		if (!inst->widget.canvas.buffer) {
 			ErrPrint("Buffer is null [%s]\n", inst->id);
-			return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		}
 		break;
-	case DBOX_TYPE_SCRIPT:
-		if (!inst->dbox.canvas.script) {
+	case WIDGET_TYPE_SCRIPT:
+		if (!inst->widget.canvas.script) {
 			ErrPrint("Script is null [%s]\n", inst->id);
-			return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		}
 		break;
 	default:
 		ErrPrint("Invalid request[%s]\n", inst->id);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ss", package_name(inst->info), inst->id);
 	if (!packet) {
 		ErrPrint("Unable to create a packet\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return client_send_event(inst, packet);
@@ -1899,33 +1899,33 @@ HAPI int instance_gbar_update_begin(struct inst_info *inst)
 
 	if (!inst->active_update) {
 		ErrPrint("Invalid request [%s]\n", inst->id);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	switch (package_gbar_type(inst->info)) {
 	case GBAR_TYPE_BUFFER:
 		if (!inst->gbar.canvas.buffer) {
 			ErrPrint("Buffer is null [%s]\n", inst->id);
-			return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		}
 		fbfile = buffer_handler_id(inst->gbar.canvas.buffer);
 		break;
 	case GBAR_TYPE_SCRIPT:
 		if (!inst->gbar.canvas.script) {
 			ErrPrint("Script is null [%s]\n", inst->id);
-			return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		}
 		fbfile = script_handler_buffer_id(inst->gbar.canvas.script);
 		break;
 	default:
 		ErrPrint("Invalid request[%s]\n", inst->id);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "sss", package_name(inst->info), inst->id, fbfile);
 	if (!packet) {
 		ErrPrint("Unable to create a packet\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return client_send_event(inst, packet);
@@ -1938,31 +1938,31 @@ HAPI int instance_gbar_update_end(struct inst_info *inst)
 
 	if (!inst->active_update) {
 		ErrPrint("Invalid request [%s]\n", inst->id);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	switch (package_gbar_type(inst->info)) {
 	case GBAR_TYPE_BUFFER:
 		if (!inst->gbar.canvas.buffer) {
 			ErrPrint("Buffer is null [%s]\n", inst->id);
-			return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		}
 		break;
 	case GBAR_TYPE_SCRIPT:
 		if (!inst->gbar.canvas.script) {
 			ErrPrint("Script is null [%s]\n", inst->id);
-			return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		}
 		break;
 	default:
 		ErrPrint("Invalid request[%s]\n", inst->id);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ss", package_name(inst->info), inst->id);
 	if (!packet) {
 		ErrPrint("Unable to create a packet\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return client_send_event(inst, packet);
@@ -1976,7 +1976,7 @@ HAPI void instance_extra_info_updated_by_instance(struct inst_info *inst)
 	packet = packet_create_noack((const char *)&cmd, "ssssssd", package_name(inst->info), inst->id,
 			inst->content, inst->title,
 			inst->icon, inst->name,
-			inst->dbox.priority);
+			inst->widget.priority);
 	if (!packet) {
 		ErrPrint("Failed to create param (%s - %s)\n", package_name(inst->info), inst->id);
 		return;
@@ -1988,16 +1988,16 @@ HAPI void instance_extra_info_updated_by_instance(struct inst_info *inst)
 HAPI void instance_extra_updated_by_instance(struct inst_info *inst, int is_gbar, int idx, int x, int y, int w, int h)
 {
 	struct packet *packet;
-	enum dynamicbox_dbox_type dbox_type;
+	enum widget_widget_type widget_type;
 	unsigned int cmd = CMD_EXTRA_UPDATED;
 
-	if (idx < 0 || idx > DYNAMICBOX_CONF_EXTRA_BUFFER_COUNT) {
+	if (idx < 0 || idx > WIDGET_CONF_EXTRA_BUFFER_COUNT) {
 		ErrPrint("Invalid index\n");
 		return;
 	}
 
 	if (is_gbar == 0) {
-		if (!inst->dbox.extra_buffer || inst->dbox.extra_buffer[idx] == 0u) {
+		if (!inst->widget.extra_buffer || inst->widget.extra_buffer[idx] == 0u) {
 			ErrPrint("Invalid extra buffer\n");
 			return;
 		}
@@ -2008,15 +2008,15 @@ HAPI void instance_extra_updated_by_instance(struct inst_info *inst, int is_gbar
 		}
 	}
 
-	if (inst->client && inst->visible != DBOX_SHOW) {
-		if (inst->visible == DBOX_HIDE) {
+	if (inst->client && inst->visible != WIDGET_SHOW) {
+		if (inst->visible == WIDGET_HIDE) {
 			DbgPrint("Ignore update event %s(HIDE)\n", inst->id);
 			return;
 		}
 	}
 
-	dbox_type = package_dbox_type(inst->info);
-	if (dbox_type != DBOX_TYPE_BUFFER) {
+	widget_type = package_widget_type(inst->info);
+	if (widget_type != WIDGET_TYPE_BUFFER) {
 		ErrPrint("Unsupported type\n");
 		return;
 	}
@@ -2030,25 +2030,25 @@ HAPI void instance_extra_updated_by_instance(struct inst_info *inst, int is_gbar
 	(void)client_send_event(inst, packet);
 }
 
-HAPI void instance_dbox_updated_by_instance(struct inst_info *inst, const char *safe_file, int x, int y, int w, int h)
+HAPI void instance_widget_updated_by_instance(struct inst_info *inst, const char *safe_file, int x, int y, int w, int h)
 {
 	struct packet *packet;
 	const char *id = NULL;
-	enum dynamicbox_dbox_type dbox_type;
-	unsigned int cmd = CMD_DBOX_UPDATED;
+	enum widget_widget_type widget_type;
+	unsigned int cmd = CMD_WIDGET_UPDATED;
 
-	if (inst->client && inst->visible != DBOX_SHOW) {
-		if (inst->visible == DBOX_HIDE) {
+	if (inst->client && inst->visible != WIDGET_SHOW) {
+		if (inst->visible == WIDGET_HIDE) {
 			DbgPrint("Ignore update event %s(HIDE)\n", inst->id);
 			return;
 		}
 	}
 
-	dbox_type = package_dbox_type(inst->info);
-	if (dbox_type == DBOX_TYPE_SCRIPT) {
-		id = script_handler_buffer_id(inst->dbox.canvas.script);
-	} else if (dbox_type == DBOX_TYPE_BUFFER) {
-		id = buffer_handler_id(inst->dbox.canvas.buffer);
+	widget_type = package_widget_type(inst->info);
+	if (widget_type == WIDGET_TYPE_SCRIPT) {
+		id = script_handler_buffer_id(inst->widget.canvas.script);
+	} else if (widget_type == WIDGET_TYPE_BUFFER) {
+		id = buffer_handler_id(inst->widget.canvas.buffer);
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssssiiii", package_name(inst->info), inst->id, id, safe_file, x, y, w, h);
@@ -2067,13 +2067,13 @@ HAPI int instance_hold_scroll(struct inst_info *inst, int hold)
 
 	DbgPrint("HOLD: (%s) %d\n", inst->id, hold);
 	if (inst->scroll_locked == hold) {
-		return DBOX_STATUS_ERROR_ALREADY;
+		return WIDGET_STATUS_ERROR_ALREADY;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssi", package_name(inst->info), inst->id, hold);
 	if (!packet) {
 		ErrPrint("Failed to build a packet\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	inst->scroll_locked = hold;
@@ -2086,7 +2086,7 @@ HAPI void instance_gbar_updated_by_instance(struct inst_info *inst, const char *
 	unsigned int cmd = CMD_GBAR_UPDATED;
 	const char *id;
 
-	if (inst->client && inst->visible != DBOX_SHOW) {
+	if (inst->client && inst->visible != WIDGET_SHOW) {
 		DbgPrint("Dynamicbox is hidden. ignore update event\n");
 		return;
 	}
@@ -2156,18 +2156,18 @@ HAPI int instance_set_update_mode(struct inst_info *inst, int active_update)
 
 	if (package_is_fault(inst->info)) {
 		ErrPrint("Fault package [%s]\n", package_name(inst->info));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	if (inst->active_update == active_update) {
 		DbgPrint("Active update is not changed: %d\n", inst->active_update);
-		return DBOX_STATUS_ERROR_ALREADY;
+		return WIDGET_STATUS_ERROR_ALREADY;
 	}
 
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	cbdata->inst = instance_ref(inst);
@@ -2179,7 +2179,7 @@ HAPI int instance_set_update_mode(struct inst_info *inst, int active_update)
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		instance_unref(cbdata->inst);
 		DbgFree(cbdata);
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, update_mode_cb, cbdata, 0);
@@ -2190,7 +2190,7 @@ HAPI int instance_active_update(struct inst_info *inst)
 	return inst->active_update;
 }
 
-HAPI void instance_set_dbox_info(struct inst_info *inst, double priority, const char *content, const char *title)
+HAPI void instance_set_widget_info(struct inst_info *inst, double priority, const char *content, const char *title)
 {
 	char *_content = NULL;
 	char *_title = NULL;
@@ -2220,7 +2220,7 @@ HAPI void instance_set_dbox_info(struct inst_info *inst, double priority, const 
 	}
 
 	if (priority >= 0.0f && priority <= 1.0f) {
-		inst->dbox.priority = priority;
+		inst->widget.priority = priority;
 	}
 }
 
@@ -2254,20 +2254,20 @@ HAPI void instance_set_alt_info(struct inst_info *inst, const char *icon, const 
 	}
 }
 
-HAPI void instance_set_dbox_size(struct inst_info *inst, int w, int h)
+HAPI void instance_set_widget_size(struct inst_info *inst, int w, int h)
 {
-	if (inst->dbox.width != w || inst->dbox.height != h) {
-		instance_send_resized_event(inst, IS_DBOX, w, h, DBOX_STATUS_ERROR_NONE);
+	if (inst->widget.width != w || inst->widget.height != h) {
+		instance_send_resized_event(inst, IS_WIDGET, w, h, WIDGET_STATUS_ERROR_NONE);
 	}
 
-	inst->dbox.width = w;
-	inst->dbox.height = h;
+	inst->widget.width = w;
+	inst->widget.height = h;
 }
 
 HAPI void instance_set_gbar_size(struct inst_info *inst, int w, int h)
 {
 	if (inst->gbar.width != w || inst->gbar.height != h) {
-		instance_send_resized_event(inst, IS_GBAR, w, h, DBOX_STATUS_ERROR_NONE);
+		instance_send_resized_event(inst, IS_GBAR, w, h, WIDGET_STATUS_ERROR_NONE);
 	}
 
 	inst->gbar.width = w;
@@ -2287,7 +2287,7 @@ static void pinup_cb(struct slave_node *slave, const struct packet *packet, void
 		 * \todo
 		 * Send pinup failed event to client.
 		 */
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -2296,7 +2296,7 @@ static void pinup_cb(struct slave_node *slave, const struct packet *packet, void
 		 * \todo
 		 * Send pinup failed event to client
 		 */
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -2310,7 +2310,7 @@ static void pinup_cb(struct slave_node *slave, const struct packet *packet, void
 			 * \note
 			 * send pinup failed event to client
 			 */
-			ret = DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+			ret = WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 			goto out;
 		}
 
@@ -2346,25 +2346,25 @@ HAPI int instance_set_pinup(struct inst_info *inst, int pinup)
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	if (package_is_fault(inst->info)) {
 		ErrPrint("Fault package [%s]\n", package_name(inst->info));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	if (!package_pinup(inst->info)) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	if (pinup == inst->is_pinned_up) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	cbdata->inst = instance_ref(inst);
@@ -2375,7 +2375,7 @@ HAPI int instance_set_pinup(struct inst_info *inst, int pinup)
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		instance_unref(cbdata->inst);
 		DbgFree(cbdata);
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, pinup_cb, cbdata, 0);
@@ -2384,47 +2384,47 @@ HAPI int instance_set_pinup(struct inst_info *inst, int pinup)
 HAPI int instance_freeze_updator(struct inst_info *inst)
 {
 	if (!inst->update_timer) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	timer_freeze(inst);
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int instance_thaw_updator(struct inst_info *inst)
 {
 	if (!inst->update_timer) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	if (client_is_all_paused() || setting_is_lcd_off()) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
-	if (inst->visible == DBOX_HIDE_WITH_PAUSE) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+	if (inst->visible == WIDGET_HIDE_WITH_PAUSE) {
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	timer_thaw(inst);
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
-HAPI enum dynamicbox_visible_state instance_visible_state(struct inst_info *inst)
+HAPI enum widget_visible_state instance_visible_state(struct inst_info *inst)
 {
 	return inst->visible;
 }
 
-HAPI int instance_set_visible_state(struct inst_info *inst, enum dynamicbox_visible_state state)
+HAPI int instance_set_visible_state(struct inst_info *inst, enum widget_visible_state state)
 {
 	if (inst->visible == state) {
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	}
 
 	switch (state) {
-	case DBOX_SHOW:
-	case DBOX_HIDE:
-		if (inst->visible == DBOX_HIDE_WITH_PAUSE) {
-			if (resume_dynamicbox(inst) == 0) {
+	case WIDGET_SHOW:
+	case WIDGET_HIDE:
+		if (inst->visible == WIDGET_HIDE_WITH_PAUSE) {
+			if (resume_widget(inst) == 0) {
 				inst->visible = state;
 			}
 
@@ -2434,19 +2434,19 @@ HAPI int instance_set_visible_state(struct inst_info *inst, enum dynamicbox_visi
 		}
 		break;
 
-	case DBOX_HIDE_WITH_PAUSE:
-		if (pause_dynamicbox(inst) == 0) {
-			inst->visible = DBOX_HIDE_WITH_PAUSE;
+	case WIDGET_HIDE_WITH_PAUSE:
+		if (pause_widget(inst) == 0) {
+			inst->visible = WIDGET_HIDE_WITH_PAUSE;
 		}
 
 		instance_freeze_updator(inst);
 		break;
 
 	default:
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 static void resize_cb(struct slave_node *slave, const struct packet *packet, void *data)
@@ -2456,7 +2456,7 @@ static void resize_cb(struct slave_node *slave, const struct packet *packet, voi
 
 	if (!packet) {
 		ErrPrint("RESIZE: Invalid packet\n");
-		instance_send_resized_event(cbdata->inst, IS_DBOX, cbdata->inst->dbox.width, cbdata->inst->dbox.height, DBOX_STATUS_ERROR_FAULT);
+		instance_send_resized_event(cbdata->inst, IS_WIDGET, cbdata->inst->widget.width, cbdata->inst->widget.height, WIDGET_STATUS_ERROR_FAULT);
 		instance_unref(cbdata->inst);
 		DbgFree(cbdata);
 		return;
@@ -2464,18 +2464,18 @@ static void resize_cb(struct slave_node *slave, const struct packet *packet, voi
 
 	if (packet_get(packet, "i", &ret) != 1) {
 		ErrPrint("RESIZE: Invalid parameter\n");
-		instance_send_resized_event(cbdata->inst, IS_DBOX, cbdata->inst->dbox.width, cbdata->inst->dbox.height, DBOX_STATUS_ERROR_INVALID_PARAMETER);
+		instance_send_resized_event(cbdata->inst, IS_WIDGET, cbdata->inst->widget.width, cbdata->inst->widget.height, WIDGET_STATUS_ERROR_INVALID_PARAMETER);
 		instance_unref(cbdata->inst);
 		DbgFree(cbdata);
 		return;
 	}
 
-	if (ret == (int)DBOX_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
 		/*!
 		 * \note
 		 * else waiting the first update with new size
 		 */
-		if (cbdata->inst->dbox.width == cbdata->w && cbdata->inst->dbox.height == cbdata->h) {
+		if (cbdata->inst->widget.width == cbdata->w && cbdata->inst->widget.height == cbdata->h) {
 			/*!
 			 * \note
 			 * Right after the viewer adds a new box,
@@ -2503,14 +2503,14 @@ static void resize_cb(struct slave_node *slave, const struct packet *packet, voi
 			 * And if the size is already updated, send the ALREADY event to the viewer
 			 * to get the size changed event callback correctly.
 			 */
-			instance_send_resized_event(cbdata->inst, IS_DBOX, cbdata->inst->dbox.width, cbdata->inst->dbox.height, DBOX_STATUS_ERROR_ALREADY);
+			instance_send_resized_event(cbdata->inst, IS_WIDGET, cbdata->inst->widget.width, cbdata->inst->widget.height, WIDGET_STATUS_ERROR_ALREADY);
 			DbgPrint("RESIZE: Dynamicbox is already resized [%s - %dx%d]\n", instance_id(cbdata->inst), cbdata->w, cbdata->h);
 		} else {
 			DbgPrint("RESIZE: Request is successfully sent [%s - %dx%d]\n", instance_id(cbdata->inst), cbdata->w, cbdata->h);
 		}
 	} else {
 		DbgPrint("RESIZE: Dynamicbox rejects the new size: %s - %dx%d (%d)\n", instance_id(cbdata->inst), cbdata->w, cbdata->h, ret);
-		instance_send_resized_event(cbdata->inst, IS_DBOX, cbdata->inst->dbox.width, cbdata->inst->dbox.height, ret);
+		instance_send_resized_event(cbdata->inst, IS_WIDGET, cbdata->inst->widget.width, cbdata->inst->widget.height, ret);
 	}
 
 	instance_unref(cbdata->inst);
@@ -2526,18 +2526,18 @@ HAPI int instance_resize(struct inst_info *inst, int w, int h)
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	if (package_is_fault(inst->info)) {
 		ErrPrint("Fault package: %s\n", package_name(inst->info));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	cbdata->inst = instance_ref(inst);
@@ -2550,7 +2550,7 @@ HAPI int instance_resize(struct inst_info *inst, int w, int h)
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		instance_unref(cbdata->inst);
 		DbgFree(cbdata);
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	DbgPrint("RESIZE: [%s] resize[%dx%d]\n", instance_id(inst), w, h);
@@ -2566,23 +2566,23 @@ static void set_period_cb(struct slave_node *slave, const struct packet *packet,
 	int ret;
 
 	if (!packet) {
-		ret = DBOX_STATUS_ERROR_FAULT;
+		ret = WIDGET_STATUS_ERROR_FAULT;
 		goto out;
 	}
 
 	if (packet_get(packet, "i", &ret) != 1) {
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	if (ret == 0) {
-		cbdata->inst->dbox.period = cbdata->period;
+		cbdata->inst->widget.period = cbdata->period;
 	} else {
 		ErrPrint("Failed to set period %d\n", ret);
 	}
 
 out:
-	result = packet_create_noack((const char *)&cmd, "idss", ret, cbdata->inst->dbox.period, package_name(cbdata->inst->info), cbdata->inst->id);
+	result = packet_create_noack((const char *)&cmd, "idss", ret, cbdata->inst->widget.period, package_name(cbdata->inst->info), cbdata->inst->id);
 	if (result) {
 		(void)client_send_event(cbdata->inst, result);
 	} else {
@@ -2606,16 +2606,16 @@ static Eina_Bool timer_updator_cb(void *data)
 	inst = cbdata->inst;
 	DbgFree(cbdata);
 
-	inst->dbox.period = period;
+	inst->widget.period = period;
 	if (inst->update_timer) {
-		if (inst->dbox.period == 0.0f) {
+		if (inst->widget.period == 0.0f) {
 			ecore_timer_del(inst->update_timer);
 			inst->update_timer = NULL;
 		} else {
-			util_timer_interval_set(inst->update_timer, inst->dbox.period);
+			util_timer_interval_set(inst->update_timer, inst->widget.period);
 		}
-	} else if (inst->dbox.period > 0.0f) {
-		inst->update_timer = util_timer_add(inst->dbox.period, update_timer_cb, inst);
+	} else if (inst->widget.period > 0.0f) {
+		inst->update_timer = util_timer_add(inst->widget.period, update_timer_cb, inst);
 		if (!inst->update_timer) {
 			ErrPrint("Failed to add an update timer for instance %s\n", inst->id);
 		} else {
@@ -2623,7 +2623,7 @@ static Eina_Bool timer_updator_cb(void *data)
 		}
 	}
 
-	result = packet_create_noack((const char *)&cmd, "idss", 0, inst->dbox.period, package_name(inst->info), inst->id);
+	result = packet_create_noack((const char *)&cmd, "idss", 0, inst->widget.period, package_name(inst->info), inst->id);
 	if (result) {
 		(void)client_send_event(inst, result);
 	} else {
@@ -2636,7 +2636,7 @@ static Eina_Bool timer_updator_cb(void *data)
 
 HAPI void instance_reload_period(struct inst_info *inst, double period)
 {
-	inst->dbox.period = period;
+	inst->widget.period = period;
 }
 
 HAPI int instance_set_period(struct inst_info *inst, double period)
@@ -2647,41 +2647,41 @@ HAPI int instance_set_period(struct inst_info *inst, double period)
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	if (package_is_fault(inst->info)) {
 		ErrPrint("Fault package [%s]\n", package_name(inst->info));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	if (period < 0.0f) { /* Use the default period */
 		period = package_period(inst->info);
-	} else if (period > 0.0f && period < DYNAMICBOX_CONF_MINIMUM_PERIOD) {
-		period = DYNAMICBOX_CONF_MINIMUM_PERIOD; /* defined at conf.h */
+	} else if (period > 0.0f && period < WIDGET_CONF_MINIMUM_PERIOD) {
+		period = WIDGET_CONF_MINIMUM_PERIOD; /* defined at conf.h */
 	}
 
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	cbdata->period = period;
 	cbdata->inst = instance_ref(inst);
 
-	if (package_secured(inst->info) || (DBOX_IS_INHOUSE(package_abi(inst->info)) && DYNAMICBOX_CONF_SLAVE_LIMIT_TO_TTL)) {
+	if (package_secured(inst->info) || (WIDGET_IS_INHOUSE(package_abi(inst->info)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL)) {
 		/*!
 		 * \note
-		 * Secured dynamicbox doesn't need to send its update period to the slave.
-		 * Slave has no local timer for updating dynamicboxes
+		 * Secured widget doesn't need to send its update period to the slave.
+		 * Slave has no local timer for updating widgetes
 		 *
 		 * So update its timer at here.
 		 */
 		if (!ecore_timer_add(DELAY_TIME, timer_updator_cb, cbdata)) {
 			timer_updator_cb(cbdata);
 		}
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	}
 
 	packet = packet_create((const char *)&cmd, "ssd", package_name(inst->info), inst->id, period);
@@ -2689,7 +2689,7 @@ HAPI int instance_set_period(struct inst_info *inst, double period)
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		instance_unref(cbdata->inst);
 		DbgFree(cbdata);
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, set_period_cb, cbdata, 0);
@@ -2702,19 +2702,19 @@ HAPI int instance_clicked(struct inst_info *inst, const char *event, double time
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	if (package_is_fault(inst->info)) {
 		ErrPrint("Fault package [%s]\n", package_name(inst->info));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	/* NOTE: param is resued from here */
 	packet = packet_create_noack((const char *)&cmd, "sssddd", package_name(inst->info), inst->id, event, timestamp, x, y);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return slave_rpc_request_only(package_slave(inst->info), package_name(inst->info), packet, 0);
@@ -2733,12 +2733,12 @@ HAPI int instance_signal_emit(struct inst_info *inst, const char *signal, const 
 	pkgname = package_name(pkg);
 	id = instance_id(inst);
 	if (!pkgname || !id) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssssddddddi",
@@ -2747,7 +2747,7 @@ HAPI int instance_signal_emit(struct inst_info *inst, const char *signal, const 
 			sx, sy, ex, ey,
 			x, y, down);
 	if (!packet) {
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return slave_rpc_request_only(slave, pkgname, packet, 0); 
@@ -2760,18 +2760,18 @@ HAPI int instance_text_signal_emit(struct inst_info *inst, const char *emission,
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	if (package_is_fault(inst->info)) {
 		ErrPrint("Fault package [%s]\n", package_name(inst->info));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssssdddd", package_name(inst->info), inst->id, emission, source, sx, sy, ex, ey);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return slave_rpc_request_only(package_slave(inst->info), package_name(inst->info), packet, 0);
@@ -2787,7 +2787,7 @@ static void change_group_cb(struct slave_node *slave, const struct packet *packe
 	if (!packet) {
 		DbgFree(cbdata->cluster);
 		DbgFree(cbdata->category);
-		ret = DBOX_STATUS_ERROR_FAULT;
+		ret = WIDGET_STATUS_ERROR_FAULT;
 		goto out;
 	}
 
@@ -2795,7 +2795,7 @@ static void change_group_cb(struct slave_node *slave, const struct packet *packe
 		ErrPrint("Invalid packet\n");
 		DbgFree(cbdata->cluster);
 		DbgFree(cbdata->category);
-		ret = DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -2832,25 +2832,25 @@ HAPI int instance_change_group(struct inst_info *inst, const char *cluster, cons
 
 	if (!inst) {
 		ErrPrint("Invalid instance handle\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	if (package_is_fault(inst->info)) {
 		ErrPrint("Fault package [%s]\n", package_name(inst->info));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	cbdata->cluster = strdup(cluster);
 	if (!cbdata->cluster) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		DbgFree(cbdata);
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	cbdata->category = strdup(category);
@@ -2858,7 +2858,7 @@ HAPI int instance_change_group(struct inst_info *inst, const char *cluster, cons
 		ErrPrint("Heap: %s\n", strerror(errno));
 		DbgFree(cbdata->cluster);
 		DbgFree(cbdata);
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	cbdata->inst = instance_ref(inst);
@@ -2870,7 +2870,7 @@ HAPI int instance_change_group(struct inst_info *inst, const char *cluster, cons
 		DbgFree(cbdata->category);
 		DbgFree(cbdata->cluster);
 		DbgFree(cbdata);
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return slave_rpc_async_request(package_slave(inst->info), package_name(inst->info), packet, change_group_cb, cbdata, 0);
@@ -2883,7 +2883,7 @@ HAPI const char * const instance_auto_launch(const struct inst_info *inst)
 
 HAPI const int const instance_priority(const struct inst_info *inst)
 {
-	return inst->dbox.priority;
+	return inst->widget.priority;
 }
 
 HAPI const struct client_node *const instance_client(const struct inst_info *inst)
@@ -2898,17 +2898,17 @@ HAPI const int const instance_timeout(const struct inst_info *inst)
 
 HAPI const double const instance_period(const struct inst_info *inst)
 {
-	return inst->dbox.period;
+	return inst->widget.period;
 }
 
-HAPI const int const instance_dbox_width(const struct inst_info *inst)
+HAPI const int const instance_widget_width(const struct inst_info *inst)
 {
-	return inst->dbox.width;
+	return inst->widget.width;
 }
 
-HAPI const int const instance_dbox_height(const struct inst_info *inst)
+HAPI const int const instance_widget_height(const struct inst_info *inst)
 {
-	return inst->dbox.height;
+	return inst->widget.height;
 }
 
 HAPI const int const instance_gbar_width(const struct inst_info *inst)
@@ -2926,9 +2926,9 @@ HAPI struct pkg_info *const instance_package(const struct inst_info *inst)
 	return inst->info;
 }
 
-HAPI struct script_info *const instance_dbox_script(const struct inst_info *inst)
+HAPI struct script_info *const instance_widget_script(const struct inst_info *inst)
 {
-	return (package_dbox_type(inst->info) == DBOX_TYPE_SCRIPT) ? inst->dbox.canvas.script : NULL;
+	return (package_widget_type(inst->info) == WIDGET_TYPE_SCRIPT) ? inst->widget.canvas.script : NULL;
 }
 
 HAPI struct script_info *const instance_gbar_script(const struct inst_info *inst)
@@ -2936,9 +2936,9 @@ HAPI struct script_info *const instance_gbar_script(const struct inst_info *inst
 	return (package_gbar_type(inst->info) == GBAR_TYPE_SCRIPT) ? inst->gbar.canvas.script : NULL;
 }
 
-HAPI struct buffer_info *const instance_dbox_buffer(const struct inst_info *inst)
+HAPI struct buffer_info *const instance_widget_buffer(const struct inst_info *inst)
 {
-	return (package_dbox_type(inst->info) == DBOX_TYPE_BUFFER) ? inst->dbox.canvas.buffer : NULL;
+	return (package_widget_type(inst->info) == WIDGET_TYPE_BUFFER) ? inst->widget.canvas.buffer : NULL;
 }
 
 HAPI struct buffer_info *const instance_gbar_buffer(const struct inst_info *inst)
@@ -2946,9 +2946,9 @@ HAPI struct buffer_info *const instance_gbar_buffer(const struct inst_info *inst
 	return (package_gbar_type(inst->info) == GBAR_TYPE_BUFFER) ? inst->gbar.canvas.buffer : NULL;
 }
 
-HAPI struct buffer_info *const instance_dbox_extra_buffer(const struct inst_info *inst, int idx)
+HAPI struct buffer_info *const instance_widget_extra_buffer(const struct inst_info *inst, int idx)
 {
-	return (package_dbox_type(inst->info) == DBOX_TYPE_BUFFER) ? (inst->dbox.extra_buffer ? inst->dbox.extra_buffer[idx] : NULL) : NULL;
+	return (package_widget_type(inst->info) == WIDGET_TYPE_BUFFER) ? (inst->widget.extra_buffer ? inst->widget.extra_buffer[idx] : NULL) : NULL;
 }
 
 HAPI struct buffer_info *const instance_gbar_extra_buffer(const struct inst_info *inst, int idx)
@@ -3009,7 +3009,7 @@ HAPI int instance_destroyed(struct inst_info *inst, int reason)
 			instance_broadcast_deleted_event(inst, reason);
 		}
 		instance_state_reset(inst);
-		instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+		instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
 		break;
 	case INST_REQUEST_TO_REACTIVATE:
 	case INST_REQUEST_TO_DESTROY:
@@ -3017,14 +3017,14 @@ HAPI int instance_destroyed(struct inst_info *inst, int reason)
 		DbgPrint("Send deleted event - multicast\n");
 		instance_broadcast_deleted_event(inst, reason);
 		instance_state_reset(inst);
-		instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+		instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
 	case INST_DESTROYED:
 		break;
 	default:
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 /*!
@@ -3036,7 +3036,7 @@ HAPI int instance_recover_state(struct inst_info *inst)
 
 	if (inst->changing_state > 0) {
 		DbgPrint("Doesn't need to recover the state\n");
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	}
 
 	if (package_is_fault(inst->info)) {
@@ -3058,7 +3058,7 @@ HAPI int instance_recover_state(struct inst_info *inst)
 		case INST_DESTROYED:
 			DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
 			instance_state_reset(inst);
-			instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+			instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
 			break;
 		default:
 			break;
@@ -3073,9 +3073,9 @@ HAPI int instance_recover_state(struct inst_info *inst)
 			instance_state_reset(inst);
 			if (instance_activate(inst) < 0) {
 				DbgPrint("Failed to reactivate the instance\n");
-				instance_broadcast_deleted_event(inst, DBOX_STATUS_ERROR_FAULT);
+				instance_broadcast_deleted_event(inst, WIDGET_STATUS_ERROR_FAULT);
 				instance_state_reset(inst);
-				instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+				instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
 			} else {
 				ret = 1;
 			}
@@ -3083,7 +3083,7 @@ HAPI int instance_recover_state(struct inst_info *inst)
 		case INST_DESTROYED:
 			DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
 			instance_state_reset(inst);
-			instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+			instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
 			break;
 		default:
 			break;
@@ -3108,7 +3108,7 @@ HAPI int instance_need_slave(struct inst_info *inst)
 		/*!
 		 * \note
 		 * In this case, the client is faulted(disconnected)
-		 * when the client is deactivated, its dynamicboxes should be removed too.
+		 * when the client is deactivated, its widgetes should be removed too.
 		 * So if the current inst is created by the faulted client,
 		 * remove it and don't try to recover its states
 		 */
@@ -3121,13 +3121,13 @@ HAPI int instance_need_slave(struct inst_info *inst)
 		case INST_REQUEST_TO_DESTROY:
 		case INST_REQUEST_TO_ACTIVATE:
 			instance_state_reset(inst);
-			instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+			instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
 			break;
 		case INST_DESTROYED:
 			break;
 		}
 
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	}
 
 	switch (inst->state) {
@@ -3143,7 +3143,7 @@ HAPI int instance_need_slave(struct inst_info *inst)
 		case INST_DESTROYED:
 			DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
 			instance_state_reset(inst);
-			instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+			instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
 			break;
 		default:
 			break;
@@ -3160,7 +3160,7 @@ HAPI int instance_need_slave(struct inst_info *inst)
 		case INST_DESTROYED:
 			DbgPrint("Req. to DESTROYED (%s)\n", package_name(inst->info));
 			instance_state_reset(inst);
-			instance_destroy(inst, DBOX_DESTROY_TYPE_DEFAULT);
+			instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
 			break;
 		default:
 			break;
@@ -3187,7 +3187,7 @@ HAPI int instance_send_key_status(struct inst_info *inst, int status)
 	packet = packet_create_noack((const char *)&cmd, "ssi", package_name(inst->info), inst->id, status);
 	if (!packet) {
 		ErrPrint("Failed to build a packet\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return client_send_event(inst, packet);
@@ -3201,7 +3201,7 @@ HAPI int instance_send_access_status(struct inst_info *inst, int status)
 	packet = packet_create_noack((const char *)&cmd, "ssi", package_name(inst->info), inst->id, status);
 	if (!packet) {
 		ErrPrint("Failed to build a packet\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return client_send_event(inst, packet);
@@ -3238,25 +3238,25 @@ HAPI int instance_slave_open_gbar(struct inst_info *inst, struct client_node *cl
 		client = inst->gbar.owner;
 		if (!client) {
 			ErrPrint("Client is not valid\n");
-			return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		}
 	} else if (inst->gbar.owner) {
 		if (inst->gbar.owner != client) {
 			ErrPrint("Client is already owned\n");
-			return DBOX_STATUS_ERROR_ALREADY;
+			return WIDGET_STATUS_ERROR_ALREADY;
 		}
 	}
 
 	info = instance_package(inst);
 	if (!info) {
 		ErrPrint("No package info\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	slave = package_slave(info);
 	if (!slave) {
 		ErrPrint("No slave\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	pkgname = package_name(info);
@@ -3264,13 +3264,13 @@ HAPI int instance_slave_open_gbar(struct inst_info *inst, struct client_node *cl
 
 	if (!pkgname || !id) {
 		ErrPrint("pkgname[%s] id[%s]\n", pkgname, id);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssiidd", pkgname, id, instance_gbar_width(inst), instance_gbar_height(inst), inst->gbar.x, inst->gbar.y);
 	if (!packet) {
 		ErrPrint("Failed to create a packet\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	/*!
@@ -3281,7 +3281,7 @@ HAPI int instance_slave_open_gbar(struct inst_info *inst, struct client_node *cl
 	 */
 	(void)slave_freeze_ttl(slave);
 
-	DbgPrint("PERF_DBOX\n");
+	DbgPrint("PERF_WIDGET\n");
 	ret = slave_rpc_request_only(slave, pkgname, packet, 0);
 	if (ret < 0) {
 		ErrPrint("Unable to send request to slave\n");
@@ -3327,19 +3327,19 @@ HAPI int instance_slave_close_gbar(struct inst_info *inst, struct client_node *c
 
 	if (inst->gbar.owner != client) {
 		ErrPrint("Has no permission\n");
-		return DBOX_STATUS_ERROR_PERMISSION_DENIED;
+		return WIDGET_STATUS_ERROR_PERMISSION_DENIED;
 	}
 
 	pkg = instance_package(inst);
 	if (!pkg) {
 		ErrPrint("No package info\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
 		ErrPrint("No assigned slave\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	pkgname = package_name(pkg);
@@ -3347,13 +3347,13 @@ HAPI int instance_slave_close_gbar(struct inst_info *inst, struct client_node *c
 
 	if (!pkgname || !id) {
 		ErrPrint("pkgname[%s] & id[%s] is not valid\n", pkgname, id);
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssi", pkgname, id, reason);
 	if (!packet) {
 		ErrPrint("Failed to create a packet\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	slave_thaw_ttl(slave);
@@ -3361,7 +3361,7 @@ HAPI int instance_slave_close_gbar(struct inst_info *inst, struct client_node *c
 	ret = slave_rpc_request_only(slave, pkgname, packet, 0);
 	release_resource_for_closing_gbar(pkg, inst, client);
 	inst->gbar.owner = NULL;
-	DbgPrint("PERF_DBOX\n");
+	DbgPrint("PERF_WIDGET\n");
 	return ret;
 }
 
@@ -3374,7 +3374,7 @@ HAPI int instance_client_gbar_created(struct inst_info *inst, int status)
 
 	if (inst->gbar.need_to_send_close_event) {
 		DbgPrint("GBAR is already created\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	switch (package_gbar_type(inst->info)) {
@@ -3397,7 +3397,7 @@ HAPI int instance_client_gbar_created(struct inst_info *inst, int status)
 			inst->gbar.width, inst->gbar.height, status);
 	if (!packet) {
 		ErrPrint("Failed to create a packet\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	ret = client_send_event(inst, packet);
@@ -3427,13 +3427,13 @@ HAPI int instance_client_gbar_extra_buffer_created(struct inst_info *inst, int i
 	pixmap = buffer_handler_pixmap(inst->gbar.extra_buffer[idx]);
 	if (pixmap == 0) {
 		ErrPrint("Invalid buffer\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssii", package_name(inst->info), inst->id, pixmap, idx);
 	if (!packet) {
 		ErrPrint("Failed to create a packet\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return client_send_event(inst, packet);
@@ -3448,55 +3448,55 @@ HAPI int instance_client_gbar_extra_buffer_destroyed(struct inst_info *inst, int
 	pixmap = buffer_handler_pixmap(inst->gbar.extra_buffer[idx]);
 	if (pixmap == 0) {
 		ErrPrint("Invalid buffer\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssii", package_name(inst->info), inst->id, pixmap, idx);
 	if (!packet) {
 		ErrPrint("Failed to create a packet\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return client_send_event(inst, packet);
 }
 
-HAPI int instance_client_dbox_extra_buffer_created(struct inst_info *inst, int idx)
+HAPI int instance_client_widget_extra_buffer_created(struct inst_info *inst, int idx)
 {
 	struct packet *packet;
-	unsigned int cmd = CMD_DBOX_CREATE_XBUF;
+	unsigned int cmd = CMD_WIDGET_CREATE_XBUF;
 	int pixmap;
 
-	pixmap = buffer_handler_pixmap(inst->dbox.extra_buffer[idx]);
+	pixmap = buffer_handler_pixmap(inst->widget.extra_buffer[idx]);
 	if (pixmap == 0) {
 		ErrPrint("Invalid buffer\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssii", package_name(inst->info), inst->id, pixmap, idx);
 	if (!packet) {
 		ErrPrint("Failed to create a packet\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return client_send_event(inst, packet);
 }
 
-HAPI int instance_client_dbox_extra_buffer_destroyed(struct inst_info *inst, int idx)
+HAPI int instance_client_widget_extra_buffer_destroyed(struct inst_info *inst, int idx)
 {
 	struct packet *packet;
-	unsigned int cmd = CMD_DBOX_DESTROY_XBUF;
+	unsigned int cmd = CMD_WIDGET_DESTROY_XBUF;
 	int pixmap;
 
-	pixmap = buffer_handler_pixmap(inst->dbox.extra_buffer[idx]);
+	pixmap = buffer_handler_pixmap(inst->widget.extra_buffer[idx]);
 	if (pixmap == 0) {
 		ErrPrint("Invalid buffer\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssii", package_name(inst->info), inst->id, pixmap, idx);
 	if (!packet) {
 		ErrPrint("Failed to create a packet\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	return client_send_event(inst, packet);
@@ -3514,20 +3514,20 @@ HAPI int instance_add_client(struct inst_info *inst, struct client_node *client)
 
 	if (inst->client == client) {
 		ErrPrint("Owner cannot be the viewer\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	DbgPrint("%d is added to the list of viewer of %s(%s)\n", client_pid(client), package_name(instance_package(inst)), instance_id(inst));
 	if (client_event_callback_add(client, CLIENT_EVENT_DEACTIVATE, viewer_deactivated_cb, inst) < 0) {
 		ErrPrint("Failed to add a deactivate callback\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "sss", package_name(inst->info), inst->id, client_direct_addr(inst->client));
 	if (!packet) {
 		ErrPrint("Failed to create a packet\n");
 		client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, viewer_deactivated_cb, inst);
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	instance_ref(inst);
@@ -3540,12 +3540,12 @@ HAPI int instance_del_client(struct inst_info *inst, struct client_node *client)
 {
 	if (inst->client == client) {
 		ErrPrint("Owner is not in the viewer list\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, viewer_deactivated_cb, inst);
 	viewer_deactivated_cb(client, inst);
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int instance_has_client(struct inst_info *inst, struct client_node *client)
@@ -3560,19 +3560,19 @@ HAPI void *instance_client_list(struct inst_info *inst)
 
 HAPI int instance_init(void)
 {
-	if (!strcasecmp(DYNAMICBOX_CONF_PROVIDER_METHOD, "shm")) {
-		s_info.env_buf_type = DBOX_FB_TYPE_SHM;
-	} else if (!strcasecmp(DYNAMICBOX_CONF_PROVIDER_METHOD, "pixmap")) {
-		s_info.env_buf_type = DBOX_FB_TYPE_PIXMAP;
+	if (!strcasecmp(WIDGET_CONF_PROVIDER_METHOD, "shm")) {
+		s_info.env_buf_type = WIDGET_FB_TYPE_SHM;
+	} else if (!strcasecmp(WIDGET_CONF_PROVIDER_METHOD, "pixmap")) {
+		s_info.env_buf_type = WIDGET_FB_TYPE_PIXMAP;
 	}
-	/* Default method is DBOX_FB_TYPE_FILE */
+	/* Default method is WIDGET_FB_TYPE_FILE */
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int instance_fini(void)
 {
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 static inline struct tag_item *find_tag_item(struct inst_info *inst, const char *tag)
@@ -3598,14 +3598,14 @@ HAPI int instance_set_data(struct inst_info *inst, const char *tag, void *data)
 		item = malloc(sizeof(*item));
 		if (!item) {
 			ErrPrint("Heap: %s\n", strerror(errno));
-			return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+			return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 		}
 
 		item->tag = strdup(tag);
 		if (!item->tag) {
 			ErrPrint("Heap: %s\n", strerror(errno));
 			DbgFree(item);
-			return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+			return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 		}
 
 		inst->data_list = eina_list_append(inst->data_list, item);
@@ -3619,7 +3619,7 @@ HAPI int instance_set_data(struct inst_info *inst, const char *tag, void *data)
 		item->data = data;
 	}
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI void *instance_del_data(struct inst_info *inst, const char *tag)

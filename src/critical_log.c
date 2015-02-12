@@ -28,8 +28,8 @@
 #include <dlog.h>
 #include <Eina.h>
 #if defined(HAVE_LIVEBOX)
-#include <dynamicbox_errno.h>
-#include <dynamicbox_conf.h>
+#include <widget_errno.h>
+#include <widget_conf.h>
 #else
 #include "lite-errno.h"
 #endif
@@ -60,16 +60,16 @@ static inline void rotate_log(void)
 	char *filename;
 	int namelen;
 
-	if (s_info.nr_of_lines < DYNAMICBOX_CONF_MAX_LOG_LINE) {
+	if (s_info.nr_of_lines < WIDGET_CONF_MAX_LOG_LINE) {
 		return;
 	}
 
-	s_info.file_id = (s_info.file_id + 1) % DYNAMICBOX_CONF_MAX_LOG_FILE;
+	s_info.file_id = (s_info.file_id + 1) % WIDGET_CONF_MAX_LOG_FILE;
 
-	namelen = strlen(s_info.filename) + strlen(DYNAMICBOX_CONF_LOG_PATH) + 30;
+	namelen = strlen(s_info.filename) + strlen(WIDGET_CONF_LOG_PATH) + 30;
 	filename = malloc(namelen);
 	if (filename) {
-		snprintf(filename, namelen, "%s/%d_%s.%d", DYNAMICBOX_CONF_LOG_PATH, s_info.file_id, s_info.filename, getpid());
+		snprintf(filename, namelen, "%s/%d_%s.%d", WIDGET_CONF_LOG_PATH, s_info.file_id, s_info.filename, getpid());
 
 		if (s_info.fp) {
 			if (fclose(s_info.fp) != 0) {
@@ -96,7 +96,7 @@ HAPI int critical_log(const char *func, int line, const char *fmt, ...)
 	int ret;
 
 	if (!s_info.fp) {
-		return DBOX_STATUS_ERROR_IO_ERROR;
+		return WIDGET_STATUS_ERROR_IO_ERROR;
 	}
 
 	CRITICAL_SECTION_BEGIN(&s_info.cri_lock);
@@ -124,26 +124,26 @@ HAPI int critical_log_init(const char *name)
 	char *filename;
 
 	if (s_info.fp) {
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	}
 
 	s_info.filename = strdup(name);
 	if (!s_info.filename) {
 		ErrPrint("Failed to create a log file\n");
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
-	namelen = strlen(name) + strlen(DYNAMICBOX_CONF_LOG_PATH) + 30;
+	namelen = strlen(name) + strlen(WIDGET_CONF_LOG_PATH) + 30;
 
 	filename = malloc(namelen);
 	if (!filename) {
 		ErrPrint("Failed to create a log file\n");
 		DbgFree(s_info.filename);
 		s_info.filename = NULL;
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
-	snprintf(filename, namelen, "%s/%d_%s.%d", DYNAMICBOX_CONF_LOG_PATH, s_info.file_id, name, getpid());
+	snprintf(filename, namelen, "%s/%d_%s.%d", WIDGET_CONF_LOG_PATH, s_info.file_id, name, getpid());
 
 	s_info.fp = fopen(filename, "w+");
 	if (!s_info.fp) {
@@ -151,11 +151,11 @@ HAPI int critical_log_init(const char *name)
 		DbgFree(s_info.filename);
 		s_info.filename = NULL;
 		DbgFree(filename);
-		return DBOX_STATUS_ERROR_IO_ERROR;
+		return WIDGET_STATUS_ERROR_IO_ERROR;
 	}
 
 	DbgFree(filename);
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 

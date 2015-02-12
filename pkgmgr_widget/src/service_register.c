@@ -28,7 +28,7 @@
 #include <libxml/tree.h>
 #include <dlog.h>
 
-#include <dynamicbox_service.h>
+#include <widget_service.h>
 
 #include "dlist.h"
 
@@ -138,7 +138,7 @@
 #undef LOG_TAG
 #endif
 
-#define LOG_TAG "PKGMGR_DYNAMICBOX"
+#define LOG_TAG "PKGMGR_WIDGET"
 
 	int errno;
 
@@ -148,7 +148,7 @@
 		xmlChar *icon;
 	};
 
-struct dynamicbox {
+struct widget {
 	xmlChar *pkgid;
 	int secured;
 	int network;
@@ -166,26 +166,26 @@ struct dynamicbox {
 	xmlChar *category; /* Category of this box */
 
 	int pinup; /* Is this support the pinup feature? */
-	int primary; /* Is this primary dynamicbox? */
+	int primary; /* Is this primary widget? */
 	int nodisplay;
 	int count; /* Max count of instances */
 	int direct_input; /* Use the input node to get the event directly */
 
-	int default_mouse_event; /* Mouse event processing option for dynamicbox */
+	int default_mouse_event; /* Mouse event processing option for widget */
 	int default_touch_effect;
 	int default_need_frame;
 
-	enum dynamicbox_dbox_type dbox_type;
-	xmlChar *dbox_src;
-	xmlChar *dbox_group;
+	enum widget_widget_type widget_type;
+	xmlChar *widget_src;
+	xmlChar *widget_group;
 	int size_list; /* 1x1, 2x1, 2x2, 4x1, 4x2, 4x3, 4x4 */
 
-	xmlChar *preview[DBOX_NR_OF_SIZE_LIST];
-	int touch_effect[DBOX_NR_OF_SIZE_LIST]; /* Touch effect of a dynamicbox */
-	int need_frame[DBOX_NR_OF_SIZE_LIST]; /* Box needs frame which should be cared by viewer */
-	int mouse_event[DBOX_NR_OF_SIZE_LIST];
+	xmlChar *preview[WIDGET_NR_OF_SIZE_LIST];
+	int touch_effect[WIDGET_NR_OF_SIZE_LIST]; /* Touch effect of a widget */
+	int need_frame[WIDGET_NR_OF_SIZE_LIST]; /* Box needs frame which should be cared by viewer */
+	int mouse_event[WIDGET_NR_OF_SIZE_LIST];
 
-	enum dynamicbox_gbar_type gbar_type;
+	enum widget_gbar_type gbar_type;
 	xmlChar *gbar_src;
 	xmlChar *gbar_group;
 	xmlChar *gbar_size; /* Default PD size */
@@ -211,7 +211,7 @@ static struct {
 	const char *dbfile;
 	sqlite3 *handle;
 } s_info = {
-	.dbfile = "/opt/dbspace/.dynamicbox.db",
+	.dbfile = "/opt/dbspace/.widget.db",
 	.handle = NULL,
 };
 
@@ -532,8 +532,8 @@ static void upgrade_to_version_5(void)
  * \note
  * From version 3 to 4
  * "provider" table should have "count" column.
- * "count" will be used for limiting creatable count of instances for each dynamicbox.
- * Every dynamicbox developer should describe their max count of creatable instances.
+ * "count" will be used for limiting creatable count of instances for each widget.
+ * Every widget developer should describe their max count of creatable instances.
  */
 static void upgrade_to_version_4(void)
 {
@@ -869,21 +869,21 @@ out:
 	sqlite3_finalize(stmt);
 	return ret;
 }
-static int db_insert_provider(struct dynamicbox *dynamicbox)
+static int db_insert_provider(struct widget *widget)
 {
 	static const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
-	char *abi = (char *)dynamicbox->abi;
-	char *box_src = (char *)dynamicbox->dbox_src;
-	char *box_group = (char *)dynamicbox->dbox_group;
-	char *gbar_src = (char *)dynamicbox->gbar_src;
-	char *gbar_group = (char *)dynamicbox->gbar_group;
-	char *libexec = (char *)dynamicbox->libexec;
-	char *timeout = (char *)dynamicbox->timeout;
-	char *period = (char *)dynamicbox->period;
-	char *script = (char *)dynamicbox->script;
-	char *hw_acceleration = (char *)dynamicbox->hw_acceleration;
+	char *abi = (char *)widget->abi;
+	char *box_src = (char *)widget->widget_src;
+	char *box_group = (char *)widget->widget_group;
+	char *gbar_src = (char *)widget->gbar_src;
+	char *gbar_group = (char *)widget->gbar_group;
+	char *libexec = (char *)widget->libexec;
+	char *timeout = (char *)widget->timeout;
+	char *period = (char *)widget->period;
+	char *script = (char *)widget->script;
+	char *hw_acceleration = (char *)widget->hw_acceleration;
 
 	if (!abi) {
 		abi = "c";
@@ -912,14 +912,14 @@ static int db_insert_provider(struct dynamicbox *dynamicbox)
 		return -EIO;
 	}
 
-	ret = sqlite3_bind_text(stmt, 1, (char *)dynamicbox->pkgid, -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 1, (char *)widget->pkgid, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_int(stmt, 2, dynamicbox->network);
+	ret = sqlite3_bind_int(stmt, 2, widget->network);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -932,14 +932,14 @@ static int db_insert_provider(struct dynamicbox *dynamicbox)
 		ret = -EIO;
 		goto out;
 	}
-	ret = sqlite3_bind_int(stmt, 4, dynamicbox->secured);
+	ret = sqlite3_bind_int(stmt, 4, widget->secured);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_int(stmt, 5, dynamicbox->dbox_type);
+	ret = sqlite3_bind_int(stmt, 5, widget->widget_type);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -960,7 +960,7 @@ static int db_insert_provider(struct dynamicbox *dynamicbox)
 		goto out;
 	}
 
-	ret = sqlite3_bind_int(stmt, 8, dynamicbox->gbar_type);
+	ret = sqlite3_bind_int(stmt, 8, widget->gbar_type);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -1009,21 +1009,21 @@ static int db_insert_provider(struct dynamicbox *dynamicbox)
 		goto out;
 	}
 
-	ret = sqlite3_bind_int(stmt, 15, dynamicbox->pinup);
+	ret = sqlite3_bind_int(stmt, 15, widget->pinup);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_int(stmt, 16, dynamicbox->count);
+	ret = sqlite3_bind_int(stmt, 16, widget->count);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_int(stmt, 17, dynamicbox->direct_input);
+	ret = sqlite3_bind_int(stmt, 17, widget->direct_input);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -1070,7 +1070,7 @@ static inline int db_create_client(void)
 	return 0;
 }
 
-static inline int db_insert_client(struct dynamicbox *dynamicbox)
+static inline int db_insert_client(struct widget *widget)
 {
 	static const char *dml;
 	int ret;
@@ -1083,56 +1083,56 @@ static inline int db_insert_client(struct dynamicbox *dynamicbox)
 		return -EIO;
 	}
 
-	ret = sqlite3_bind_text(stmt, 1, (char *)dynamicbox->pkgid, -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 1, (char *)widget->pkgid, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 2, (char *)dynamicbox->icon, -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 2, (char *)widget->icon, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 3, (char *)dynamicbox->name, -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 3, (char *)widget->name, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 4, (char *)dynamicbox->auto_launch, -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 4, (char *)widget->auto_launch, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 5, (char *)dynamicbox->gbar_size, -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 5, (char *)widget->gbar_size, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 6, (char *)dynamicbox->content, -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 6, (char *)widget->content, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_int(stmt, 7, dynamicbox->nodisplay);
+	ret = sqlite3_bind_int(stmt, 7, widget->nodisplay);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
 		goto out;
 	}
 
-	ret = sqlite3_bind_text(stmt, 8, (char *)dynamicbox->setup, -1, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_text(stmt, 8, (char *)widget->setup, -1, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -1935,7 +1935,7 @@ static inline int validate_pkgid(const char *appid, const char *pkgid)
 	return 1 || !strncmp(appid, pkgid, strlen(appid));
 }
 
-static int dynamicbox_destroy(struct dynamicbox *dynamicbox)
+static int widget_destroy(struct widget *widget)
 {
 	struct dlist *l;
 	struct dlist *n;
@@ -1945,47 +1945,47 @@ static int dynamicbox_destroy(struct dynamicbox *dynamicbox)
 	struct dlist *il;
 	struct dlist *in;
 
-	xmlFree(dynamicbox->auto_launch);
-	xmlFree(dynamicbox->pkgid);
-	xmlFree(dynamicbox->abi);
-	xmlFree(dynamicbox->name);
-	xmlFree(dynamicbox->icon);
-	xmlFree(dynamicbox->dbox_src);
-	xmlFree(dynamicbox->dbox_group);
-	xmlFree(dynamicbox->gbar_src);
-	xmlFree(dynamicbox->gbar_group);
-	xmlFree(dynamicbox->gbar_size);
-	xmlFree(dynamicbox->libexec);
-	xmlFree(dynamicbox->script);
-	xmlFree(dynamicbox->period);
-	xmlFree(dynamicbox->content);
-	xmlFree(dynamicbox->setup);
-	xmlFree(dynamicbox->category);
-	xmlFree(dynamicbox->preview[0]); /* 1x1 */
-	xmlFree(dynamicbox->preview[1]); /* 2x1 */
-	xmlFree(dynamicbox->preview[2]); /* 2x2 */
-	xmlFree(dynamicbox->preview[3]); /* 4x1 */
-	xmlFree(dynamicbox->preview[4]); /* 4x2 */
-	xmlFree(dynamicbox->preview[5]); /* 4x3 */
-	xmlFree(dynamicbox->preview[6]); /* 4x4 */
-	xmlFree(dynamicbox->preview[7]); /* 4x5 */
-	xmlFree(dynamicbox->preview[8]); /* 4x6 */
-	xmlFree(dynamicbox->preview[9]); /* easy 1x1 */
-	xmlFree(dynamicbox->preview[10]); /* easy 3x1 */
-	xmlFree(dynamicbox->preview[11]); /* easy 3x3 */
-	xmlFree(dynamicbox->preview[12]); /* full */
-	xmlFree(dynamicbox->hw_acceleration);
+	xmlFree(widget->auto_launch);
+	xmlFree(widget->pkgid);
+	xmlFree(widget->abi);
+	xmlFree(widget->name);
+	xmlFree(widget->icon);
+	xmlFree(widget->widget_src);
+	xmlFree(widget->widget_group);
+	xmlFree(widget->gbar_src);
+	xmlFree(widget->gbar_group);
+	xmlFree(widget->gbar_size);
+	xmlFree(widget->libexec);
+	xmlFree(widget->script);
+	xmlFree(widget->period);
+	xmlFree(widget->content);
+	xmlFree(widget->setup);
+	xmlFree(widget->category);
+	xmlFree(widget->preview[0]); /* 1x1 */
+	xmlFree(widget->preview[1]); /* 2x1 */
+	xmlFree(widget->preview[2]); /* 2x2 */
+	xmlFree(widget->preview[3]); /* 4x1 */
+	xmlFree(widget->preview[4]); /* 4x2 */
+	xmlFree(widget->preview[5]); /* 4x3 */
+	xmlFree(widget->preview[6]); /* 4x4 */
+	xmlFree(widget->preview[7]); /* 4x5 */
+	xmlFree(widget->preview[8]); /* 4x6 */
+	xmlFree(widget->preview[9]); /* easy 1x1 */
+	xmlFree(widget->preview[10]); /* easy 3x1 */
+	xmlFree(widget->preview[11]); /* easy 3x3 */
+	xmlFree(widget->preview[12]); /* full */
+	xmlFree(widget->hw_acceleration);
 
-	dlist_foreach_safe(dynamicbox->i18n_list, l, n, i18n) {
-		dynamicbox->i18n_list = dlist_remove(dynamicbox->i18n_list, l);
+	dlist_foreach_safe(widget->i18n_list, l, n, i18n) {
+		widget->i18n_list = dlist_remove(widget->i18n_list, l);
 		xmlFree(i18n->name);
 		xmlFree(i18n->icon);
 		xmlFree(i18n->lang);
 		free(i18n);
 	}
 
-	dlist_foreach_safe(dynamicbox->group_list, l, n, group) {
-		dynamicbox->group_list = dlist_remove(dynamicbox->group_list, l);
+	dlist_foreach_safe(widget->group_list, l, n, group) {
+		widget->group_list = dlist_remove(widget->group_list, l);
 		DbgPrint("Release %s/%s\n", group->cluster, group->category);
 
 		if (group->ctx_item) {
@@ -2004,11 +2004,11 @@ static int dynamicbox_destroy(struct dynamicbox *dynamicbox)
 		free(group);
 	}
 
-	free(dynamicbox);
+	free(widget);
 	return 0;
 }
 
-static inline void update_i18n_name(struct dynamicbox *dynamicbox, xmlNodePtr node)
+static inline void update_i18n_name(struct widget *widget, xmlNodePtr node)
 {
 	struct i18n *i18n;
 	struct dlist *l;
@@ -2023,16 +2023,16 @@ static inline void update_i18n_name(struct dynamicbox *dynamicbox, xmlNodePtr no
 
 	lang = xmlNodeGetLang(node);
 	if (!lang) {
-		if (dynamicbox->name) {
-			DbgPrint("Override default name: %s\n", dynamicbox->name);
-			xmlFree(dynamicbox->name);
+		if (widget->name) {
+			DbgPrint("Override default name: %s\n", widget->name);
+			xmlFree(widget->name);
 		}
 
-		dynamicbox->name = name;
+		widget->name = name;
 		return;
 	}
 
-	dlist_foreach(dynamicbox->i18n_list, l, i18n) {
+	dlist_foreach(widget->i18n_list, l, i18n) {
 		if (!xmlStrcasecmp(i18n->lang, lang)) {
 			if (i18n->name) {
 				DbgPrint("Override name: %s\n", i18n->name);
@@ -2055,10 +2055,10 @@ static inline void update_i18n_name(struct dynamicbox *dynamicbox, xmlNodePtr no
 	i18n->name = name;
 	i18n->lang = lang;
 	DbgPrint("Label[%s] - [%s] added\n", i18n->lang, i18n->name);
-	dynamicbox->i18n_list = dlist_append(dynamicbox->i18n_list, i18n);
+	widget->i18n_list = dlist_append(widget->i18n_list, i18n);
 }
 
-static inline void update_i18n_icon(struct dynamicbox *dynamicbox, xmlNodePtr node)
+static inline void update_i18n_icon(struct widget *widget, xmlNodePtr node)
 {
 	struct i18n *i18n;
 	struct dlist *l;
@@ -2073,16 +2073,16 @@ static inline void update_i18n_icon(struct dynamicbox *dynamicbox, xmlNodePtr no
 
 	lang = xmlNodeGetLang(node);
 	if (!lang) {
-		if (dynamicbox->icon) {
-			DbgPrint("Override default icon: %s\n", dynamicbox->icon);
-			xmlFree(dynamicbox->icon);
+		if (widget->icon) {
+			DbgPrint("Override default icon: %s\n", widget->icon);
+			xmlFree(widget->icon);
 		}
 
-		dynamicbox->icon = icon;
+		widget->icon = icon;
 		return;
 	}
 
-	dlist_foreach(dynamicbox->i18n_list, l, i18n) {
+	dlist_foreach(widget->i18n_list, l, i18n) {
 		if (!xmlStrcasecmp(i18n->lang, lang)) {
 			if (i18n->icon) {
 				DbgPrint("Override icon %s for %s\n", i18n->icon, i18n->name);
@@ -2122,10 +2122,10 @@ static inline void update_i18n_icon(struct dynamicbox *dynamicbox, xmlNodePtr no
 
 	i18n->lang = lang;
 	DbgPrint("Icon[%s] - [%s] added\n", i18n->lang, i18n->icon);
-	dynamicbox->i18n_list = dlist_append(dynamicbox->i18n_list, i18n);
+	widget->i18n_list = dlist_append(widget->i18n_list, i18n);
 }
 
-static inline void update_launch(struct dynamicbox *dynamicbox, xmlNodePtr node)
+static inline void update_launch(struct widget *widget, xmlNodePtr node)
 {
 	xmlChar *launch;
 
@@ -2135,18 +2135,18 @@ static inline void update_launch(struct dynamicbox *dynamicbox, xmlNodePtr node)
 		return;
 	}
 
-	if (dynamicbox->auto_launch) {
-		xmlFree(dynamicbox->auto_launch);
+	if (widget->auto_launch) {
+		xmlFree(widget->auto_launch);
 	}
 
-	dynamicbox->auto_launch = xmlStrdup(launch);
-	if (!dynamicbox->auto_launch) {
+	widget->auto_launch = xmlStrdup(launch);
+	if (!widget->auto_launch) {
 		ErrPrint("Failed to duplicate string: %s\n", (char *)launch);
 		return;
 	}
 }
 
-static inline void update_category(struct dynamicbox *dynamicbox, xmlNodePtr node)
+static inline void update_category(struct widget *widget, xmlNodePtr node)
 {
 	xmlChar *category;
 
@@ -2156,18 +2156,18 @@ static inline void update_category(struct dynamicbox *dynamicbox, xmlNodePtr nod
 		return;
 	}
 
-	if (dynamicbox->category) {
-		xmlFree(dynamicbox->category);
+	if (widget->category) {
+		xmlFree(widget->category);
 	}
 
-	dynamicbox->category = xmlStrdup(category);
-	if (!dynamicbox->category) {
+	widget->category = xmlStrdup(category);
+	if (!widget->category) {
 		ErrPrint("Failed to duplicate string: %s\n", (char *)category);
 		return;
 	}
 }
 
-static inline void update_ui_appid(struct dynamicbox *dynamicbox, xmlNodePtr node)
+static inline void update_ui_appid(struct widget *widget, xmlNodePtr node)
 {
 	xmlChar *uiapp;
 	uiapp = xmlNodeGetContent(node);
@@ -2176,18 +2176,18 @@ static inline void update_ui_appid(struct dynamicbox *dynamicbox, xmlNodePtr nod
 		return;
 	}
 
-	if (dynamicbox->uiapp) {
-		xmlFree(dynamicbox->uiapp);
+	if (widget->uiapp) {
+		xmlFree(widget->uiapp);
 	}
 
-	dynamicbox->uiapp = xmlStrdup(uiapp);
-	if (!dynamicbox->uiapp) {
+	widget->uiapp = xmlStrdup(uiapp);
+	if (!widget->uiapp) {
 		ErrPrint("Failed to duplicate string: %s\n", (char *)uiapp);
 		return;
 	}
 }
 
-static inline void update_setup(struct dynamicbox *dynamicbox, xmlNodePtr node)
+static inline void update_setup(struct widget *widget, xmlNodePtr node)
 {
 	xmlChar *setup;
 	setup = xmlNodeGetContent(node);
@@ -2196,18 +2196,18 @@ static inline void update_setup(struct dynamicbox *dynamicbox, xmlNodePtr node)
 		return;
 	}
 
-	if (dynamicbox->setup) {
-		xmlFree(dynamicbox->setup);
+	if (widget->setup) {
+		xmlFree(widget->setup);
 	}
 
-	dynamicbox->setup = xmlStrdup(setup);
-	if (!dynamicbox->setup) {
+	widget->setup = xmlStrdup(setup);
+	if (!widget->setup) {
 		ErrPrint("Failed to duplicate string: %s\n", (char *)setup);
 		return;
 	}
 }
 
-static inline void update_content(struct dynamicbox *dynamicbox, xmlNodePtr node)
+static inline void update_content(struct widget *widget, xmlNodePtr node)
 {
 	xmlChar *content;
 	content = xmlNodeGetContent(node);
@@ -2216,29 +2216,29 @@ static inline void update_content(struct dynamicbox *dynamicbox, xmlNodePtr node
 		return;
 	}
 
-	if (dynamicbox->content) {
-		xmlFree(dynamicbox->content);
+	if (widget->content) {
+		xmlFree(widget->content);
 	}
 
-	dynamicbox->content = xmlStrdup(content);
-	if (!dynamicbox->content) {
+	widget->content = xmlStrdup(content);
+	if (!widget->content) {
 		ErrPrint("Failed to duplicate string: %s\n", (char *)content);
 		return;
 	}
 }
 
-static void update_size_info(struct dynamicbox *dynamicbox, int idx, xmlNodePtr node)
+static void update_size_info(struct widget *widget, int idx, xmlNodePtr node)
 {
 	if (xmlHasProp(node, (const xmlChar *)"preview")) {
 		xmlChar *tmp_preview;
-		dynamicbox->preview[idx] = xmlGetProp(node, (const xmlChar *)"preview");
-		tmp_preview = xmlMalloc(xmlStrlen(dynamicbox->preview[idx]) + 2);
+		widget->preview[idx] = xmlGetProp(node, (const xmlChar *)"preview");
+		tmp_preview = xmlMalloc(xmlStrlen(widget->preview[idx]) + 2);
 		if (!tmp_preview) {
 			ErrPrint("Heap: %s\n", strerror(errno));
 		} else {
-			abspath((char *)dynamicbox->preview[idx], (char *)tmp_preview);
-			xmlFree(dynamicbox->preview[idx]);
-			dynamicbox->preview[idx] = tmp_preview;
+			abspath((char *)widget->preview[idx], (char *)tmp_preview);
+			xmlFree(widget->preview[idx]);
+			widget->preview[idx] = tmp_preview;
 		}
 	}
 
@@ -2247,13 +2247,13 @@ static void update_size_info(struct dynamicbox *dynamicbox, int idx, xmlNodePtr 
 
 		need_frame = xmlGetProp(node, (const xmlChar *)"need_frame");
 		if (need_frame) {
-			dynamicbox->need_frame[idx] = !xmlStrcasecmp(need_frame, (const xmlChar *)"true");
+			widget->need_frame[idx] = !xmlStrcasecmp(need_frame, (const xmlChar *)"true");
 			xmlFree(need_frame);
 		} else {
-			dynamicbox->need_frame[idx] = dynamicbox->default_need_frame;
+			widget->need_frame[idx] = widget->default_need_frame;
 		}
 	} else {
-		dynamicbox->need_frame[idx] = dynamicbox->default_need_frame;
+		widget->need_frame[idx] = widget->default_need_frame;
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"touch_effect")) {
@@ -2261,13 +2261,13 @@ static void update_size_info(struct dynamicbox *dynamicbox, int idx, xmlNodePtr 
 
 		touch_effect = xmlGetProp(node, (const xmlChar *)"touch_effect");
 		if (touch_effect) {
-			dynamicbox->touch_effect[idx] = !xmlStrcasecmp(touch_effect, (const xmlChar *)"true");
+			widget->touch_effect[idx] = !xmlStrcasecmp(touch_effect, (const xmlChar *)"true");
 			xmlFree(touch_effect);
 		} else {
-			dynamicbox->touch_effect[idx] = dynamicbox->default_touch_effect;
+			widget->touch_effect[idx] = widget->default_touch_effect;
 		}
 	} else {
-		dynamicbox->touch_effect[idx] = dynamicbox->default_touch_effect;
+		widget->touch_effect[idx] = widget->default_touch_effect;
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"mouse_event")) {
@@ -2275,38 +2275,38 @@ static void update_size_info(struct dynamicbox *dynamicbox, int idx, xmlNodePtr 
 
 		mouse_event = xmlGetProp(node, (const xmlChar *)"mouse_event");
 		if (mouse_event) {
-			dynamicbox->mouse_event[idx] = !xmlStrcasecmp(mouse_event, (const xmlChar *)"true");
+			widget->mouse_event[idx] = !xmlStrcasecmp(mouse_event, (const xmlChar *)"true");
 			xmlFree(mouse_event);
 		} else {
-			dynamicbox->mouse_event[idx] = dynamicbox->default_mouse_event;
+			widget->mouse_event[idx] = widget->default_mouse_event;
 		}
 	} else {
-		dynamicbox->mouse_event[idx] = dynamicbox->default_mouse_event;
+		widget->mouse_event[idx] = widget->default_mouse_event;
 	}
 }
 
-static void update_box(struct dynamicbox *dynamicbox, xmlNodePtr node)
+static void update_box(struct widget *widget, xmlNodePtr node)
 {
 	if (!xmlHasProp(node, (const xmlChar *)"type")) {
-		dynamicbox->dbox_type = DBOX_TYPE_FILE;
+		widget->widget_type = WIDGET_TYPE_FILE;
 	} else {
 		xmlChar *type;
 
 		type = xmlGetProp(node, (const xmlChar *)"type");
 		if (!type) {
 			ErrPrint("Type is NIL\n");
-			dynamicbox->dbox_type = DBOX_TYPE_FILE;
+			widget->widget_type = WIDGET_TYPE_FILE;
 		} else {
 			if (!xmlStrcasecmp(type, (const xmlChar *)"text")) {
-				dynamicbox->dbox_type = DBOX_TYPE_TEXT;
+				widget->widget_type = WIDGET_TYPE_TEXT;
 			} else if (!xmlStrcasecmp(type, (const xmlChar *)"buffer")) {
-				dynamicbox->dbox_type = DBOX_TYPE_BUFFER;
+				widget->widget_type = WIDGET_TYPE_BUFFER;
 			} else if (!xmlStrcasecmp(type, (const xmlChar *)"script")) {
-				dynamicbox->dbox_type = DBOX_TYPE_SCRIPT;
+				widget->widget_type = WIDGET_TYPE_SCRIPT;
 			} else if (!xmlStrcasecmp(type, (const xmlChar *)"elm")) {
-				dynamicbox->dbox_type = DBOX_TYPE_UIFW;
+				widget->widget_type = WIDGET_TYPE_UIFW;
 			} else { /* Default */
-				dynamicbox->dbox_type = DBOX_TYPE_FILE;
+				widget->widget_type = WIDGET_TYPE_FILE;
 			}
 
 			xmlFree(type);
@@ -2314,46 +2314,46 @@ static void update_box(struct dynamicbox *dynamicbox, xmlNodePtr node)
 	}
 
 	if (!xmlHasProp(node, (const xmlChar *)"mouse_event")) {
-		dynamicbox->default_mouse_event = 0;
+		widget->default_mouse_event = 0;
 	} else {
 		xmlChar *mouse_event;
 
 		mouse_event = xmlGetProp(node, (const xmlChar *)"mouse_event");
 		if (!mouse_event) {
 			ErrPrint("mouse_event is NIL\n");
-			dynamicbox->default_mouse_event = 0;
+			widget->default_mouse_event = 0;
 		} else {
-			dynamicbox->default_mouse_event = !xmlStrcasecmp(mouse_event, (const xmlChar *)"true");
+			widget->default_mouse_event = !xmlStrcasecmp(mouse_event, (const xmlChar *)"true");
 			xmlFree(mouse_event);
 		}
 	}
 
 	if (!xmlHasProp(node, (const xmlChar *)"touch_effect")) {
-		dynamicbox->default_touch_effect = 1;
+		widget->default_touch_effect = 1;
 	} else {
 		xmlChar *touch_effect;
 
 		touch_effect = xmlGetProp(node, (const xmlChar *)"touch_effect");
 		if (!touch_effect) {
 			ErrPrint("default touch_effect is NIL\n");
-			dynamicbox->default_touch_effect = 1;
+			widget->default_touch_effect = 1;
 		} else {
-			dynamicbox->default_touch_effect = !xmlStrcasecmp(touch_effect, (const xmlChar *)"true");
+			widget->default_touch_effect = !xmlStrcasecmp(touch_effect, (const xmlChar *)"true");
 			xmlFree(touch_effect);
 		}
 	}
 
 	if (!xmlHasProp(node, (const xmlChar *)"need_frame")) {
-		dynamicbox->default_need_frame = 0;
+		widget->default_need_frame = 0;
 	} else {
 		xmlChar *need_frame;
 
 		need_frame = xmlGetProp(node, (const xmlChar *)"need_frame");
 		if (!need_frame) {
 			ErrPrint("default need_frame is NIL\n");
-			dynamicbox->default_need_frame = 0;
+			widget->default_need_frame = 0;
 		} else {
-			dynamicbox->default_need_frame = !xmlStrcasecmp(need_frame, (const xmlChar *)"true");
+			widget->default_need_frame = !xmlStrcasecmp(need_frame, (const xmlChar *)"true");
 			xmlFree(need_frame);
 		}
 	}
@@ -2381,62 +2381,62 @@ static void update_box(struct dynamicbox *dynamicbox, xmlNodePtr node)
 
 			if (!xmlStrcasecmp(size, (const xmlChar *)"1x1")) {
 				if (is_easy) {
-					dynamicbox->size_list |= DBOX_SIZE_TYPE_EASY_1x1;
-					update_size_info(dynamicbox, 9, node);
+					widget->size_list |= WIDGET_SIZE_TYPE_EASY_1x1;
+					update_size_info(widget, 9, node);
 				} else {
-					dynamicbox->size_list |= DBOX_SIZE_TYPE_1x1;
-					update_size_info(dynamicbox, 0, node);
+					widget->size_list |= WIDGET_SIZE_TYPE_1x1;
+					update_size_info(widget, 0, node);
 				}
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"3x1")) {
 				if (is_easy) {
-					dynamicbox->size_list |= DBOX_SIZE_TYPE_EASY_3x1;
-					update_size_info(dynamicbox, 10, node);
+					widget->size_list |= WIDGET_SIZE_TYPE_EASY_3x1;
+					update_size_info(widget, 10, node);
 				} else {
 					ErrPrint("Invalid size tag (%s)\n", size);
 				}
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"3x3")) {
 				if (is_easy) {
-					dynamicbox->size_list |= DBOX_SIZE_TYPE_EASY_3x3;
-					update_size_info(dynamicbox, 11, node);
+					widget->size_list |= WIDGET_SIZE_TYPE_EASY_3x3;
+					update_size_info(widget, 11, node);
 				} else {
 					ErrPrint("Invalid size tag (%s)\n", size);
 				}
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"2x1")) {
-				dynamicbox->size_list |= DBOX_SIZE_TYPE_2x1;
-				update_size_info(dynamicbox, 1, node);
+				widget->size_list |= WIDGET_SIZE_TYPE_2x1;
+				update_size_info(widget, 1, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"2x2")) {
-				dynamicbox->size_list |= DBOX_SIZE_TYPE_2x2;
-				update_size_info(dynamicbox, 2, node);
+				widget->size_list |= WIDGET_SIZE_TYPE_2x2;
+				update_size_info(widget, 2, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x1")) {
-				dynamicbox->size_list |= DBOX_SIZE_TYPE_4x1;
-				update_size_info(dynamicbox, 3, node);
+				widget->size_list |= WIDGET_SIZE_TYPE_4x1;
+				update_size_info(widget, 3, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x2")) {
-				dynamicbox->size_list |= DBOX_SIZE_TYPE_4x2;
-				update_size_info(dynamicbox, 4, node);
+				widget->size_list |= WIDGET_SIZE_TYPE_4x2;
+				update_size_info(widget, 4, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x3")) {
-				dynamicbox->size_list |= DBOX_SIZE_TYPE_4x3;
-				update_size_info(dynamicbox, 5, node);
+				widget->size_list |= WIDGET_SIZE_TYPE_4x3;
+				update_size_info(widget, 5, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x4")) {
-				dynamicbox->size_list |= DBOX_SIZE_TYPE_4x4;
-				update_size_info(dynamicbox, 6, node);
+				widget->size_list |= WIDGET_SIZE_TYPE_4x4;
+				update_size_info(widget, 6, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x5")) {
-				dynamicbox->size_list |= DBOX_SIZE_TYPE_4x5;
-				update_size_info(dynamicbox, 7, node);
+				widget->size_list |= WIDGET_SIZE_TYPE_4x5;
+				update_size_info(widget, 7, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x6")) {
-				dynamicbox->size_list |= DBOX_SIZE_TYPE_4x6;
-				update_size_info(dynamicbox, 8, node);
+				widget->size_list |= WIDGET_SIZE_TYPE_4x6;
+				update_size_info(widget, 8, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"21x21")) {
-				dynamicbox->size_list |= DBOX_SIZE_TYPE_EASY_1x1;
-				update_size_info(dynamicbox, 9, node);
+				widget->size_list |= WIDGET_SIZE_TYPE_EASY_1x1;
+				update_size_info(widget, 9, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"23x21")) {
-				dynamicbox->size_list |= DBOX_SIZE_TYPE_EASY_3x1;
-				update_size_info(dynamicbox, 10, node);
+				widget->size_list |= WIDGET_SIZE_TYPE_EASY_3x1;
+				update_size_info(widget, 10, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"23x23")) {
-				dynamicbox->size_list |= DBOX_SIZE_TYPE_EASY_3x3;
-				update_size_info(dynamicbox, 11, node);
+				widget->size_list |= WIDGET_SIZE_TYPE_EASY_3x3;
+				update_size_info(widget, 11, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"0x0")) {
-				dynamicbox->size_list |= DBOX_SIZE_TYPE_0x0;
-				update_size_info(dynamicbox, 12, node);
+				widget->size_list |= WIDGET_SIZE_TYPE_0x0;
+				update_size_info(widget, 12, node);
 			} else {
 				ErrPrint("Invalid size tag (%s)\n", size);
 			}
@@ -2456,19 +2456,19 @@ static void update_box(struct dynamicbox *dynamicbox, xmlNodePtr node)
 				continue;
 			}
 
-			if (dynamicbox->dbox_src) {
-				DbgPrint("Override lb src: %s\n", dynamicbox->dbox_src);
-				xmlFree(dynamicbox->dbox_src);
+			if (widget->widget_src) {
+				DbgPrint("Override lb src: %s\n", widget->widget_src);
+				xmlFree(widget->widget_src);
 			}
 
-			dynamicbox->dbox_src = src;
-			src = xmlMalloc(xmlStrlen(dynamicbox->dbox_src) + 2);
+			widget->widget_src = src;
+			src = xmlMalloc(xmlStrlen(widget->widget_src) + 2);
 			if (!src) {
 				ErrPrint("Heap: %s\n", strerror(errno));
 			} else {
-				abspath((char *)dynamicbox->dbox_src, (char *)src);
-				xmlFree(dynamicbox->dbox_src);
-				dynamicbox->dbox_src = src;
+				abspath((char *)widget->widget_src, (char *)src);
+				xmlFree(widget->widget_src);
+				widget->widget_src = src;
 			}
 
 			if (xmlHasProp(node, (const xmlChar *)"group")) {
@@ -2477,19 +2477,19 @@ static void update_box(struct dynamicbox *dynamicbox, xmlNodePtr node)
 				if (!group) {
 					ErrPrint("Group is NIL\n");
 				} else {
-					if (dynamicbox->dbox_group) {
-						DbgPrint("Override lb group: %s\n", dynamicbox->dbox_group);
-						xmlFree(dynamicbox->dbox_group);
+					if (widget->widget_group) {
+						DbgPrint("Override lb group: %s\n", widget->widget_group);
+						xmlFree(widget->widget_group);
 					}
 
-					dynamicbox->dbox_group = group;
+					widget->widget_group = group;
 				}
 			}
 		}
 	}
 }
 
-static inline void update_group(struct dynamicbox *dynamicbox, xmlNodePtr node)
+static inline void update_group(struct widget *widget, xmlNodePtr node)
 {
 	xmlNodePtr cluster;
 	xmlNodePtr category;
@@ -2555,7 +2555,7 @@ static inline void update_group(struct dynamicbox *dynamicbox, xmlNodePtr node)
 			}
 
 			group->category = category_name;
-			dynamicbox->group_list = dlist_append(dynamicbox->group_list, group);
+			widget->group_list = dlist_append(widget->group_list, group);
 
 			if (!xmlHasProp(category, (const xmlChar *)"context")) {
 				DbgPrint("%s, %s has no ctx info\n", group->cluster, group->category);
@@ -2619,10 +2619,10 @@ static inline void update_group(struct dynamicbox *dynamicbox, xmlNodePtr node)
 	}
 }
 
-static inline void update_gbar(struct dynamicbox *dynamicbox, xmlNodePtr node)
+static inline void update_gbar(struct widget *widget, xmlNodePtr node)
 {
 	if (!xmlHasProp(node, (const xmlChar *)"type")) {
-		dynamicbox->gbar_type = GBAR_TYPE_SCRIPT;
+		widget->gbar_type = GBAR_TYPE_SCRIPT;
 	} else {
 		xmlChar *type;
 
@@ -2633,13 +2633,13 @@ static inline void update_gbar(struct dynamicbox *dynamicbox, xmlNodePtr node)
 		}
 
 		if (!xmlStrcasecmp(type, (const xmlChar *)"text")) {
-			dynamicbox->gbar_type = GBAR_TYPE_TEXT;
+			widget->gbar_type = GBAR_TYPE_TEXT;
 		} else if (!xmlStrcasecmp(type, (const xmlChar *)"buffer")) {
-			dynamicbox->gbar_type = GBAR_TYPE_BUFFER;
+			widget->gbar_type = GBAR_TYPE_BUFFER;
 		} else if (!xmlStrcasecmp(type, (const xmlChar *)"elm")) {
-			dynamicbox->gbar_type = GBAR_TYPE_UIFW;
+			widget->gbar_type = GBAR_TYPE_UIFW;
 		} else {
-			dynamicbox->gbar_type = GBAR_TYPE_SCRIPT;
+			widget->gbar_type = GBAR_TYPE_SCRIPT;
 		}
 
 		xmlFree(type);
@@ -2655,11 +2655,11 @@ static inline void update_gbar(struct dynamicbox *dynamicbox, xmlNodePtr node)
 				continue;
 			}
 
-			if (dynamicbox->gbar_size) {
-				DbgPrint("Override pd size: %s\n", dynamicbox->gbar_size);
-				xmlFree(dynamicbox->gbar_size);
+			if (widget->gbar_size) {
+				DbgPrint("Override pd size: %s\n", widget->gbar_size);
+				xmlFree(widget->gbar_size);
 			}
-			dynamicbox->gbar_size = size;
+			widget->gbar_size = size;
 		} else if (!xmlStrcasecmp(node->name, (const xmlChar *)"script")) {
 			xmlChar *src;
 
@@ -2674,19 +2674,19 @@ static inline void update_gbar(struct dynamicbox *dynamicbox, xmlNodePtr node)
 				continue;
 			}
 
-			if (dynamicbox->gbar_src) {
-				DbgPrint("Overide PD src: %s\n", dynamicbox->gbar_src);
-				xmlFree(dynamicbox->gbar_src);
+			if (widget->gbar_src) {
+				DbgPrint("Overide PD src: %s\n", widget->gbar_src);
+				xmlFree(widget->gbar_src);
 			}
 
-			dynamicbox->gbar_src = src;
-			src = xmlMalloc(xmlStrlen(dynamicbox->gbar_src) + 2);
+			widget->gbar_src = src;
+			src = xmlMalloc(xmlStrlen(widget->gbar_src) + 2);
 			if (!src) {
 				ErrPrint("Heap: %s\n", strerror(errno));
 			} else {
-				abspath((char *)dynamicbox->gbar_src, (char *)src);
-				xmlFree(dynamicbox->gbar_src);
-				dynamicbox->gbar_src = src;
+				abspath((char *)widget->gbar_src, (char *)src);
+				xmlFree(widget->gbar_src);
+				widget->gbar_src = src;
 			}
 
 			if (xmlHasProp(node, (const xmlChar *)"group")) {
@@ -2695,19 +2695,19 @@ static inline void update_gbar(struct dynamicbox *dynamicbox, xmlNodePtr node)
 				if (!group) {
 					ErrPrint("Group is NIL\n");
 				} else {
-					if (dynamicbox->gbar_group) {
-						DbgPrint("Override PD group : %s\n", dynamicbox->gbar_group);
-						xmlFree(dynamicbox->gbar_group);
+					if (widget->gbar_group) {
+						DbgPrint("Override PD group : %s\n", widget->gbar_group);
+						xmlFree(widget->gbar_group);
 					}
 
-					dynamicbox->gbar_group = group;
+					widget->gbar_group = group;
 				}
 			}
 		}
 	}
 }
 
-static int db_insert_dynamicbox(struct dynamicbox *dynamicbox, const char *appid)
+static int db_insert_widget(struct widget *widget, const char *appid)
 {
 	struct dlist *l;
 	struct dlist *il;
@@ -2718,126 +2718,126 @@ static int db_insert_dynamicbox(struct dynamicbox *dynamicbox, const char *appid
 	struct option *option;
 
 	begin_transaction();
-	ret = db_insert_pkgmap(appid, (char *)dynamicbox->pkgid, (char *)dynamicbox->uiapp, dynamicbox->primary, (char *)dynamicbox->category);
+	ret = db_insert_pkgmap(appid, (char *)widget->pkgid, (char *)widget->uiapp, widget->primary, (char *)widget->category);
 	if (ret < 0) {
 		goto errout;
 	}
 
-	ret = db_insert_provider(dynamicbox);
+	ret = db_insert_provider(widget);
 	if (ret < 0) {
 		goto errout;
 	}
 
-	ret = db_insert_client(dynamicbox);
+	ret = db_insert_client(widget);
 	if (ret < 0) {
 		goto errout;
 	}
 
-	dlist_foreach(dynamicbox->i18n_list, l, i18n) {
-		ret = db_insert_i18n((char *)dynamicbox->pkgid, (char *)i18n->lang, (char *)i18n->name, (char *)i18n->icon);
+	dlist_foreach(widget->i18n_list, l, i18n) {
+		ret = db_insert_i18n((char *)widget->pkgid, (char *)i18n->lang, (char *)i18n->name, (char *)i18n->icon);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (dynamicbox->size_list & DBOX_SIZE_TYPE_1x1) {
-		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_1x1, (char *)dynamicbox->preview[0], dynamicbox->touch_effect[0], dynamicbox->need_frame[0], dynamicbox->mouse_event[0]);
+	if (widget->size_list & WIDGET_SIZE_TYPE_1x1) {
+		ret = db_insert_box_size((char *)widget->pkgid, WIDGET_SIZE_TYPE_1x1, (char *)widget->preview[0], widget->touch_effect[0], widget->need_frame[0], widget->mouse_event[0]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (dynamicbox->size_list & DBOX_SIZE_TYPE_2x1) {
-		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_2x1, (char *)dynamicbox->preview[1], dynamicbox->touch_effect[1], dynamicbox->need_frame[1], dynamicbox->mouse_event[1]);
+	if (widget->size_list & WIDGET_SIZE_TYPE_2x1) {
+		ret = db_insert_box_size((char *)widget->pkgid, WIDGET_SIZE_TYPE_2x1, (char *)widget->preview[1], widget->touch_effect[1], widget->need_frame[1], widget->mouse_event[1]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (dynamicbox->size_list & DBOX_SIZE_TYPE_2x2) {
-		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_2x2, (char *)dynamicbox->preview[2], dynamicbox->touch_effect[2], dynamicbox->need_frame[2], dynamicbox->mouse_event[2]);
+	if (widget->size_list & WIDGET_SIZE_TYPE_2x2) {
+		ret = db_insert_box_size((char *)widget->pkgid, WIDGET_SIZE_TYPE_2x2, (char *)widget->preview[2], widget->touch_effect[2], widget->need_frame[2], widget->mouse_event[2]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (dynamicbox->size_list & DBOX_SIZE_TYPE_4x1) {
-		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_4x1, (char *)dynamicbox->preview[3], dynamicbox->touch_effect[3], dynamicbox->need_frame[3], dynamicbox->mouse_event[3]);
+	if (widget->size_list & WIDGET_SIZE_TYPE_4x1) {
+		ret = db_insert_box_size((char *)widget->pkgid, WIDGET_SIZE_TYPE_4x1, (char *)widget->preview[3], widget->touch_effect[3], widget->need_frame[3], widget->mouse_event[3]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (dynamicbox->size_list & DBOX_SIZE_TYPE_4x2) {
-		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_4x2, (char *)dynamicbox->preview[4], dynamicbox->touch_effect[4], dynamicbox->need_frame[4], dynamicbox->mouse_event[4]);
+	if (widget->size_list & WIDGET_SIZE_TYPE_4x2) {
+		ret = db_insert_box_size((char *)widget->pkgid, WIDGET_SIZE_TYPE_4x2, (char *)widget->preview[4], widget->touch_effect[4], widget->need_frame[4], widget->mouse_event[4]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (dynamicbox->size_list & DBOX_SIZE_TYPE_4x3) {
-		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_4x3, (char *)dynamicbox->preview[5], dynamicbox->touch_effect[5], dynamicbox->need_frame[5], dynamicbox->mouse_event[5]);
+	if (widget->size_list & WIDGET_SIZE_TYPE_4x3) {
+		ret = db_insert_box_size((char *)widget->pkgid, WIDGET_SIZE_TYPE_4x3, (char *)widget->preview[5], widget->touch_effect[5], widget->need_frame[5], widget->mouse_event[5]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (dynamicbox->size_list & DBOX_SIZE_TYPE_4x4) {
-		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_4x4, (char *)dynamicbox->preview[6], dynamicbox->touch_effect[6], dynamicbox->need_frame[6], dynamicbox->mouse_event[6]);
+	if (widget->size_list & WIDGET_SIZE_TYPE_4x4) {
+		ret = db_insert_box_size((char *)widget->pkgid, WIDGET_SIZE_TYPE_4x4, (char *)widget->preview[6], widget->touch_effect[6], widget->need_frame[6], widget->mouse_event[6]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (dynamicbox->size_list & DBOX_SIZE_TYPE_4x5) {
-		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_4x5, (char *)dynamicbox->preview[7], dynamicbox->touch_effect[7], dynamicbox->need_frame[7], dynamicbox->mouse_event[7]);
+	if (widget->size_list & WIDGET_SIZE_TYPE_4x5) {
+		ret = db_insert_box_size((char *)widget->pkgid, WIDGET_SIZE_TYPE_4x5, (char *)widget->preview[7], widget->touch_effect[7], widget->need_frame[7], widget->mouse_event[7]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (dynamicbox->size_list & DBOX_SIZE_TYPE_4x6) {
-		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_4x6, (char *)dynamicbox->preview[8], dynamicbox->touch_effect[8], dynamicbox->need_frame[8], dynamicbox->mouse_event[8]);
+	if (widget->size_list & WIDGET_SIZE_TYPE_4x6) {
+		ret = db_insert_box_size((char *)widget->pkgid, WIDGET_SIZE_TYPE_4x6, (char *)widget->preview[8], widget->touch_effect[8], widget->need_frame[8], widget->mouse_event[8]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (dynamicbox->size_list & DBOX_SIZE_TYPE_EASY_1x1) {
-		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_EASY_1x1, (char *)dynamicbox->preview[9], dynamicbox->touch_effect[9], dynamicbox->need_frame[9], dynamicbox->mouse_event[9]);
+	if (widget->size_list & WIDGET_SIZE_TYPE_EASY_1x1) {
+		ret = db_insert_box_size((char *)widget->pkgid, WIDGET_SIZE_TYPE_EASY_1x1, (char *)widget->preview[9], widget->touch_effect[9], widget->need_frame[9], widget->mouse_event[9]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (dynamicbox->size_list & DBOX_SIZE_TYPE_EASY_3x1) {
-		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_EASY_3x1, (char *)dynamicbox->preview[10], dynamicbox->touch_effect[10], dynamicbox->need_frame[10], dynamicbox->mouse_event[10]);
+	if (widget->size_list & WIDGET_SIZE_TYPE_EASY_3x1) {
+		ret = db_insert_box_size((char *)widget->pkgid, WIDGET_SIZE_TYPE_EASY_3x1, (char *)widget->preview[10], widget->touch_effect[10], widget->need_frame[10], widget->mouse_event[10]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (dynamicbox->size_list & DBOX_SIZE_TYPE_EASY_3x3) {
-		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_EASY_3x3, (char *)dynamicbox->preview[11], dynamicbox->touch_effect[11], dynamicbox->need_frame[11], dynamicbox->mouse_event[11]);
+	if (widget->size_list & WIDGET_SIZE_TYPE_EASY_3x3) {
+		ret = db_insert_box_size((char *)widget->pkgid, WIDGET_SIZE_TYPE_EASY_3x3, (char *)widget->preview[11], widget->touch_effect[11], widget->need_frame[11], widget->mouse_event[11]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	if (dynamicbox->size_list & DBOX_SIZE_TYPE_0x0) {
-		ret = db_insert_box_size((char *)dynamicbox->pkgid, DBOX_SIZE_TYPE_0x0, (char *)dynamicbox->preview[12], dynamicbox->touch_effect[12], dynamicbox->need_frame[12], dynamicbox->mouse_event[12]);
+	if (widget->size_list & WIDGET_SIZE_TYPE_0x0) {
+		ret = db_insert_box_size((char *)widget->pkgid, WIDGET_SIZE_TYPE_0x0, (char *)widget->preview[12], widget->touch_effect[12], widget->need_frame[12], widget->mouse_event[12]);
 		if (ret < 0) {
 			goto errout;
 		}
 	}
 
-	dlist_foreach(dynamicbox->group_list, l, group) {
+	dlist_foreach(widget->group_list, l, group) {
 		/* group ID "id" */
 		id = db_get_group_id((char *)group->cluster, (char *)group->category);
 		if (id < 0) {
 			int ret;
 
-			ret = db_insert_group((char *)dynamicbox->pkgid, (char *)group->cluster, (char *)group->category);
+			ret = db_insert_group((char *)widget->pkgid, (char *)group->cluster, (char *)group->category);
 			if (ret < 0) {
 				ErrPrint("[%s]-[%s] is not exists\n", group->cluster, group->category);
 				continue;
@@ -2856,19 +2856,19 @@ static int db_insert_dynamicbox(struct dynamicbox *dynamicbox, const char *appid
 			continue;
 		}
 
-		ret = db_insert_groupmap(id, (char *)dynamicbox->pkgid, (char *)group->ctx_item);
+		ret = db_insert_groupmap(id, (char *)widget->pkgid, (char *)group->ctx_item);
 		if (ret < 0) {
 			goto errout;
 		}
 
 		/* REUSE "id" from here , option ID */
-		id = db_get_option_id(id, (char *)dynamicbox->pkgid, (char *)group->ctx_item);
+		id = db_get_option_id(id, (char *)widget->pkgid, (char *)group->ctx_item);
 		if (id < 0) {
 			goto errout;
 		}
 
 		dlist_foreach(group->option_list, il, option) {
-			ret = db_insert_option((char *)dynamicbox->pkgid, id, (char *)option->key, (char *)option->value);
+			ret = db_insert_option((char *)widget->pkgid, id, (char *)option->key, (char *)option->value);
 			if (ret < 0) {
 				goto errout;
 			}
@@ -2876,19 +2876,19 @@ static int db_insert_dynamicbox(struct dynamicbox *dynamicbox, const char *appid
 	}
 
 	commit_transaction();
-	dynamicbox_destroy(dynamicbox);
+	widget_destroy(widget);
 	return 0;
 
 errout:
 	ErrPrint("ROLLBACK\n");
 	rollback_transaction();
-	dynamicbox_destroy(dynamicbox);
+	widget_destroy(widget);
 	return ret;
 }
 
 static int do_install(xmlNodePtr node, const char *appid)
 {
-	struct dynamicbox *dynamicbox;
+	struct widget *widget;
 	xmlChar *pkgid;
 	xmlChar *tmp;
 
@@ -2906,18 +2906,18 @@ static int do_install(xmlNodePtr node, const char *appid)
 
 	DbgPrint("appid: %s\n", (char *)pkgid);
 
-	dynamicbox = calloc(1, sizeof(*dynamicbox));
-	if (!dynamicbox) {
+	widget = calloc(1, sizeof(*widget));
+	if (!widget) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		xmlFree(pkgid);
 		return -ENOMEM;
 	}
 
-	dynamicbox->pkgid = pkgid;
+	widget->pkgid = pkgid;
 
 	if (xmlHasProp(node, (const xmlChar *)"count")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"count");
-		if (sscanf((const char *)tmp, "%d", &dynamicbox->count) != 1) {
+		if (sscanf((const char *)tmp, "%d", &widget->count) != 1) {
 			ErrPrint("Invalid syntax: %s\n", (const char *)tmp);
 		}
 		xmlFree(tmp);
@@ -2925,80 +2925,80 @@ static int do_install(xmlNodePtr node, const char *appid)
 
 	if (xmlHasProp(node, (const xmlChar *)"primary")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"primary");
-		dynamicbox->primary = !xmlStrcasecmp(tmp, (const xmlChar *)"true");
+		widget->primary = !xmlStrcasecmp(tmp, (const xmlChar *)"true");
 		xmlFree(tmp);
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"script")) {
-		dynamicbox->script = xmlGetProp(node, (const xmlChar *)"script");
-		if (!dynamicbox->script) {
+		widget->script = xmlGetProp(node, (const xmlChar *)"script");
+		if (!widget->script) {
 			ErrPrint("script is NIL\n");
 		}
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"nodisplay")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"nodisplay");
-		dynamicbox->nodisplay = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
+		widget->nodisplay = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
 		xmlFree(tmp);
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"pinup")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"pinup");
-		dynamicbox->pinup = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
+		widget->pinup = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
 		xmlFree(tmp);
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"period")) {
-		dynamicbox->period = xmlGetProp(node, (const xmlChar *)"period");
-		if (!dynamicbox->period) {
+		widget->period = xmlGetProp(node, (const xmlChar *)"period");
+		if (!widget->period) {
 			ErrPrint("Period is NIL\n");
 		}
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"timeout")) {
-		dynamicbox->timeout = xmlGetProp(node, (const xmlChar *)"timeout");
-		if (!dynamicbox->timeout) {
+		widget->timeout = xmlGetProp(node, (const xmlChar *)"timeout");
+		if (!widget->timeout) {
 			ErrPrint("Timeout is NIL\n");
 		}
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"secured")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"secured");
-		dynamicbox->secured = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
+		widget->secured = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
 		xmlFree(tmp);
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"network")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"network");
-		dynamicbox->network = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
+		widget->network = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
 		xmlFree(tmp);
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"direct_input")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"direct_input");
-		dynamicbox->direct_input = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
+		widget->direct_input = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
 		xmlFree(tmp);
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"hw-acceleration")) {
-		dynamicbox->hw_acceleration = xmlGetProp(node, (const xmlChar *)"hw-acceleration");
-		if (!dynamicbox->hw_acceleration) {
+		widget->hw_acceleration = xmlGetProp(node, (const xmlChar *)"hw-acceleration");
+		if (!widget->hw_acceleration) {
 			ErrPrint("hw-acceleration is NIL\n");
 		}
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"abi")) {
-		dynamicbox->abi = xmlGetProp(node, (const xmlChar *)"abi");
-		if (!dynamicbox->abi) {
+		widget->abi = xmlGetProp(node, (const xmlChar *)"abi");
+		if (!widget->abi) {
 			ErrPrint("ABI is NIL\n");
-			dynamicbox_destroy(dynamicbox);
+			widget_destroy(widget);
 			return -EFAULT;
 		}
 	} else {
-		dynamicbox->abi = xmlStrdup((const xmlChar *)"c");
-		if (!dynamicbox->abi) {
+		widget->abi = xmlStrdup((const xmlChar *)"c");
+		if (!widget->abi) {
 			ErrPrint("Heap: %s\n", strerror(errno));
-			dynamicbox_destroy(dynamicbox);
+			widget_destroy(widget);
 			return -ENOMEM;
 		}
 	}
@@ -3006,42 +3006,42 @@ static int do_install(xmlNodePtr node, const char *appid)
 	if (xmlHasProp(node, (const xmlChar *)"libexec")) {
 		xmlChar *tmp_libexec;
 
-		dynamicbox->libexec = xmlGetProp(node, (const xmlChar *)"libexec");
-		if (!dynamicbox->libexec) {
+		widget->libexec = xmlGetProp(node, (const xmlChar *)"libexec");
+		if (!widget->libexec) {
 			ErrPrint("libexec is NIL\n");
-			dynamicbox_destroy(dynamicbox);
+			widget_destroy(widget);
 			return -EFAULT;
 		}
 
-		tmp_libexec = xmlMalloc(xmlStrlen(dynamicbox->libexec) + 2);
+		tmp_libexec = xmlMalloc(xmlStrlen(widget->libexec) + 2);
 		if (!tmp_libexec) {
 			ErrPrint("Heap: %s\n", strerror(errno));
-			dynamicbox_destroy(dynamicbox);
+			widget_destroy(widget);
 			return -EFAULT;
 		}
 
-		abspath((char *)dynamicbox->libexec, (char *)tmp_libexec);
-		xmlFree(dynamicbox->libexec);
-		dynamicbox->libexec = tmp_libexec;
-	} else if (!xmlStrcasecmp(dynamicbox->abi, (const xmlChar *)"c") || !xmlStrcasecmp(dynamicbox->abi, (const xmlChar *)"cpp")) {
+		abspath((char *)widget->libexec, (char *)tmp_libexec);
+		xmlFree(widget->libexec);
+		widget->libexec = tmp_libexec;
+	} else if (!xmlStrcasecmp(widget->abi, (const xmlChar *)"c") || !xmlStrcasecmp(widget->abi, (const xmlChar *)"cpp")) {
 		char *filename;
 		int len;
 
-		len = strlen((char *)dynamicbox->pkgid) + strlen("/libexec/liblive-.so") + 1;
+		len = strlen((char *)widget->pkgid) + strlen("/libexec/liblive-.so") + 1;
 
 		filename = malloc(len);
 		if (!filename) {
-			dynamicbox_destroy(dynamicbox);
+			widget_destroy(widget);
 			return -ENOMEM;
 		}
 
-		snprintf(filename, len, "/libexec/liblive-%s.so", dynamicbox->pkgid);
-		dynamicbox->libexec = xmlStrdup((xmlChar *)filename);
+		snprintf(filename, len, "/libexec/liblive-%s.so", widget->pkgid);
+		widget->libexec = xmlStrdup((xmlChar *)filename);
 		DbgPrint("Use the default libexec: %s\n", filename);
 		free(filename);
 
-		if (!dynamicbox->libexec) {
-			dynamicbox_destroy(dynamicbox);
+		if (!widget->libexec) {
+			widget_destroy(widget);
 			return -ENOMEM;
 		}
 	}
@@ -3053,57 +3053,57 @@ static int do_install(xmlNodePtr node, const char *appid)
 
 		DbgPrint("Nodename: %s\n", node->name);
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"label")) {
-			update_i18n_name(dynamicbox, node);
+			update_i18n_name(widget, node);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"icon")) {
-			update_i18n_icon(dynamicbox, node);
+			update_i18n_icon(widget, node);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"box")) {
-			update_box(dynamicbox, node);
+			update_box(widget, node);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"glancebar")) {
-			update_gbar(dynamicbox, node);
+			update_gbar(widget, node);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"group")) {
-			update_group(dynamicbox, node);
+			update_group(widget, node);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"content")) {
-			update_content(dynamicbox, node);
+			update_content(widget, node);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"setup")) {
-			update_setup(dynamicbox, node);
+			update_setup(widget, node);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"launch")) {
-			update_launch(dynamicbox, node);
+			update_launch(widget, node);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"ui-appid")) {
-			update_ui_appid(dynamicbox, node);
+			update_ui_appid(widget, node);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"category")) {
-			update_category(dynamicbox, node);
+			update_category(widget, node);
 			continue;
 		}
 	}
 
-	return db_insert_dynamicbox(dynamicbox, appid);
+	return db_insert_widget(widget, appid);
 }
 
 static inline int do_uninstall(xmlNodePtr node, const char *appid)
@@ -3320,7 +3320,7 @@ int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *appid)
 
 	for (node = node->children; node; node = node->next) {
 		DbgPrint("node->name: %s\n", node->name);
-		if (!xmlStrcasecmp(node->name, (const xmlChar *)"dynamicbox")) {
+		if (!xmlStrcasecmp(node->name, (const xmlChar *)"widget")) {
 			ret = do_install(node, appid);
 			if (ret < 0) {
 				DbgPrint("Returns: %d\n", ret);
@@ -3382,7 +3382,7 @@ int PKGMGR_PARSER_PLUGIN_UPGRADE(xmlDocPtr docPtr, const char *appid)
 	}
 
 	for (node = node->children; node; node = node->next) {
-		if (!xmlStrcasecmp(node->name, (const xmlChar *)"dynamicbox")) {
+		if (!xmlStrcasecmp(node->name, (const xmlChar *)"widget")) {
 			ret = do_install(node, appid);
 			if (ret < 0) {
 				DbgPrint("Returns: %d\n", ret);

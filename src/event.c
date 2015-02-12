@@ -29,8 +29,8 @@
 #include <Eina.h>
 #include <Ecore.h>
 #include <dlog.h>
-#include <dynamicbox_errno.h>
-#include <dynamicbox_conf.h>
+#include <widget_errno.h>
+#include <widget_conf.h>
 
 #include "util.h"
 #include "debug.h"
@@ -121,10 +121,10 @@ HAPI int event_init(void)
 	ret = pthread_mutex_init(&s_info.event_list_lock, NULL);
 	if (ret != 0) {
 		ErrPrint("Mutex: %s\n", strerror(ret));
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int event_fini(void)
@@ -138,7 +138,7 @@ HAPI int event_fini(void)
 		ErrPrint("Mutex destroy failed: %s\n", strerror(ret));
 	}
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 /*
@@ -150,7 +150,7 @@ static int push_event_item(void)
 
 	if (s_info.event_data.x < 0 || s_info.event_data.y < 0) {
 		/* Waiting full event packet */
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	}
 
 	item = malloc(sizeof(*item));
@@ -165,7 +165,7 @@ static int push_event_item(void)
 
 		if (write(s_info.evt_pipe[PIPE_WRITE], &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
 			ErrPrint("Unable to send an event: %s\n", strerror(errno));
-			return DBOX_STATUS_ERROR_IO_ERROR;
+			return WIDGET_STATUS_ERROR_IO_ERROR;
 		}
 
 		/* Take a breathe */
@@ -174,14 +174,14 @@ static int push_event_item(void)
 		ErrPrint("Heap: %s\n", strerror(errno));
 	}
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 static double current_time_get(void)
 {
 	double ret;
 
-	if (DYNAMICBOX_CONF_USE_GETTIMEOFDAY) {
+	if (WIDGET_CONF_USE_GETTIMEOFDAY) {
 		struct timeval tv;
 		if (gettimeofday(&tv, NULL) < 0) {
 			ErrPrint("gettimeofday: %s\n", strerror(errno));
@@ -478,7 +478,7 @@ static inline int processing_input_event(struct input_event *event)
 		break;
 	}
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 static void *event_thread_main(void *data)
@@ -509,7 +509,7 @@ static void *event_thread_main(void *data)
 			break;
 		} else if (ret == 0) {
 			ErrPrint("Timeout expired\n");
-			ret = DBOX_STATUS_ERROR_TIMEOUT;
+			ret = WIDGET_STATUS_ERROR_TIMEOUT;
 			break;
 		}
 
@@ -517,7 +517,7 @@ static void *event_thread_main(void *data)
 			readsize = read(s_info.handle, ptr + offset, sizeof(input_event) - offset);
 			if (readsize < 0) {
 				ErrPrint("Unable to read device: %s / fd: %d / offset: %d / size: %d - %d\n", strerror(errno), s_info.handle, offset, sizeof(input_event), readsize);
-				ret = DBOX_STATUS_ERROR_FAULT;
+				ret = WIDGET_STATUS_ERROR_FAULT;
 				break;
 			}
 
@@ -525,7 +525,7 @@ static void *event_thread_main(void *data)
 			if (offset == sizeof(input_event)) {
 				offset = 0;
 				if (processing_input_event(&input_event) < 0) {
-					ret = DBOX_STATUS_ERROR_FAULT;
+					ret = WIDGET_STATUS_ERROR_FAULT;
 					break;
 				}
 			}
@@ -544,7 +544,7 @@ static void *event_thread_main(void *data)
 				ErrPrint("Unable to read TCB_PIPE: %s\n", strerror(errno));
 			}
 
-			ret = DBOX_STATUS_ERROR_CANCEL;
+			ret = WIDGET_STATUS_ERROR_CANCEL;
 			break;
 		}
 	}
@@ -566,7 +566,7 @@ static int invoke_event_cb(struct event_listener *listener, struct event_data *i
 	modified_item.x -= listener->x;
 	modified_item.y -= listener->y;
 
-	if (!DYNAMICBOX_CONF_USE_EVENT_TIME) {
+	if (!WIDGET_CONF_USE_EVENT_TIME) {
 		item->tv = current_time_get();
 	}
 
@@ -789,13 +789,13 @@ static int event_control_init(void)
 
 	DbgPrint("Initializing event controller\n");
 	if (s_info.handle != -1) {
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	}
 
-	s_info.handle = open(DYNAMICBOX_CONF_INPUT_PATH, O_RDONLY);
+	s_info.handle = open(WIDGET_CONF_INPUT_PATH, O_RDONLY);
 	if (s_info.handle < 0) {
 		ErrPrint("Unable to access the device: %s\n", strerror(errno));
-		return DBOX_STATUS_ERROR_IO_ERROR;
+		return WIDGET_STATUS_ERROR_IO_ERROR;
 	}
 
 	if (fcntl(s_info.handle, F_SETFD, FD_CLOEXEC) < 0) {
@@ -806,7 +806,7 @@ static int event_control_init(void)
 		ErrPrint("Error: %s\n", strerror(errno));
 	}
 
-	if (DYNAMICBOX_CONF_USE_EVENT_TIME && !DYNAMICBOX_CONF_USE_GETTIMEOFDAY) {
+	if (WIDGET_CONF_USE_EVENT_TIME && !WIDGET_CONF_USE_GETTIMEOFDAY) {
 		DbgPrint("Change timestamp to monotonic\n");
 		if (ioctl(s_info.handle, EVIOCSCLOCKID, &clockId) < 0) {
 			ErrPrint("Error: %s\n", strerror(errno));
@@ -820,7 +820,7 @@ static int event_control_init(void)
 			ErrPrint("Failed to close handle: %s\n", strerror(errno));
 		}
 		s_info.handle = -1;
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	status = pipe2(s_info.tcb_pipe, O_CLOEXEC);
@@ -831,10 +831,10 @@ static int event_control_init(void)
 		}
 		s_info.handle = -1;
 		CLOSE_PIPE(s_info.evt_pipe);
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 /*!
@@ -862,7 +862,7 @@ static int event_control_fini(void)
 	CLOSE_PIPE(s_info.tcb_pipe);
 	CLOSE_PIPE(s_info.evt_pipe);
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 int event_activate_thread(enum event_handler_activate_type activate_type)
@@ -870,19 +870,19 @@ int event_activate_thread(enum event_handler_activate_type activate_type)
 	int ret;
 
 	ret = event_control_init();
-	if (ret != DBOX_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_STATUS_ERROR_NONE) {
 		return ret;
 	}
 
 	if (s_info.event_handler) {
 		ErrPrint("Event handler is already registered\n");
-		return DBOX_STATUS_ERROR_ALREADY;
+		return WIDGET_STATUS_ERROR_ALREADY;
 	}
 
 	s_info.event_handler = ecore_main_fd_handler_add(s_info.evt_pipe[PIPE_READ], ECORE_FD_READ, event_read_cb, NULL, NULL, NULL);
 	if (!s_info.event_handler) {
 		ErrPrint("Failed to add monitor for EVT READ\n");
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	ret = pthread_create(&s_info.tid, NULL, event_thread_main, NULL);
@@ -890,12 +890,12 @@ int event_activate_thread(enum event_handler_activate_type activate_type)
 		ErrPrint("Failed to initiate the thread: %s\n", strerror(ret));
 		ecore_main_fd_handler_del(s_info.event_handler);
 		s_info.event_handler = NULL;
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	DbgPrint("Event handler activated\n");
 	s_info.event_handler_activated = activate_type;
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 int event_deactivate_thread(enum event_handler_activate_type activate_type)
@@ -906,7 +906,7 @@ int event_deactivate_thread(enum event_handler_activate_type activate_type)
 
 	if (s_info.event_handler_activated != activate_type) {
 		ErrPrint("Event handler activate type is mismatched\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	/* Terminating thread */
@@ -922,7 +922,7 @@ int event_deactivate_thread(enum event_handler_activate_type activate_type)
 	}
 
 	s_info.event_handler_activated = EVENT_HANDLER_DEACTIVATED;
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 /*!
@@ -931,20 +931,20 @@ int event_deactivate_thread(enum event_handler_activate_type activate_type)
 HAPI int event_activate(int x, int y, int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data)
 {
 	struct event_listener *listener;
-	int ret = DBOX_STATUS_ERROR_NONE;
+	int ret = WIDGET_STATUS_ERROR_NONE;
 	Eina_List *l;
 
 	EINA_LIST_FOREACH(s_info.event_listener_list, l, listener) {
 		if (listener->event_cb == event_cb && listener->cbdata == data) {
 			ErrPrint("Already registered\n");
-			return DBOX_STATUS_ERROR_ALREADY;
+			return WIDGET_STATUS_ERROR_ALREADY;
 		}
 	}
 
 	listener = malloc(sizeof(*listener));
 	if (!listener) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	listener->tv = current_time_get() - DELAY_COMPENSATOR; // Let's use the previous event.
@@ -1017,24 +1017,24 @@ HAPI int event_deactivate(int (*event_cb)(enum event_state state, struct event_d
 
 	if (!listener) {
 		ErrPrint("Listener is not registered or already deactivated\n");
-		return DBOX_STATUS_ERROR_NOT_EXIST;
+		return WIDGET_STATUS_ERROR_NOT_EXIST;
 	}
 
 	if (s_info.event_handler_activated == EVENT_HANDLER_DEACTIVATED) {
 		ErrPrint("Event handler is not actiavated\n");
 		s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
 		DbgFree(listener);
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	}
 
 	if (keep_thread) {
 		DbgPrint("Keep thread\n");
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	}
 
 	event_deactivate_thread(EVENT_HANDLER_ACTIVATED_BY_MOUSE_SET);
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int event_reset_cbdata(int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data, void *new_data)

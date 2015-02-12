@@ -23,9 +23,9 @@
 #include <dlog.h>
 #include <com-core_packet.h>
 #include <packet.h>
-#include <dynamicbox_errno.h>
-#include <dynamicbox_conf.h>
-#include <dynamicbox_service.h>
+#include <widget_errno.h>
+#include <widget_conf.h>
+#include <widget_service.h>
 
 #include "client_life.h"
 #include "instance.h"
@@ -153,7 +153,7 @@ static inline void push_command(struct command *command)
 		return;
 	}
 
-	s_info.command_consumer = ecore_timer_add(DYNAMICBOX_CONF_PACKET_TIME, command_consumer_cb, NULL);
+	s_info.command_consumer = ecore_timer_add(WIDGET_CONF_PACKET_TIME, command_consumer_cb, NULL);
 	if (!s_info.command_consumer) {
 		ErrPrint("Failed to add command consumer\n");
 		s_info.command_list = eina_list_remove(s_info.command_list, command);
@@ -167,13 +167,13 @@ HAPI int client_rpc_async_request(struct client_node *client, struct packet *pac
 	struct client_rpc *rpc;
 
 	if (!client || !packet) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	if (client_is_faulted(client)) {
 		ErrPrint("Client[%p] is faulted\n", client);
 		packet_unref(packet);
-		return DBOX_STATUS_ERROR_FAULT;
+		return WIDGET_STATUS_ERROR_FAULT;
 	}
 
 	rpc = client_data(client, RPC_TAG);
@@ -184,12 +184,12 @@ HAPI int client_rpc_async_request(struct client_node *client, struct packet *pac
 	command = create_command(client, packet);
 	if (!command) {
 		packet_unref(packet);
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	push_command(command);
 	packet_unref(packet);
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 static int deactivated_cb(struct client_node *client, void *data)
@@ -202,7 +202,7 @@ static int deactivated_cb(struct client_node *client, void *data)
 	rpc = client_data(client, RPC_TAG);
 	if (!rpc) {
 		ErrPrint("client is not valid\n");
-		return DBOX_STATUS_ERROR_NONE;
+		return WIDGET_STATUS_ERROR_NONE;
 	}
 
 	DbgPrint("Reset handle for %d\n", client_pid(client));
@@ -217,7 +217,7 @@ static int deactivated_cb(struct client_node *client, void *data)
 	}
 	DbgPrint("End: Destroying command\n");
 
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int client_rpc_init(struct client_node *client, int handle)
@@ -228,7 +228,7 @@ HAPI int client_rpc_init(struct client_node *client, int handle)
 	rpc = calloc(1, sizeof(*rpc));
 	if (!rpc) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return DBOX_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
 	}
 
 	ret = client_set_data(client, RPC_TAG, rpc);
@@ -261,12 +261,12 @@ HAPI int client_rpc_fini(struct client_node *client)
 
 	rpc = client_del_data(client, RPC_TAG);
 	if (!rpc) {
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	client_event_callback_del(client, CLIENT_EVENT_DEACTIVATE, deactivated_cb, NULL);
 	DbgFree(rpc);
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 HAPI int client_rpc_handle(struct client_node *client)
@@ -276,7 +276,7 @@ HAPI int client_rpc_handle(struct client_node *client)
 	rpc = client_data(client, RPC_TAG);
 	if (!rpc) {
 		DbgPrint("Client has no RPC\n");
-		return DBOX_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 	}
 
 	return rpc->handle;

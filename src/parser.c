@@ -22,9 +22,9 @@
 #include <Eina.h>
 #include <dlog.h>
 
-#include <dynamicbox_service.h>
-#include <dynamicbox_errno.h>
-#include <dynamicbox_conf.h>
+#include <widget_service.h>
+#include <widget_errno.h>
+#include <widget_conf.h>
 
 #include "util.h"
 #include "debug.h"
@@ -55,8 +55,8 @@ struct parser {
 	char *gbar_path;
 	char *gbar_group;
 
-	char *dbox_path;
-	char *dbox_group;
+	char *widget_path;
+	char *widget_group;
 	int pinup;
 	int text_gbar;
 	int text_lb;
@@ -103,14 +103,14 @@ HAPI unsigned int parser_size(struct parser *handle)
 	return handle->size;
 }
 
-HAPI const char *parser_dbox_path(struct parser *handle)
+HAPI const char *parser_widget_path(struct parser *handle)
 {
-	return handle->dbox_path;
+	return handle->widget_path;
 }
 
-HAPI const char *parser_dbox_group(struct parser *handle)
+HAPI const char *parser_widget_group(struct parser *handle)
 {
-	return handle->dbox_group;
+	return handle->widget_group;
 }
 
 HAPI const char *parser_gbar_path(struct parser *handle)
@@ -144,7 +144,7 @@ HAPI int parser_pinup(struct parser *handle)
 	return handle->pinup;
 }
 
-HAPI int parser_text_dbox(struct parser *handle)
+HAPI int parser_text_widget(struct parser *handle)
 {
 	return handle->text_lb;
 }
@@ -154,7 +154,7 @@ HAPI int parser_text_gbar(struct parser *handle)
 	return handle->text_gbar;
 }
 
-HAPI int parser_buffer_dbox(struct parser *handle)
+HAPI int parser_buffer_widget(struct parser *handle)
 {
 	return handle->buffer_lb;
 }
@@ -172,14 +172,14 @@ HAPI RETURN_TYPE parser_find(const char *pkgname)
 	int len;
 	int ret;
 
-	len = strlen(pkgname) * 2 + strlen(DYNAMICBOX_CONF_CONF_PATH);
+	len = strlen(pkgname) * 2 + strlen(WIDGET_CONF_CONF_PATH);
 
 	filename = malloc(len);
 	if (!filename) {
 		return (RETURN_TYPE)0;
 	}
 
-	ret = snprintf(filename, len, DYNAMICBOX_CONF_CONF_PATH, pkgname, pkgname);
+	ret = snprintf(filename, len, WIDGET_CONF_CONF_PATH, pkgname, pkgname);
 	if (ret < 0) {
 		DbgFree(filename);
 		return (RETURN_TYPE)0;
@@ -287,25 +287,25 @@ static inline int parse_size(const char *buffer, unsigned int *size)
 			break;
 		case STOP:
 			if (w == 1 && h == 1) {
-				*size |= DBOX_SIZE_TYPE_1x1;
+				*size |= WIDGET_SIZE_TYPE_1x1;
 			} else if (w == 2 && h == 1) {
-				*size |= DBOX_SIZE_TYPE_2x1;
+				*size |= WIDGET_SIZE_TYPE_2x1;
 			} else if (w == 2 && h == 2) {
-				*size |= DBOX_SIZE_TYPE_2x2;
+				*size |= WIDGET_SIZE_TYPE_2x2;
 			} else if (w == 4 && h == 1) {
-				*size |= DBOX_SIZE_TYPE_4x1;
+				*size |= WIDGET_SIZE_TYPE_4x1;
 			} else if (w == 4 && h == 2) {
-				*size |= DBOX_SIZE_TYPE_4x2;
+				*size |= WIDGET_SIZE_TYPE_4x2;
 			} else if (w == 4 && h == 3) {
-				*size |= DBOX_SIZE_TYPE_4x3;
+				*size |= WIDGET_SIZE_TYPE_4x3;
 			} else if (w == 4 && h == 4) {
-				*size |= DBOX_SIZE_TYPE_4x4;
+				*size |= WIDGET_SIZE_TYPE_4x4;
 			} else if (w == 21 && h == 21) {
-				*size |= DBOX_SIZE_TYPE_EASY_1x1;
+				*size |= WIDGET_SIZE_TYPE_EASY_1x1;
 			} else if (w == 23 && h == 21) {
-				*size |= DBOX_SIZE_TYPE_EASY_3x1;
+				*size |= WIDGET_SIZE_TYPE_EASY_3x1;
 			} else if (w == 23 && h == 23) {
-				*size |= DBOX_SIZE_TYPE_EASY_3x3;
+				*size |= WIDGET_SIZE_TYPE_EASY_3x3;
 			} else {
 				ErrPrint("Invalid size type: %dx%d\n", w, h);
 			}
@@ -427,7 +427,7 @@ static void gbar_size_handler(struct parser *item, char *buffer)
 	}
 }
 
-static void text_dbox_handler(struct parser *item, char *buffer)
+static void text_widget_handler(struct parser *item, char *buffer)
 {
 	if (!rtrim(buffer)) {
 		return;
@@ -455,7 +455,7 @@ static void buffer_gbar_handler(struct parser *item, char *buffer)
 	item->buffer_gbar = !!atoi(buffer);
 }
 
-static void buffer_dbox_handler(struct parser *item, char *buffer)
+static void buffer_widget_handler(struct parser *item, char *buffer)
 {
 	if (!rtrim(buffer)) {
 		return;
@@ -482,14 +482,14 @@ static void pinup_handler(struct parser *item, char *buffer)
 	item->pinup = !!atoi(buffer);
 }
 
-static void dbox_path_handler(struct parser *item, char *buffer)
+static void widget_path_handler(struct parser *item, char *buffer)
 {
-	if (item->dbox_path) {
-		DbgFree(item->dbox_path);
+	if (item->widget_path) {
+		DbgFree(item->widget_path);
 	}
 
-	item->dbox_path = dup_rtrim(buffer);
-	if (!item->dbox_path) {
+	item->widget_path = dup_rtrim(buffer);
+	if (!item->widget_path) {
 		ErrPrint("Error: %s\n", strerror(errno));
 	}
 }
@@ -515,14 +515,14 @@ static void secured_handler(struct parser *item, char *buffer)
 	item->secured = !!atoi(buffer);
 }
 
-static void dbox_group_handler(struct parser *item, char *buffer)
+static void widget_group_handler(struct parser *item, char *buffer)
 {
-	if (item->dbox_group) {
-		DbgFree(item->dbox_group);
+	if (item->widget_group) {
+		DbgFree(item->widget_group);
 	}
 
-	item->dbox_group = dup_rtrim(buffer);
-	if (!item->dbox_group) {
+	item->widget_group = dup_rtrim(buffer);
+	if (!item->widget_group) {
 		ErrPrint("Error: %s\n", strerror(errno));
 	}
 }
@@ -605,12 +605,12 @@ HAPI struct parser *parser_load(const char *pkgname)
 			.handler = secured_handler,
 		},
 		{
-			.name = "dynamicbox_path",
-			.handler = dbox_path_handler,
+			.name = "widget_path",
+			.handler = widget_path_handler,
 		},
 		{
-			.name = "dynamicbox_group",
-			.handler = dbox_group_handler,
+			.name = "widget_group",
+			.handler = widget_group_handler,
 		},
 		{
 			.name = "gbar_path",
@@ -629,16 +629,16 @@ HAPI struct parser *parser_load(const char *pkgname)
 			.handler = pinup_handler,
 		},
 		{
-			.name = "text_dynamicbox",
-			.handler = text_dbox_handler,
+			.name = "text_widget",
+			.handler = text_widget_handler,
 		},
 		{
 			.name = "text_gbar",
 			.handler = text_gbar_handler,
 		},
 		{
-			.name = "buffer_dynamicbox",
-			.handler = buffer_dbox_handler,
+			.name = "buffer_widget",
+			.handler = buffer_widget_handler,
 		},
 		{
 			.name = "buffer_gbar",
@@ -665,7 +665,7 @@ HAPI struct parser *parser_load(const char *pkgname)
 	}
 
 	/* live-, .conf */
-	len = strlen(DYNAMICBOX_CONF_CONF_PATH) + strlen(pkgname) * 2;
+	len = strlen(WIDGET_CONF_CONF_PATH) + strlen(pkgname) * 2;
 	item->filename = malloc(len);
 	if (!item->filename) {
 		ErrPrint("Error: %s\n", strerror(errno));
@@ -673,7 +673,7 @@ HAPI struct parser *parser_load(const char *pkgname)
 		return 0;
 	}
 
-	ret = snprintf(item->filename, len, DYNAMICBOX_CONF_CONF_PATH, pkgname, pkgname);
+	ret = snprintf(item->filename, len, WIDGET_CONF_CONF_PATH, pkgname, pkgname);
 	if (ret < 0) {
 		ErrPrint("Error: %s\n", strerror(errno));
 		DbgFree(item->filename);
@@ -681,8 +681,8 @@ HAPI struct parser *parser_load(const char *pkgname)
 		return 0;
 	}
 
-	item->dbox_path = NULL;
-	item->dbox_group = NULL;
+	item->widget_path = NULL;
+	item->widget_group = NULL;
 	item->gbar_width = 0;
 	item->gbar_height = 0;
 	item->auto_launch = NULL;
@@ -882,11 +882,11 @@ HAPI int parser_unload(struct parser *item)
 	DbgFree(item->group);
 	DbgFree(item->gbar_group);
 	DbgFree(item->gbar_path);
-	DbgFree(item->dbox_group);
-	DbgFree(item->dbox_path);
+	DbgFree(item->widget_group);
+	DbgFree(item->widget_path);
 	DbgFree(item->filename);
 	DbgFree(item);
-	return DBOX_STATUS_ERROR_NONE;
+	return WIDGET_STATUS_ERROR_NONE;
 }
 
 /* End of a file */
