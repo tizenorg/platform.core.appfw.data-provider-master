@@ -4,7 +4,7 @@ Name: data-provider-master
 Summary: Master service provider for widgetes
 Version: 1.0.0
 Release: 1
-Group: HomeTF/DynamicBox
+Group: HomeTF/widget
 License: Flora
 Source0: %{name}-%{version}.tar.gz
 Source1001: %{name}.manifest
@@ -122,7 +122,7 @@ mkdir -p %{buildroot}/opt/dbspace
 touch %{buildroot}/opt/dbspace/.widget.db
 touch %{buildroot}/opt/dbspace/.widget.db-journal
 if [ ! -s %{buildroot}/opt/dbspace/.widget.db ]; then
-echo "DynamicBox DB file is not exists, initiate it"
+echo "widget DB file is not exists, initiate it"
 sqlite3 %{buildroot}/opt/dbspace/.widget.db <<EOF
 CREATE TABLE version ( version INTEGER );
 CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, preview TEXT, touch_effect INTEGER, need_frame INTEGER, mouse_event INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);

@@ -107,7 +107,7 @@ struct deleted_item {
 };
 
 /**
- * Returns DBox Id from provider Id
+ * Returns widget Id from provider Id
  */
 static char *is_valid_slave(pid_t pid, const char *abi, const char *provider_pkgname)
 {
@@ -142,7 +142,7 @@ static char *is_valid_slave(pid_t pid, const char *abi, const char *provider_pkg
 	 * This request is comes from standalone widget provider (not the predefined service provider)
 	 */
 	pkgid = package_get_pkgid(provider_pkgname);
-	list_handle = widget_service_pkglist_create(pkgid, NULL);
+	list_handle = widget_service_create_pkglist(pkgid, NULL);
 	DbgFree(pkgid);
 
 	verified = 0;
@@ -175,7 +175,7 @@ static char *is_valid_slave(pid_t pid, const char *abi, const char *provider_pkg
 		widget_id = NULL;
 	}
 
-	widget_service_pkglist_destroy(list_handle);
+	widget_service_destroy_pkglist(list_handle);
 	return widget_id;
 }
 
@@ -1332,7 +1332,7 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		goto out;
 	}
 
-	mainappid = widget_service_mainappid(widget_id);
+	mainappid = widget_service_get_main_app_id(widget_id);
 	if (!package_is_enabled(mainappid)) {
 		ErrPrint("%s is disabled\n", mainappid);
 		DbgFree(mainappid);
@@ -1345,7 +1345,7 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 	info = package_find(widget_id);
 	if (!info) {
 		char *pkgid;
-		pkgid = widget_service_package_id(widget_id);
+		pkgid = widget_service_get_package_id(widget_id);
 		if (!pkgid) {
 			DbgFree(mainappid);
 			DbgFree(widget_id);

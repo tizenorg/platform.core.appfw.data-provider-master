@@ -2,7 +2,7 @@
 <manifest xmlns="http://tizen.org/ns/packages" package="org.tizen.nicesj" version="1.0" install-location="auto">
 
 <widget appid="org.tizen.nicesj.widget" primary="true" secured="false" network="false" abi="c" timeout="20" period="10.0" libexec="/usr/apps/org.tizen.myapp/libexec/liblive-org.tizen.nicesj.so" pinup="false" script="edje" nodisplay="false">
-	<label>My Dynamic Box</label>
+	<label>My widget</label>
 	<icon>/usr/share/icons/small/org.tizen.live-nicesj.png</icon>
 	<label xml:lang="en_US">Sample</label>
 	<label xml:lang="ko_KR">Hangul</label>
@@ -29,7 +29,7 @@
 		<size preview="ABSPATH">23x21</size>
 		<size>23x23</size>
 
-		<!-- Only supported for special Dynamic Box - inhouse / commercialization target only -->
+		<!-- Only supported for special widget - inhouse / commercialization target only -->
 		<size>0x0</size>
 		<script src="/opt/usr/apps/org.tizen.myapp/res/script/my.edj" group="my_group" />
 	</box>

@@ -1471,7 +1471,7 @@ HAPI int instance_create_widget_extra_buffer(struct inst_info *inst, int pixels,
 	if (!inst->widget.extra_buffer[idx]) {
 		inst->widget.extra_buffer[idx] = buffer_handler_create(inst, s_info.env_buf_type, inst->widget.width, inst->widget.height, pixels);
 		if (!inst->widget.extra_buffer[idx]) {
-			ErrPrint("Failed to create DBox Extra buffer\n");
+			ErrPrint("Failed to create widget Extra buffer\n");
 		}
 	}
 
@@ -2087,7 +2087,7 @@ HAPI void instance_gbar_updated_by_instance(struct inst_info *inst, const char *
 	const char *id;
 
 	if (inst->client && inst->visible != WIDGET_SHOW) {
-		DbgPrint("Dynamicbox is hidden. ignore update event\n");
+		DbgPrint("widget is hidden. ignore update event\n");
 		return;
 	}
 
@@ -2478,16 +2478,16 @@ static void resize_cb(struct slave_node *slave, const struct packet *packet, voi
 		if (cbdata->inst->widget.width == cbdata->w && cbdata->inst->widget.height == cbdata->h) {
 			/*!
 			 * \note
-			 * Right after the viewer adds a new box,
+			 * Right after the viewer adds a new widget,
 			 * Box has no size information, then it will try to use the default size,
-			 * After a box returns created event.
+			 * After a widget returns created event.
 			 *
-			 * A box will start to generate default size content.
+			 * A widget will start to generate default size content.
 			 * But the viewer doesn't know it,.
 			 *
-			 * So the viewer will try to change the size of a box.
+			 * So the viewer will try to change the size of a widget.
 			 *
-			 * At that time, the provider gots the size changed event from the box.
+			 * At that time, the provider gots the size changed event from the widget.
 			 * So it sent the size changed event to the viewer.
 			 * But the viewer ignores it. if it doesn't care the size changed event.
 			 * (even if it cares the size changed event, there is a timing issue)
@@ -2499,17 +2499,17 @@ static void resize_cb(struct slave_node *slave, const struct packet *packet, voi
 			 * Now the view will waits size changed event forever.
 			 * To resolve this timing issue.
 			 *
-			 * Check the size of a box from here.
+			 * Check the size of a widget from here.
 			 * And if the size is already updated, send the ALREADY event to the viewer
 			 * to get the size changed event callback correctly.
 			 */
 			instance_send_resized_event(cbdata->inst, IS_WIDGET, cbdata->inst->widget.width, cbdata->inst->widget.height, WIDGET_STATUS_ERROR_ALREADY);
-			DbgPrint("RESIZE: Dynamicbox is already resized [%s - %dx%d]\n", instance_id(cbdata->inst), cbdata->w, cbdata->h);
+			DbgPrint("RESIZE: widget is already resized [%s - %dx%d]\n", instance_id(cbdata->inst), cbdata->w, cbdata->h);
 		} else {
 			DbgPrint("RESIZE: Request is successfully sent [%s - %dx%d]\n", instance_id(cbdata->inst), cbdata->w, cbdata->h);
 		}
 	} else {
-		DbgPrint("RESIZE: Dynamicbox rejects the new size: %s - %dx%d (%d)\n", instance_id(cbdata->inst), cbdata->w, cbdata->h, ret);
+		DbgPrint("RESIZE: widget rejects the new size: %s - %dx%d (%d)\n", instance_id(cbdata->inst), cbdata->w, cbdata->h, ret);
 		instance_send_resized_event(cbdata->inst, IS_WIDGET, cbdata->inst->widget.width, cbdata->inst->widget.height, ret);
 	}
 

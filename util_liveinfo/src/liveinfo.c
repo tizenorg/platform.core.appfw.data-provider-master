@@ -569,7 +569,7 @@ static void send_inst_list(const char *pkgname)
 
 static void help(void)
 {
-	printf("liveinfo - DynamicBox utility\n");
+	printf("liveinfo - widget utility\n");
 	printf("------------------------------ [Option] ------------------------------\n");
 	printf("-b Batch mode\n");
 	printf("-x execute command\n");
@@ -703,38 +703,38 @@ static inline int do_stat(const char *cmd)
 
 	switch (type){
 	case PKG:
-		tmp = widget_service_i18n_name(node_name(node), NULL);
+		tmp = widget_service_get_i18n_name(node_name(node), NULL);
 		printf("Name: %s (", tmp);
 		free(tmp);
 
 		i = widget_service_is_enabled(node_name(node));
 		printf("%s)\n", i ? "enabled" : "disabled");
 
-		tmp = widget_service_i18n_icon(node_name(node), NULL);
+		tmp = widget_service_get_i18n_icon(node_name(node), NULL);
 		printf("Icon: %s\n", tmp);
 		free(tmp);
 
-		tmp = widget_service_provider_name(node_name(node));
+		tmp = widget_service_get_provider_name(node_name(node));
 		printf("Provider: %s (content:", tmp);
 		free(tmp);
 
-		tmp = widget_service_content(node_name(node));
+		tmp = widget_service_get_content_string(node_name(node));
 		printf("%s)\n", tmp);
 		free(tmp);
 
-		tmp = widget_service_widget_script_path(node_name(node));
+		tmp = widget_service_get_widget_script_path(node_name(node));
 		printf("LB Script: %s (", tmp);
 		free(tmp);
 
-		tmp = widget_service_widget_script_group(node_name(node));
+		tmp = widget_service_get_widget_script_group(node_name(node));
 		printf("%s)\n", tmp);
 		free(tmp);
 
-		tmp = widget_service_gbar_script_path(node_name(node));
+		tmp = widget_service_get_gbar_script_path(node_name(node));
 		printf("PD Script: %s (", tmp);
 		free(tmp);
 
-		tmp = widget_service_gbar_script_group(node_name(node));
+		tmp = widget_service_get_gbar_script_group(node_name(node));
 		printf("%s)\n", tmp);
 		free(tmp);
 

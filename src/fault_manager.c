@@ -104,7 +104,7 @@ static char *check_log_file(struct slave_node *slave)
 		ErrPrint("Failed to unlink %s\n", filename);
 	}
 
-	ptr = widget_service_widget_id_by_libexec(libexec);
+	ptr = widget_service_get_widget_id_by_libexec(libexec);
 	if (!ptr) {
 		ErrPrint("Failed to find the faulted package\n");
 	}

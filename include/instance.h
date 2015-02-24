@@ -110,10 +110,10 @@ enum instance_state {
 };
 
 enum widget_visible_state { /*!< Must be sync'd with widget-viewer */
-	WIDGET_SHOW = 0x00, /*!< Dynamicbox is showed. Default state */
-	WIDGET_HIDE = 0x01, /*!< Dynamicbox is hide, with no update event, but keep update timer */
+	WIDGET_SHOW = 0x00, /*!< widget is showed. Default state */
+	WIDGET_HIDE = 0x01, /*!< widget is hide, with no update event, but keep update timer */
 
-	WIDGET_HIDE_WITH_PAUSE = 0x02, /*!< Dynamicbox is hide, it needs to be paused (with freezed update timer) */
+	WIDGET_HIDE_WITH_PAUSE = 0x02, /*!< widget is hide, it needs to be paused (with freezed update timer) */
 
 	WIDGET_VISIBLE_ERROR = 0xFFFFFFFF /* To enlarge the size of this enumeration type */
 };

@@ -1331,7 +1331,7 @@ static inline void reload_package_info(struct pkg_info *info)
 	Eina_List *l;
 	Eina_List *n;
 	struct inst_info *inst;
-	unsigned int size_type;
+	widget_size_type_e size_type;
 	int width;
 	int height;
 	double old_period;
@@ -1356,7 +1356,7 @@ static inline void reload_package_info(struct pkg_info *info)
 	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
 		width = instance_widget_width(inst);
 		height = instance_widget_height(inst);
-		size_type = widget_service_size_type(width, height);
+		widget_service_get_size_type(width, height, &size_type);
 		if (info->widget.size_list & size_type) {
 			if (instance_period(inst) == old_period) {
 				instance_reload_period(inst, package_period(info));
@@ -1384,7 +1384,7 @@ static int io_install_cb(const char *pkgid, const char *widget_id, int prime, vo
 	if (!info) {
 		ErrPrint("Failed to build an info %s\n", widget_id);
 	} else {
-		DbgPrint("Dynamicbox %s is built\n", widget_id);
+		DbgPrint("widget %s is built\n", widget_id);
 	}
 
 	return 0;
