@@ -9,7 +9,7 @@
 			<label name="data-provider-master::share" />
 			<label name="data-provider-master::shortcut" />
 			<label name="data-provider-master::shortcut.shortcut" />
-			<label name="data-provider-master::shortcut.livebox" />
+			<label name="data-provider-master::shortcut.widget" />
 			<label name="data-provider-master::badge" />
 			<label name="data-provider-master::badge.client" />
 			<label name="data-provider-master::notification" />

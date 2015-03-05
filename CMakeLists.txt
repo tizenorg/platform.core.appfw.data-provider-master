@@ -23,10 +23,11 @@ pkg_check_modules(pkg REQUIRED
 	shortcut
 	pkgmgr-info
 	libsystemd-daemon
+	capi-appfw-application
 )
 
 IF (LIVEBOX)
-pkg_check_modules(pkg_livebox REQUIRED
+pkg_check_modules(pkg_widget REQUIRED
 	widget_service
 )
 ENDIF (LIVEBOX)
@@ -172,12 +173,12 @@ ADD_DEFINITIONS(${pkg_CFLAGS})
 ADD_DEFINITIONS(${pkg_LDFLAGS})
 ADD_DEFINITIONS(${pkg_extra_CFLAGS})
 ADD_DEFINITIONS(${pkg_extra_LDFLAGS})
-ADD_DEFINITIONS(${pkg_livebox_CFLAGS})
-ADD_DEFINITIONS(${pkg_livebox_LDFLAGS})
+ADD_DEFINITIONS(${pkg_widget_CFLAGS})
+ADD_DEFINITIONS(${pkg_widget_LDFLAGS})
 
 ADD_EXECUTABLE(${PROJECT_NAME} ${BUILD_SOURCE})
 
-TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${pkg_LDFLAGS} ${pkg_extra_LDFLAGS} ${pkg_livebox_LDFLAGS} "-ldl -lrt -pie")
+TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${pkg_LDFLAGS} ${pkg_extra_LDFLAGS} ${pkg_widget_LDFLAGS} "-ldl -lrt -pie")
 
 IF (LIVEBOX)
 INSTALL(FILES ${CMAKE_SOURCE_DIR}/data/${TARGET}/abi.ini DESTINATION /usr/share/data-provider-master PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
