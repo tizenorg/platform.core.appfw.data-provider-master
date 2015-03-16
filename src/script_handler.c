@@ -179,7 +179,7 @@ static int load_all_ports(void)
 	dir = opendir(WIDGET_CONF_SCRIPT_PORT_PATH);
 	if (!dir) {
 		ErrPrint("Error: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_IO_ERROR;
+		return WIDGET_ERROR_IO_ERROR;
 	}
 
 	while ((ent = readdir(dir))) {
@@ -194,7 +194,7 @@ static int load_all_ports(void)
 			if (closedir(dir) < 0) {
 				ErrPrint("closedir: %s\n", strerror(errno));
 			}
-			return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+			return WIDGET_ERROR_OUT_OF_MEMORY;
 		}
 
 		snprintf(path, pathlen, "%s%s", WIDGET_CONF_SCRIPT_PORT_PATH, ent->d_name);
@@ -206,7 +206,7 @@ static int load_all_ports(void)
 			if (closedir(dir) < 0) {
 				ErrPrint("closedir: %s\n", strerror(errno));
 			}
-			return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+			return WIDGET_ERROR_OUT_OF_MEMORY;
 		}
 
 		DbgPrint("Open SCRIPT PORT: %s\n", path);
@@ -218,7 +218,7 @@ static int load_all_ports(void)
 			if (closedir(dir) < 0) {
 				ErrPrint("closedir: %s\n", strerror(errno));
 			}
-			return WIDGET_STATUS_ERROR_FAULT;
+			return WIDGET_ERROR_FAULT;
 		}
 
 		item->magic_id = dlsym(item->handle, "script_magic_id");
@@ -325,7 +325,7 @@ static int load_all_ports(void)
 		ErrPrint("closedir: %s\n", strerror(errno));
 	}
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 
 errout:
 	ErrPrint("Error: %s\n", dlerror());
@@ -336,7 +336,7 @@ errout:
 	if (closedir(dir) < 0) {
 		ErrPrint("closedir: %s\n", strerror(errno));
 	}
-	return WIDGET_STATUS_ERROR_FAULT;
+	return WIDGET_ERROR_FAULT;
 }
 
 static inline struct script_port *find_port(const char *magic_id)
@@ -384,7 +384,7 @@ static int render_post_cb(void *_buffer_handle, void *data)
 	if (instance_state(inst) != INST_ACTIVATED) {
 		ErrPrint("Render post invoked but instance is not activated\n");
 		PERF_MARK(__func__);
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	info = instance_widget_script(inst);
@@ -392,7 +392,7 @@ static int render_post_cb(void *_buffer_handle, void *data)
 		buffer_handler_flush(buffer_handle);
 		instance_widget_updated_by_instance(inst, NULL, info->x, info->y, info->w, info->h);
 		PERF_MARK("lb,update");
-		return WIDGET_STATUS_ERROR_NONE;
+		return WIDGET_ERROR_NONE;
 	}
 
 	info = instance_gbar_script(inst);
@@ -400,13 +400,13 @@ static int render_post_cb(void *_buffer_handle, void *data)
 		buffer_handler_flush(buffer_handle);
 		instance_gbar_updated_by_instance(inst, NULL, info->x, info->y, info->w, info->h);
 		PERF_MARK("pd,update");
-		return WIDGET_STATUS_ERROR_NONE;
+		return WIDGET_ERROR_NONE;
 	}
 
 out:
 	ErrPrint("Failed to sync\n");
 	PERF_MARK(__func__);
-	return WIDGET_STATUS_ERROR_FAULT;
+	return WIDGET_ERROR_FAULT;
 }
 
 /*!
@@ -424,18 +424,18 @@ EAPI int script_signal_emit(void *buffer_handle, const char *part, const char *s
 
 	if (!buffer_handle) {
 		ErrPrint("Invalid handle\n");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	info = buffer_handler_data(buffer_handle);
 	if (!info) {
 		ErrPrint("Invalid handle\n");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	inst = buffer_handler_instance(buffer_handle);
 	if (!inst) {
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	if (!signal || strlen(signal) == 0) {
@@ -482,17 +482,17 @@ HAPI int script_handler_load(struct script_info *info, int is_pd)
 
 	if (!info || !info->port) {
 		ErrPrint("Script handler is not created\n");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	if (info->loaded > 0) {
 		info->loaded++;
-		return WIDGET_STATUS_ERROR_NONE;
+		return WIDGET_ERROR_NONE;
 	}
 
 	if (info->port->load(info->port_data, NULL, render_post_cb, info) < 0) {
 		ErrPrint("Unable to load the script\n");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	info->loaded = 1;
@@ -504,7 +504,7 @@ HAPI int script_handler_load(struct script_info *info, int is_pd)
 				is_pd ? "gbar,show" : "widget,show", 0.0f, 0.0f, 0.0f, 0.0f);
 	}
 	buffer_handler_flush(info->buffer_handle);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int script_handler_unload(struct script_info *info, int is_pd)
@@ -512,17 +512,17 @@ HAPI int script_handler_unload(struct script_info *info, int is_pd)
 	struct inst_info *inst;
 
 	if (!info || !info->port) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	info->loaded--;
 	if (info->loaded > 0) {
-		return WIDGET_STATUS_ERROR_BUSY;
+		return WIDGET_ERROR_RESOURCE_BUSY;
 	}
 
 	if (info->loaded < 0) {
 		info->loaded = 0;
-		return WIDGET_STATUS_ERROR_ALREADY;
+		return WIDGET_ERROR_ALREADY_EXIST;
 	}
 
 	inst = buffer_handler_instance(info->buffer_handle);
@@ -535,7 +535,7 @@ HAPI int script_handler_unload(struct script_info *info, int is_pd)
 		ErrPrint("Failed to unload script object. but go ahead\n");
 	}
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI struct script_info *script_handler_create(struct inst_info *inst, const char *file, const char *option, int w, int h)
@@ -590,12 +590,12 @@ HAPI int script_handler_destroy(struct script_info *info)
 
 	if (!info || !info->port) {
 		ErrPrint("port is not valid\n");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	if (info->loaded != 0) {
 		ErrPrint("Script handler is not unloaded\n");
-		return WIDGET_STATUS_ERROR_BUSY;
+		return WIDGET_ERROR_RESOURCE_BUSY;
 	}
 
 	ret = info->port->destroy(info->port_data);
@@ -610,7 +610,7 @@ HAPI int script_handler_destroy(struct script_info *info)
 	}
 
 	DbgFree(info);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int script_handler_is_loaded(struct script_info *info)
@@ -637,20 +637,20 @@ static int update_script_color(struct inst_info *inst, struct block *block, int 
 	if (!block || !block->part || !block->data) {
 		ErrPrint("Block or part or data is not valid\n");
 		PERF_MARK("color");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	info = is_pd ? instance_gbar_script(inst) : instance_widget_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
 		PERF_MARK("color");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	if (!info->port) {
 		ErrPrint("info->port is NIL (%d, %s)\n", is_pd, instance_id(inst));
 		PERF_MARK("color");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	ret = info->port->update_color(info->port_data, block->id, block->part, block->data);
@@ -668,20 +668,20 @@ static int update_script_text(struct inst_info *inst, struct block *block, int i
 	if (!block || !block->part || !block->data) {
 		ErrPrint("Block or part or data is not valid\n");
 		PERF_MARK("text");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	info = is_pd ? instance_gbar_script(inst) : instance_widget_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
 		PERF_MARK("text");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	if (!info->port) {
 		ErrPrint("info->port is NIL\n");
 		PERF_MARK("text");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	DbgPrint("[%s] %s (%s)\n", block->id, block->part, block->data);
@@ -701,20 +701,20 @@ static int update_script_image(struct inst_info *inst, struct block *block, int 
 	if (!block || !block->part) {
 		ErrPrint("Block or part is not valid\n");
 		PERF_MARK("image");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	info = is_pd ? instance_gbar_script(inst) : instance_widget_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
 		PERF_MARK("image");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	if (!info->port) {
 		ErrPrint("info->port is NIL\n");
 		PERF_MARK("image");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	DbgPrint("[%s] %s (%s)\n", block->id, block->part, block->data);
@@ -733,20 +733,20 @@ static int update_access(struct inst_info *inst, struct block *block, int is_pd)
 	if (!block || !block->part) {
 		ErrPrint("Block or block->part is NIL\n");
 		PERF_MARK("access");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	info = is_pd ? instance_gbar_script(inst) : instance_widget_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
 		PERF_MARK("access");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	if (!info->port) {
 		ErrPrint("info->port is NIL\n");
 		PERF_MARK("access");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	ret = info->port->update_access(info->port_data, block->id, block->part, block->data, block->option);
@@ -764,20 +764,20 @@ static int operate_access(struct inst_info *inst, struct block *block, int is_pd
 	if (!block || !block->part) {
 		ErrPrint("Block or block->part is NIL\n");
 		PERF_MARK("operate_access");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	info = is_pd ? instance_gbar_script(inst) : instance_widget_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
 		PERF_MARK("operate_access");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	if (!info->port) {
 		ErrPrint("info->port is NIL\n");
 		PERF_MARK("operate_access");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	ret = info->port->operate_access(info->port_data, block->id, block->part, block->data, block->option);
@@ -795,20 +795,20 @@ static int update_script_script(struct inst_info *inst, struct block *block, int
 	if (!block || !block->part) {
 		ErrPrint("Block or part is NIL\n");
 		PERF_MARK("script");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	info = is_pd ? instance_gbar_script(inst) : instance_widget_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
 		PERF_MARK("script");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	if (!info->port) {
 		ErrPrint("info->port is NIL\n");
 		PERF_MARK("script");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	ret = info->port->update_script(info->port_data, block->id, block->target, block->part, block->data, block->option);
@@ -826,20 +826,20 @@ static int update_script_signal(struct inst_info *inst, struct block *block, int
 	if (!block) {
 		ErrPrint("block is NIL\n");
 		PERF_MARK("signal");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	info = is_pd ? instance_gbar_script(inst) : instance_widget_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
 		PERF_MARK("signal");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	if (!info->port) {
 		ErrPrint("info->port is NIL\n");
 		PERF_MARK("signal");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	ret = info->port->update_signal(info->port_data, block->id, block->part, block->data);
@@ -858,26 +858,26 @@ static int update_script_drag(struct inst_info *inst, struct block *block, int i
 	if (!block || !block->data || !block->part) {
 		ErrPrint("block or block->data or block->part is NIL\n");
 		PERF_MARK("drag");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	info = is_pd ? instance_gbar_script(inst) : instance_widget_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
 		PERF_MARK("drag");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	if (sscanf(block->data, "%lfx%lf", &dx, &dy) != 2) {
 		ErrPrint("Invalid format of data (DRAG data [%s])\n", block->data);
 		PERF_MARK("drag");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	if (!info->port) {
 		ErrPrint("info->port is NIL\n");
 		PERF_MARK("drag");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	ret = info->port->update_drag(info->port_data, block->id, block->part, dx, dy);
@@ -917,20 +917,20 @@ HAPI int script_handler_resize(struct script_info *info, int w, int h)
 	if (!info) {
 		ErrPrint("info[%p] resize is ignored\n", info);
 		PERF_MARK("resize");
-		return WIDGET_STATUS_ERROR_NONE;
+		return WIDGET_ERROR_NONE;
 	}
 
 	inst = buffer_handler_instance(info->buffer_handle);
 	if (!inst) {
 		ErrPrint("Instance is not valid\n");
 		PERF_MARK("resize");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	update_size_for_script(info, inst, w, h);
 
 	PERF_MARK("resize");
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI const char *script_handler_buffer_id(struct script_info *info)
@@ -952,20 +952,20 @@ static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 	if (!block || !block->part || !block->data) {
 		ErrPrint("block or block->part or block->data is NIL\n");
 		PERF_MARK("info");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	info = is_pd ? instance_gbar_script(inst) : instance_widget_script(inst);
 	if (!info) {
 		ErrPrint("info is NIL (%d, %s)\n", is_pd, instance_id(inst));
 		PERF_MARK("info");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	if (!info->port) {
 		ErrPrint("info->port is NIL\n");
 		PERF_MARK("info");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	if (!strcasecmp(block->part, INFO_SIZE)) {
@@ -974,7 +974,7 @@ static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 		if (sscanf(block->data, "%dx%d", &w, &h) != 2) {
 			ErrPrint("Invalid format for SIZE(%s)\n", block->data);
 			PERF_MARK("info");
-			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+			return WIDGET_ERROR_INVALID_PARAMETER;
 		}
 
 		if (!block->id) {
@@ -987,7 +987,7 @@ static int update_info(struct inst_info *inst, struct block *block, int is_pd)
 	}
 	PERF_MARK("info");
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 static inline void consuming_parsed_block(struct inst_info *inst, int is_pd, struct block *block)
@@ -1037,7 +1037,7 @@ HAPI int script_init(void)
 		s_info.env_buf_type = WIDGET_FB_TYPE_PIXMAP;
 	}
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int script_fini(void)
@@ -1060,7 +1060,7 @@ HAPI int script_fini(void)
 HAPI int script_handler_update_pointer(struct script_info *info, int x, int y, int down)
 {
 	if (!info) {
-		return WIDGET_STATUS_ERROR_NONE;
+		return WIDGET_ERROR_NONE;
 	}
 
 	info->x = x;
@@ -1072,18 +1072,18 @@ HAPI int script_handler_update_pointer(struct script_info *info, int x, int y, i
 		info->down = 1;
 	}
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int script_handler_update_keycode(struct script_info *info, unsigned int keycode)
 {
 	if (!info) {
-		return WIDGET_STATUS_ERROR_NONE;
+		return WIDGET_ERROR_NONE;
 	}
 
 	info->keycode = keycode;
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int script_handler_feed_event(struct script_info *info, int event, double timestamp)
@@ -1092,7 +1092,7 @@ HAPI int script_handler_feed_event(struct script_info *info, int event, double t
 
 	if (!info->port) {
 		ErrPrint("info->port is NIL\n");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	ret = info->port->feed_event(info->port_data, event, info->x, info->y, info->down, info->keycode, timestamp);
@@ -1213,7 +1213,7 @@ HAPI int script_handler_parse_desc(struct inst_info *inst, const char *filename,
 
 	filebuf = load_file(filename);
 	if (!filebuf) {
-		return WIDGET_STATUS_ERROR_IO_ERROR;
+		return WIDGET_ERROR_IO_ERROR;
 	}
 
 	fileptr = filebuf;
@@ -1455,7 +1455,7 @@ HAPI int script_handler_parse_desc(struct inst_info *inst, const char *filename,
 		}
 
 		PERF_MARK("parser");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	block = eina_list_data_get(eina_list_last(block_list));
@@ -1506,7 +1506,7 @@ HAPI int script_handler_parse_desc(struct inst_info *inst, const char *filename,
 	 */
 #endif
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 /* End of a file */

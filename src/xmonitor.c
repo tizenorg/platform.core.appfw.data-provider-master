@@ -102,14 +102,14 @@ static inline int get_pid(Ecore_X_Window win)
 				sizeof(int), &in_pid, &num) == EINA_FALSE) {
 		if (ecore_x_netwm_pid_get(win, &pid) == EINA_FALSE) {
 			ErrPrint("Failed to get PID from a window 0x%X\n", win);
-			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+			return WIDGET_ERROR_INVALID_PARAMETER;
 		}
 	} else if (in_pid) {
 		pid = *(int *)in_pid;
 		DbgFree(in_pid);
 	} else {
 		ErrPrint("Failed to get PID\n");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	return pid;
@@ -170,7 +170,7 @@ HAPI int xmonitor_update_state(int target_pid)
 	int pid;
 
 	if (!WIDGET_CONF_USE_XMONITOR || target_pid < 0) {
-		return WIDGET_STATUS_ERROR_NONE;
+		return WIDGET_ERROR_NONE;
 	}
 
 	win = ecore_x_window_focus_get();
@@ -183,7 +183,7 @@ HAPI int xmonitor_update_state(int target_pid)
 			DbgPrint("Client window has no focus now\n");
 			client_paused(client);
 		}
-		return WIDGET_STATUS_ERROR_NOT_EXIST;
+		return WIDGET_ERROR_NOT_EXIST;
 	}
 
 	client = client_find_by_pid(pid);
@@ -194,7 +194,7 @@ HAPI int xmonitor_update_state(int target_pid)
 			DbgPrint("Client window has no focus now\n");
 			client_paused(client);
 		}
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	if (target_pid != pid) {
@@ -206,7 +206,7 @@ HAPI int xmonitor_update_state(int target_pid)
 	}
 
 	xmonitor_handle_state_changes();
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 static Eina_Bool client_cb(void *data, int type, void *event)
@@ -331,7 +331,7 @@ HAPI int xmonitor_pause(struct client_node *client)
 	DbgPrint("%d is paused\n", client_pid(client));
 	client_paused(client);
 	xmonitor_handle_state_changes();
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int xmonitor_resume(struct client_node *client)
@@ -339,7 +339,7 @@ HAPI int xmonitor_resume(struct client_node *client)
 	DbgPrint("%d is resumed\n", client_pid(client));
 	client_resumed(client);
 	xmonitor_handle_state_changes();
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 static inline void disable_xmonitor(void)
@@ -364,7 +364,7 @@ static inline int enable_xmonitor(void)
 				create_cb, NULL);
 	if (!s_info.create_handler) {
 		ErrPrint("Failed to add create event handler\n");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	s_info.destroy_handler =
@@ -374,7 +374,7 @@ static inline int enable_xmonitor(void)
 		ErrPrint("Failed to add destroy event handler\n");
 		ecore_event_handler_del(s_info.create_handler);
 		s_info.create_handler = NULL;
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	s_info.client_handler =
@@ -386,11 +386,11 @@ static inline int enable_xmonitor(void)
 		ecore_event_handler_del(s_info.destroy_handler);
 		s_info.create_handler = NULL;
 		s_info.destroy_handler = NULL;
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	sniff_all_windows();
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int xmonitor_init(void)
@@ -410,7 +410,7 @@ HAPI int xmonitor_init(void)
 		remove_paused_file();
 	}
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI void xmonitor_fini(void)
@@ -427,7 +427,7 @@ HAPI int xmonitor_add_event_callback(enum xmonitor_event event, int (*cb)(void *
 	item = malloc(sizeof(*item));
 	if (!item) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	item->cb = cb;
@@ -443,10 +443,10 @@ HAPI int xmonitor_add_event_callback(enum xmonitor_event event, int (*cb)(void *
 	default:
 		ErrPrint("Invalid event type\n");
 		DbgFree(item);
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int xmonitor_del_event_callback(enum xmonitor_event event, int (*cb)(void *user_data), void *user_data)
@@ -461,7 +461,7 @@ HAPI int xmonitor_del_event_callback(enum xmonitor_event event, int (*cb)(void *
 			if (item->cb == cb && item->user_data == user_data) {
 				s_info.pause_list = eina_list_remove(s_info.pause_list, item);
 				DbgFree(item);
-				return WIDGET_STATUS_ERROR_NONE;
+				return WIDGET_ERROR_NONE;
 			}
 		}
 		break;
@@ -471,16 +471,16 @@ HAPI int xmonitor_del_event_callback(enum xmonitor_event event, int (*cb)(void *
 			if (item->cb == cb && item->user_data == user_data) {
 				s_info.resume_list = eina_list_remove(s_info.resume_list, item);
 				DbgFree(item);
-				return WIDGET_STATUS_ERROR_NONE;
+				return WIDGET_ERROR_NONE;
 			}
 		}
 		break;
 	default:
 		ErrPrint("Invalid event type\n");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
-	return WIDGET_STATUS_ERROR_NOT_EXIST;
+	return WIDGET_ERROR_NOT_EXIST;
 }
 
 HAPI int xmonitor_is_paused(void)

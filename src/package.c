@@ -25,6 +25,7 @@
 #include <packet.h>
 #include <widget_errno.h>
 #include <widget_service.h>
+#include <widget_service_internal.h>
 #include <widget_conf.h>
 #include <pkgmgr-info.h>
 #include <ail.h>
@@ -188,7 +189,7 @@ static int slave_fault_cb(struct slave_node *slave, void *data)
 	DbgPrint("Slave critical fault - package: %s (by slave fault %s\n", package_name(info), slave_name(slave));
 	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
 		DbgPrint("Destroy instance %p\n", inst);
-		instance_destroyed(inst, WIDGET_STATUS_ERROR_FAULT);
+		instance_destroyed(inst, WIDGET_ERROR_FAULT);
 	}
 
 	return 0;
@@ -204,7 +205,7 @@ static int slave_deactivated_cb(struct slave_node *slave, void *data)
 
 	if (info->fault_info) {
 		EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
-			instance_destroyed(inst, WIDGET_STATUS_ERROR_FAULT);
+			instance_destroyed(inst, WIDGET_ERROR_FAULT);
 		}
 	} else {
 		EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
@@ -329,7 +330,7 @@ static inline int load_conf(struct pkg_info *info)
 		info->script = strdup(WIDGET_CONF_DEFAULT_SCRIPT);
 		if (!info->script) {
 			ErrPrint("Heap: %s\n", strerror(errno));
-			return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+			return WIDGET_ERROR_OUT_OF_MEMORY;
 		}
 
 		info->abi = strdup(WIDGET_CONF_DEFAULT_ABI);
@@ -337,13 +338,13 @@ static inline int load_conf(struct pkg_info *info)
 			ErrPrint("Heap: %s\n", strerror(errno));
 			DbgFree(info->script);
 			info->script = NULL;
-			return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+			return WIDGET_ERROR_OUT_OF_MEMORY;
 		}
 
 		info->gbar.width = WIDGET_CONF_BASE_W;
 		info->gbar.height = WIDGET_CONF_BASE_H >> 2;
 		info->widget.pinup = 1;
-		return WIDGET_STATUS_ERROR_NONE;
+		return WIDGET_ERROR_NONE;
 	}
 
 	info->widget.type = WIDGET_TYPE_FILE;
@@ -360,7 +361,7 @@ static inline int load_conf(struct pkg_info *info)
 			if (!info->widget.info.script.path) {
 				ErrPrint("Heap: %s\n", strerror(errno));
 				parser_unload(parser);
-				return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+				return WIDGET_ERROR_OUT_OF_MEMORY;
 			}
 
 			str = parser_widget_group(parser);
@@ -370,7 +371,7 @@ static inline int load_conf(struct pkg_info *info)
 					ErrPrint("Heap: %s\n", strerror(errno));
 					DbgFree(info->widget.info.script.path);
 					parser_unload(parser);
-					return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+					return WIDGET_ERROR_OUT_OF_MEMORY;
 				}
 			}
 		}
@@ -392,7 +393,7 @@ static inline int load_conf(struct pkg_info *info)
 					DbgFree(info->widget.info.script.group);
 				}
 				parser_unload(parser);
-				return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+				return WIDGET_ERROR_OUT_OF_MEMORY;
 			}
 
 			str = parser_gbar_group(parser);
@@ -406,7 +407,7 @@ static inline int load_conf(struct pkg_info *info)
 						DbgFree(info->widget.info.script.group);
 					}
 					parser_unload(parser);
-					return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+					return WIDGET_ERROR_OUT_OF_MEMORY;
 				}
 			}
 		}
@@ -428,7 +429,7 @@ static inline int load_conf(struct pkg_info *info)
 		}
 
 		parser_unload(parser);
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	str = parser_abi(parser);
@@ -447,7 +448,7 @@ static inline int load_conf(struct pkg_info *info)
 			DbgFree(info->widget.info.script.group);
 		}
 		parser_unload(parser);
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	info->widget.timeout = parser_timeout(parser);
@@ -479,7 +480,7 @@ static inline int load_conf(struct pkg_info *info)
 			DbgFree(info->widget.info.script.group);
 		}
 		parser_unload(parser);
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	info->secured = parser_secured(parser);
@@ -493,7 +494,7 @@ static inline int load_conf(struct pkg_info *info)
 	}
 
 	parser_unload(parser);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI struct pkg_info *package_create(const char *pkgid, const char *widget_id)
@@ -546,7 +547,7 @@ HAPI struct pkg_info *package_create(const char *pkgid, const char *widget_id)
 HAPI int package_destroy(struct pkg_info *info)
 {
 	package_unref(info);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI Eina_List *package_ctx_info(struct pkg_info *pkginfo)
@@ -655,7 +656,7 @@ HAPI struct inst_info *package_find_instance_by_timestamp(const char *widget_id,
 HAPI int package_dump_fault_info(struct pkg_info *info)
 {
 	if (!info->fault_info) {
-		return WIDGET_STATUS_ERROR_NOT_EXIST;
+		return WIDGET_ERROR_NOT_EXIST;
 	}
 
 	CRITICAL_LOG("=============\n");
@@ -663,19 +664,19 @@ HAPI int package_dump_fault_info(struct pkg_info *info)
 	CRITICAL_LOG("Package: %s\n", info->widget_id);
 	CRITICAL_LOG("Function: %s\n", info->fault_info->function);
 	CRITICAL_LOG("InstanceID: %s\n", info->fault_info->filename);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int package_get_fault_info(struct pkg_info *info, double *timestamp, const char **filename, const char **function)
 {
 	if (!info->fault_info) {
-		return WIDGET_STATUS_ERROR_NOT_EXIST;
+		return WIDGET_ERROR_NOT_EXIST;
 	}
 
 	*timestamp = info->fault_info->timestamp;
 	*filename = info->fault_info->filename;
 	*function = info->fault_info->function;
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int package_set_fault_info(struct pkg_info *info, double timestamp, const char *filename, const char *function)
@@ -687,7 +688,7 @@ HAPI int package_set_fault_info(struct pkg_info *info, double timestamp, const c
 	fault = calloc(1, sizeof(*fault));
 	if (!fault) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	fault->timestamp = timestamp;
@@ -702,7 +703,7 @@ HAPI int package_set_fault_info(struct pkg_info *info, double timestamp, const c
 	if (!fault->filename) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		DbgFree(fault);
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	fault->function = strdup(function);
@@ -710,18 +711,18 @@ HAPI int package_set_fault_info(struct pkg_info *info, double timestamp, const c
 		ErrPrint("Heap: %s\n", strerror(errno));
 		DbgFree(fault->filename);
 		DbgFree(fault);
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	info->fault_info = fault;
 	info->fault_count++;
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int package_clear_fault(struct pkg_info *info)
 {
 	if (!info->fault_info) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	package_dump_fault_info(info);
@@ -730,7 +731,7 @@ HAPI int package_clear_fault(struct pkg_info *info)
 	DbgFree(info->fault_info->filename);
 	DbgFree(info->fault_info);
 	info->fault_info = NULL;
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI const int const package_is_fault(const struct pkg_info *info)
@@ -785,12 +786,12 @@ HAPI int package_set_script(struct pkg_info *info, const char *script)
 	tmp = strdup(script);
 	if (!tmp) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	DbgFree(info->script);
 	info->script = tmp;
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI const char * const package_abi(const struct pkg_info *info)
@@ -804,12 +805,12 @@ HAPI int package_set_abi(struct pkg_info *info, const char *abi)
 	tmp = strdup(abi);
 	if (!tmp) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	DbgFree(info->abi);
 	info->abi = tmp;
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI const char * const package_widget_path(const struct pkg_info *info)
@@ -826,18 +827,18 @@ HAPI int package_set_widget_path(struct pkg_info *info, const char *path)
 	char *tmp;
 
 	if (info->widget.type != WIDGET_TYPE_SCRIPT) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	tmp = strdup(path);
 	if (!tmp) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	DbgFree(info->widget.info.script.path);
 	info->widget.info.script.path = tmp;
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI const char * const package_widget_group(const struct pkg_info *info)
@@ -854,18 +855,18 @@ HAPI int package_set_widget_group(struct pkg_info *info, const char *group)
 	char *tmp;
 
 	if (info->widget.type != WIDGET_TYPE_SCRIPT) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	tmp = strdup(group);
 	if (!tmp) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	DbgFree(info->widget.info.script.group);
 	info->widget.info.script.group = tmp;
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI const char * const package_gbar_path(const struct pkg_info *info)
@@ -882,18 +883,18 @@ HAPI int package_set_gbar_path(struct pkg_info *info, const char *path)
 	char *tmp;
 
 	if (info->gbar.type != GBAR_TYPE_SCRIPT) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	tmp = strdup(path);
 	if (!tmp) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	DbgFree(info->gbar.info.script.path);
 	info->gbar.info.script.path = tmp;
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI const char * const package_gbar_group(const struct pkg_info *info)
@@ -910,18 +911,18 @@ HAPI int package_set_gbar_group(struct pkg_info *info, const char *group)
 	char *tmp;
 
 	if (info->gbar.type != GBAR_TYPE_SCRIPT) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	tmp = strdup(group);
 	if (!tmp) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	DbgFree(info->gbar.info.script.group);
 	info->gbar.info.script.group = tmp;
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI const int const package_pinup(const struct pkg_info *info)
@@ -1031,12 +1032,12 @@ HAPI int package_set_libexec(struct pkg_info *info, const char *libexec)
 	tmp = strdup(libexec);
 	if (!tmp) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	DbgFree(info->widget.libexec);
 	info->widget.libexec = tmp;
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int package_network(struct pkg_info *info)
@@ -1079,18 +1080,18 @@ HAPI int package_set_hw_acceleration(struct pkg_info *info, const char *hw_accel
 	char *tmp;
 
 	if (!hw_acceleration || !info) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	tmp = strdup(hw_acceleration);
 	if (!tmp) {
 		ErrPrint("strdup: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	DbgFree(info->hw_acceleration);
 	info->hw_acceleration = tmp;
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int package_set_category(struct pkg_info *info, const char *category)
@@ -1098,18 +1099,18 @@ HAPI int package_set_category(struct pkg_info *info, const char *category)
 	char *tmp;
 
 	if (!category || !info) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	tmp = strdup(category);
 	if (!tmp) {
 		ErrPrint("strdup: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	DbgFree(info->category);
 	info->category = tmp;
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI const char *package_category(struct pkg_info *info)
@@ -1129,7 +1130,7 @@ static inline int assign_new_slave(const char *slave_pkgname, struct pkg_info *i
 	s_name = util_slavename();
 	if (!s_name) {
 		ErrPrint("Failed to get a new slave name\n");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	DbgPrint("New slave[%s] is assigned for %s (using %s / abi[%s] / accel[%s])\n", s_name, info->widget_id, slave_pkgname, info->abi, info->hw_acceleration);
@@ -1145,13 +1146,13 @@ static inline int assign_new_slave(const char *slave_pkgname, struct pkg_info *i
 		 * If the list method couldn't find an "info" from the list,
 		 * it just do nothing so I'll leave this.
 		 */
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 	/*!
 	 * \note
 	 * Slave is not activated yet.
 	 */
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int package_add_instance(struct pkg_info *info, struct inst_info *inst)
@@ -1161,7 +1162,7 @@ HAPI int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 
 		slave_pkgname = slave_package_name(info->abi, info->widget_id);
 		if (!slave_pkgname) {
-			return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+			return WIDGET_ERROR_OUT_OF_MEMORY;
 		}
 
 		info->slave = slave_find_available(slave_pkgname, info->abi, info->secured, info->network, info->hw_acceleration);
@@ -1202,7 +1203,7 @@ HAPI int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 	}
 
 	info->inst_list = eina_list_append(info->inst_list, inst);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int package_del_instance(struct pkg_info *info, struct inst_info *inst)
@@ -1210,7 +1211,7 @@ HAPI int package_del_instance(struct pkg_info *info, struct inst_info *inst)
 	info->inst_list = eina_list_remove(info->inst_list, inst);
 
 	if (info->inst_list) {
-		return WIDGET_STATUS_ERROR_NONE;
+		return WIDGET_ERROR_NONE;
 	}
 
 	if (info->slave) {
@@ -1236,7 +1237,7 @@ HAPI int package_del_instance(struct pkg_info *info, struct inst_info *inst)
 		package_destroy(info);
 	}
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI Eina_List *package_instance_list(struct pkg_info *info)
@@ -1577,7 +1578,7 @@ HAPI int package_alter_instances_to_client(struct client_node *client, enum alte
 				case ALTER_DESTROY:
 					DbgPrint("ALTER_DESTROY\n");
 					if (instance_has_client(inst, client)) {
-						instance_unicast_deleted_event(inst, client, WIDGET_STATUS_ERROR_NONE);
+						instance_unicast_deleted_event(inst, client, WIDGET_ERROR_NONE);
 						instance_del_client(inst, client);
 					}
 					break;
@@ -1638,7 +1639,7 @@ HAPI int package_faulted(struct pkg_info *pkg, int broadcast)
 	slave = package_slave(pkg);
 	if (!slave) {
 		ErrPrint("Package has no slave?\n");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	/* Emulated fault routine */
@@ -1653,7 +1654,7 @@ HAPI int package_faulted(struct pkg_info *pkg, int broadcast)
 		instance_destroy(inst, WIDGET_DESTROY_TYPE_FAULT);
 	}
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI char *package_get_pkgid(const char *appid)

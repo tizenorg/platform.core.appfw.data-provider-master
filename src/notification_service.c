@@ -762,7 +762,7 @@ HAPI int notification_service_init(void)
 {
 	if (s_info.svc_ctx) {
 		ErrPrint("Already initialized\n");
-		return WIDGET_STATUS_ERROR_ALREADY;
+		return WIDGET_ERROR_ALREADY_STARTED;
 	}
 
 	_notification_init();
@@ -770,7 +770,7 @@ HAPI int notification_service_init(void)
 	s_info.svc_ctx = service_common_create(NOTIFICATION_SOCKET, service_thread_main, NULL);
 	if (!s_info.svc_ctx) {
 		ErrPrint("Unable to activate service thread\n");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	if (smack_fsetlabel(service_common_fd(s_info.svc_ctx), NOTIFICATION_SMACK_LABEL, SMACK_LABEL_IPOUT) != 0) {
@@ -778,7 +778,7 @@ HAPI int notification_service_init(void)
 			ErrPrint("Unable to set SMACK label(%d)\n", errno);
 			service_common_destroy(s_info.svc_ctx);
 			s_info.svc_ctx = NULL;
-			return WIDGET_STATUS_ERROR_FAULT;
+			return WIDGET_ERROR_FAULT;
 		}
 	}
 
@@ -787,24 +787,24 @@ HAPI int notification_service_init(void)
 			ErrPrint("Unable to set SMACK label(%d)\n", errno);
 			service_common_destroy(s_info.svc_ctx);
 			s_info.svc_ctx = NULL;
-			return WIDGET_STATUS_ERROR_FAULT;
+			return WIDGET_ERROR_FAULT;
 		}
 	}
 
 	DbgPrint("Successfully initiated\n");
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int notification_service_fini(void)
 {
 	if (!s_info.svc_ctx) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	service_common_destroy(s_info.svc_ctx);
 	s_info.svc_ctx = NULL;
 	DbgPrint("Successfully Finalized\n");
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 /* End of a file */

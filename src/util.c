@@ -92,13 +92,13 @@ HAPI int util_check_ext(const char *filename, const char *check_ptr)
 	name_len = strlen(filename);
 	while (--name_len >= 0 && *check_ptr) {
 		if (filename[name_len] != *check_ptr) {
-			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+			return WIDGET_ERROR_INVALID_PARAMETER;
 		}
 
 		check_ptr ++;
 	}
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int util_unlink(const char *filename)
@@ -108,28 +108,28 @@ HAPI int util_unlink(const char *filename)
 	int ret;
 
 	if (!filename) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	desclen = strlen(filename) + 6; /* .desc */
 	descfile = malloc(desclen);
 	if (!descfile) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	ret = snprintf(descfile, desclen, "%s.desc", filename);
 	if (ret < 0) {
 		ErrPrint("Error: %s\n", strerror(errno));
 		DbgFree(descfile);
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	(void)unlink(descfile);
 	DbgFree(descfile);
 	(void)unlink(filename);
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI char *util_slavename(void)
@@ -377,18 +377,18 @@ HAPI int util_unlink_files(const char *folder)
 
 	if (lstat(folder, &info) < 0) {
 		ErrPrint("Error: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_IO_ERROR;
+		return WIDGET_ERROR_IO_ERROR;
 	}
 
 	if (!S_ISDIR(info.st_mode)) {
 		ErrPrint("Error: %s is not a folder", folder);
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	handle = opendir(folder);
 	if (!handle) {
 		ErrPrint("Error: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_IO_ERROR;
+		return WIDGET_ERROR_IO_ERROR;
 	}
 
 	while ((entry = readdir(handle))) {
@@ -418,7 +418,7 @@ HAPI int util_unlink_files(const char *folder)
 	if (closedir(handle) < 0) {
 		ErrPrint("closedir: %s\n", strerror(errno));
 	}
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI void util_remove_emergency_disk(void)

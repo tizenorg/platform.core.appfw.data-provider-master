@@ -96,7 +96,7 @@ HAPI int critical_log(const char *func, int line, const char *fmt, ...)
 	int ret;
 
 	if (!s_info.fp) {
-		return WIDGET_STATUS_ERROR_IO_ERROR;
+		return WIDGET_ERROR_IO_ERROR;
 	}
 
 	CRITICAL_SECTION_BEGIN(&s_info.cri_lock);
@@ -124,13 +124,13 @@ HAPI int critical_log_init(const char *name)
 	char *filename;
 
 	if (s_info.fp) {
-		return WIDGET_STATUS_ERROR_NONE;
+		return WIDGET_ERROR_NONE;
 	}
 
 	s_info.filename = strdup(name);
 	if (!s_info.filename) {
 		ErrPrint("Failed to create a log file\n");
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	namelen = strlen(name) + strlen(WIDGET_CONF_LOG_PATH) + 30;
@@ -140,7 +140,7 @@ HAPI int critical_log_init(const char *name)
 		ErrPrint("Failed to create a log file\n");
 		DbgFree(s_info.filename);
 		s_info.filename = NULL;
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	snprintf(filename, namelen, "%s/%d_%s.%d", WIDGET_CONF_LOG_PATH, s_info.file_id, name, getpid());
@@ -151,11 +151,11 @@ HAPI int critical_log_init(const char *name)
 		DbgFree(s_info.filename);
 		s_info.filename = NULL;
 		DbgFree(filename);
-		return WIDGET_STATUS_ERROR_IO_ERROR;
+		return WIDGET_ERROR_IO_ERROR;
 	}
 
 	DbgFree(filename);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 

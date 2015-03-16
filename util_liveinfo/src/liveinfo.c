@@ -710,7 +710,7 @@ static inline int do_stat(const char *cmd)
 		i = widget_service_is_enabled(node_name(node));
 		printf("%s)\n", i ? "enabled" : "disabled");
 
-		tmp = widget_service_get_i18n_icon(node_name(node), NULL);
+		tmp = widget_service_get_icon(node_name(node), NULL);
 		printf("Icon: %s\n", tmp);
 		free(tmp);
 

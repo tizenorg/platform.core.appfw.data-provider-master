@@ -886,7 +886,7 @@ HAPI int parser_unload(struct parser *item)
 	DbgFree(item->widget_path);
 	DbgFree(item->filename);
 	DbgFree(item);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 /* End of a file */

@@ -224,7 +224,7 @@ extern void instance_extra_info_updated_by_instance(struct inst_info *inst);
 
 /*!
  * \note
- * if the status is WIDGET_STATUS_ERROR_FAULT (slave is faulted)
+ * if the status is WIDGET_ERROR_FAULT (slave is faulted)
  * even though the GBAR is not created, this will forcely send the GBAR_DESTROYED event to the client.
  */
 extern int instance_client_gbar_destroyed(struct inst_info *inst, int status);

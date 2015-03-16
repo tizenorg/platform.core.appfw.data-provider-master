@@ -135,7 +135,7 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 
 		/* Need to send reply packet */
 		DbgPrint("%p REQ: Command: [%s]\n", tcb, command);
-		if (!strcmp(command, "add_widget") || !strcmp(command, "rm_widget")) {
+		if (!strcmp(command, "add_shortcut_widget") || !strcmp(command, "rm_shortcut_widget")) {
 			ret = security_server_check_privilege_by_sockfd(tcb_fd(tcb), "data-provider-master::shortcut.widget", "w");
 			if (ret == SECURITY_SERVER_API_ERROR_ACCESS_DENIED) {
 				ErrPrint("SMACK:Access denied\n");
@@ -210,13 +210,13 @@ HAPI int shortcut_service_init(void)
 {
 	if (s_info.svc_ctx) {
 		ErrPrint("Already initialized\n");
-		return WIDGET_STATUS_ERROR_ALREADY;
+		return WIDGET_ERROR_ALREADY_STARTED;
 	}
 
 	s_info.svc_ctx = service_common_create(SHORTCUT_SOCKET, service_thread_main, NULL);
 	if (!s_info.svc_ctx) {
 		ErrPrint("Unable to activate service thread\n");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	if (smack_fsetlabel(service_common_fd(s_info.svc_ctx), SHORTCUT_SMACK_LABEL, SMACK_LABEL_IPOUT) != 0) {
@@ -224,7 +224,7 @@ HAPI int shortcut_service_init(void)
 			ErrPrint("Unable to set SMACK label(%d)\n", errno);
 			service_common_destroy(s_info.svc_ctx);
 			s_info.svc_ctx = NULL;
-			return WIDGET_STATUS_ERROR_FAULT;
+			return WIDGET_ERROR_FAULT;
 		}
 	}
 
@@ -233,24 +233,24 @@ HAPI int shortcut_service_init(void)
 			ErrPrint("Unable to set SMACK label(%d)\n", errno);
 			service_common_destroy(s_info.svc_ctx);
 			s_info.svc_ctx = NULL;
-			return WIDGET_STATUS_ERROR_FAULT;
+			return WIDGET_ERROR_FAULT;
 		}
 	}
 
 	DbgPrint("Successfully initiated\n");
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int shortcut_service_fini(void)
 {
 	if (!s_info.svc_ctx) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	service_common_destroy(s_info.svc_ctx);
 	s_info.svc_ctx = NULL;
 	DbgPrint("Successfully Finalized\n");
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 /* End of a file */
