@@ -498,13 +498,13 @@ HAPI int client_event_callback_add(struct client_node *client, enum client_event
 
 	if (!cb) {
 		ErrPrint("Invalid callback (cb == NULL)\n");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	item = malloc(sizeof(*item));
 	if (!item) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	item->cb = cb;
@@ -538,10 +538,10 @@ HAPI int client_event_callback_add(struct client_node *client, enum client_event
 		break;
 	default:
 		DbgFree(item);
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int client_event_callback_del(struct client_node *client, enum client_event event, int (*cb)(struct client_node *, void *), void *data)
@@ -552,7 +552,7 @@ HAPI int client_event_callback_del(struct client_node *client, enum client_event
 
 	if (!cb) {
 		ErrPrint("Invalid callback (cb == NULL)\n");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	switch (event) {
@@ -565,7 +565,7 @@ HAPI int client_event_callback_del(struct client_node *client, enum client_event
 					client->event_deactivate_list = eina_list_remove(client->event_deactivate_list, item);
 					DbgFree(item);
 				}
-				return WIDGET_STATUS_ERROR_NONE;
+				return WIDGET_ERROR_NONE;
 			}
 		}
 		break;
@@ -579,7 +579,7 @@ HAPI int client_event_callback_del(struct client_node *client, enum client_event
 					client->event_activate_list = eina_list_remove(client->event_activate_list, item);
 					DbgFree(item);
 				}
-				return WIDGET_STATUS_ERROR_NONE;
+				return WIDGET_ERROR_NONE;
 			}
 		}
 		break;
@@ -589,7 +589,7 @@ HAPI int client_event_callback_del(struct client_node *client, enum client_event
 		break;
 	}
 
-	return WIDGET_STATUS_ERROR_NOT_EXIST;
+	return WIDGET_ERROR_NOT_EXIST;
 }
 
 HAPI int client_set_data(struct client_node *client, const char *tag, void *data)
@@ -599,20 +599,20 @@ HAPI int client_set_data(struct client_node *client, const char *tag, void *data
 	item = calloc(1, sizeof(*item));
 	if (!item) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	item->tag = strdup(tag);
 	if (!item->tag) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		DbgFree(item);
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	item->data = data;
 
 	client->data_list = eina_list_append(client->data_list, item);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI void *client_data(struct client_node *client, const char *tag)
@@ -671,7 +671,7 @@ HAPI void client_resumed(struct client_node *client)
 
 HAPI int client_init(void)
 {
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI void client_fini(void)
@@ -701,7 +701,7 @@ HAPI int client_global_event_handler_add(enum client_global_event event_type, in
 	handler = malloc(sizeof(*handler));
 	if (!handler) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	handler->cbdata = data;
@@ -717,10 +717,10 @@ HAPI int client_global_event_handler_add(enum client_global_event event_type, in
 		break;
 	default:
 		DbgFree(handler);
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int client_global_event_handler_del(enum client_global_event event_type, int (*cb)(struct client_node *, void *), void *data)
@@ -739,7 +739,7 @@ HAPI int client_global_event_handler_del(enum client_global_event event_type, in
 					s_info.create_event_list = eina_list_remove(s_info.create_event_list, item);
 					DbgFree(item);
 				}
-				return WIDGET_STATUS_ERROR_NONE;
+				return WIDGET_ERROR_NONE;
 			}
 		}
 		break;
@@ -752,7 +752,7 @@ HAPI int client_global_event_handler_del(enum client_global_event event_type, in
 					s_info.destroy_event_list = eina_list_remove(s_info.destroy_event_list, item);
 					DbgFree(item);
 				}
-				return WIDGET_STATUS_ERROR_NONE;
+				return WIDGET_ERROR_NONE;
 			}
 		}
 		break;
@@ -760,7 +760,7 @@ HAPI int client_global_event_handler_del(enum client_global_event event_type, in
 		break;
 	}
 
-	return WIDGET_STATUS_ERROR_NOT_EXIST;
+	return WIDGET_ERROR_NOT_EXIST;
 }
 
 HAPI int client_subscribe_category(struct client_node *client, const char *category)
@@ -770,33 +770,33 @@ HAPI int client_subscribe_category(struct client_node *client, const char *categ
 
 	if (!category) {
 		ErrPrint("category: %p\n", category);
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	EINA_LIST_FOREACH(client->category_subscribe_list, l, item) {
 		DbgPrint("item[%p], item->category[%p], category[%p]\n", item, item->category, category);
 		if (!strcasecmp(item->category, category)) {
 			DbgPrint("[%s] is already subscribed\n");
-			return WIDGET_STATUS_ERROR_ALREADY;
+			return WIDGET_ERROR_ALREADY_EXIST;
 		}
 	}
 
 	item = malloc(sizeof(*item));
 	if (!item) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	item->category = strdup(category);
 	if (!item->category) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		DbgFree(item);
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	DbgPrint("Subscribe category[%s]\n", item->category);
 	client->category_subscribe_list = eina_list_append(client->category_subscribe_list, item);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int client_unsubscribe_category(struct client_node *client, const char *category)
@@ -807,7 +807,7 @@ HAPI int client_unsubscribe_category(struct client_node *client, const char *cat
 
 	if (!category) {
 		ErrPrint("category: %p\n", category);
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	EINA_LIST_FOREACH_SAFE(client->category_subscribe_list, l, n, item) {
@@ -815,11 +815,11 @@ HAPI int client_unsubscribe_category(struct client_node *client, const char *cat
 			client->category_subscribe_list = eina_list_remove(client->category_subscribe_list, item);
 			DbgFree(item->category);
 			DbgFree(item);
-			return WIDGET_STATUS_ERROR_NONE;
+			return WIDGET_ERROR_NONE;
 		}
 	}
 
-	return WIDGET_STATUS_ERROR_NOT_EXIST;
+	return WIDGET_ERROR_NOT_EXIST;
 }
 
 HAPI int client_is_subscribed_by_category(struct client_node *client, const char *category)
@@ -848,20 +848,20 @@ HAPI int client_subscribe_group(struct client_node *client, const char *cluster,
 
 	if (!cluster || !category) {
 		ErrPrint("Cluster[%p] Category[%p]\n", cluster, category);
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	item = malloc(sizeof(*item));
 	if (!item) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	item->cluster = strdup(cluster);
 	if (!item->cluster) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		DbgFree(item);
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	item->category = strdup(category);
@@ -869,11 +869,11 @@ HAPI int client_subscribe_group(struct client_node *client, const char *cluster,
 		ErrPrint("Heap: %s\n", strerror(errno));
 		DbgFree(item->cluster);
 		DbgFree(item);
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	client->subscribe_list = eina_list_append(client->subscribe_list, item);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int client_unsubscribe_group(struct client_node *client, const char *cluster, const char *category)
@@ -884,7 +884,7 @@ HAPI int client_unsubscribe_group(struct client_node *client, const char *cluste
 
 	if (!cluster || !category) {
 		ErrPrint("cluster: %p, category: %p\n", cluster, category);
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	EINA_LIST_FOREACH_SAFE(client->subscribe_list, l, n, item) {
@@ -893,11 +893,11 @@ HAPI int client_unsubscribe_group(struct client_node *client, const char *cluste
 			DbgFree(item->cluster);
 			DbgFree(item->category);
 			DbgFree(item);
-			return WIDGET_STATUS_ERROR_NONE;
+			return WIDGET_ERROR_NONE;
 		}
 	}
 
-	return WIDGET_STATUS_ERROR_NOT_EXIST;
+	return WIDGET_ERROR_NOT_EXIST;
 }
 
 HAPI int client_is_subscribed_group(struct client_node *client, const char *cluster, const char *category)
@@ -907,7 +907,7 @@ HAPI int client_is_subscribed_group(struct client_node *client, const char *clus
 
 	if (!cluster || !category) {
 		ErrPrint("cluster: %p, category: %p\n", cluster, category);
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	EINA_LIST_FOREACH(client->subscribe_list, l, item) {
@@ -938,7 +938,7 @@ HAPI int client_browse_group_list(const char *cluster, const char *category, int
 	int cnt;
 
 	if (!cb || !cluster || !category) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	cnt = 0;
@@ -948,7 +948,7 @@ HAPI int client_browse_group_list(const char *cluster, const char *category, int
 		}
 
 		if (cb(client, data) < 0) {
-			return WIDGET_STATUS_ERROR_CANCEL;
+			return WIDGET_ERROR_CANCELED;
 		}
 
 		cnt++;
@@ -964,7 +964,7 @@ HAPI int client_browse_category_list(const char *category, int (*cb)(struct clie
 	int cnt;
 
 	if (!cb || !category) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	cnt = 0;
@@ -974,7 +974,7 @@ HAPI int client_browse_category_list(const char *category, int (*cb)(struct clie
 		}
 
 		if (cb(client, data) < 0) {
-			return WIDGET_STATUS_ERROR_CANCEL;
+			return WIDGET_ERROR_CANCELED;
 		}
 
 		cnt++;
@@ -1014,7 +1014,7 @@ HAPI int client_broadcast(struct inst_info *inst, struct packet *packet)
 	}
 
 	packet_unref(packet);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI const char *client_direct_addr(const struct client_node *client)

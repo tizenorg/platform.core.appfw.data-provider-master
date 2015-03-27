@@ -151,10 +151,10 @@ HAPI int liveinfo_open_fifo(struct liveinfo *info)
 	info->fp = fopen(info->fifo_name, "w");
 	if (!info->fp) {
 		ErrPrint("open: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_IO_ERROR;
+		return WIDGET_ERROR_IO_ERROR;
 	}
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI void liveinfo_close_fifo(struct liveinfo *info)

@@ -218,7 +218,7 @@ HAPI int setting_add_oom_event_callback(int (*handler)(enum oom_event_type type,
 	item = malloc(sizeof(*item));
 	if (!item) {
 		ErrPrint("malloc: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	item->handler = handler;
@@ -226,7 +226,7 @@ HAPI int setting_add_oom_event_callback(int (*handler)(enum oom_event_type type,
 	item->deleted = 0;
 
 	s_info.oom_event_list = eina_list_append(s_info.oom_event_list, item);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int setting_del_oom_event_callback(int (*handler)(enum oom_event_type type, void *data), void *data)
@@ -243,11 +243,11 @@ HAPI int setting_del_oom_event_callback(int (*handler)(enum oom_event_type type,
 				s_info.oom_event_list = eina_list_remove(s_info.oom_event_list, item);
 				free(item);
 			}
-			return WIDGET_STATUS_ERROR_NONE;
+			return WIDGET_ERROR_NONE;
 		}
 	}
 
-	return WIDGET_STATUS_ERROR_NOT_EXIST;
+	return WIDGET_ERROR_NOT_EXIST;
 }
 
 HAPI enum oom_event_type setting_oom_level(void)

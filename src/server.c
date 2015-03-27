@@ -29,6 +29,7 @@
 #include <com-core_packet.h>
 #include <widget_errno.h>
 #include <widget_service.h>
+#include <widget_service_internal.h>
 #include <widget_cmd_list.h>
 #include <widget_conf.h>
 #include <widget_script.h>
@@ -147,7 +148,7 @@ static char *is_valid_slave(pid_t pid, const char *abi, const char *provider_pkg
 
 	verified = 0;
 	widget_id = NULL;
-	while (widget_service_get_pkglist_item(list_handle, NULL, &widget_id, NULL) == WIDGET_STATUS_ERROR_NONE) {
+	while (widget_service_get_pkglist_item(list_handle, NULL, &widget_id, NULL) == WIDGET_ERROR_NONE) {
 		if (!widget_id) {
 			ErrPrint("Invalid widget_id\n");
 			continue;
@@ -219,7 +220,7 @@ int send_delayed_key_status(struct inst_info *inst, int ret)
 
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
-		ret = WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		ret = WIDGET_ERROR_OUT_OF_MEMORY;
 	} else {
 		cbdata->inst = instance_ref(inst);
 		cbdata->status = ret;
@@ -227,9 +228,9 @@ int send_delayed_key_status(struct inst_info *inst, int ret)
 		if (!ecore_timer_add(DELAY_TIME, lazy_key_status_cb, cbdata)) {
 			(void)instance_unref(cbdata->inst);
 			DbgFree(cbdata);
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 		} else {
-			ret = WIDGET_STATUS_ERROR_NONE;
+			ret = WIDGET_ERROR_NONE;
 		}
 	}
 
@@ -242,7 +243,7 @@ int send_delayed_access_status(struct inst_info *inst, int ret)
 
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
-		ret = WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		ret = WIDGET_ERROR_OUT_OF_MEMORY;
 	} else {
 		cbdata->inst = instance_ref(inst);
 		cbdata->status = ret;
@@ -250,9 +251,9 @@ int send_delayed_access_status(struct inst_info *inst, int ret)
 		if (!ecore_timer_add(DELAY_TIME, lazy_access_status_cb, cbdata)) {
 			(void)instance_unref(cbdata->inst);
 			DbgFree(cbdata);
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 		} else {
-			ret = WIDGET_STATUS_ERROR_NONE;
+			ret = WIDGET_ERROR_NONE;
 		}
 	}
 
@@ -268,14 +269,14 @@ static int forward_widget_event_packet(const struct pkg_info *pkg, struct inst_i
 	buffer = instance_widget_buffer(inst);
 	if (!buffer) {
 		ErrPrint("Instance[%s] has no buffer\n", instance_id(inst));
-		ret = WIDGET_STATUS_ERROR_FAULT;
+		ret = WIDGET_ERROR_FAULT;
 		goto out;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
 		ErrPrint("Package[%s] has no slave\n", package_name(pkg));
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -295,14 +296,14 @@ static int forward_gbar_event_packet(const struct pkg_info *pkg, struct inst_inf
 	buffer = instance_gbar_buffer(inst);
 	if (!buffer) {
 		ErrPrint("Instance[%s] has no buffer\n", instance_id(inst));
-		ret = WIDGET_STATUS_ERROR_FAULT;
+		ret = WIDGET_ERROR_FAULT;
 		goto out;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
 		ErrPrint("Package[%s] has no slave\n", package_name(pkg));
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -323,14 +324,14 @@ static int forward_gbar_access_packet(const struct pkg_info *pkg, struct inst_in
 	buffer = instance_gbar_buffer(inst);
 	if (!buffer) {
 		ErrPrint("Instance[%s] has no buffer\n", instance_id(inst));
-		ret = WIDGET_STATUS_ERROR_FAULT;
+		ret = WIDGET_ERROR_FAULT;
 		goto out;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
 		ErrPrint("Package[%s] has no slave\n", package_name(pkg));
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -351,14 +352,14 @@ static int forward_widget_access_packet(const struct pkg_info *pkg, struct inst_
 	buffer = instance_widget_buffer(inst);
 	if (!buffer) {
 		ErrPrint("Instance[%s] has no buffer\n", instance_id(inst));
-		ret = WIDGET_STATUS_ERROR_FAULT;
+		ret = WIDGET_ERROR_FAULT;
 		goto out;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
 		ErrPrint("Package[%s] has no slave\n", package_name(pkg));
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -379,14 +380,14 @@ static int forward_gbar_key_packet(const struct pkg_info *pkg, struct inst_info 
 	buffer = instance_widget_buffer(inst);
 	if (!buffer) {
 		ErrPrint("Instance[%s] has no buffer\n", instance_id(inst));
-		ret = WIDGET_STATUS_ERROR_FAULT;
+		ret = WIDGET_ERROR_FAULT;
 		goto out;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
 		ErrPrint("Package[%s] has no slave\n", package_name(pkg));
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -407,14 +408,14 @@ static int forward_widget_key_packet(const struct pkg_info *pkg, struct inst_inf
 	buffer = instance_widget_buffer(inst);
 	if (!buffer) {
 		ErrPrint("Instance[%s] has no buffer\n", instance_id(inst));
-		ret = WIDGET_STATUS_ERROR_FAULT;
+		ret = WIDGET_ERROR_FAULT;
 		goto out;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
 		ErrPrint("Package[%s] has no slave\n", package_name(pkg));
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -431,7 +432,7 @@ static int slave_fault_open_script_cb(struct slave_node *slave, void *data)
 
 	(void)script_handler_unload(instance_gbar_script(data), 1);
 	(void)instance_slave_close_gbar(data, instance_gbar_owner(data), WIDGET_CLOSE_GBAR_FAULT);
-	(void)instance_client_gbar_created(data, WIDGET_STATUS_ERROR_FAULT);
+	(void)instance_client_gbar_created(data, WIDGET_ERROR_FAULT);
 
 	timer = instance_del_data(data, LAZY_GBAR_OPEN_TAG);
 	if (timer) {
@@ -448,7 +449,7 @@ static int slave_fault_open_buffer_cb(struct slave_node *slave, void *data)
 	Ecore_Timer *timer;
 
 	(void)instance_slave_close_gbar(data, instance_gbar_owner(data), WIDGET_CLOSE_GBAR_FAULT);
-	(void)instance_client_gbar_created(data, WIDGET_STATUS_ERROR_FAULT);
+	(void)instance_client_gbar_created(data, WIDGET_ERROR_FAULT);
 
 	timer = instance_del_data(data, GBAR_OPEN_MONITOR_TAG);
 	if (timer) {
@@ -464,7 +465,7 @@ static int slave_fault_close_script_cb(struct slave_node *slave, void *data)
 {
 	Ecore_Timer *timer;
 
-	(void)instance_client_gbar_destroyed(data, WIDGET_STATUS_ERROR_FAULT);
+	(void)instance_client_gbar_destroyed(data, WIDGET_ERROR_FAULT);
 
 	timer = instance_del_data(data, LAZY_GBAR_CLOSE_TAG);
 	if (timer) {
@@ -480,7 +481,7 @@ static int slave_fault_close_buffer_cb(struct slave_node *slave, void *data)
 {
 	Ecore_Timer *timer;
 
-	(void)instance_client_gbar_destroyed(data, WIDGET_STATUS_ERROR_FAULT);
+	(void)instance_client_gbar_destroyed(data, WIDGET_ERROR_FAULT);
 
 	timer = instance_del_data(data, LAZY_GBAR_CLOSE_TAG);
 	if (!timer) {
@@ -501,7 +502,7 @@ static int slave_fault_resize_buffer_cb(struct slave_node *slave, void *data)
 	Ecore_Timer *timer;
 
 	(void)instance_slave_close_gbar(data, instance_gbar_owner(data), WIDGET_CLOSE_GBAR_FAULT);
-	(void)instance_client_gbar_destroyed(data, WIDGET_STATUS_ERROR_FAULT);
+	(void)instance_client_gbar_destroyed(data, WIDGET_ERROR_FAULT);
 
 	timer = instance_del_data(data, GBAR_RESIZE_MONITOR_TAG);
 	if (timer) {
@@ -523,17 +524,17 @@ static int key_event_widget_route_cb(enum event_state state, struct event_data *
 
 	if (!inst) {
 		DbgPrint("Instance is deleted.\n");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	pkg = instance_package(inst);
 	if (!pkg) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	switch (state) {
@@ -547,12 +548,12 @@ static int key_event_widget_route_cb(enum event_state state, struct event_data *
 		cmd = CMD_WIDGET_KEY_UP;
 		break;
 	default:
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssdi", package_name(pkg), instance_id(inst), event_info->tv, event_info->keycode);
 	if (!packet) {
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	return slave_rpc_request_only(slave, package_name(pkg), packet, 0);
@@ -568,17 +569,17 @@ static int mouse_event_widget_route_cb(enum event_state state, struct event_data
 
 	if (!inst) {
 		DbgPrint("Instance is deleted.\n");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	pkg = instance_package(inst);
 	if (!pkg) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	switch (state) {
@@ -592,12 +593,12 @@ static int mouse_event_widget_route_cb(enum event_state state, struct event_data
 		cmd = CMD_WIDGET_MOUSE_UP;
 		break;
 	default:
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssdii", package_name(pkg), instance_id(inst), event_info->tv, event_info->x, event_info->y);
 	if (!packet) {
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	return slave_rpc_request_only(slave, package_name(pkg), packet, 0);
@@ -617,7 +618,7 @@ static int key_event_widget_consume_cb(enum event_state state, struct event_data
 
 	script = instance_widget_script(inst);
 	if (!script) {
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	timestamp = event_info->tv;
@@ -657,7 +658,7 @@ static int mouse_event_widget_consume_cb(enum event_state state, struct event_da
 
 	script = instance_widget_script(inst);
 	if (!script) {
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	timestamp = event_info->tv;
@@ -692,17 +693,17 @@ static int key_event_gbar_route_cb(enum event_state state, struct event_data *ev
 
 	if (!inst) {
 		DbgPrint("Instance is deleted.\n");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	pkg = instance_package(inst);
 	if (!pkg) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	switch (state) {
@@ -716,12 +717,12 @@ static int key_event_gbar_route_cb(enum event_state state, struct event_data *ev
 		cmd = CMD_GBAR_KEY_UP;
 		break;
 	default:
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssdi", package_name(pkg), instance_id(inst), event_info->tv, event_info->keycode);
 	if (!packet) {
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	return slave_rpc_request_only(slave, package_name(pkg), packet, 0);
@@ -737,17 +738,17 @@ static int mouse_event_gbar_route_cb(enum event_state state, struct event_data *
 
 	if (!inst) {
 		DbgPrint("Instance is deleted.\n");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	pkg = instance_package(inst);
 	if (!pkg) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	switch (state) {
@@ -761,12 +762,12 @@ static int mouse_event_gbar_route_cb(enum event_state state, struct event_data *
 		cmd = CMD_GBAR_MOUSE_UP;
 		break;
 	default:
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	packet = packet_create_noack((const char *)&cmd, "ssdii", package_name(pkg), instance_id(inst), event_info->tv, event_info->x, event_info->y);
 	if (!packet) {
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	return slave_rpc_request_only(slave, package_name(pkg), packet, 0);
@@ -786,7 +787,7 @@ static int key_event_gbar_consume_cb(enum event_state state, struct event_data *
 
 	script = instance_gbar_script(inst);
 	if (!script) {
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	timestamp = event_info->tv;
@@ -826,7 +827,7 @@ static int mouse_event_gbar_consume_cb(enum event_state state, struct event_data
 
 	script = instance_gbar_script(inst);
 	if (!script) {
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	timestamp = event_info->tv;
@@ -861,13 +862,13 @@ static struct packet *client_acquire(pid_t pid, int handle, const struct packet 
 	client = client_find_by_rpc_handle(handle);
 	if (client) {
 		ErrPrint("Client is already exists %d\n", pid);
-		ret = WIDGET_STATUS_ERROR_EXIST;
+		ret = WIDGET_ERROR_ALREADY_EXIST;
 		goto out;
 	}
 
 	if (packet_get(packet, "ds", &timestamp, &direct_addr) != 2) {
 		ErrPrint("Invalid arguemnt\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -879,7 +880,7 @@ static struct packet *client_acquire(pid_t pid, int handle, const struct packet 
 	client = client_create(pid, handle, direct_addr);
 	if (!client) {
 		ErrPrint("Failed to create a new client for %d\n", pid);
-		ret = WIDGET_STATUS_ERROR_FAULT;
+		ret = WIDGET_ERROR_FAULT;
 	}
 
 out:
@@ -900,7 +901,7 @@ static struct packet *cilent_release(pid_t pid, int handle, const struct packet 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
@@ -935,7 +936,7 @@ static int validate_request(pid_t pid, struct slave_node *slave, const char *pkg
 		 */
 		widget_id = is_valid_slave(pid, slave_abi(slave), pkgname);
 		if (!widget_id) {
-			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+			return WIDGET_ERROR_INVALID_PARAMETER;
 		}
 
 		inst = package_find_instance_by_id(widget_id, id);
@@ -946,18 +947,18 @@ static int validate_request(pid_t pid, struct slave_node *slave, const char *pkg
 
 	if (!inst) {
 		ErrPrint("Instance is not exists (%s)\n", id);
-		return WIDGET_STATUS_ERROR_NOT_EXIST;
+		return WIDGET_ERROR_NOT_EXIST;
 	}
 
 	pkg = instance_package(inst);
 	if (!pkg) {
 		ErrPrint("System error - instance has no package?\n");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	if (package_is_fault(pkg)) {
 		ErrPrint("Faulted package: %s\n", package_name(pkg));
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	if (out_inst) {
@@ -968,7 +969,7 @@ static int validate_request(pid_t pid, struct slave_node *slave, const char *pkg
 		*out_pkg = pkg;
 	}
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 /*!< pid, pkgname, filename, event, timestamp, x, y, ret */
@@ -1002,7 +1003,7 @@ static struct packet *client_clicked(pid_t pid, int handle, const struct packet 
 	 * The package has to be a widget package name.
 	 */
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_ERROR_NONE) {
 		(void)instance_clicked(inst, event, timestamp, x, y);
 	}
 
@@ -1024,19 +1025,19 @@ static struct packet *client_update_mode(pid_t pid, int handle, const struct pac
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssi", &pkgname, &id, &active_update);
 	if (ret != 3) {
 		ErrPrint("Invalid argument\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_ERROR_NONE) {
 		/*!
 		 * \note
 		 * Send change update mode request to a slave
@@ -1072,14 +1073,14 @@ static struct packet *client_text_signal(pid_t pid, int handle, const struct pac
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssssdddd", &pkgname, &id, &emission, &source, &sx, &sy, &ex, &ey);
 	if (ret != 8) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -1089,7 +1090,7 @@ static struct packet *client_text_signal(pid_t pid, int handle, const struct pac
 	 * The package has to be a widget package name.
 	 */
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_ERROR_NONE) {
 		ret = instance_text_signal_emit(inst, emission, source, sx, sy, ex, ey);
 	}
 
@@ -1112,7 +1113,7 @@ static Eina_Bool lazy_delete_cb(void *data)
 	 * So check it again
 	 */
 	if (instance_has_client(item->inst, item->client)) {
-		(void)instance_unicast_deleted_event(item->inst, item->client, WIDGET_STATUS_ERROR_NONE);
+		(void)instance_unicast_deleted_event(item->inst, item->client, WIDGET_ERROR_NONE);
 		(void)instance_del_client(item->inst, item->client);
 	}
 
@@ -1137,14 +1138,14 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssid", &pkgname, &id, &type, &timestamp);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 	/*!
@@ -1162,7 +1163,7 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 	 * The package has to be a widget package name.
 	 */
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		DbgPrint("Failed to find by id(%s), try to find it using timestamp(%lf)\n", id, timestamp);
 		inst = package_find_instance_by_timestamp(pkgname, timestamp);
 		if (!inst) {
@@ -1178,7 +1179,7 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 
 	if (package_is_fault(pkg)) {
 		DbgPrint("Faulted package. will be deleted soon: %s\n", id);
-		ret = WIDGET_STATUS_ERROR_FAULT;
+		ret = WIDGET_ERROR_FAULT;
 		goto out;
 	}
 
@@ -1189,7 +1190,7 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 			item = malloc(sizeof(*item));
 			if (!item) {
 				ErrPrint("Heap: %s\n", strerror(errno));
-				ret = WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+				ret = WIDGET_ERROR_OUT_OF_MEMORY;
 			} else {
 				/*!
 				 * \NOTE:
@@ -1208,14 +1209,14 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 					(void)client_unref(client);
 					(void)instance_unref(inst);
 					DbgFree(item);
-					ret = WIDGET_STATUS_ERROR_FAULT;
+					ret = WIDGET_ERROR_FAULT;
 				} else {
-					ret = WIDGET_STATUS_ERROR_NONE;
+					ret = WIDGET_ERROR_NONE;
 				}
 			}
 		} else {
 			ErrPrint("Client has no permission\n");
-			ret = WIDGET_STATUS_ERROR_PERMISSION_DENIED;
+			ret = WIDGET_ERROR_PERMISSION_DENIED;
 		}
 	} else {
 		switch (type) {
@@ -1253,14 +1254,14 @@ static struct packet *client_resize(pid_t pid, int handle, const struct packet *
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssii", &pkgname, &id, &w, &h);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -1272,12 +1273,12 @@ static struct packet *client_resize(pid_t pid, int handle, const struct packet *
 	 * The package has to be a widget package name.
 	 */
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
 	if (instance_client(inst) != client) {
-		ret = WIDGET_STATUS_ERROR_PERMISSION_DENIED;
+		ret = WIDGET_ERROR_PERMISSION_DENIED;
 	} else {
 		ret = instance_resize(inst, w, h);
 	}
@@ -1311,14 +1312,14 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "dssssdii", &timestamp, &pkgname, &content, &cluster, &category, &period, &width, &height);
 	if (ret != 8) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -1328,7 +1329,7 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 	widget_id = package_widget_pkgname(pkgname);
 	if (!widget_id) {
 		ErrPrint("This %s has no widget package\n", pkgname);
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -1337,7 +1338,7 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		ErrPrint("%s is disabled\n", mainappid);
 		DbgFree(mainappid);
 		DbgFree(widget_id);
-		ret = WIDGET_STATUS_ERROR_DISABLED;
+		ret = WIDGET_ERROR_DISABLED;
 		goto out;
 	}
 	DbgFree(mainappid);
@@ -1349,7 +1350,7 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		if (!pkgid) {
 			DbgFree(mainappid);
 			DbgFree(widget_id);
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -1358,12 +1359,12 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 	}
 
 	if (!info) {
-		ret = WIDGET_STATUS_ERROR_FAULT;
+		ret = WIDGET_ERROR_FAULT;
 	} else if (package_is_fault(info)) {
-		ret = WIDGET_STATUS_ERROR_FAULT;
+		ret = WIDGET_ERROR_FAULT;
 	} else if (util_free_space(WIDGET_CONF_IMAGE_PATH) <= WIDGET_CONF_MINIMUM_SPACE) {
 		ErrPrint("Not enough space\n");
-		ret = WIDGET_STATUS_ERROR_NO_SPACE;
+		ret = WIDGET_ERROR_FILE_NO_SPACE_ON_DEVICE;
 	} else {
 		struct inst_info *inst;
 
@@ -1376,7 +1377,7 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		 * \note
 		 * Using the "inst" without validate its value is at my disposal. ;)
 		 */
-		ret = inst ? 0 : WIDGET_STATUS_ERROR_FAULT;
+		ret = inst ? 0 : WIDGET_ERROR_FAULT;
 	}
 
 	DbgFree(widget_id);
@@ -1402,14 +1403,14 @@ static struct packet *client_change_visibility(pid_t pid, int handle, const stru
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssi", &pkgname, &id, (int *)&state);
 	if (ret != 3) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -1419,12 +1420,12 @@ static struct packet *client_change_visibility(pid_t pid, int handle, const stru
 	 * The package has to be a widget package name.
 	 */
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
 	if (instance_client(inst) != client) {
-		ret = WIDGET_STATUS_ERROR_PERMISSION_DENIED;
+		ret = WIDGET_ERROR_PERMISSION_DENIED;
 	} else {
 		ret = instance_set_visible_state(inst, state);
 	}
@@ -1447,14 +1448,14 @@ static struct packet *client_set_period(pid_t pid, int handle, const struct pack
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssd", &pkgname, &id, &period);
 	if (ret != 3) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -1466,12 +1467,12 @@ static struct packet *client_set_period(pid_t pid, int handle, const struct pack
 	 * The package has to be a widget package name.
 	 */
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
 	if (instance_client(inst) != client) {
-		ret = WIDGET_STATUS_ERROR_PERMISSION_DENIED;
+		ret = WIDGET_ERROR_PERMISSION_DENIED;
 	} else {
 		ret = instance_set_period(inst, period);
 	}
@@ -1499,14 +1500,14 @@ static struct packet *client_change_group(pid_t pid, int handle, const struct pa
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssss", &pkgname, &id, &cluster, &category);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -1518,12 +1519,12 @@ static struct packet *client_change_group(pid_t pid, int handle, const struct pa
 	 * The package has to be a widget package name.
 	 */
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
 	if (instance_client(inst) != client) {
-		ret = WIDGET_STATUS_ERROR_PERMISSION_DENIED;
+		ret = WIDGET_ERROR_PERMISSION_DENIED;
 	} else {
 		ret = instance_change_group(inst, cluster, category);
 	}
@@ -1552,19 +1553,19 @@ static struct packet *client_gbar_mouse_enter(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Invalid parameter\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -1575,7 +1576,7 @@ static struct packet *client_gbar_mouse_enter(pid_t pid, int handle, const struc
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -1584,7 +1585,7 @@ static struct packet *client_gbar_mouse_enter(pid_t pid, int handle, const struc
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -1607,19 +1608,19 @@ static struct packet *client_gbar_mouse_leave(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -1630,7 +1631,7 @@ static struct packet *client_gbar_mouse_leave(pid_t pid, int handle, const struc
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -1639,7 +1640,7 @@ static struct packet *client_gbar_mouse_leave(pid_t pid, int handle, const struc
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -1662,19 +1663,19 @@ static struct packet *client_gbar_mouse_down(pid_t pid, int handle, const struct
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -1685,7 +1686,7 @@ static struct packet *client_gbar_mouse_down(pid_t pid, int handle, const struct
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -1694,7 +1695,7 @@ static struct packet *client_gbar_mouse_down(pid_t pid, int handle, const struct
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -1717,19 +1718,19 @@ static struct packet *client_gbar_mouse_up(pid_t pid, int handle, const struct p
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -1740,7 +1741,7 @@ static struct packet *client_gbar_mouse_up(pid_t pid, int handle, const struct p
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -1749,7 +1750,7 @@ static struct packet *client_gbar_mouse_up(pid_t pid, int handle, const struct p
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -1772,19 +1773,19 @@ static struct packet *client_gbar_mouse_move(pid_t pid, int handle, const struct
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -1795,7 +1796,7 @@ static struct packet *client_gbar_mouse_move(pid_t pid, int handle, const struct
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -1804,7 +1805,7 @@ static struct packet *client_gbar_mouse_move(pid_t pid, int handle, const struct
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -1827,19 +1828,19 @@ static struct packet *client_widget_mouse_move(pid_t pid, int handle, const stru
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -1850,7 +1851,7 @@ static struct packet *client_widget_mouse_move(pid_t pid, int handle, const stru
 
 		script = instance_widget_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -1859,7 +1860,7 @@ static struct packet *client_widget_mouse_move(pid_t pid, int handle, const stru
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -1905,25 +1906,25 @@ static struct packet *client_gbar_key_set(pid_t pid, int handle, const struct pa
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
 	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
 		ret = event_activate(0, 0, key_event_gbar_route_cb, inst);
-		if (ret == WIDGET_STATUS_ERROR_NONE) {
+		if (ret == WIDGET_ERROR_NONE) {
 			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
 			}
@@ -1933,7 +1934,7 @@ static struct packet *client_gbar_key_set(pid_t pid, int handle, const struct pa
 		}
 	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		ret = event_activate(0, 0, key_event_gbar_consume_cb, inst);
-		if (ret == WIDGET_STATUS_ERROR_NONE) {
+		if (ret == WIDGET_ERROR_NONE) {
 			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
 			}
@@ -1943,7 +1944,7 @@ static struct packet *client_gbar_key_set(pid_t pid, int handle, const struct pa
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -1970,19 +1971,19 @@ static struct packet *client_gbar_key_unset(pid_t pid, int handle, const struct 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -2010,7 +2011,7 @@ static struct packet *client_gbar_key_unset(pid_t pid, int handle, const struct 
 		 */
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2037,25 +2038,25 @@ static struct packet *client_widget_key_set(pid_t pid, int handle, const struct 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
 	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
 		ret = event_activate(0, 0, key_event_widget_route_cb, inst);
-		if (ret == WIDGET_STATUS_ERROR_NONE) {
+		if (ret == WIDGET_ERROR_NONE) {
 			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
 			}
@@ -2065,7 +2066,7 @@ static struct packet *client_widget_key_set(pid_t pid, int handle, const struct 
 		}
 	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		ret = event_activate(0, 0, key_event_widget_consume_cb, inst);
-		if (ret == WIDGET_STATUS_ERROR_NONE) {
+		if (ret == WIDGET_ERROR_NONE) {
 			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
 			}
@@ -2075,7 +2076,7 @@ static struct packet *client_widget_key_set(pid_t pid, int handle, const struct 
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2102,19 +2103,19 @@ static struct packet *client_widget_key_unset(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -2142,7 +2143,7 @@ static struct packet *client_widget_key_unset(pid_t pid, int handle, const struc
 		 */
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2169,26 +2170,26 @@ static struct packet *client_widget_mouse_set(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
 	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
 		if (package_direct_input(pkg) == 0 || packet_set_fd((struct packet *)packet, event_input_fd()) < 0) {
 			ret = event_activate(x, y, mouse_event_widget_route_cb, inst);
-			if (ret == WIDGET_STATUS_ERROR_NONE) {
+			if (ret == WIDGET_ERROR_NONE) {
 				if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 					(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
 				}
@@ -2206,12 +2207,12 @@ static struct packet *client_widget_mouse_set(pid_t pid, int handle, const struc
 				ret = slave_rpc_request_only(slave, pkgname, (struct packet *)packet, 0);
 			} else {
 				ErrPrint("Unable to find a slave for %s\n", pkgname);
-				ret = WIDGET_STATUS_ERROR_FAULT;
+				ret = WIDGET_ERROR_FAULT;
 			}
 		}
 	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		ret = event_activate(x, y, mouse_event_widget_consume_cb, inst);
-		if (ret == WIDGET_STATUS_ERROR_NONE) {
+		if (ret == WIDGET_ERROR_NONE) {
 			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
 			}
@@ -2221,7 +2222,7 @@ static struct packet *client_widget_mouse_set(pid_t pid, int handle, const struc
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 out:
 	return NULL;
@@ -2242,19 +2243,19 @@ static struct packet *client_widget_mouse_unset(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -2280,7 +2281,7 @@ static struct packet *client_widget_mouse_unset(pid_t pid, int handle, const str
 				ret = slave_rpc_request_only(slave, pkgname, (struct packet *)packet, 0);
 			} else {
 				ErrPrint("Unable to find a slave for %s\n", pkgname);
-				ret = WIDGET_STATUS_ERROR_FAULT;
+				ret = WIDGET_ERROR_FAULT;
 			}
 		}
 	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
@@ -2296,7 +2297,7 @@ static struct packet *client_widget_mouse_unset(pid_t pid, int handle, const str
 		 */
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 out:
 	return NULL;
@@ -2317,26 +2318,26 @@ static struct packet *client_gbar_mouse_set(pid_t pid, int handle, const struct 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
 	if (package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
 		if (package_direct_input(pkg) == 0 || packet_set_fd((struct packet *)packet, event_input_fd()) < 0) {
 			ret = event_activate(x, y, mouse_event_gbar_route_cb, inst);
-			if (ret == WIDGET_STATUS_ERROR_NONE) {
+			if (ret == WIDGET_ERROR_NONE) {
 				if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 					(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
 				}
@@ -2354,12 +2355,12 @@ static struct packet *client_gbar_mouse_set(pid_t pid, int handle, const struct 
 				ret = slave_rpc_request_only(slave, pkgname, (struct packet *)packet, 0);
 			} else {
 				ErrPrint("Unable to find a slave for %s\n", pkgname);
-				ret = WIDGET_STATUS_ERROR_FAULT;
+				ret = WIDGET_ERROR_FAULT;
 			}
 		}
 	} else if (package_gbar_type(pkg) == GBAR_TYPE_SCRIPT) {
 		ret = event_activate(x, y, mouse_event_gbar_consume_cb, inst);
-		if (ret == WIDGET_STATUS_ERROR_NONE) {
+		if (ret == WIDGET_ERROR_NONE) {
 			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
 			}
@@ -2369,7 +2370,7 @@ static struct packet *client_gbar_mouse_set(pid_t pid, int handle, const struct 
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2391,19 +2392,19 @@ static struct packet *client_widget_mouse_on_scroll(pid_t pid, int handle, const
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -2414,7 +2415,7 @@ static struct packet *client_widget_mouse_on_scroll(pid_t pid, int handle, const
 
 		script = instance_widget_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -2423,7 +2424,7 @@ static struct packet *client_widget_mouse_on_scroll(pid_t pid, int handle, const
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2446,19 +2447,19 @@ static struct packet *client_widget_mouse_off_scroll(pid_t pid, int handle, cons
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -2469,7 +2470,7 @@ static struct packet *client_widget_mouse_off_scroll(pid_t pid, int handle, cons
 
 		script = instance_widget_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -2478,7 +2479,7 @@ static struct packet *client_widget_mouse_off_scroll(pid_t pid, int handle, cons
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2501,19 +2502,19 @@ static struct packet *client_widget_mouse_on_hold(pid_t pid, int handle, const s
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -2524,7 +2525,7 @@ static struct packet *client_widget_mouse_on_hold(pid_t pid, int handle, const s
 
 		script = instance_widget_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -2533,7 +2534,7 @@ static struct packet *client_widget_mouse_on_hold(pid_t pid, int handle, const s
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2556,19 +2557,19 @@ static struct packet *client_widget_mouse_off_hold(pid_t pid, int handle, const 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -2579,7 +2580,7 @@ static struct packet *client_widget_mouse_off_hold(pid_t pid, int handle, const 
 
 		script = instance_widget_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -2588,7 +2589,7 @@ static struct packet *client_widget_mouse_off_hold(pid_t pid, int handle, const 
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2611,19 +2612,19 @@ static struct packet *client_gbar_mouse_on_scroll(pid_t pid, int handle, const s
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -2634,7 +2635,7 @@ static struct packet *client_gbar_mouse_on_scroll(pid_t pid, int handle, const s
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -2643,7 +2644,7 @@ static struct packet *client_gbar_mouse_on_scroll(pid_t pid, int handle, const s
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2666,19 +2667,19 @@ static struct packet *client_gbar_mouse_off_scroll(pid_t pid, int handle, const 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -2689,7 +2690,7 @@ static struct packet *client_gbar_mouse_off_scroll(pid_t pid, int handle, const 
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -2698,7 +2699,7 @@ static struct packet *client_gbar_mouse_off_scroll(pid_t pid, int handle, const 
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2721,19 +2722,19 @@ static struct packet *client_gbar_mouse_on_hold(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -2744,7 +2745,7 @@ static struct packet *client_gbar_mouse_on_hold(pid_t pid, int handle, const str
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -2753,7 +2754,7 @@ static struct packet *client_gbar_mouse_on_hold(pid_t pid, int handle, const str
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2776,19 +2777,19 @@ static struct packet *client_gbar_mouse_off_hold(pid_t pid, int handle, const st
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -2799,7 +2800,7 @@ static struct packet *client_gbar_mouse_off_hold(pid_t pid, int handle, const st
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -2808,7 +2809,7 @@ static struct packet *client_gbar_mouse_off_hold(pid_t pid, int handle, const st
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2831,19 +2832,19 @@ static struct packet *client_gbar_mouse_unset(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -2869,7 +2870,7 @@ static struct packet *client_gbar_mouse_unset(pid_t pid, int handle, const struc
 				ret = slave_rpc_request_only(slave, pkgname, (struct packet *)packet, 0);
 			} else {
 				ErrPrint("Unable to find a slave for %s\n", pkgname);
-				ret = WIDGET_STATUS_ERROR_FAULT;
+				ret = WIDGET_ERROR_FAULT;
 			}
 		}
 	} else if (package_gbar_type(pkg) == GBAR_TYPE_SCRIPT) {
@@ -2885,7 +2886,7 @@ static struct packet *client_gbar_mouse_unset(pid_t pid, int handle, const struc
 		 */
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 out:
 	return NULL;
@@ -2906,19 +2907,19 @@ static struct packet *client_widget_mouse_enter(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -2929,7 +2930,7 @@ static struct packet *client_widget_mouse_enter(pid_t pid, int handle, const str
 
 		script = instance_widget_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -2938,7 +2939,7 @@ static struct packet *client_widget_mouse_enter(pid_t pid, int handle, const str
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -2961,19 +2962,19 @@ static struct packet *client_widget_mouse_leave(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -2984,7 +2985,7 @@ static struct packet *client_widget_mouse_leave(pid_t pid, int handle, const str
 
 		script = instance_widget_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -2993,7 +2994,7 @@ static struct packet *client_widget_mouse_leave(pid_t pid, int handle, const str
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3016,19 +3017,19 @@ static struct packet *client_widget_mouse_down(pid_t pid, int handle, const stru
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3039,7 +3040,7 @@ static struct packet *client_widget_mouse_down(pid_t pid, int handle, const stru
 
 		script = instance_widget_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -3048,7 +3049,7 @@ static struct packet *client_widget_mouse_down(pid_t pid, int handle, const stru
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3071,19 +3072,19 @@ static struct packet *client_widget_mouse_up(pid_t pid, int handle, const struct
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
 	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3094,7 +3095,7 @@ static struct packet *client_widget_mouse_up(pid_t pid, int handle, const struct
 
 		script = instance_widget_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -3103,7 +3104,7 @@ static struct packet *client_widget_mouse_up(pid_t pid, int handle, const struct
 		ret = 0;
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3126,19 +3127,19 @@ static struct packet *client_gbar_access_action(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3149,7 +3150,7 @@ static struct packet *client_gbar_access_action(pid_t pid, int handle, const str
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -3160,7 +3161,7 @@ static struct packet *client_gbar_access_action(pid_t pid, int handle, const str
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3187,19 +3188,19 @@ static struct packet *client_gbar_access_scroll(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3210,7 +3211,7 @@ static struct packet *client_gbar_access_scroll(pid_t pid, int handle, const str
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -3221,7 +3222,7 @@ static struct packet *client_gbar_access_scroll(pid_t pid, int handle, const str
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3248,19 +3249,19 @@ static struct packet *client_gbar_access_value_change(pid_t pid, int handle, con
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3271,7 +3272,7 @@ static struct packet *client_gbar_access_value_change(pid_t pid, int handle, con
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -3282,7 +3283,7 @@ static struct packet *client_gbar_access_value_change(pid_t pid, int handle, con
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3309,19 +3310,19 @@ static struct packet *client_gbar_access_mouse(pid_t pid, int handle, const stru
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3332,7 +3333,7 @@ static struct packet *client_gbar_access_mouse(pid_t pid, int handle, const stru
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -3343,7 +3344,7 @@ static struct packet *client_gbar_access_mouse(pid_t pid, int handle, const stru
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3370,19 +3371,19 @@ static struct packet *client_gbar_access_back(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3393,7 +3394,7 @@ static struct packet *client_gbar_access_back(pid_t pid, int handle, const struc
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -3404,7 +3405,7 @@ static struct packet *client_gbar_access_back(pid_t pid, int handle, const struc
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3431,19 +3432,19 @@ static struct packet *client_gbar_access_over(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3454,7 +3455,7 @@ static struct packet *client_gbar_access_over(pid_t pid, int handle, const struc
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -3465,7 +3466,7 @@ static struct packet *client_gbar_access_over(pid_t pid, int handle, const struc
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3492,19 +3493,19 @@ static struct packet *client_gbar_access_read(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3515,7 +3516,7 @@ static struct packet *client_gbar_access_read(pid_t pid, int handle, const struc
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -3526,7 +3527,7 @@ static struct packet *client_gbar_access_read(pid_t pid, int handle, const struc
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3553,19 +3554,19 @@ static struct packet *client_gbar_access_enable(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3577,7 +3578,7 @@ static struct packet *client_gbar_access_enable(pid_t pid, int handle, const str
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -3590,7 +3591,7 @@ static struct packet *client_gbar_access_enable(pid_t pid, int handle, const str
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3617,19 +3618,19 @@ static struct packet *client_gbar_access_hl(pid_t pid, int handle, const struct 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3641,7 +3642,7 @@ static struct packet *client_gbar_access_hl(pid_t pid, int handle, const struct 
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -3659,7 +3660,7 @@ static struct packet *client_gbar_access_hl(pid_t pid, int handle, const struct 
 			type = WIDGET_SCRIPT_ACCESS_UNHIGHLIGHT;
 			break;
 		default:
-			ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+			ret = WIDGET_ERROR_INVALID_PARAMETER;
 			goto out;
 		}
 
@@ -3670,7 +3671,7 @@ static struct packet *client_gbar_access_hl(pid_t pid, int handle, const struct 
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3697,19 +3698,19 @@ static struct packet *client_gbar_access_activate(pid_t pid, int handle, const s
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3720,7 +3721,7 @@ static struct packet *client_gbar_access_activate(pid_t pid, int handle, const s
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -3731,7 +3732,7 @@ static struct packet *client_gbar_access_activate(pid_t pid, int handle, const s
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3758,19 +3759,19 @@ static struct packet *client_gbar_key_focus_in(pid_t pid, int handle, const stru
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Invalid parameter\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3781,7 +3782,7 @@ static struct packet *client_gbar_key_focus_in(pid_t pid, int handle, const stru
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -3792,7 +3793,7 @@ static struct packet *client_gbar_key_focus_in(pid_t pid, int handle, const stru
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3819,19 +3820,19 @@ static struct packet *client_gbar_key_focus_out(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Invalid parameter\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3842,7 +3843,7 @@ static struct packet *client_gbar_key_focus_out(pid_t pid, int handle, const str
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -3853,7 +3854,7 @@ static struct packet *client_gbar_key_focus_out(pid_t pid, int handle, const str
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3880,19 +3881,19 @@ static struct packet *client_gbar_key_down(pid_t pid, int handle, const struct p
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Invalid parameter\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -3903,7 +3904,7 @@ static struct packet *client_gbar_key_down(pid_t pid, int handle, const struct p
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -3914,7 +3915,7 @@ static struct packet *client_gbar_key_down(pid_t pid, int handle, const struct p
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -3935,14 +3936,14 @@ static struct packet *client_pause_request(pid_t pid, int handle, const struct p
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is paused - manually reported\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "d", &timestamp);
 	if (ret != 1) {
 		ErrPrint("Invalid parameter\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -3999,19 +4000,19 @@ static struct packet *client_gbar_key_up(pid_t pid, int handle, const struct pac
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Invalid parameter\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -4022,7 +4023,7 @@ static struct packet *client_gbar_key_up(pid_t pid, int handle, const struct pac
 
 		script = instance_gbar_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -4033,7 +4034,7 @@ static struct packet *client_gbar_key_up(pid_t pid, int handle, const struct pac
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4060,19 +4061,19 @@ static struct packet *client_widget_access_hl(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -4084,7 +4085,7 @@ static struct packet *client_widget_access_hl(pid_t pid, int handle, const struc
 
 		script = instance_widget_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -4102,7 +4103,7 @@ static struct packet *client_widget_access_hl(pid_t pid, int handle, const struc
 			type = WIDGET_SCRIPT_ACCESS_UNHIGHLIGHT;
 			break;
 		default:
-			ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+			ret = WIDGET_ERROR_INVALID_PARAMETER;
 			goto out;
 		}
 
@@ -4113,7 +4114,7 @@ static struct packet *client_widget_access_hl(pid_t pid, int handle, const struc
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4140,19 +4141,19 @@ static struct packet *client_widget_access_action(pid_t pid, int handle, const s
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exist\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -4169,7 +4170,7 @@ static struct packet *client_widget_access_action(pid_t pid, int handle, const s
 		script = instance_widget_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -4180,7 +4181,7 @@ static struct packet *client_widget_access_action(pid_t pid, int handle, const s
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4207,19 +4208,19 @@ static struct packet *client_widget_access_scroll(pid_t pid, int handle, const s
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exist\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -4236,7 +4237,7 @@ static struct packet *client_widget_access_scroll(pid_t pid, int handle, const s
 		script = instance_widget_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -4247,7 +4248,7 @@ static struct packet *client_widget_access_scroll(pid_t pid, int handle, const s
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4274,19 +4275,19 @@ static struct packet *client_widget_access_value_change(pid_t pid, int handle, c
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exist\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -4303,7 +4304,7 @@ static struct packet *client_widget_access_value_change(pid_t pid, int handle, c
 		script = instance_widget_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -4314,7 +4315,7 @@ static struct packet *client_widget_access_value_change(pid_t pid, int handle, c
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4341,19 +4342,19 @@ static struct packet *client_widget_access_mouse(pid_t pid, int handle, const st
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exist\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -4370,7 +4371,7 @@ static struct packet *client_widget_access_mouse(pid_t pid, int handle, const st
 		script = instance_widget_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -4381,7 +4382,7 @@ static struct packet *client_widget_access_mouse(pid_t pid, int handle, const st
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4408,19 +4409,19 @@ static struct packet *client_widget_access_back(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exist\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -4437,7 +4438,7 @@ static struct packet *client_widget_access_back(pid_t pid, int handle, const str
 		script = instance_widget_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -4448,7 +4449,7 @@ static struct packet *client_widget_access_back(pid_t pid, int handle, const str
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4475,19 +4476,19 @@ static struct packet *client_widget_access_over(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exist\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -4504,7 +4505,7 @@ static struct packet *client_widget_access_over(pid_t pid, int handle, const str
 		script = instance_widget_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -4515,7 +4516,7 @@ static struct packet *client_widget_access_over(pid_t pid, int handle, const str
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4542,19 +4543,19 @@ static struct packet *client_widget_access_read(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exist\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -4571,7 +4572,7 @@ static struct packet *client_widget_access_read(pid_t pid, int handle, const str
 		script = instance_widget_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -4582,7 +4583,7 @@ static struct packet *client_widget_access_read(pid_t pid, int handle, const str
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4609,19 +4610,19 @@ static struct packet *client_widget_access_enable(pid_t pid, int handle, const s
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exist\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -4639,7 +4640,7 @@ static struct packet *client_widget_access_enable(pid_t pid, int handle, const s
 		script = instance_widget_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -4652,7 +4653,7 @@ static struct packet *client_widget_access_enable(pid_t pid, int handle, const s
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4679,19 +4680,19 @@ static struct packet *client_widget_access_activate(pid_t pid, int handle, const
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &event.x, &event.y, &event.type);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -4703,7 +4704,7 @@ static struct packet *client_widget_access_activate(pid_t pid, int handle, const
 		script = instance_widget_script(inst);
 		if (!script) {
 			ErrPrint("Instance has no script\n");
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -4714,7 +4715,7 @@ static struct packet *client_widget_access_activate(pid_t pid, int handle, const
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4741,19 +4742,19 @@ static struct packet *client_widget_key_down(pid_t pid, int handle, const struct
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -4764,7 +4765,7 @@ static struct packet *client_widget_key_down(pid_t pid, int handle, const struct
 
 		script = instance_widget_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -4775,7 +4776,7 @@ static struct packet *client_widget_key_down(pid_t pid, int handle, const struct
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4802,19 +4803,19 @@ static struct packet *client_widget_key_focus_in(pid_t pid, int handle, const st
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -4825,7 +4826,7 @@ static struct packet *client_widget_key_focus_in(pid_t pid, int handle, const st
 
 		script = instance_widget_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -4836,7 +4837,7 @@ static struct packet *client_widget_key_focus_in(pid_t pid, int handle, const st
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4863,19 +4864,19 @@ static struct packet *client_widget_key_focus_out(pid_t pid, int handle, const s
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -4886,7 +4887,7 @@ static struct packet *client_widget_key_focus_out(pid_t pid, int handle, const s
 
 		script = instance_widget_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -4897,7 +4898,7 @@ static struct packet *client_widget_key_focus_out(pid_t pid, int handle, const s
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4924,19 +4925,19 @@ static struct packet *client_widget_key_up(pid_t pid, int handle, const struct p
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -4947,7 +4948,7 @@ static struct packet *client_widget_key_up(pid_t pid, int handle, const struct p
 
 		script = instance_widget_script(inst);
 		if (!script) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
@@ -4958,7 +4959,7 @@ static struct packet *client_widget_key_up(pid_t pid, int handle, const struct p
 		}
 	} else {
 		ErrPrint("Unsupported package\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -4993,25 +4994,25 @@ static struct packet *client_widget_acquire_xpixmap(pid_t pid, int handle, const
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssi", &pkgname, &id, &idx);
 	if (ret != 3) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	if (idx >= WIDGET_CONF_EXTRA_BUFFER_COUNT || idx < 0) {
 		DbgPrint("Index is not valid: %d\n", idx);
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -5024,7 +5025,7 @@ static struct packet *client_widget_acquire_xpixmap(pid_t pid, int handle, const
 	buf_ptr = buffer_handler_pixmap_ref(buffer);
 	if (!buf_ptr) {
 		ErrPrint("Failed to ref pixmap\n");
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
@@ -5034,7 +5035,7 @@ static struct packet *client_widget_acquire_xpixmap(pid_t pid, int handle, const
 		buffer_handler_pixmap_unref(buf_ptr);
 	} else {
 		pixmap = buffer_handler_pixmap(buffer);
-		ret = WIDGET_STATUS_ERROR_NONE;
+		ret = WIDGET_ERROR_NONE;
 	}
 
 out:
@@ -5061,19 +5062,19 @@ static struct packet *client_widget_acquire_pixmap(pid_t pid, int handle, const 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ss", &pkgname, &id);
 	if (ret != 2) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -5084,14 +5085,14 @@ static struct packet *client_widget_acquire_pixmap(pid_t pid, int handle, const 
 		script_info = instance_widget_script(inst);
 		if (!script_info) {
 			ErrPrint("Unable to get WIDGET buffer: %s\n", id);
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
 		buffer = script_handler_buffer_info(script_info);
 		if (!buffer) {
 			ErrPrint("Unable to get buffer_info: %s\n", id);
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 	}
@@ -5099,7 +5100,7 @@ static struct packet *client_widget_acquire_pixmap(pid_t pid, int handle, const 
 	buf_ptr = buffer_handler_pixmap_ref(buffer);
 	if (!buf_ptr) {
 		ErrPrint("Failed to ref pixmap\n");
-		ret = WIDGET_STATUS_ERROR_FAULT;
+		ret = WIDGET_ERROR_FAULT;
 		goto out;
 	}
 
@@ -5109,7 +5110,7 @@ static struct packet *client_widget_acquire_pixmap(pid_t pid, int handle, const 
 		buffer_handler_pixmap_unref(buf_ptr);
 	} else {
 		pixmap = buffer_handler_pixmap(buffer);
-		ret = WIDGET_STATUS_ERROR_NONE;
+		ret = WIDGET_ERROR_NONE;
 	}
 
 out:
@@ -5143,7 +5144,7 @@ static struct packet *client_widget_release_pixmap(pid_t pid, int handle, const 
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, NULL, NULL);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		DbgPrint("It seems that the instance is already deleted: %s\n", id);
 	}
 
@@ -5179,38 +5180,38 @@ static struct packet *client_gbar_acquire_xpixmap(pid_t pid, int handle, const s
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		ErrPrint("Client %d is not exists\n", pid);
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssi", &pkgname, &id, &idx);
 	if (ret != 3) {
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		ErrPrint("Parameter is not matched\n");
 		goto out;
 	}
 
 	if (idx >= WIDGET_CONF_EXTRA_BUFFER_COUNT || idx < 0) {
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
 	buffer = instance_gbar_extra_buffer(inst, idx);
 	if (!buffer) {
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	buf_ptr = buffer_handler_pixmap_ref(buffer);
 	if (!buf_ptr) {
 		ErrPrint("Failed to ref pixmap\n");
-		ret = WIDGET_STATUS_ERROR_FAULT;
+		ret = WIDGET_ERROR_FAULT;
 		goto out;
 	}
 
@@ -5220,7 +5221,7 @@ static struct packet *client_gbar_acquire_xpixmap(pid_t pid, int handle, const s
 		buffer_handler_pixmap_unref(buf_ptr);
 	} else {
 		pixmap = buffer_handler_pixmap(buffer);
-		ret = WIDGET_STATUS_ERROR_NONE;
+		ret = WIDGET_ERROR_NONE;
 	}
 
 out:
@@ -5246,25 +5247,25 @@ static struct packet *client_gbar_acquire_pixmap(pid_t pid, int handle, const st
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		ErrPrint("Client %d is not exists\n", pid);
 		goto out;
 	}
 
 	ret = packet_get(packet, "ss", &pkgname, &id);
 	if (ret != 2) {
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		ErrPrint("Parameter is not matched\n");
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
 	if (instance_get_data(inst, GBAR_RESIZE_MONITOR_TAG)) {
-		ret = WIDGET_STATUS_ERROR_BUSY;
+		ret = WIDGET_ERROR_RESOURCE_BUSY;
 		goto out;
 	}
 
@@ -5275,14 +5276,14 @@ static struct packet *client_gbar_acquire_pixmap(pid_t pid, int handle, const st
 		script_info = instance_gbar_script(inst);
 		if (!script_info) {
 			ErrPrint("Unable to get WIDGET buffer: %s\n", id);
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
 		buffer = script_handler_buffer_info(script_info);
 		if (!buffer) {
 			ErrPrint("Unable to get buffer_info: %s\n", id);
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 	}
@@ -5290,7 +5291,7 @@ static struct packet *client_gbar_acquire_pixmap(pid_t pid, int handle, const st
 	buf_ptr = buffer_handler_pixmap_ref(buffer);
 	if (!buf_ptr) {
 		ErrPrint("Failed to ref pixmap\n");
-		ret = WIDGET_STATUS_ERROR_FAULT;
+		ret = WIDGET_ERROR_FAULT;
 		goto out;
 	}
 
@@ -5300,7 +5301,7 @@ static struct packet *client_gbar_acquire_pixmap(pid_t pid, int handle, const st
 		buffer_handler_pixmap_unref(buf_ptr);
 	} else {
 		pixmap = buffer_handler_pixmap(buffer);
-		ret = WIDGET_STATUS_ERROR_NONE;
+		ret = WIDGET_ERROR_NONE;
 	}
 
 out:
@@ -5334,7 +5335,7 @@ static struct packet *client_gbar_release_pixmap(pid_t pid, int handle, const st
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, NULL, NULL);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		DbgPrint("It seems that the instance is already deleted: %s\n", id);
 	}
 
@@ -5366,7 +5367,7 @@ static struct packet *client_pinup_changed(pid_t pid, int handle, const struct p
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		pinup = 0;
 		goto out;
 	}
@@ -5374,13 +5375,13 @@ static struct packet *client_pinup_changed(pid_t pid, int handle, const struct p
 	ret = packet_get(packet, "ssi", &pkgname, &id, &pinup);
 	if (ret != 3) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		pinup = 0;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_ERROR_NONE) {
 		ret = instance_set_pinup(inst, pinup);
 	}
 
@@ -5418,7 +5419,7 @@ static Eina_Bool lazy_gbar_created_cb(void *inst)
 	 */
 	if (instance_unref(inst)) {
 		int ret;
-		ret = instance_client_gbar_created(inst, WIDGET_STATUS_ERROR_NONE);
+		ret = instance_client_gbar_created(inst, WIDGET_ERROR_NONE);
 		if (ret < 0) {
 			DbgPrint("Send GBAR Create event (%d) to client\n", ret);
 		}
@@ -5457,7 +5458,7 @@ static Eina_Bool lazy_gbar_destroyed_cb(void *inst)
 		/*!
 		 * If the instance is not deleted, we should send pd-destroy event from here.
 		 */
-		ret = instance_client_gbar_destroyed(inst, WIDGET_STATUS_ERROR_NONE);
+		ret = instance_client_gbar_destroyed(inst, WIDGET_ERROR_NONE);
 		if (ret < 0) {
 			ErrPrint("Failed sending GBAR Destroy event (%d)\n", ret);
 		}
@@ -5480,19 +5481,19 @@ static struct packet *client_gbar_move(pid_t pid, int handle, const struct packe
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdd", &pkgname, &id, &x, &y);
 	if (ret != 4) {
 		ErrPrint("Parameter is not correct\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -5510,7 +5511,7 @@ static struct packet *client_gbar_move(pid_t pid, int handle, const struct packe
 		ret = instance_signal_emit(inst, "pd,move", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
 	} else {
 		ErrPrint("Invalid GBAR type\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 out:
 	DbgPrint("Update GBAR position: %d\n", ret);
@@ -5532,7 +5533,7 @@ static Eina_Bool gbar_open_monitor_cb(void *inst)
 	}
 
 	(void)instance_slave_close_gbar(inst, instance_gbar_owner(inst), WIDGET_CLOSE_GBAR_TIMEOUT);
-	(void)instance_client_gbar_created(inst, WIDGET_STATUS_ERROR_TIMEOUT);
+	(void)instance_client_gbar_created(inst, WIDGET_ERROR_TIMED_OUT);
 	(void)instance_del_data(inst, GBAR_OPEN_MONITOR_TAG);
 	(void)instance_unref(inst);
 	ErrPrint("GBAR Open request is timed-out (%lf)\n", WIDGET_CONF_GBAR_REQUEST_TIMEOUT);
@@ -5553,7 +5554,7 @@ static Eina_Bool gbar_close_monitor_cb(void *inst)
 		}
 	}
 
-	(void)instance_client_gbar_destroyed(inst, WIDGET_STATUS_ERROR_TIMEOUT);
+	(void)instance_client_gbar_destroyed(inst, WIDGET_ERROR_TIMED_OUT);
 	(void)instance_del_data(inst, GBAR_CLOSE_MONITOR_TAG);
 	(void)instance_unref(inst);
 	ErrPrint("GBAR Close request is not processed in %lf seconds\n", WIDGET_CONF_GBAR_REQUEST_TIMEOUT);
@@ -5574,7 +5575,7 @@ static Eina_Bool gbar_resize_monitor_cb(void *inst)
 	}
 
 	(void)instance_slave_close_gbar(inst, instance_gbar_owner(inst), WIDGET_CLOSE_GBAR_TIMEOUT);
-	(void)instance_client_gbar_destroyed(inst, WIDGET_STATUS_ERROR_TIMEOUT);
+	(void)instance_client_gbar_destroyed(inst, WIDGET_ERROR_TIMED_OUT);
 	(void)instance_del_data(inst, GBAR_RESIZE_MONITOR_TAG);
 	(void)instance_unref(inst);
 	ErrPrint("GBAR Resize request is not processed in %lf seconds\n", WIDGET_CONF_GBAR_REQUEST_TIMEOUT);
@@ -5599,25 +5600,25 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ssdd", &pkgname, &id, &x, &y);
 	if (ret != 4) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
 	if (instance_gbar_owner(inst)) {
 		ErrPrint("GBAR is already owned\n");
-		ret = WIDGET_STATUS_ERROR_ALREADY;
+		ret = WIDGET_ERROR_ALREADY_EXIST;
 	} else if (package_gbar_type(instance_package(inst)) == GBAR_TYPE_BUFFER) {
 		gbar_monitor = instance_get_data(inst, LAZY_GBAR_CLOSE_TAG);
 		if (gbar_monitor) {
@@ -5628,19 +5629,19 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 
 		if (instance_get_data(inst, GBAR_OPEN_MONITOR_TAG)) {
 			DbgPrint("GBAR Open request is already processed\n");
-			ret = WIDGET_STATUS_ERROR_ALREADY;
+			ret = WIDGET_ERROR_ALREADY_EXIST;
 			goto out;
 		}
 
 		if (instance_get_data(inst, GBAR_CLOSE_MONITOR_TAG)) {
 			DbgPrint("GBAR Close request is already in process\n");
-			ret = WIDGET_STATUS_ERROR_BUSY;
+			ret = WIDGET_ERROR_RESOURCE_BUSY;
 			goto out;
 		}
 
 		if (instance_get_data(inst, GBAR_RESIZE_MONITOR_TAG)) {
 			DbgPrint("GBAR resize request is already in process\n");
-			ret = WIDGET_STATUS_ERROR_BUSY;
+			ret = WIDGET_ERROR_RESOURCE_BUSY;
 			goto out;
 		}
 
@@ -5651,9 +5652,9 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 		 * The SLAVE must has to repsonse this via "release_buffer" method.
 		 */
 		ret = instance_slave_open_gbar(inst, client);
-		if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+		if (ret == (int)WIDGET_ERROR_NONE) {
 			ret = instance_signal_emit(inst, "gbar,show", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
-			if (ret != WIDGET_STATUS_ERROR_NONE) {
+			if (ret != WIDGET_ERROR_NONE) {
 				int tmp_ret;
 
 				tmp_ret = instance_slave_close_gbar(inst, client, WIDGET_CLOSE_GBAR_FAULT);
@@ -5676,7 +5677,7 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 						goto out;
 					}
 
-					if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_open_buffer_cb, inst) != WIDGET_STATUS_ERROR_NONE) {
+					if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_open_buffer_cb, inst) != WIDGET_ERROR_NONE) {
 						ErrPrint("Failed to add fault handler: %s\n");
 					}
 				}
@@ -5720,14 +5721,14 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 		script_handler_update_pointer(instance_gbar_script(inst), ix, iy, 0);
 
 		ret = instance_slave_open_gbar(inst, client);
-		if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+		if (ret == (int)WIDGET_ERROR_NONE) {
 			ret = script_handler_load(instance_gbar_script(inst), 1);
 
 			/*!
 			 * \note
 			 * Send the GBAR created event to the clients,
 			 */
-			if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+			if (ret == (int)WIDGET_ERROR_NONE) {
 
 				/*!
 				 * \note
@@ -5764,7 +5765,7 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 
 					ErrPrint("Instance: %s\n", pkgname);
 
-					ret = WIDGET_STATUS_ERROR_FAULT;
+					ret = WIDGET_ERROR_FAULT;
 				} else {
 					struct slave_node *slave;
 
@@ -5776,7 +5777,7 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 						goto out;
 					}
 
-					if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_open_script_cb, inst) != WIDGET_STATUS_ERROR_NONE) {
+					if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_open_script_cb, inst) != WIDGET_ERROR_NONE) {
 						ErrPrint("Failed to add fault callback: %s\n", pkgname);
 					}
 				}
@@ -5792,7 +5793,7 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 		}
 	} else {
 		ErrPrint("Invalid GBAR TYPE\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -5821,35 +5822,35 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ss", &pkgname, &id);
 	if (ret != 2) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
 	slave = package_slave(pkg);
 	if (!slave) {
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	if (instance_gbar_owner(inst) != client) {
 		if (instance_gbar_owner(inst) == NULL) {
 			ErrPrint("GBAR looks already closed\n");
-			ret = WIDGET_STATUS_ERROR_ALREADY;
+			ret = WIDGET_ERROR_ALREADY_STARTED;
 		} else {
 			ErrPrint("GBAR owner mimatched\n");
-			ret = WIDGET_STATUS_ERROR_PERMISSION_DENIED;
+			ret = WIDGET_ERROR_PERMISSION_DENIED;
 		}
 	} else if (package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
 		DbgPrint("Buffer type GBAR\n");
@@ -5869,12 +5870,12 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 			 * The client will permanently waiting destroyed event.
 			 * Because they understand that the destroy request is successfully processed.
 			 */
-			ret = instance_client_gbar_created(inst, WIDGET_STATUS_ERROR_CANCEL);
+			ret = instance_client_gbar_created(inst, WIDGET_ERROR_CANCELED);
 			if (ret < 0) {
 				ErrPrint("GBAR client create event: %d\n", ret);
 			}
 
-			ret = instance_client_gbar_destroyed(inst, WIDGET_STATUS_ERROR_NONE);
+			ret = instance_client_gbar_destroyed(inst, WIDGET_ERROR_NONE);
 			if (ret < 0) {
 				ErrPrint("GBAR client destroy event: %d\n", ret);
 			}
@@ -5896,7 +5897,7 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 			}
 		} else if (instance_get_data(inst, LAZY_GBAR_CLOSE_TAG) || instance_get_data(inst, GBAR_CLOSE_MONITOR_TAG)) {
 			DbgPrint("Close monitor is already fired\n");
-			ret = WIDGET_STATUS_ERROR_ALREADY;
+			ret = WIDGET_ERROR_ALREADY_STARTED;
 		} else {
 			int resize_aborted = 0;
 
@@ -5963,7 +5964,7 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 			 * release_buffer will be called by the slave after this routine.
 			 * It will send the "gbar_destroyed" event to the client
 			 *
-			 * instance_client_gbar_destroyed(inst, WIDGET_STATUS_ERROR_NONE);
+			 * instance_client_gbar_destroyed(inst, WIDGET_ERROR_NONE);
 			 *
 			 * Or the "gbar_close_monitor_cb" or "lazy_gbar_destroyed_cb" will be called.
 			 */
@@ -5995,7 +5996,7 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 		 * \note
 		 * Send the destroyed GBAR event to the client
 		 */
-		if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+		if (ret == (int)WIDGET_ERROR_NONE) {
 			/*!
 			 * \note
 			 * 13-05-28
@@ -6020,7 +6021,7 @@ static struct packet *client_destroy_gbar(pid_t pid, int handle, const struct pa
 		}
 	} else {
 		ErrPrint("Invalid GBAR TYPE\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 out:
@@ -6043,7 +6044,7 @@ static struct packet *client_activate_package(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		pkgname = "";
 		goto out;
 	}
@@ -6051,7 +6052,7 @@ static struct packet *client_activate_package(pid_t pid, int handle, const struc
 	ret = packet_get(packet, "s", &pkgname);
 	if (ret != 1) {
 		ErrPrint("Parameter is not matched\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		pkgname = "";
 		goto out;
 	}
@@ -6065,13 +6066,13 @@ static struct packet *client_activate_package(pid_t pid, int handle, const struc
 	if (!package_is_widget_pkgname(pkgname)) {
 		ErrPrint("%s is not a valid widget package\n", pkgname);
 		pkgname = "";
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	info = package_find(pkgname);
 	if (!info) {
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 	} else {
 		ret = package_clear_fault(info);
 	}
@@ -6095,14 +6096,14 @@ static struct packet *client_subscribed_group(pid_t pid, int handle, const struc
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ss", &cluster, &category);
 	if (ret != 2) {
 		ErrPrint("Invalid argument\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -6136,14 +6137,14 @@ static struct packet *client_delete_cluster(pid_t pid, int handle, const struct 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "s", &cluster);
 	if (ret != 1) {
 		ErrPrint("Invalid parameters\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -6151,14 +6152,14 @@ static struct packet *client_delete_cluster(pid_t pid, int handle, const struct 
 
 	if (!strlen(cluster) || !strcasecmp(cluster, WIDGET_CONF_DEFAULT_CLUSTER)) {
 		ErrPrint("Invalid cluster: %s\n", cluster);
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	/*!
 	 * \todo
 	 */
-	ret = WIDGET_STATUS_ERROR_NOT_IMPLEMENTED;
+	ret = WIDGET_ERROR_NOT_SUPPORTED;
 
 out:
 	result = packet_create_reply(packet, "i", ret);
@@ -6228,7 +6229,7 @@ static struct packet *client_update(pid_t pid, int handle, const struct packet *
 	}
 
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -6309,28 +6310,28 @@ static struct packet *client_delete_category(pid_t pid, int handle, const struct
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ss", &cluster, &category);
 	if (ret != 2) {
 		ErrPrint("Invalid paramenters\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	DbgPrint("pid[%d] cluster[%s] category[%s]\n", pid, cluster, category);
 	if (!strlen(cluster) || !strcasecmp(cluster, WIDGET_CONF_DEFAULT_CLUSTER)) {
 		ErrPrint("Invalid cluster: %s\n", cluster);
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	/*!
 	 * \todo
 	 */
-	ret = WIDGET_STATUS_ERROR_NOT_IMPLEMENTED;
+	ret = WIDGET_ERROR_NOT_SUPPORTED;
 
 out:
 	result = packet_create_reply(packet, "i", ret);
@@ -6351,14 +6352,14 @@ static struct packet *client_unsubscribed_group(pid_t pid, int handle, const str
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "ss", &cluster, &category);
 	if (ret != 2) {
 		ErrPrint("Invalid argument\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -6392,14 +6393,14 @@ static struct packet *client_subscribed_category(pid_t pid, int handle, const st
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "s", &category);
 	if (ret != 1) {
 		ErrPrint("Invalid argument\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -6415,7 +6416,7 @@ static struct packet *client_subscribed_category(pid_t pid, int handle, const st
 	 * 2. Send created events to the client.
 	 * 3. Add this client to "client_only_view_list"
 	 */
-	if (client_subscribe_category(client, category) == WIDGET_STATUS_ERROR_NONE) {
+	if (client_subscribe_category(client, category) == WIDGET_ERROR_NONE) {
 		package_alter_instances_to_client(client, ALTER_CREATE);
 	}
 
@@ -6433,14 +6434,14 @@ static struct packet *client_unsubscribed_category(pid_t pid, int handle, const 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
 		ErrPrint("Client %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	ret = packet_get(packet, "s", &category);
 	if (ret != 1) {
 		ErrPrint("Invalid argument\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -6457,7 +6458,7 @@ static struct packet *client_unsubscribed_category(pid_t pid, int handle, const 
 	 * 2. and then send destroyed event to this client.
 	 * 3. Remove this client from the "client_only_view_list"
 	 */
-	if (client_unsubscribe_category(client, category) == WIDGET_STATUS_ERROR_NONE) {
+	if (client_unsubscribe_category(client, category) == WIDGET_ERROR_NONE) {
 		package_alter_instances_to_client(client, ALTER_DESTROY);
 	}
 
@@ -6707,7 +6708,7 @@ static struct packet *slave_widget_update_begin(pid_t pid, int handle, const str
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -6718,7 +6719,7 @@ static struct packet *slave_widget_update_begin(pid_t pid, int handle, const str
 
 	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
 		ret = instance_widget_update_begin(inst, priority, content, title);
-		if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+		if (ret == (int)WIDGET_ERROR_NONE) {
 			slave_freeze_ttl(slave);
 		}
 	} else {
@@ -6751,7 +6752,7 @@ static struct packet *slave_widget_update_end(pid_t pid, int handle, const struc
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -6762,7 +6763,7 @@ static struct packet *slave_widget_update_end(pid_t pid, int handle, const struc
 
 	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
 		ret = instance_widget_update_end(inst);
-		if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+		if (ret == (int)WIDGET_ERROR_NONE) {
 			slave_thaw_ttl(slave);
 		}
 	} else {
@@ -6795,7 +6796,7 @@ static struct packet *slave_gbar_update_begin(pid_t pid, int handle, const struc
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -6836,7 +6837,7 @@ static struct packet *slave_key_status(pid_t pid, int handle, const struct packe
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
-	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_ERROR_NONE) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
 		} else {
@@ -6870,7 +6871,7 @@ static struct packet *slave_access_status(pid_t pid, int handle, const struct pa
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
-	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_ERROR_NONE) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
 		} else {
@@ -6904,7 +6905,7 @@ static struct packet *slave_close_gbar(pid_t pid, int handle, const struct packe
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
-	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_ERROR_NONE) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
 		} else {
@@ -6938,7 +6939,7 @@ static struct packet *slave_gbar_update_end(pid_t pid, int handle, const struct 
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -7037,7 +7038,7 @@ static struct packet *slave_extra_info(pid_t pid, int handle, const struct packe
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
-	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_ERROR_NONE) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
 			goto out;
@@ -7079,7 +7080,7 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
-	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_ERROR_NONE) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
 			goto out;
@@ -7138,7 +7139,7 @@ static struct packet *slave_hold_scroll(pid_t pid, int handle, const struct pack
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
-	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+	if (ret == (int)WIDGET_ERROR_NONE) {
 		if (instance_state(inst) == INST_DESTROYED) {
 			ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
 		} else {
@@ -7177,7 +7178,7 @@ static struct packet *slave_extra_updated(pid_t pid, int handle, const struct pa
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -7217,7 +7218,7 @@ static struct packet *slave_desc_updated(pid_t pid, int handle, const struct pac
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
@@ -7268,8 +7269,8 @@ static struct packet *slave_deleted(pid_t pid, int handle, const struct packet *
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, NULL);
-	if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
-		ret = instance_destroyed(inst, WIDGET_STATUS_ERROR_NONE);
+	if (ret == (int)WIDGET_ERROR_NONE) {
+		ret = instance_destroyed(inst, WIDGET_ERROR_NONE);
 	}
 
 out:
@@ -7297,7 +7298,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 	if (!slave) {
 		ErrPrint("Failed to find a slave\n");
 		id = "";
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
@@ -7305,18 +7306,18 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 	if (ret != 6) {
 		ErrPrint("Invalid argument\n");
 		id = "";
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
 	id = "";
 
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
-	ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+	ret = WIDGET_ERROR_INVALID_PARAMETER;
 
 	if (instance_state(inst) == INST_DESTROYED) {
 		ErrPrint("Package[%s] instance is already destroyed\n", package_name(pkg));
@@ -7330,7 +7331,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 		if (!info) {
 			if (!instance_create_widget_buffer(inst, pixel_size)) {
 				ErrPrint("Failed to create a WIDGET buffer\n");
-				ret = WIDGET_STATUS_ERROR_FAULT;
+				ret = WIDGET_ERROR_FAULT;
 				goto out;
 			}
 
@@ -7386,7 +7387,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 		if (!info) {
 			if (!instance_create_gbar_buffer(inst, pixel_size)) {
 				ErrPrint("Failed to create a GBAR buffer\n");
-				ret = WIDGET_STATUS_ERROR_FAULT;
+				ret = WIDGET_ERROR_FAULT;
 				instance_client_gbar_created(inst, ret);
 				goto out;
 			}
@@ -7447,7 +7448,7 @@ static struct packet *slave_acquire_extra_buffer(pid_t pid, int handle, const st
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
 		ErrPrint("Slave %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		id = "";
 		goto out;
 	}
@@ -7455,7 +7456,7 @@ static struct packet *slave_acquire_extra_buffer(pid_t pid, int handle, const st
 	ret = packet_get(packet, "issiiii", &target, &pkgname, &id, &w, &h, &pixel_size, &idx);
 	if (ret != 7) {
 		ErrPrint("Invalid parameters\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		id = "";
 		goto out;
 	}
@@ -7463,11 +7464,11 @@ static struct packet *slave_acquire_extra_buffer(pid_t pid, int handle, const st
 	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
 	id = "";
 
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
-	ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+	ret = WIDGET_ERROR_INVALID_PARAMETER;
 
 	if (instance_state(inst) == INST_DESTROYED) {
 		ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
@@ -7481,7 +7482,7 @@ static struct packet *slave_acquire_extra_buffer(pid_t pid, int handle, const st
 		if (!info) {
 			if (!instance_create_widget_extra_buffer(inst, pixel_size, idx)) {
 				ErrPrint("Failed to create a WIDGET buffer\n");
-				ret = WIDGET_STATUS_ERROR_FAULT;
+				ret = WIDGET_ERROR_FAULT;
 				goto out;
 			}
 
@@ -7517,7 +7518,7 @@ static struct packet *slave_acquire_extra_buffer(pid_t pid, int handle, const st
 		if (!info) {
 			if (!instance_create_gbar_extra_buffer(inst, pixel_size, idx)) {
 				ErrPrint("Failed to create a GBAR buffer\n");
-				ret = WIDGET_STATUS_ERROR_FAULT;
+				ret = WIDGET_ERROR_FAULT;
 				goto out;
 			}
 
@@ -7572,7 +7573,7 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
 		ErrPrint("Failed to find a slave\n");
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		id = "";
 		goto out;
 	}
@@ -7580,7 +7581,7 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 	ret = packet_get(packet, "issii", &type, &pkgname, &id, &w, &h);
 	if (ret != 5) {
 		ErrPrint("Invalid argument\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		id = "";
 		goto out;
 	}
@@ -7588,11 +7589,11 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
 	id = "";
 
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
-	ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+	ret = WIDGET_ERROR_INVALID_PARAMETER;
 	/*!
 	 * \note
 	 * Reset "id", It will be re-used from here
@@ -7616,7 +7617,7 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 		 * \note
 		 * id is resued for newly assigned ID
 		 */
-		if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+		if (ret == (int)WIDGET_ERROR_NONE) {
 			id = buffer_handler_id(info);
 			instance_set_widget_size(inst, w, h);
 			instance_set_widget_info(inst, WIDGET_CONF_PRIORITY_NO_CHANGE, WIDGET_CONF_CONTENT_NO_CHANGE, WIDGET_CONF_TITLE_NO_CHANGE);
@@ -7634,7 +7635,7 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 		 * \note
 		 * id is resued for newly assigned ID
 		 */
-		if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+		if (ret == (int)WIDGET_ERROR_NONE) {
 			id = buffer_handler_id(info);
 			instance_set_gbar_size(inst, w, h);
 		}
@@ -7663,22 +7664,22 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
 		ErrPrint("Failed to find a slave\n");
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	if (packet_get(packet, "iss", &type, &pkgname, &id) != 3) {
 		ErrPrint("Inavlid argument\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
-	ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+	ret = WIDGET_ERROR_INVALID_PARAMETER;
 
 	if (type == TYPE_WIDGET && package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
 		struct buffer_info *info;
@@ -7722,7 +7723,7 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 			info = instance_gbar_buffer(inst);
 			ret = buffer_handler_unload(info);
 
-			if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+			if (ret == (int)WIDGET_ERROR_NONE) {
 				gbar_monitor = ecore_timer_add(WIDGET_CONF_GBAR_REQUEST_TIMEOUT, gbar_resize_monitor_cb, instance_ref(inst));
 				if (!gbar_monitor) {
 					ErrPrint("Failed to create a timer for GBAR Open monitor\n");
@@ -7732,7 +7733,7 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 					}
 				} else {
 					(void)instance_set_data(inst, GBAR_RESIZE_MONITOR_TAG, gbar_monitor);
-					if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_resize_buffer_cb, inst) != WIDGET_STATUS_ERROR_NONE) {
+					if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_fault_resize_buffer_cb, inst) != WIDGET_ERROR_NONE) {
 						ErrPrint("Failed to add event handler: %s\n", pkgname);
 					}
 				}
@@ -7749,7 +7750,7 @@ static struct packet *slave_release_buffer(pid_t pid, int handle, const struct p
 				inst = instance_unref(inst);
 				if (!inst) {
 					ErrPrint("Instance is released: %s\n", pkgname);
-					ret = WIDGET_STATUS_ERROR_FAULT;
+					ret = WIDGET_ERROR_FAULT;
 					goto out;
 				}
 			} /* else {
@@ -7793,22 +7794,22 @@ static struct packet *slave_release_extra_buffer(pid_t pid, int handle, const st
 	slave = slave_find_by_pid(pid);
 	if (!slave) {
 		ErrPrint("Slave %d is not exists\n", pid);
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		goto out;
 	}
 
 	if (packet_get(packet, "issi", &type, &pkgname, &id, &idx) != 4) {
 		ErrPrint("Inavlid argument\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = validate_request(pid, slave, pkgname, id, &inst, &pkg);
-	if (ret != WIDGET_STATUS_ERROR_NONE) {
+	if (ret != WIDGET_ERROR_NONE) {
 		goto out;
 	}
 
-	ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+	ret = WIDGET_ERROR_INVALID_PARAMETER;
 
 	if (type == TYPE_WIDGET && package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
 		info = instance_widget_extra_buffer(inst, idx);
@@ -7849,7 +7850,7 @@ static struct packet *service_instance_count(pid_t pid, int handle, const struct
 	ret = packet_get(packet, "sssd", &pkgname, &cluster, &category, &timestamp);
 	if (ret != 4) {
 		ErrPrint("Invalid packet\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -7902,7 +7903,7 @@ static struct packet *service_change_period(pid_t pid, int handle, const struct 
 	ret = packet_get(packet, "ssd", &pkgname, &id, &period);
 	if (ret != 3) {
 		ErrPrint("Invalid packet\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -7911,9 +7912,9 @@ static struct packet *service_change_period(pid_t pid, int handle, const struct 
 
 		pkg = package_find(pkgname);
 		if (!pkg) {
-			ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+			ret = WIDGET_ERROR_NOT_EXIST;
 		} else if (package_is_fault(pkg)) {
-			ret = WIDGET_STATUS_ERROR_FAULT;
+			ret = WIDGET_ERROR_FAULT;
 		} else {
 			Eina_List *inst_list;
 			Eina_List *l;
@@ -7928,10 +7929,10 @@ static struct packet *service_change_period(pid_t pid, int handle, const struct 
 		}
 	} else {
 		ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
-		if (ret == (int)WIDGET_STATUS_ERROR_NONE) {
+		if (ret == (int)WIDGET_ERROR_NONE) {
 			if (instance_state(inst) == INST_DESTROYED) {
 				ErrPrint("Package[%s] instance is already destroyed\n", pkgname);
-				ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+				ret = WIDGET_ERROR_INVALID_PARAMETER;
 				goto out;
 			}
 
@@ -7966,33 +7967,33 @@ static struct packet *service_update(pid_t pid, int handle, const struct packet 
 	ret = packet_get(packet, "sssssi", &pkgname, &id, &cluster, &category, &content, &force);
 	if (ret != 6) {
 		ErrPrint("Invalid Packet\n");
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	widget_id = package_widget_pkgname(pkgname);
 	if (!widget_id) {
 		ErrPrint("Invalid package %s\n", pkgname);
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	pkg = package_find(widget_id);
 	if (!pkg) {
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		DbgFree(widget_id);
 		goto out;
 	}
 
 	if (package_is_fault(pkg)) {
-		ret = WIDGET_STATUS_ERROR_FAULT;
+		ret = WIDGET_ERROR_FAULT;
 		DbgFree(widget_id);
 		goto out;
 	}
 
 	inst_list = package_instance_list(pkg);
 	if (!eina_list_count(inst_list)) {
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		DbgFree(widget_id);
 		goto out;
 	}
@@ -8001,15 +8002,15 @@ static struct packet *service_update(pid_t pid, int handle, const struct packet 
 		Eina_List *l;
 		struct inst_info *inst;
 
-		ret = WIDGET_STATUS_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_NOT_EXIST;
 		EINA_LIST_FOREACH(inst_list, l, inst) {
 			if (!strcmp(instance_id(inst), id)) {
-				ret = WIDGET_STATUS_ERROR_NONE;
+				ret = WIDGET_ERROR_NONE;
 				break;
 			}
 		}
 
-		if (ret == (int)WIDGET_STATUS_ERROR_NOT_EXIST) {
+		if (ret == (int)WIDGET_ERROR_NOT_EXIST) {
 			DbgFree(widget_id);
 			goto out;
 		}
@@ -8021,7 +8022,7 @@ static struct packet *service_update(pid_t pid, int handle, const struct packet 
 	 */
 	slave_rpc_request_update(widget_id, id, cluster, category, content, force);
 	DbgFree(widget_id);
-	ret = WIDGET_STATUS_ERROR_NONE;
+	ret = WIDGET_ERROR_NONE;
 
 out:
 	result = packet_create_reply(packet, "i", ret);
@@ -8045,7 +8046,7 @@ static struct packet *liveinfo_hello(pid_t pid, int handle, const struct packet 
 	if (packet_get(packet, "d", &timestamp) != 1) {
 		ErrPrint("Invalid packet\n");
 		fifo_name = "";
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -8053,7 +8054,7 @@ static struct packet *liveinfo_hello(pid_t pid, int handle, const struct packet 
 	if (!info) {
 		ErrPrint("Failed to create a liveinfo object\n");
 		fifo_name = "";
-		ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -8442,7 +8443,7 @@ static struct packet *liveinfo_master_ctrl(pid_t pid, int handle, const struct p
 	char *cmd;
 	char *var;
 	char *val;
-	int ret = WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+	int ret = WIDGET_ERROR_INVALID_PARAMETER;
 
 	if (packet_get(packet, "sss", &cmd, &var, &val) != 3) {
 		ErrPrint("Invalid argument\n");

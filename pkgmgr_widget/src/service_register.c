@@ -29,6 +29,7 @@
 #include <dlog.h>
 
 #include <widget_service.h>
+#include <widget_service_internal.h>
 
 #include "dlist.h"
 
@@ -2435,7 +2436,7 @@ static void update_box(struct widget *widget, xmlNodePtr node)
 				widget->size_list |= WIDGET_SIZE_TYPE_EASY_3x3;
 				update_size_info(widget, 11, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"0x0")) {
-				widget->size_list |= WIDGET_SIZE_TYPE_0x0;
+				widget->size_list |= WIDGET_SIZE_TYPE_FULL;
 				update_size_info(widget, 12, node);
 			} else {
 				ErrPrint("Invalid size tag (%s)\n", size);
@@ -2824,8 +2825,8 @@ static int db_insert_widget(struct widget *widget, const char *appid)
 		}
 	}
 
-	if (widget->size_list & WIDGET_SIZE_TYPE_0x0) {
-		ret = db_insert_box_size((char *)widget->pkgid, WIDGET_SIZE_TYPE_0x0, (char *)widget->preview[12], widget->touch_effect[12], widget->need_frame[12], widget->mouse_event[12]);
+	if (widget->size_list & WIDGET_SIZE_TYPE_FULL) {
+		ret = db_insert_box_size((char *)widget->pkgid, WIDGET_SIZE_TYPE_FULL, (char *)widget->preview[12], widget->touch_effect[12], widget->need_frame[12], widget->mouse_event[12]);
 		if (ret < 0) {
 			goto errout;
 		}
