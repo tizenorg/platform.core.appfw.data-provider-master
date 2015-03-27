@@ -119,4 +119,6 @@ extern int package_fini(void);
 extern int package_is_enabled(const char *appid);
 extern int package_faulted(struct pkg_info *info, int broadcast);
 extern char *package_get_pkgid(const char *appid);
+
+extern int package_del_instance_by_category(const char *category, const char *except_widget_id);
 /* End of a file */

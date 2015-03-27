@@ -705,4 +705,27 @@ HAPI int slave_rpc_disconnect(struct slave_node *slave)
 	return slave_rpc_request_only(slave, NULL, packet, 0);
 }
 
+HAPI int slave_rpc_clear_pending_list(struct slave_node *slave)
+{
+    struct slave_rpc *rpc;
+    struct command *command;
+
+    rpc = slave_data(slave, "rpc");
+    if (!rpc) {
+        /*!
+         * \note
+         * Return negative value will remove this callback from the event list of the slave
+         */
+        return WIDGET_ERROR_INVALID_PARAMETER;
+    }
+
+    EINA_LIST_FREE(rpc->pending_list, command) {
+        assert(command->slave == slave);
+
+        destroy_command(command);
+    }
+
+    return WIDGET_ERROR_NONE;
+}
+
 /* End of a file */

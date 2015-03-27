@@ -1688,4 +1688,31 @@ HAPI char *package_get_pkgid(const char *appid)
 	return pkgid;
 }
 
+HAPI int package_del_instance_by_category(const char *category, const char *except_widget_id)
+{
+	Eina_List *l;
+	Eina_List *n;
+	Eina_List *m;
+	struct inst_info *inst;
+	struct pkg_info *info;
+	int ret;
+
+	EINA_LIST_FOREACH(s_info.pkg_list, m, info) {
+		ErrPrint("pkgid[%s] category [%s]\n", info->pkgid, info->category);
+		if (info->category && !strcmp(category, info->category)) {
+			if (except_widget_id && !strcmp(package_name(info), except_widget_id)){
+				ErrPrint("package_name[%s] widget_id[%s]\n", package_name(info), except_widget_id);
+				continue;
+			}
+
+			EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
+				ret = instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
+				ErrPrint("instance_destroy return [%d]\n", ret);
+			}
+		}
+	}
+
+	return WIDGET_ERROR_NONE;
+}
+
 /* End of a file */

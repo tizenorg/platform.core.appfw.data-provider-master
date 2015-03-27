@@ -1905,4 +1905,19 @@ HAPI int slave_priority(struct slave_node *slave)
 	return priority;
 }
 
+HAPI int slave_valid(const struct slave_node *slave)
+{
+    if (!slave->valid) {
+        DbgPrint("slave is invalid");
+    }
+
+    return slave->valid;
+}
+
+HAPI void slave_set_valid(struct slave_node *slave)
+{
+    DbgPrint("slave is set valid\n");
+    slave->valid = 1;
+}
+
 /* End of a file */

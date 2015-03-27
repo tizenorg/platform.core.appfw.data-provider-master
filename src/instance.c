@@ -977,6 +977,63 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 	return inst;
 }
 
+HAPI struct packet *instance_duplicate_packet_create(struct inst_info *inst, struct pkg_info *info, int width, int height)
+{
+	struct packet *result;
+	unsigned int cmd = CMD_NEW;
+
+	/**
+	 * Do not touch the "timestamp".
+	 * It is assigned by Viewer, and will be used as a key to find this instance
+	 */
+	instance_set_widget_size(inst, width, height);
+
+	/**
+	 * @TODO
+	 */
+	DbgPrint("[TODO] Instance package info: %p\n", inst->info);
+	// inst->info = info;
+
+	inst->unicast_delete_event = 1;
+	result = packet_create((const char *)&cmd, "sssiidssisiis",
+			package_name(inst->info),
+			inst->id,
+			inst->content,
+			package_timeout(inst->info),
+			!!package_widget_path(inst->info),
+			inst->widget.period,
+			inst->cluster,
+			inst->category,
+			!!inst->client,
+			package_abi(inst->info),
+			inst->widget.width,
+			inst->widget.height,
+			client_direct_addr(inst->client));
+	if (!result) {
+		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
+		return NULL;
+	}
+
+	/**
+	 * @note
+	 * Is this really necessary?
+	inst->requested_state = INST_ACTIVATED;
+	 */
+	DbgPrint("[TODO] Instance request_state is not touched\n");
+	inst->changing_state--;
+
+	inst->visible = WIDGET_HIDE_WITH_PAUSE;
+	inst->state = INST_ACTIVATED;
+
+	instance_create_widget_buffer(inst, WIDGET_CONF_DEFAULT_PIXELS);
+	instance_broadcast_created_event(inst);
+	instance_thaw_updator(inst);
+
+	instance_unref(inst);
+
+	return result;
+}
+
 HAPI struct inst_info *instance_ref(struct inst_info *inst)
 {
 	if (!inst) {
@@ -3656,6 +3713,85 @@ HAPI void *instance_get_data(struct inst_info *inst, const char *tag)
 HAPI struct client_node *instance_gbar_owner(struct inst_info *inst)
 {
 	return inst->gbar.owner;
+}
+
+HAPI struct packet *instance_watch_create(const char *pkgname, int width, int height)
+{
+	struct inst_info *inst;
+	struct packet *result;
+	unsigned int cmd = CMD_NEW;
+	int ret;
+
+	inst = calloc(1, sizeof(*inst));
+	if (!inst) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		return NULL;
+	}
+
+	inst->timestamp = util_timestamp();
+	inst->widget.width = width;
+	inst->widget.height = height;
+
+	if (fork_package(inst, pkgname) < 0) {
+		DbgFree(inst);
+		return NULL;
+	}
+
+	if (WIDGET_CONF_EXTRA_BUFFER_COUNT) {
+		inst->widget.extra_buffer = calloc(WIDGET_CONF_EXTRA_BUFFER_COUNT, sizeof(*inst->widget.extra_buffer));
+		if (!inst->widget.extra_buffer) {
+			ErrPrint("Failed to allocate buffer for widget extra buffer\n");
+		}
+
+		inst->gbar.extra_buffer = calloc(WIDGET_CONF_EXTRA_BUFFER_COUNT, sizeof(*inst->gbar.extra_buffer));
+		if (!inst->gbar.extra_buffer) {
+			ErrPrint("Failed to allocate buffer for gbar extra buffer\n");
+		}
+	}
+	instance_ref(inst);
+	if (package_add_instance(inst->info, inst) < 0) {
+		ErrPrint("Failed to package_add_instance\n");
+		instance_destroy(inst, WIDGET_DESTROY_TYPE_FAULT);
+		return NULL;
+	}
+
+	slave_load_instance(package_slave(inst->info));
+
+	/**
+	 * Before activate an instance, update its id first for client
+	instance_send_update_id(inst);
+	 */
+	DbgPrint("[TODO] send_update_id\n");
+
+	result = packet_create((const char *)&cmd, "sssiidssisiis",
+			package_name(inst->info),
+			inst->id,
+			inst->content,
+			package_timeout(inst->info),
+			!!package_widget_path(inst->info),
+			inst->widget.period,
+			inst->cluster,
+			inst->category,
+			!!inst->client,
+			package_abi(inst->info),
+			inst->widget.width,
+			inst->widget.height,
+			client_direct_addr(inst->client));
+	if (!result) {
+		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
+		return NULL;
+	}
+
+	inst->requested_state = INST_ACTIVATED;
+	inst->state = INST_ACTIVATED;
+
+	inst->visible = WIDGET_HIDE_WITH_PAUSE;
+
+	instance_create_widget_buffer(inst, WIDGET_CONF_DEFAULT_PIXELS);
+	instance_broadcast_created_event(inst);
+	instance_thaw_updator(inst);
+
+	return result;
 }
 
 /* End of a file */

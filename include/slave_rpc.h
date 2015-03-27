@@ -29,4 +29,6 @@ extern int slave_rpc_disconnect(struct slave_node *slave);
 extern int slave_rpc_init(struct slave_node *slave);
 extern int slave_rpc_fini(struct slave_node *slave);
 
+extern int slave_rpc_clear_pending_list(struct slave_node *slave);
+
 /* End of a file */

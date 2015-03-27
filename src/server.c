@@ -923,24 +923,12 @@ static int validate_request(pid_t pid, struct slave_node *slave, const char *pkg
 	const struct pkg_info *pkg;
 
 	if (slave) {
-		char *widget_id;
-		/*!
-		 * \note
-		 * This call can decrease the performance of event handling.
-		 * We should consider this to keep or find other way.
-		 *
-		 * However, we have to conver the provider_pkgname to widget_id anyway.
-		 * Because, the service providers will use the widget_id
-		 * But the standalone providers will use its package id (ui-app, provider id)
-		 * For later case, we should convert the provider pkgname to widget id
-		 */
-		widget_id = is_valid_slave(pid, slave_abi(slave), pkgname);
-		if (!widget_id) {
-			return WIDGET_ERROR_INVALID_PARAMETER;
+		if (slave_valid(slave)) {
+			inst = package_find_instance_by_id(widget_id, id);
+		} else {
+			ErrPrint("slave is not valid (%s)\n", id);
+			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
 		}
-
-		inst = package_find_instance_by_id(widget_id, id);
-		DbgFree(widget_id);
 	} else {
 		inst = package_find_instance_by_id(pkgname, id);
 	}
@@ -7832,6 +7820,285 @@ out:
 	return result;
 }
 
+static struct packet *slave_hello_sync_prepare(pid_t pid, int handle, const struct packet *packet) /* slave_name, ret */
+{
+	char pkgname[pathconf("/", _PC_PATH_MAX)];
+	int ret;
+	double timestamp;
+
+	if (s_slave_hello.pid > 0) {
+		ErrPrint("Process [%d] sent hello sync prepare. but hello sync is not called.\n", s_slave_hello.pid);
+	}
+
+	ret = packet_get(packet, "d", &timestamp);
+	if (ret != 1) {
+		ErrPrint("Parameter is not matched\n");
+		goto out;
+	}
+
+	if (aul_app_get_pkgname_bypid(pid, pkgname, sizeof(pkgname)) != AUL_R_OK) {
+		ErrPrint("pid[%d] is not authroized provider package, try to find it using its name[%s]\n", pid, slavename);
+		goto out;
+	}
+
+	s_slave_hello.pid = pid;
+	s_slave_hello.handle = handle;
+
+out:
+	return NULL;
+}
+
+static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packet *packet) /* slave_name, ret */
+{
+	struct packet *result = NULL;
+	struct slave_node *slave;
+	const char *slavename;
+	const char *acceleration;
+	const char *abi;
+	char *widget_id;
+	int secured;
+	int ret;
+	char pkgname[pathconf("/", _PC_PATH_MAX)];
+
+	ret = packet_get(packet, "isss", &secured, &slavename, &acceleration, &abi);
+	if (ret != 4) {
+		ErrPrint("Parameter is not matched\n");
+		goto out;
+	}
+
+	if (acceleration[0] == '\0') {
+		acceleration = NULL;
+	}
+
+	DbgPrint("New slave[%s](%d) is arrived.\n", slavename, pid);
+
+	/**
+	 * In case of watch-app, the slavename is declared by app itself.
+	 * So slave_find_by_name will always fail.
+	 * But the slave object can be found from slave_find_by_pid.
+	 */
+	slave = slave_find_by_name(slavename);
+	if (!slave) { /* Try again to find a slave using pid */
+		slave = slave_find_by_pid(pid);
+	}
+
+	if (aul_app_get_pkgname_bypid(pid, pkgname, sizeof(pkgname)) != AUL_R_OK) {
+		ErrPrint("pid[%d] is not authroized provider package, try to find it using its name[%s]\n", pid, slavename);
+		goto out;
+	}
+
+	if (!slave) {
+		if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
+			slave = slave_find_by_pkgname(pkgname);
+			if (!slave) {
+				slave = slave_create(slavename, secured, abi, pkgname, 0, acceleration);
+				if (!slave) {
+					ErrPrint("Failed to create a new slave for %s\n", slavename);
+					goto out;
+				}
+
+				DbgPrint("New slave is created net(%d) abi(%s) secured(%d) accel(%s)\n", 0, abi, secured, acceleration);
+			} else {
+				DbgPrint("Registered slave is replaced with this new one\n");
+			}
+			slave_set_pid(slave, pid);
+			slave_set_valid(slave);
+
+			DbgPrint("Provider is forcely activated, pkgname(%s), abi(%s), slavename(%s)\n", pkgname, abi, slavename);
+		} else {
+			struct pkg_info *info;
+			int network;
+			int width, height;
+			unsigned int widget_size;
+			const char *category;
+			const char *db_acceleration;
+			int db_secured;
+			const char *tmp;
+
+			widget_id = is_valid_slave(pid, abi, pkgname);
+			if (!widget_id) {
+				goto out;
+			}
+
+			info = package_find(widget_id);
+			if (!info) {
+				char *pkgid;
+
+				pkgid = widget_service_package_id(widget_id);
+				if (!pkgid) {
+					DbgFree(widget_id);
+					goto out;
+				}
+
+				info = package_create(pkgid, widget_id);
+				DbgFree(pkgid);
+			}
+
+			category = package_category(info);
+			tmp = package_abi(info);
+			db_secured = package_secured(info);
+			db_acceleration = package_hw_acceleration(info);
+
+			if (db_secured != secured) {
+				DbgPrint("%s secured (%d)\n", pkgname, db_secured);
+				goto out;
+			}
+
+			if (strcmp(tmp, abi)) {
+				DbgPrint("%s abi (%s)\n", pkgname, tmp);
+				goto out;
+			}
+
+			if (strcmp(acceleration, db_acceleration)) {
+				DbgPrint("%s accel (%s)\n", pkgname, db_acceleration);
+				goto out;
+			}
+
+			if (util_string_is_in_list(category, WIDGET_CONF_CATEGORY_LIST) == 0) {
+				DbgPrint("%s category (%s)\n", pkgname, category);
+				goto out;
+			}
+
+			network = package_network(info);
+
+			if (strcmp(CATEGORY_WATCH_CLOCK, category) == 0) {
+				/**
+				 * if the new provider is watch app,
+				 * destroy the old watch app instance
+				 */
+				package_del_instance_by_category(CATEGORY_WATCH_CLOCK, NULL);
+			}
+
+			slave = slave_create(slavename, secured, abi, pkgname, network, acceleration);
+			if (!slave) {
+				ErrPrint("Failed to create a new slave for %s\n", slavename);
+				goto out;
+			}
+			slave_set_pid(slave, pid);
+			slave_set_valid(slave);
+
+			if (s_slave_hello.pid == pid) {
+				slave_rpc_update_handle(slave, s_slave_hello.handle);
+			} else {
+				ErrPrint("slave_hello pid[%d] != pid[%d]", s_slave_hello.pid,pid);
+			}
+
+			DbgPrint("Slave is activated by request: %d (%s)/(%s)\n", pid, pkgname, slavename);
+
+			widget_size = package_size_list(info);
+
+			if (widget_size & WIDGET_SIZE_TYPE_2x2) {
+				widget_service_get_size(WIDGET_SIZE_TYPE_2x2, &width, &height);
+			} else if (widget_size & WIDGET_SIZE_TYPE_4x4) {
+				widget_service_get_size(WIDGET_SIZE_TYPE_4x4, &width, &height);
+			} else {
+				widget_service_get_size(WIDGET_SIZE_TYPE_1x1, &width, &height);
+				DbgPrint("widget(%s] does not support size [2x2], [4x4]\n",pkgname);
+			}
+
+			result = instance_watch_create(widget_id, width, height);
+			if (!result) {
+				ErrPrint("Failed to create a new instance\n");
+			}
+			DbgFree(widget_id);
+		}
+	} else {
+		struct pkg_info *info;
+		struct inst_info *inst;
+		int width, height;
+		unsigned int widget_size;
+		Eina_List *inst_list;
+		Eina_List *inst_l;
+		int count = 0;
+		const char *category;
+
+		widget_id = is_valid_slave(pid, abi, pkgname);
+		if (!widget_id) {
+			goto out;
+		}
+
+		info = package_find(widget_id);
+		if (!info) {
+			char *pkgid;
+
+			pkgid = widget_service_package_id(widget_id);
+			if (!pkgid) {
+				DbgFree(widget_id);
+				goto out;
+			}
+
+			info = package_create(pkgid, widget_id);
+			DbgFree(pkgid);
+		}
+
+		category = package_category(info);
+		inst_list = package_instance_list(info);
+		inst = NULL;
+		EINA_LIST_FOREACH(inst_list, inst_l, inst) {
+			if (!strcmp(instance_package(inst), widget_id)) {
+				break;
+			}
+			inst = NULL;
+		}
+		if (!inst) {
+			ErrPrint("No valid instance");
+			DbgFree(widget_id);
+			goto out;
+		}
+
+		if (slave_pid(slave) != pid) {
+			if (slave_pid(slave) > 0) {
+				CRITICAL_LOG("Slave(%s) is already assigned to %d\n", slave_name(slave), slave_pid(slave));
+				if (pid > 0) {
+					ret = aul_terminate_pid_async(pid);
+					CRITICAL_LOG("Terminate %d (ret: %d)\n", pid, ret);
+				}
+				DbgFree(widget_id);
+				goto out;
+			}
+			CRITICAL_LOG("PID of slave(%s) is updated (%d -> %d)\n", slave_name(slave), slave_pid(slave), pid);
+			slave_set_pid(slave, pid);
+		}
+
+		slave_set_valid(slave);
+
+		if (strcmp(CATEGORY_WATCH_CLOCK, category) == 0) {
+			//if the new provider is watch app, destroy the old watch app instance
+			package_del_instance_by_category(CATEGORY_WATCH_CLOCK, widget_id);
+		}
+
+		slave_rpc_clear_pending_list(slave);
+
+		if (s_slave_hello.pid == pid) {
+			slave_rpc_update_handle(slave, s_slave_hello.handle);
+		} else {
+			ErrPrint("slave_hello pid[%d] != pid[%d]", s_slave_hello.pid, pid);
+		}
+
+		DbgPrint("Slave is activated by request: %d (%s)/(%s)\n", pid, pkgname, slavename);
+		widget_size = package_size_list(info);
+
+		if (widget_size & WIDGET_SIZE_TYPE_2x2) {
+			widget_service_get_size(WIDGET_SIZE_TYPE_2x2, &width, &height);
+		} else if (widget_size & WIDGET_SIZE_TYPE_4x4) {
+			widget_service_get_size(WIDGET_SIZE_TYPE_4x4, &width, &height);
+		} else {
+			widget_service_get_size(WIDGET_SIZE_TYPE_1x1, &width, &height);
+			DbgPrint("widget(%s] does not support size [2x2], [4x4]\n",pkgname);
+		}
+
+		result = instance_duplicate_packet_create(inst, info, width, height);
+
+		DbgFree(widget_id);
+	}
+
+	s_slave_hello.pid = -1;
+	s_slave_hello.handle = -1;
+
+out:
+	return result;
+}
+
 static struct packet *service_instance_count(pid_t pid, int handle, const struct packet *packet)
 {
 	struct packet *result;
@@ -8990,6 +9257,15 @@ static struct method s_slave_table[] = {
 		.cmd = CMD_STR_RELEASE_XBUFFER,
 		.handler = slave_release_extra_buffer,
 	},
+
+    {
+        .cmd = CMD_STR_HELLO_SYNC,
+        .handler = slave_hello_sync, /* slave_name, ret */
+    },
+    {
+        .cmd = CMD_STR_HELLO_SYNC_PREPARE,
+        .handler = slave_hello_sync_prepare, /* timestamp */
+    },
 
 	{
 		.cmd = NULL,
