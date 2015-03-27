@@ -504,7 +504,7 @@ HAPI int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, s
 	return WIDGET_ERROR_NONE;
 }
 
-HAPI int slave_rpc_update_handle(struct slave_node *slave, int handle)
+HAPI int slave_rpc_update_handle(struct slave_node *slave, int handle, int delete_pending_packet)
 {
 	struct slave_rpc *rpc;
 	struct command *command;
@@ -534,7 +534,11 @@ HAPI int slave_rpc_update_handle(struct slave_node *slave, int handle)
 	slave_activated(slave);
 
 	EINA_LIST_FREE(rpc->pending_list, command) {
-		push_command(command);
+		if (delete_pending_packet) {
+			destroy_command(command);
+		} else {
+			push_command(command);
+		}
 	}
 
 	return WIDGET_ERROR_NONE;
@@ -703,29 +707,6 @@ HAPI int slave_rpc_disconnect(struct slave_node *slave)
 
 	DbgPrint("Send disconnection request packet\n");
 	return slave_rpc_request_only(slave, NULL, packet, 0);
-}
-
-HAPI int slave_rpc_clear_pending_list(struct slave_node *slave)
-{
-    struct slave_rpc *rpc;
-    struct command *command;
-
-    rpc = slave_data(slave, "rpc");
-    if (!rpc) {
-        /*!
-         * \note
-         * Return negative value will remove this callback from the event list of the slave
-         */
-        return WIDGET_ERROR_INVALID_PARAMETER;
-    }
-
-    EINA_LIST_FREE(rpc->pending_list, command) {
-        assert(command->slave == slave);
-
-        destroy_command(command);
-    }
-
-    return WIDGET_ERROR_NONE;
 }
 
 /* End of a file */

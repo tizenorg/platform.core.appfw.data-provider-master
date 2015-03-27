@@ -835,6 +835,17 @@ static Eina_Bool update_timer_cb(void *data)
 	return ECORE_CALLBACK_RENEW;
 }
 
+static inline void unfork_package(struct inst_info *inst)
+{
+	DbgFree(inst->id);
+	inst->id = NULL;
+
+	if (inst->update_timer) {
+		ecore_timer_del(inst->update_timer);
+		inst->update_timer = NULL;
+	}
+}
+
 static inline int fork_package(struct inst_info *inst, const char *pkgname)
 {
 	struct pkg_info *info;
@@ -959,13 +970,25 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 	instance_ref(inst);
 
 	if (package_add_instance(inst->info, inst) < 0) {
-		instance_destroy(inst, WIDGET_DESTROY_TYPE_FAULT);
+		DbgFree(inst->widget.extra_buffer);
+		DbgFree(inst->gbar.extra_buffer);
+		unfork_package(inst);
+		(void)client_unref(inst->client);
+		DbgFree(inst->title);
+		DbgFree(inst->category);
+		DbgFree(inst->cluster);
+		DbgFree(inst->content);
+		DbgFree(inst);
 		return NULL;
 	}
 
 	slave_load_instance(package_slave(inst->info));
 
-	// Before activate an instance, update its id first for client
+	/**
+	 * @note
+	 * Before activate an instance,
+	 * Update its Id first for client.
+	 */
 	instance_send_update_id(inst);
 
 	if (instance_activate(inst) < 0) {
@@ -3720,7 +3743,6 @@ HAPI struct packet *instance_watch_create(const char *pkgname, int width, int he
 	struct inst_info *inst;
 	struct packet *result;
 	unsigned int cmd = CMD_NEW;
-	int ret;
 
 	inst = calloc(1, sizeof(*inst));
 	if (!inst) {
@@ -3728,6 +3750,11 @@ HAPI struct packet *instance_watch_create(const char *pkgname, int width, int he
 		return NULL;
 	}
 
+	/**
+	 * @note
+	 * This timestamp will not be used by viewer.
+	 * So we can set it manually from here.
+	 */
 	inst->timestamp = util_timestamp();
 	inst->widget.width = width;
 	inst->widget.height = height;
@@ -3748,14 +3775,30 @@ HAPI struct packet *instance_watch_create(const char *pkgname, int width, int he
 			ErrPrint("Failed to allocate buffer for gbar extra buffer\n");
 		}
 	}
+
+	/**
+	 * We don't need to set the state of this instance from here.
+	 * But, in case of fail to add a new instance to package information(inst->info) data,
+	 * the "instance_destroy" will be invoked.
+	 * it will try to get the state of an instance.
+	 */
+	inst->state = INST_INIT;
+	inst->requested_state = INST_INIT;
 	instance_ref(inst);
+
+	/**
+	 * @note
+	 * We already create a slave object from caller.
+	 * This will finds it and map it to package information object
+	 */
 	if (package_add_instance(inst->info, inst) < 0) {
 		ErrPrint("Failed to package_add_instance\n");
-		instance_destroy(inst, WIDGET_DESTROY_TYPE_FAULT);
+		unfork_package(inst);
+		DbgFree(inst->widget.extra_buffer);
+		DbgFree(inst->gbar.extra_buffer);
+		DbgFree(inst);
 		return NULL;
 	}
-
-	slave_load_instance(package_slave(inst->info));
 
 	/**
 	 * Before activate an instance, update its id first for client
@@ -3777,10 +3820,18 @@ HAPI struct packet *instance_watch_create(const char *pkgname, int width, int he
 			inst->widget.width,
 			inst->widget.height,
 			client_direct_addr(inst->client));
+
 	if (!result) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
+		package_del_instance(inst->info, inst); /* This will reset the inst->info->slave */
+		unfork_package(inst);
+		DbgFree(inst->widget.extra_buffer);
+		DbgFree(inst->gbar.extra_buffer);
+		DbgFree(inst);
 		return NULL;
 	}
+
+	slave_load_instance(package_slave(inst->info));
 
 	inst->requested_state = INST_ACTIVATED;
 	inst->state = INST_ACTIVATED;

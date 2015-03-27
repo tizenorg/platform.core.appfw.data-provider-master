@@ -111,6 +111,7 @@ struct slave_node {
 #endif
 
 	char *hw_acceleration;
+	int valid;
 };
 
 struct event {

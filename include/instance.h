@@ -264,4 +264,7 @@ extern void *instance_del_data(struct inst_info *inst, const char *tag);
 extern void *instance_get_data(struct inst_info *inst, const char *tag);
 
 extern void instance_reload_period(struct inst_info *inst, double period);
+extern struct packet *instance_duplicate_packet_create(struct inst_info *inst, struct pkg_info *info, int width, int height);
+
+extern struct packet *instance_watch_create(const char *pkgname, int width, int height);
 /* End of a file */

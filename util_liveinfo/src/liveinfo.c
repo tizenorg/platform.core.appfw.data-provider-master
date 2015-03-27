@@ -42,6 +42,7 @@
 #include <com-core.h>
 
 #include <widget_service.h>
+#include <widget_service_internal.h>
 
 #include <Ecore.h>
 

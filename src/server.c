@@ -62,6 +62,8 @@
 #define LAZY_GBAR_OPEN_TAG "lazy,gbar,open"
 #define LAZY_GBAR_CLOSE_TAG "lazy,gbar,close"
 
+#define CATEGORY_WATCH_CLOCK	"com.samsung.wmanager.WATCH_CLOCK"
+
 #define ACCESS_TYPE_DOWN 0
 #define ACCESS_TYPE_MOVE 1
 #define ACCESS_TYPE_UP 2
@@ -76,12 +78,21 @@ static struct info {
 	int service_fd;
 	int slave_fd;
 	int remote_client_fd;
+
+	struct hello_context {
+		int pid;
+		int handle;
+	} hello_ctx;
 } s_info = {
 	.info_fd = -1,
 	.client_fd = -1,
 	.service_fd = -1,
 	.slave_fd = -1,
 	.remote_client_fd = -1,
+	.hello_ctx = {
+		.pid = -1,
+		.handle = -1,
+	},
 };
 
 struct access_info {
@@ -924,7 +935,7 @@ static int validate_request(pid_t pid, struct slave_node *slave, const char *pkg
 
 	if (slave) {
 		if (slave_valid(slave)) {
-			inst = package_find_instance_by_id(widget_id, id);
+			inst = package_find_instance_by_id(pkgname, id);
 		} else {
 			ErrPrint("slave is not valid (%s)\n", id);
 			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
@@ -1877,7 +1888,6 @@ static int inst_del_cb(struct inst_info *inst, void *data)
 
 	return -1; /* Delete this callback */
 }
-
 
 static struct packet *client_gbar_key_set(pid_t pid, int handle, const struct packet *packet)
 {
@@ -6584,7 +6594,7 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 	 * After updating handle,
 	 * slave activated callback will be called.
 	 */
-	slave_rpc_update_handle(slave, handle);
+	slave_rpc_update_handle(slave, handle, 0);
 
 out:
 	return NULL;
@@ -7826,8 +7836,8 @@ static struct packet *slave_hello_sync_prepare(pid_t pid, int handle, const stru
 	int ret;
 	double timestamp;
 
-	if (s_slave_hello.pid > 0) {
-		ErrPrint("Process [%d] sent hello sync prepare. but hello sync is not called.\n", s_slave_hello.pid);
+	if (s_info.hello_ctx.pid > 0) {
+		ErrPrint("Process [%d] sent hello sync prepare. but hello sync is not called.\n", s_info.hello_ctx.pid);
 	}
 
 	ret = packet_get(packet, "d", &timestamp);
@@ -7837,12 +7847,12 @@ static struct packet *slave_hello_sync_prepare(pid_t pid, int handle, const stru
 	}
 
 	if (aul_app_get_pkgname_bypid(pid, pkgname, sizeof(pkgname)) != AUL_R_OK) {
-		ErrPrint("pid[%d] is not authroized provider package, try to find it using its name[%s]\n", pid, slavename);
+		ErrPrint("pid[%d] is not authroized provider package, try to find it using its name\n", pid);
 		goto out;
 	}
 
-	s_slave_hello.pid = pid;
-	s_slave_hello.handle = handle;
+	s_info.hello_ctx.pid = pid;
+	s_info.hello_ctx.handle = handle;
 
 out:
 	return NULL;
@@ -7924,7 +7934,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			if (!info) {
 				char *pkgid;
 
-				pkgid = widget_service_package_id(widget_id);
+				pkgid = widget_service_get_package_id(widget_id);
 				if (!pkgid) {
 					DbgFree(widget_id);
 					goto out;
@@ -7974,13 +7984,18 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 				ErrPrint("Failed to create a new slave for %s\n", slavename);
 				goto out;
 			}
+
 			slave_set_pid(slave, pid);
 			slave_set_valid(slave);
 
-			if (s_slave_hello.pid == pid) {
-				slave_rpc_update_handle(slave, s_slave_hello.handle);
+			if (s_info.hello_ctx.pid == pid) {
+				/**
+				 * @note
+				 * Delete all pending packets
+				 */
+				slave_rpc_update_handle(slave, s_info.hello_ctx.handle, 1);
 			} else {
-				ErrPrint("slave_hello pid[%d] != pid[%d]", s_slave_hello.pid,pid);
+				ErrPrint("slave_hello pid[%d] != pid[%d]", s_info.hello_ctx.pid,pid);
 			}
 
 			DbgPrint("Slave is activated by request: %d (%s)/(%s)\n", pid, pkgname, slavename);
@@ -7999,6 +8014,9 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			result = instance_watch_create(widget_id, width, height);
 			if (!result) {
 				ErrPrint("Failed to create a new instance\n");
+				if (slave_unref(slave)) {
+					ErrPrint("Slave is not deleted yet\n");
+				}
 			}
 			DbgFree(widget_id);
 		}
@@ -8009,7 +8027,6 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 		unsigned int widget_size;
 		Eina_List *inst_list;
 		Eina_List *inst_l;
-		int count = 0;
 		const char *category;
 
 		widget_id = is_valid_slave(pid, abi, pkgname);
@@ -8021,7 +8038,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 		if (!info) {
 			char *pkgid;
 
-			pkgid = widget_service_package_id(widget_id);
+			pkgid = widget_service_get_package_id(widget_id);
 			if (!pkgid) {
 				DbgFree(widget_id);
 				goto out;
@@ -8035,7 +8052,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 		inst_list = package_instance_list(info);
 		inst = NULL;
 		EINA_LIST_FOREACH(inst_list, inst_l, inst) {
-			if (!strcmp(instance_package(inst), widget_id)) {
+			if (!strcmp(package_name(instance_package(inst)), widget_id)) {
 				break;
 			}
 			inst = NULL;
@@ -8063,16 +8080,17 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 		slave_set_valid(slave);
 
 		if (strcmp(CATEGORY_WATCH_CLOCK, category) == 0) {
-			//if the new provider is watch app, destroy the old watch app instance
+			/**
+			 * @note
+			 * If a new provider is watch app, destroy the old watch app instance
+			 */
 			package_del_instance_by_category(CATEGORY_WATCH_CLOCK, widget_id);
 		}
 
-		slave_rpc_clear_pending_list(slave);
-
-		if (s_slave_hello.pid == pid) {
-			slave_rpc_update_handle(slave, s_slave_hello.handle);
+		if (s_info.hello_ctx.pid == pid) {
+			slave_rpc_update_handle(slave, s_info.hello_ctx.handle, 0);
 		} else {
-			ErrPrint("slave_hello pid[%d] != pid[%d]", s_slave_hello.pid, pid);
+			ErrPrint("slave_hello pid[%d] != pid[%d]", s_info.hello_ctx.pid, pid);
 		}
 
 		DbgPrint("Slave is activated by request: %d (%s)/(%s)\n", pid, pkgname, slavename);
@@ -8092,8 +8110,8 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 		DbgFree(widget_id);
 	}
 
-	s_slave_hello.pid = -1;
-	s_slave_hello.handle = -1;
+	s_info.hello_ctx.pid = -1;
+	s_info.hello_ctx.handle = -1;
 
 out:
 	return result;
