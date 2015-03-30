@@ -16,5 +16,7 @@
 
 extern int dead_init(void);
 extern int dead_fini(void);
+extern int dead_callback_add(int handle, void (*dead_cb)(int handle, void *data), void *data);
+extern void *dead_callback_del(int handle, void (*dead_cb)(int handle, void *data));
 
 /* End of a file */

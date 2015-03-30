@@ -54,6 +54,7 @@
 #include "liveinfo.h"
 #include "io.h"
 #include "event.h"
+#include "dead_monitor.h"
 
 #define GBAR_OPEN_MONITOR_TAG "gbar,open,monitor"
 #define GBAR_RESIZE_MONITOR_TAG "gbar,resize,monitor"
@@ -72,6 +73,13 @@
 #define ACCESS_TYPE_PREV 2
 #define ACCESS_TYPE_OFF 3
 
+struct sync_ctx_item {
+	int pid;
+	int handle;
+	char *pkgname;
+	double timestamp;
+};
+
 static struct info {
 	int info_fd;
 	int client_fd;
@@ -79,20 +87,14 @@ static struct info {
 	int slave_fd;
 	int remote_client_fd;
 
-	struct hello_context {
-		int pid;
-		int handle;
-	} hello_ctx;
+	Eina_List *hello_sync_ctx_list;
 } s_info = {
 	.info_fd = -1,
 	.client_fd = -1,
 	.service_fd = -1,
 	.slave_fd = -1,
 	.remote_client_fd = -1,
-	.hello_ctx = {
-		.pid = -1,
-		.handle = -1,
-	},
+	.hello_sync_ctx_list = NULL,
 };
 
 struct access_info {
@@ -7830,29 +7832,61 @@ out:
 	return result;
 }
 
+static void delete_ctx_cb(int handle, void *data)
+{
+	struct sync_ctx_item *ctx = data;
+
+	s_info.hello_sync_ctx_list = eina_list_remove(s_info.hello_sync_ctx_list, ctx);
+
+	if (ctx->handle != handle) {
+		ErrPrint("Context is not valid (%s)\n", ctx->pkgname);
+	}
+
+	DbgFree(ctx->pkgname);
+	DbgFree(ctx);
+}
+
 static struct packet *slave_hello_sync_prepare(pid_t pid, int handle, const struct packet *packet) /* slave_name, ret */
 {
 	char pkgname[pathconf("/", _PC_PATH_MAX)];
 	int ret;
-	double timestamp;
+	struct sync_ctx_item *ctx;
 
-	if (s_info.hello_ctx.pid > 0) {
-		ErrPrint("Process [%d] sent hello sync prepare. but hello sync is not called.\n", s_info.hello_ctx.pid);
+	ctx = calloc(1, sizeof(*ctx));
+	if (!ctx) {
+		ErrPrint("calloc: %s\n", strerror(errno));
+		goto out;
 	}
 
-	ret = packet_get(packet, "d", &timestamp);
+	ret = packet_get(packet, "d", &ctx->timestamp);
 	if (ret != 1) {
+		DbgFree(ctx);
 		ErrPrint("Parameter is not matched\n");
 		goto out;
 	}
 
 	if (aul_app_get_pkgname_bypid(pid, pkgname, sizeof(pkgname)) != AUL_R_OK) {
+		DbgFree(ctx);
 		ErrPrint("pid[%d] is not authroized provider package, try to find it using its name\n", pid);
 		goto out;
 	}
 
-	s_info.hello_ctx.pid = pid;
-	s_info.hello_ctx.handle = handle;
+	ctx->pkgname = strdup(pkgname);
+	if (!ctx->pkgname) {
+		ErrPrint("strdup: %s\n", strerror(errno));
+		DbgFree(ctx);
+		goto out;
+	}
+
+	ctx->pid = pid;
+	ctx->handle = handle;
+
+	DbgPrint("Sync context created: %s\n", pkgname);
+	s_info.hello_sync_ctx_list = eina_list_append(s_info.hello_sync_ctx_list, ctx);
+
+	if (dead_callback_add(handle, delete_ctx_cb, ctx) < 0) {
+		ErrPrint("Failed to add dead callback\n");
+	}
 
 out:
 	return NULL;
@@ -7869,9 +7903,10 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 	int secured;
 	int ret;
 	char pkgname[pathconf("/", _PC_PATH_MAX)];
+	double timestamp;
 
-	ret = packet_get(packet, "isss", &secured, &slavename, &acceleration, &abi);
-	if (ret != 4) {
+	ret = packet_get(packet, "disss", &timestamp, &secured, &slavename, &acceleration, &abi);
+	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
 		goto out;
 	}
@@ -7895,6 +7930,41 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 	if (aul_app_get_pkgname_bypid(pid, pkgname, sizeof(pkgname)) != AUL_R_OK) {
 		ErrPrint("pid[%d] is not authroized provider package, try to find it using its name[%s]\n", pid, slavename);
 		goto out;
+	}
+
+	if (slave || !(WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode)) {
+		struct sync_ctx_item *item;
+		Eina_List *l;
+		Eina_List *n;
+
+		item = NULL;
+		EINA_LIST_FOREACH_SAFE(s_info.hello_sync_ctx_list, l, n, item) {
+			if (item->timestamp == timestamp && item->pid == pid) {
+				s_info.hello_sync_ctx_list = eina_list_remove(s_info.hello_sync_ctx_list, item);
+				break;
+			}
+			item = NULL;
+		}
+
+		if (!item) {
+			ErrPrint("There is no such sync context (%d)\n", pid);
+			goto out;
+		}
+
+		if (strcmp(item->pkgname, pkgname)) {
+			ErrPrint("HELLO_SYNC is comes from different package: %s <> %s\n", item->pkgname, pkgname);
+		}
+
+		handle = item->handle;
+
+		if (dead_callback_del(handle, delete_ctx_cb) != item) {
+			ErrPrint("Dead callback is not valid\n");
+		}
+
+		DbgFree(item->pkgname);
+		DbgFree(item);
+
+		DbgPrint("Hello sync context found: %s\n", pkgname);
 	}
 
 	if (!slave) {
@@ -7988,15 +8058,12 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			slave_set_pid(slave, pid);
 			slave_set_valid(slave);
 
-			if (s_info.hello_ctx.pid == pid) {
-				/**
-				 * @note
-				 * Delete all pending packets
-				 */
-				slave_rpc_update_handle(slave, s_info.hello_ctx.handle, 1);
-			} else {
-				ErrPrint("slave_hello pid[%d] != pid[%d]", s_info.hello_ctx.pid,pid);
-			}
+			/**
+			 * @note
+			 * In this case, there could not be exists any pended packets.
+			 * But we tried to clear them for a case!
+			 */
+			slave_rpc_update_handle(slave, handle, 1);
 
 			DbgPrint("Slave is activated by request: %d (%s)/(%s)\n", pid, pkgname, slavename);
 
@@ -8057,6 +8124,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			}
 			inst = NULL;
 		}
+
 		if (!inst) {
 			ErrPrint("No valid instance");
 			DbgFree(widget_id);
@@ -8087,11 +8155,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			package_del_instance_by_category(CATEGORY_WATCH_CLOCK, widget_id);
 		}
 
-		if (s_info.hello_ctx.pid == pid) {
-			slave_rpc_update_handle(slave, s_info.hello_ctx.handle, 0);
-		} else {
-			ErrPrint("slave_hello pid[%d] != pid[%d]", s_info.hello_ctx.pid, pid);
-		}
+		slave_rpc_update_handle(slave, handle, 0);
 
 		DbgPrint("Slave is activated by request: %d (%s)/(%s)\n", pid, pkgname, slavename);
 		widget_size = package_size_list(info);
@@ -8109,9 +8173,6 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 
 		DbgFree(widget_id);
 	}
-
-	s_info.hello_ctx.pid = -1;
-	s_info.hello_ctx.handle = -1;
 
 out:
 	return result;
