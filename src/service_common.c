@@ -825,7 +825,7 @@ static void *server_main(void *data)
  * \NOTE
  * MAIN THREAD
  */
-HAPI struct service_context *service_common_create(const char *addr, int (*service_thread_main)(struct tcb *tcb, struct packet *packet, void *data), void *data)
+HAPI struct service_context *service_common_create(const char *addr, const char *label, int (*service_thread_main)(struct tcb *tcb, struct packet *packet, void *data), void *data)
 {
 	int status;
 	struct service_context *svc_ctx;
@@ -854,7 +854,7 @@ HAPI struct service_context *service_common_create(const char *addr, int (*servi
 		return NULL;
 	}
 
-	svc_ctx->fd = secure_socket_create_server(addr);
+	svc_ctx->fd = secure_socket_create_server_with_permission(addr, label);
 	if (svc_ctx->fd < 0) {
 		DbgFree(svc_ctx);
 		return NULL;

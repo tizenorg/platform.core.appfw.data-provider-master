@@ -631,7 +631,7 @@ int file_service_init(void)
 		return WIDGET_ERROR_FAULT;
 	}
 
-	s_info.svc_ctx = service_common_create(FILE_SERVICE_ADDR, service_thread_main, NULL);
+	s_info.svc_ctx = service_common_create(FILE_SERVICE_ADDR, NULL, service_thread_main, NULL);
 	if (!s_info.svc_ctx) {
 		ErrPrint("Unable to activate service thread\n");
 

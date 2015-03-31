@@ -941,7 +941,7 @@ static int validate_request(pid_t pid, struct slave_node *slave, const char *pkg
 			inst = package_find_instance_by_id(pkgname, id);
 		} else {
 			ErrPrint("slave is not valid (%s)\n", id);
-			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+			return WIDGET_ERROR_INVALID_PARAMETER;
 		}
 	} else {
 		inst = package_find_instance_by_id(pkgname, id);
@@ -9387,42 +9387,30 @@ HAPI int server_init(void)
 		ErrPrint("Failed to create a info socket\n");
 	}
 
-	s_info.slave_fd = com_core_packet_server_init(SLAVE_SOCKET, s_slave_table);
+	s_info.slave_fd = com_core_packet_server_init_with_permission(SLAVE_SOCKET, s_slave_table, "data-provider-master::provider");
 	if (s_info.slave_fd < 0) {
 		ErrPrint("Failed to create a slave socket\n");
 	}
 
-	smack_fsetlabel(s_info.slave_fd, "data-provider-master::provider", SMACK_LABEL_IPIN);
-	smack_fsetlabel(s_info.slave_fd, "data-provider-master::provider", SMACK_LABEL_IPOUT);
-
-	s_info.client_fd = com_core_packet_server_init(CLIENT_SOCKET, s_client_table);
+	s_info.client_fd = com_core_packet_server_init_with_permission(CLIENT_SOCKET, s_client_table, "data-provider-master::client");
 	if (s_info.client_fd < 0) {
 		ErrPrint("Failed to create a client socket\n");
 	}
-
-	smack_fsetlabel(s_info.client_fd, "data-provider-master::client", SMACK_LABEL_IPIN);
-	smack_fsetlabel(s_info.client_fd, "data-provider-master::client", SMACK_LABEL_IPOUT);
 
 	/*!
 	 * \note
 	 * remote://:8208
 	 * Skip address to use the NULL.
 	 */
-	s_info.remote_client_fd = com_core_packet_server_init("remote://:"CLIENT_PORT, s_client_table);
+	s_info.remote_client_fd = com_core_packet_server_init_with_permission("remote://:"CLIENT_PORT, s_client_table, "data-provider-master::client");
 	if (s_info.client_fd < 0) {
 		ErrPrint("Failed to create a remote client socket\n");
 	}
 
-	smack_fsetlabel(s_info.remote_client_fd, "data-provider-master::client", SMACK_LABEL_IPIN);
-	smack_fsetlabel(s_info.remote_client_fd, "data-provider-master::client", SMACK_LABEL_IPOUT);
-
-	s_info.service_fd = com_core_packet_server_init(SERVICE_SOCKET, s_service_table);
+	s_info.service_fd = com_core_packet_server_init_with_permission(SERVICE_SOCKET, s_service_table, "data-provider-master");
 	if (s_info.service_fd < 0) {
 		ErrPrint("Faild to create a service socket\n");
 	}
-
-	smack_fsetlabel(s_info.service_fd, "data-provider-master", SMACK_LABEL_IPIN);
-	smack_fsetlabel(s_info.service_fd, "data-provider-master", SMACK_LABEL_IPOUT);
 
 	if (chmod(INFO_SOCKET, 0600) < 0) {
 		ErrPrint("info socket: %s\n", strerror(errno));

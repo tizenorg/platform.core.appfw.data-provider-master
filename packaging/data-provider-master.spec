@@ -151,9 +151,9 @@ chown 5000:5000 /opt/usr/share/live_magazine/reader
 chmod 750 /opt/usr/share/live_magazine/reader
 chown 5000:5000 /opt/usr/share/live_magazine/always
 chmod 750 /opt/usr/share/live_magazine/always
-chown 0:5000 /opt/dbspace/.widget.db
+chown 200:5000 /opt/dbspace/.widget.db
 chmod 640 /opt/dbspace/.widget.db
-chown 0:5000 /opt/dbspace/.widget.db-journal
+chown 200:5000 /opt/dbspace/.widget.db-journal
 chmod 640 /opt/dbspace/.widget.db-journal
 vconftool set -t bool "memory/data-provider-master/started" 0 -i -u 5000 -f -s system::vconf_system
 vconftool set -t int "memory/private/data-provider-master/restart_count" 0 -i -u 5000 -f -s data-provider-master
@@ -163,7 +163,7 @@ echo "%{_sysconfdir}/init.d/data-provider-master start"
 
 %files -n data-provider-master
 %manifest %{name}.manifest
-%defattr(-,root,root,-)
+%defattr(-,system,system,-)
 %{_bindir}/data-provider-master
 %{_libdir}/systemd/system/multi-user.target.wants/data-provider-master.service
 %{_libdir}/systemd/system/data-provider-master.service
@@ -177,5 +177,6 @@ echo "%{_sysconfdir}/init.d/data-provider-master start"
 /opt/usr/share/live_magazine/*
 /opt/dbspace/.widget.db
 /opt/dbspace/.widget.db-journal
+%{_sysconfdir}/smack/accesses.d/%{name}.rule
 
 # End of a file

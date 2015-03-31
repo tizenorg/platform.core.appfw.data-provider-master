@@ -767,28 +767,10 @@ HAPI int notification_service_init(void)
 
 	_notification_init();
 
-	s_info.svc_ctx = service_common_create(NOTIFICATION_SOCKET, service_thread_main, NULL);
+	s_info.svc_ctx = service_common_create(NOTIFICATION_SOCKET, NOTIFICATION_SMACK_LABEL, service_thread_main, NULL);
 	if (!s_info.svc_ctx) {
 		ErrPrint("Unable to activate service thread\n");
 		return WIDGET_ERROR_FAULT;
-	}
-
-	if (smack_fsetlabel(service_common_fd(s_info.svc_ctx), NOTIFICATION_SMACK_LABEL, SMACK_LABEL_IPOUT) != 0) {
-		if (errno != EOPNOTSUPP) {
-			ErrPrint("Unable to set SMACK label(%d)\n", errno);
-			service_common_destroy(s_info.svc_ctx);
-			s_info.svc_ctx = NULL;
-			return WIDGET_ERROR_FAULT;
-		}
-	}
-
-	if (smack_fsetlabel(service_common_fd(s_info.svc_ctx), NOTIFICATION_SMACK_LABEL, SMACK_LABEL_IPIN) != 0) {
-		if (errno != EOPNOTSUPP) {
-			ErrPrint("Unable to set SMACK label(%d)\n", errno);
-			service_common_destroy(s_info.svc_ctx);
-			s_info.svc_ctx = NULL;
-			return WIDGET_ERROR_FAULT;
-		}
 	}
 
 	DbgPrint("Successfully initiated\n");

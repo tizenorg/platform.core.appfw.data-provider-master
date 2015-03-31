@@ -19,6 +19,9 @@ Description=Data Provider daemon
 After=xorg.target
 
 [Service]
+User=system
+Group=system
+SmackProcessLabel=data-provider-master::bin
 Environment=BUFMGR_LOCK_TYPE="once"
 Environment=BUFMGR_MAP_CACHE="true"
 Type=notify
