@@ -2866,7 +2866,7 @@ HAPI int instance_signal_emit(struct inst_info *inst, const char *signal, const 
 	return slave_rpc_request_only(slave, pkgname, packet, 0); 
 }
 
-HAPI int instance_text_signal_emit(struct inst_info *inst, const char *emission, const char *source, double sx, double sy, double ex, double ey)
+HAPI int instance_text_signal_emit(struct inst_info *inst, const char *signal_name, const char *source, double sx, double sy, double ex, double ey)
 {
 	struct packet *packet;
 	unsigned int cmd = CMD_TEXT_SIGNAL;
@@ -2881,7 +2881,7 @@ HAPI int instance_text_signal_emit(struct inst_info *inst, const char *emission,
 		return WIDGET_ERROR_FAULT;
 	}
 
-	packet = packet_create_noack((const char *)&cmd, "ssssdddd", package_name(inst->info), inst->id, emission, source, sx, sy, ex, ey);
+	packet = packet_create_noack((const char *)&cmd, "ssssdddd", package_name(inst->info), inst->id, signal_name, source, sx, sy, ex, ey);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return WIDGET_ERROR_FAULT;

@@ -39,6 +39,7 @@
 
 #if defined(HAVE_LIVEBOX)
 #include <widget_service.h>
+#include <widget_service_internal.h>
 #include <widget_conf.h>
 #include <widget_errno.h>
 #include "client_life.h"

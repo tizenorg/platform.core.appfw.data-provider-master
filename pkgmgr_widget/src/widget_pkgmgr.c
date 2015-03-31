@@ -30,6 +30,7 @@
 #include <pkgmgr-info.h>
 
 #include <widget_service.h>
+#include <widget_service_internal.h>
 
 #include "dlist.h"
 #include "widget_pkgmgr.h"

@@ -23,7 +23,6 @@ pkg_check_modules(pkg REQUIRED
 	shortcut
 	pkgmgr-info
 	libsystemd-daemon
-	capi-appfw-application
 )
 
 IF (LIVEBOX)

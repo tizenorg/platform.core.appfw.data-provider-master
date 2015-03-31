@@ -34,6 +34,7 @@
 #include <packet.h>
 #include <widget_errno.h>
 #include <widget_service.h>
+#include <widget_service_internal.h>
 #include <widget_conf.h>
 
 #include "slave_life.h"

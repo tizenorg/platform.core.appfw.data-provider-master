@@ -1056,14 +1056,14 @@ out:
 	return result;
 }
 
-/* pid, pkgname, filename, emission, source, s, sy, ex, ey, ret */
+/* pid, pkgname, filename, signal_name, source, s, sy, ex, ey, ret */
 static struct packet *client_text_signal(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
 	struct packet *result;
 	const char *pkgname;
 	const char *id;
-	const char *emission;
+	const char *signal_name;
 	const char *source;
 	double sx;
 	double sy;
@@ -1079,7 +1079,7 @@ static struct packet *client_text_signal(pid_t pid, int handle, const struct pac
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssssdddd", &pkgname, &id, &emission, &source, &sx, &sy, &ex, &ey);
+	ret = packet_get(packet, "ssssdddd", &pkgname, &id, &signal_name, &source, &sx, &sy, &ex, &ey);
 	if (ret != 8) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
@@ -1093,7 +1093,7 @@ static struct packet *client_text_signal(pid_t pid, int handle, const struct pac
 	 */
 	ret = validate_request(pid, NULL, pkgname, id, &inst, NULL);
 	if (ret == (int)WIDGET_ERROR_NONE) {
-		ret = instance_text_signal_emit(inst, emission, source, sx, sy, ex, ey);
+		ret = instance_text_signal_emit(inst, signal_name, source, sx, sy, ex, ey);
 	}
 
 out:
@@ -8938,7 +8938,7 @@ static struct method s_client_table[] = {
 	},
 	{
 		.cmd = CMD_STR_TEXT_SIGNAL,
-		.handler = client_text_signal, /* pid, pkgname, filename, emission, source, s, sy, ex, ey, ret */
+		.handler = client_text_signal, /* pid, pkgname, filename, signal_name, source, s, sy, ex, ey, ret */
 	},
 	{
 		.cmd = CMD_STR_DELETE,
