@@ -43,7 +43,6 @@
 #include "instance.h"
 #include "script_handler.h"
 #include "group.h"
-#include "abi.h"
 #include "io.h"
 #include "pkgmgr.h"
 #include "xmonitor.h"

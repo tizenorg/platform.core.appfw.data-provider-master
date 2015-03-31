@@ -31,6 +31,7 @@
 #include <widget_cmd_list.h>
 #include <widget_buffer.h>
 #include <widget_conf.h>
+#include <widget_util.h>
 
 #include "conf.h"
 #include "util.h"
@@ -169,7 +170,7 @@ struct inst_info {
 
 static Eina_Bool update_timer_cb(void *data);
 
-static int client_send_event(struct inst_info *instance, struct packet *packet)
+static int client_send_event(struct inst_info *instance, struct packet *packet, struct packet *owner_packet)
 {
 	/*!
 	 * \note
@@ -179,8 +180,12 @@ static int client_send_event(struct inst_info *instance, struct packet *packet)
 		/*
 		 * To prevent from packet destruction
 		 */
-		packet_ref(packet);
-		client_rpc_async_request(instance->client, packet);
+		if (owner_packet) {
+			client_rpc_async_request(instance->client, owner_packet);
+		} else if (packet) {
+			packet_ref(packet);
+			client_rpc_async_request(instance->client, packet);
+		}
 	}
 
 	/*!
@@ -339,7 +344,7 @@ static inline void instance_send_update_mode_event(struct inst_info *inst, int a
 
 	packet = packet_create_noack((const char *)&cmd, "ssii", pkgname, inst->id, status, active_mode);
 	if (packet) {
-		client_send_event(inst, packet);
+		client_send_event(inst, packet, NULL);
 	} else {
 		ErrPrint("Failed to send update mode event\n");
 	}
@@ -352,7 +357,7 @@ static inline void instance_send_update_id(struct inst_info *inst)
 
 	packet = packet_create_noack((const char *)&cmd, "ds", inst->timestamp, inst->id);
 	if (packet) {
-		client_send_event(inst, packet);
+		client_send_event(inst, packet, NULL);
 	} else {
 		ErrPrint("Failed to create update_id packet\n");
 	}
@@ -384,7 +389,7 @@ static inline void instance_send_resized_event(struct inst_info *inst, int is_gb
 
 	packet = packet_create_noack((const char *)&cmd, "sssiiii", pkgname, inst->id, id, is_gbar, w, h, status);
 	if (packet) {
-		client_send_event(inst, packet);
+		client_send_event(inst, packet, NULL);
 	} else {
 		ErrPrint("Failed to send size changed event\n");
 	}
@@ -489,6 +494,7 @@ static int update_client_list(struct client_node *client, void *data)
 static int instance_broadcast_created_event(struct inst_info *inst)
 {
 	struct packet *packet;
+	struct packet *owner_packet;
 	enum widget_widget_type widget_type;
 	enum widget_gbar_type gbar_type;
 	const char *widget_file;
@@ -519,6 +525,7 @@ static int instance_broadcast_created_event(struct inst_info *inst)
 	}
 
 	client_browse_category_list(package_category(inst->info), update_client_list, inst);
+	inst->unicast_delete_event = 0;
 
 	packet = packet_create_noack((const char *)&cmd, "dsssiiiisssssdiiiiidsi", 
 			inst->timestamp,
@@ -530,7 +537,7 @@ static int instance_broadcast_created_event(struct inst_info *inst)
 			package_auto_launch(inst->info),
 			inst->widget.priority,
 			package_size_list(inst->info),
-			!!inst->client,
+			0, /* Assume, this is a system created widget (not the ower) */
 			package_pinup(inst->info),
 			widget_type, gbar_type,
 			inst->widget.period, inst->title,
@@ -540,8 +547,31 @@ static int instance_broadcast_created_event(struct inst_info *inst)
 		return WIDGET_ERROR_FAULT;
 	}
 
-	inst->unicast_delete_event = 0;
-	return client_send_event(inst, packet);
+	if (inst->client) {
+		owner_packet = packet_create_noack((const char *)&cmd, "dsssiiiisssssdiiiiidsi", 
+				inst->timestamp,
+				package_name(inst->info), inst->id, inst->content,
+				inst->widget.width, inst->widget.height,
+				inst->gbar.width, inst->gbar.height,
+				inst->cluster, inst->category,
+				widget_file, gbar_file,
+				package_auto_launch(inst->info),
+				inst->widget.priority,
+				package_size_list(inst->info),
+				1,
+				package_pinup(inst->info),
+				widget_type, gbar_type,
+				inst->widget.period, inst->title,
+				inst->is_pinned_up);
+		if (!owner_packet) {
+			ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
+			return WIDGET_ERROR_FAULT;
+		}
+	} else {
+		owner_packet = NULL;
+	}
+
+	return client_send_event(inst, packet, owner_packet);
 }
 
 HAPI int instance_unicast_deleted_event(struct inst_info *inst, struct client_node *client, int reason)
@@ -580,7 +610,7 @@ static int instance_broadcast_deleted_event(struct inst_info *inst, int reason)
 		return WIDGET_ERROR_FAULT;
 	}
 
-	ret = client_send_event(inst, packet);
+	ret = client_send_event(inst, packet, NULL);
 
 	EINA_LIST_FOREACH_SAFE(inst->client_list, l, n, client) {
 		instance_del_client(inst, client);
@@ -614,7 +644,7 @@ static int send_gbar_destroyed_to_client(struct inst_info *inst, int status)
 
 	inst->gbar.need_to_send_close_event = 0;
 
-	return client_send_event(inst, packet);
+	return client_send_event(inst, packet, NULL);
 }
 
 static inline void invoke_delete_callbacks(struct inst_info *inst)
@@ -819,7 +849,7 @@ static inline void destroy_instance(struct inst_info *inst)
 	DbgFree(inst->cluster);
 	DbgFree(inst->content);
 	DbgFree(inst->title);
-	util_unlink(util_uri_to_path(inst->id));
+	util_unlink(widget_util_uri_to_path(inst->id));
 	DbgFree(inst->id);
 	package_del_instance(inst->info, inst);
 	DbgFree(inst);
@@ -995,6 +1025,8 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 		instance_state_reset(inst);
 		instance_destroy(inst, WIDGET_DESTROY_TYPE_FAULT);
 		inst = NULL;
+	} else {
+		inst->visible = WIDGET_HIDE_WITH_PAUSE;
 	}
 
 	return inst;
@@ -1932,7 +1964,7 @@ HAPI int instance_widget_update_begin(struct inst_info *inst, double priority, c
 		return WIDGET_ERROR_FAULT;
 	}
 
-	return client_send_event(inst, packet);
+	return client_send_event(inst, packet, NULL);
 }
 
 HAPI int instance_widget_update_end(struct inst_info *inst)
@@ -1969,7 +2001,7 @@ HAPI int instance_widget_update_end(struct inst_info *inst)
 		return WIDGET_ERROR_FAULT;
 	}
 
-	return client_send_event(inst, packet);
+	return client_send_event(inst, packet, NULL);
 }
 
 HAPI int instance_gbar_update_begin(struct inst_info *inst)
@@ -2009,7 +2041,7 @@ HAPI int instance_gbar_update_begin(struct inst_info *inst)
 		return WIDGET_ERROR_FAULT;
 	}
 
-	return client_send_event(inst, packet);
+	return client_send_event(inst, packet, NULL);
 }
 
 HAPI int instance_gbar_update_end(struct inst_info *inst)
@@ -2046,7 +2078,7 @@ HAPI int instance_gbar_update_end(struct inst_info *inst)
 		return WIDGET_ERROR_FAULT;
 	}
 
-	return client_send_event(inst, packet);
+	return client_send_event(inst, packet, NULL);
 }
 
 HAPI void instance_extra_info_updated_by_instance(struct inst_info *inst)
@@ -2063,7 +2095,7 @@ HAPI void instance_extra_info_updated_by_instance(struct inst_info *inst)
 		return;
 	}
 
-	(void)client_send_event(inst, packet);
+	(void)client_send_event(inst, packet, NULL);
 }
 
 HAPI void instance_extra_updated_by_instance(struct inst_info *inst, int is_gbar, int idx, int x, int y, int w, int h)
@@ -2108,7 +2140,7 @@ HAPI void instance_extra_updated_by_instance(struct inst_info *inst, int is_gbar
 		return;
 	}
 
-	(void)client_send_event(inst, packet);
+	(void)client_send_event(inst, packet, NULL);
 }
 
 HAPI void instance_widget_updated_by_instance(struct inst_info *inst, const char *safe_file, int x, int y, int w, int h)
@@ -2138,7 +2170,7 @@ HAPI void instance_widget_updated_by_instance(struct inst_info *inst, const char
 		return;
 	}
 
-	(void)client_send_event(inst, packet);
+	(void)client_send_event(inst, packet, NULL);
 }
 
 HAPI int instance_hold_scroll(struct inst_info *inst, int hold)
@@ -2158,7 +2190,7 @@ HAPI int instance_hold_scroll(struct inst_info *inst, int hold)
 	}
 
 	inst->scroll_locked = hold;
-	return client_send_event(inst, packet);
+	return client_send_event(inst, packet, NULL);
 }
 
 HAPI void instance_gbar_updated_by_instance(struct inst_info *inst, const char *descfile, int x, int y, int w, int h)
@@ -2214,7 +2246,7 @@ HAPI void instance_gbar_updated_by_instance(struct inst_info *inst, const char *
 		return;
 	}
 
-	(void)client_send_event(inst, packet);
+	(void)client_send_event(inst, packet, NULL);
 }
 
 HAPI void instance_gbar_updated(const char *pkgname, const char *id, const char *descfile, int x, int y, int w, int h)
@@ -2410,7 +2442,7 @@ out:
 	result = packet_create_noack((const char *)&cmd, "iisss", ret, cbdata->inst->is_pinned_up,
 			package_name(cbdata->inst->info), cbdata->inst->id, cbdata->inst->content);
 	if (result) {
-		(void)client_send_event(cbdata->inst, result);
+		(void)client_send_event(cbdata->inst, result, NULL);
 	} else {
 		ErrPrint("Failed to build a packet for %s\n", package_name(cbdata->inst->info));
 	}
@@ -2665,7 +2697,7 @@ static void set_period_cb(struct slave_node *slave, const struct packet *packet,
 out:
 	result = packet_create_noack((const char *)&cmd, "idss", ret, cbdata->inst->widget.period, package_name(cbdata->inst->info), cbdata->inst->id);
 	if (result) {
-		(void)client_send_event(cbdata->inst, result);
+		(void)client_send_event(cbdata->inst, result, NULL);
 	} else {
 		ErrPrint("Failed to build a packet for %s\n", package_name(cbdata->inst->info));
 	}
@@ -2706,7 +2738,7 @@ static Eina_Bool timer_updator_cb(void *data)
 
 	result = packet_create_noack((const char *)&cmd, "idss", 0, inst->widget.period, package_name(inst->info), inst->id);
 	if (result) {
-		(void)client_send_event(inst, result);
+		(void)client_send_event(inst, result, NULL);
 	} else {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 	}
@@ -2898,7 +2930,7 @@ out:
 	if (!result) {
 		ErrPrint("Failed to build a packet %s\n", package_name(cbdata->inst->info));
 	} else {
-		(void)client_send_event(cbdata->inst, result);
+		(void)client_send_event(cbdata->inst, result, NULL);
 	}
 
 	instance_unref(cbdata->inst);
@@ -3257,7 +3289,7 @@ HAPI int instance_need_slave(struct inst_info *inst)
 
 HAPI int instance_forward_packet(struct inst_info *inst, struct packet *packet)
 {
-	return client_send_event(inst, packet);
+	return client_send_event(inst, packet, NULL);
 }
 
 HAPI int instance_send_key_status(struct inst_info *inst, int status)
@@ -3271,7 +3303,7 @@ HAPI int instance_send_key_status(struct inst_info *inst, int status)
 		return WIDGET_ERROR_FAULT;
 	}
 
-	return client_send_event(inst, packet);
+	return client_send_event(inst, packet, NULL);
 }
 
 HAPI int instance_send_access_status(struct inst_info *inst, int status)
@@ -3285,7 +3317,7 @@ HAPI int instance_send_access_status(struct inst_info *inst, int status)
 		return WIDGET_ERROR_FAULT;
 	}
 
-	return client_send_event(inst, packet);
+	return client_send_event(inst, packet, NULL);
 }
 
 HAPI void instance_slave_set_gbar_pos(struct inst_info *inst, double x, double y)
@@ -3481,7 +3513,7 @@ HAPI int instance_client_gbar_created(struct inst_info *inst, int status)
 		return WIDGET_ERROR_FAULT;
 	}
 
-	ret = client_send_event(inst, packet);
+	ret = client_send_event(inst, packet, NULL);
 
 	if (inst->gbar.need_to_send_close_event && inst->gbar.pended_update_cnt) {
 		DbgPrint("Apply pended desc(%d) - %s\n", inst->gbar.pended_update_cnt, inst->gbar.pended_update_desc);
@@ -3517,7 +3549,7 @@ HAPI int instance_client_gbar_extra_buffer_created(struct inst_info *inst, int i
 		return WIDGET_ERROR_FAULT;
 	}
 
-	return client_send_event(inst, packet);
+	return client_send_event(inst, packet, NULL);
 }
 
 HAPI int instance_client_gbar_extra_buffer_destroyed(struct inst_info *inst, int idx)
@@ -3538,7 +3570,7 @@ HAPI int instance_client_gbar_extra_buffer_destroyed(struct inst_info *inst, int
 		return WIDGET_ERROR_FAULT;
 	}
 
-	return client_send_event(inst, packet);
+	return client_send_event(inst, packet, NULL);
 }
 
 HAPI int instance_client_widget_extra_buffer_created(struct inst_info *inst, int idx)
@@ -3559,7 +3591,7 @@ HAPI int instance_client_widget_extra_buffer_created(struct inst_info *inst, int
 		return WIDGET_ERROR_FAULT;
 	}
 
-	return client_send_event(inst, packet);
+	return client_send_event(inst, packet, NULL);
 }
 
 HAPI int instance_client_widget_extra_buffer_destroyed(struct inst_info *inst, int idx)
@@ -3580,7 +3612,7 @@ HAPI int instance_client_widget_extra_buffer_destroyed(struct inst_info *inst, i
 		return WIDGET_ERROR_FAULT;
 	}
 
-	return client_send_event(inst, packet);
+	return client_send_event(inst, packet, NULL);
 }
 
 /**

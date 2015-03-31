@@ -2,7 +2,7 @@
 
 Name: data-provider-master
 Summary: Master service provider for widgetes
-Version: 1.1.1
+Version: 1.1.2
 Release: 1
 Group: HomeTF/widget
 License: Flora

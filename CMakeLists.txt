@@ -113,7 +113,6 @@ IF (LIVEBOX)
 		src/package.c
 		src/instance.c
 		src/server.c
-		src/abi.c
 		src/fault_manager.c
 		src/parser.c
 		src/io.c

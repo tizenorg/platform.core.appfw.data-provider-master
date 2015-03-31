@@ -34,6 +34,8 @@
 #include <packet.h>
 #include <widget_errno.h>
 #include <widget_conf.h>
+#include <widget_abi.h>
+#include <widget_util.h>
 #include <widget_cmd_list.h>
 #include <widget_service.h>
 #include <widget_service_internal.h>
@@ -47,7 +49,6 @@
 #include "conf.h"
 #include "setting.h"
 #include "util.h"
-#include "abi.h"
 #include "xmonitor.h"
 
 #include "package.h"
@@ -852,10 +853,6 @@ HAPI int slave_activated(struct slave_node *slave)
 {
 	slave->state = SLAVE_RESUMED;
 
-	if (xmonitor_is_paused()) {
-		slave_pause(slave);
-	}
-
 	if (((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured == 1) && WIDGET_CONF_SLAVE_TTL > 0.0f) {
 		DbgPrint("Slave deactivation timer is added (%s - %lf)\n", slave_name(slave), WIDGET_CONF_SLAVE_TTL);
 		slave->ttl_timer = ecore_timer_add(WIDGET_CONF_SLAVE_TTL, slave_ttl_cb, slave);
@@ -1467,13 +1464,13 @@ HAPI char *slave_package_name(const char *abi, const char *lbid)
 	char *s_pkgname;
 	const char *tmp;
 
-	tmp = abi_find_slave(abi);
+	tmp = widget_abi_get_pkgname_by_abi(abi);
 	if (!tmp) {
 		ErrPrint("Failed to find a proper pkgname of a slave\n");
 		return NULL;
 	}
 
-	s_pkgname = util_replace_string(tmp, WIDGET_CONF_REPLACE_TAG_APPID, lbid);
+	s_pkgname = widget_util_replace_string(tmp, WIDGET_CONF_REPLACE_TAG_APPID, lbid);
 	if (!s_pkgname) {
 		DbgPrint("Failed to get replaced string\n");
 		s_pkgname = strdup(tmp);

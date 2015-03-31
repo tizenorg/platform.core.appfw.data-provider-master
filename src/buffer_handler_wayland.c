@@ -31,6 +31,7 @@
 #include <dlog.h>
 #include <packet.h>
 #include <widget_errno.h>
+#include <widget_util.h>
 
 #include "debug.h"
 #include "conf.h"
@@ -125,7 +126,7 @@ static int create_lock_file(struct buffer_info *info)
 		/* target[2] = '\0'; // We already have this ;) */
 	}
 
-	snprintf(file, len + 20, "%s.%s.lck", util_uri_to_path(id), target);
+	snprintf(file, len + 20, "%s.%s.lck", widget_util_uri_to_path(id), target);
 	info->lock_fd = open(file, O_WRONLY|O_CREAT, 0644);
 	if (info->lock_fd < 0) {
 		ErrPrint("open: %s\n", strerror(errno));
@@ -343,7 +344,7 @@ static inline int unload_file_buffer(struct buffer_info *info)
 	DbgFree(info->buffer);
 	info->buffer = NULL;
 
-	path = util_uri_to_path(info->id);
+	path = widget_util_uri_to_path(info->id);
 	if (path && unlink(path) < 0) {
 		ErrPrint("unlink: %s\n", strerror(errno));
 	}
@@ -590,9 +591,9 @@ EAPI void buffer_handler_flush(struct buffer_info *info)
 		 * Not supported for wayland or this should be ported correctly
 		 */
 	} else if (buffer->type == BUFFER_TYPE_FILE) {
-		fd = open(util_uri_to_path(info->id), O_WRONLY | O_CREAT, 0644);
+		fd = open(widget_util_uri_to_path(info->id), O_WRONLY | O_CREAT, 0644);
 		if (fd < 0) {
-			ErrPrint("%s open falied: %s\n", util_uri_to_path(info->id), strerror(errno));
+			ErrPrint("%s open falied: %s\n", widget_util_uri_to_path(info->id), strerror(errno));
 			return;
 		}
 

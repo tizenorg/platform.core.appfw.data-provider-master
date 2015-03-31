@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <manifest xmlns="http://tizen.org/ns/packages" package="org.tizen.nicesj" version="1.0" install-location="auto">
 
-<widget appid="org.tizen.nicesj.widget" primary="true" secured="false" network="false" abi="c" timeout="20" period="10.0" libexec="/usr/apps/org.tizen.myapp/libexec/liblive-org.tizen.nicesj.so" pinup="false" script="edje" nodisplay="false">
+<widget appid="org.tizen.nicesj.widget" primary="true" secured="false" network="false" abi="c" timeout="20" period="10.0" libexec="/usr/apps/org.tizen.myapp/libexec/liblive-org.tizen.nicesj.so" pinup="false" script="edje" nodisplay="false" direct_input="true">
 	<label>My widget</label>
 	<icon>/usr/share/icons/small/org.tizen.live-nicesj.png</icon>
 	<label xml:lang="en_US">Sample</label>

@@ -32,7 +32,9 @@
 #include <widget_service_internal.h>
 #include <widget_cmd_list.h>
 #include <widget_conf.h>
+#include <widget_abi.h>
 #include <widget_script.h>
+#include <widget_util.h>
 
 #include "critical_log.h"
 #include "conf.h"
@@ -50,7 +52,6 @@
 #include "fault_manager.h"
 #include "group.h"
 #include "xmonitor.h"
-#include "abi.h"
 #include "liveinfo.h"
 #include "io.h"
 #include "event.h"
@@ -63,7 +64,7 @@
 #define LAZY_GBAR_OPEN_TAG "lazy,gbar,open"
 #define LAZY_GBAR_CLOSE_TAG "lazy,gbar,close"
 
-#define CATEGORY_WATCH_CLOCK	"com.samsung.wmanager.WATCH_CLOCK"
+#define CATEGORY_WATCH_CLOCK	"org.tizen.wmanager.WATCH_CLOCK"
 
 #define ACCESS_TYPE_DOWN 0
 #define ACCESS_TYPE_MOVE 1
@@ -138,7 +139,7 @@ static char *is_valid_slave(pid_t pid, const char *abi, const char *provider_pkg
 		return NULL;
 	}
 
-	abi_pkgname = abi_find_slave(abi);
+	abi_pkgname = widget_abi_get_pkgname_by_abi(abi);
 	if (!abi_pkgname) {
 		ErrPrint("ABI has no valid entry[%s]\n", abi);
 		return NULL;
@@ -168,9 +169,9 @@ static char *is_valid_slave(pid_t pid, const char *abi, const char *provider_pkg
 		}
 
 		// tmp == /APPID/.provider <<- PROVIDER UI-APP
-		// widget_id == com.samsung.watch-hello <<-- WIDGET ID
-		// provider_pkgname == com.samsung.watch-hello.provider
-		converted_provider_pkgname = util_replace_string(abi_pkgname, WIDGET_CONF_REPLACE_TAG_APPID, widget_id);
+		// widget_id == org.tizen.watch-hello <<-- WIDGET ID
+		// provider_pkgname == org.tizen.watch-hello.provider
+		converted_provider_pkgname = widget_util_replace_string(abi_pkgname, WIDGET_CONF_REPLACE_TAG_APPID, widget_id);
 		if (!converted_provider_pkgname) {
 			DbgFree(widget_id);
 			widget_id = NULL;
@@ -7092,7 +7093,7 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 			if (safe_filename) {
 				(void)script_handler_parse_desc(inst, safe_filename, 0);
 			} else {
-				safe_filename = util_uri_to_path(id);
+				safe_filename = widget_util_uri_to_path(id);
 				(void)script_handler_parse_desc(inst, safe_filename, 0);
 			}
 
@@ -9209,6 +9210,15 @@ static struct method s_client_table[] = {
 		.cmd = CMD_STR_UNSUBSCRIBE_CATEGORY,
 		.handler = client_unsubscribed_category,
 	},
+
+    {
+        .cmd = CMD_STR_HELLO_SYNC,
+        .handler = slave_hello_sync, /* slave_name, ret */
+    },
+    {
+        .cmd = CMD_STR_HELLO_SYNC_PREPARE,
+        .handler = slave_hello_sync_prepare, /* timestamp */
+    },
 
 	{
 		.cmd = NULL,

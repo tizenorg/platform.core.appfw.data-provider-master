@@ -133,13 +133,13 @@ HAPI int dead_callback_add(int handle, void (*dead_cb)(int handle, void *data), 
 
 	EINA_LIST_FOREACH(s_info.cb_list, l, item) {
 		if (item->handle == handle) {
-			return WIDGET_STATUS_ERROR_EXIST;
+			return WIDGET_ERROR_ALREADY_EXIST;
 		}
 	}
 
 	item = malloc(sizeof(*item));
 	if (!item) {
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	item->handle = handle;

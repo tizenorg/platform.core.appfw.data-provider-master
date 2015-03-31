@@ -39,185 +39,15 @@
 #include "client_life.h"
 #include "slave_life.h"
 #include "package.h"
-#include "abi.h"
 #include "io.h"
 
 int errno;
-
-#define MAX_ABI		256
-#define MAX_PKGNAME	512
 
 static struct {
 	sqlite3 *handle;
 } s_info = {
 	.handle = NULL,
 };
-
-static int load_abi_table(void)
-{
-	FILE *fp;
-	int ch;
-	int idx = 0;
-	int tag_id = 0;
-	enum {
-		INIT = 0x0,
-		GROUP = 0x1,
-		TAG = 0x02,
-		VALUE = 0x03,
-		ERROR = 0x05
-	} state;
-	enum {
-		PKGNAME = 0x0,
-	};
-	static const char *field[] = {
-		"package",
-		NULL,
-	};
-	const char *ptr = NULL;
-
-	char group[MAX_ABI + 1];
-	char pkgname[MAX_PKGNAME + 1];
-
-	fp = fopen("/usr/share/"PACKAGE"/abi.ini", "rt");
-	if (!fp) {
-		return WIDGET_ERROR_IO_ERROR;
-	}
-
-	state = INIT;
-	while ((ch = getc(fp)) != EOF && state != ERROR) {
-		switch (state) {
-		case INIT:
-			if (isspace(ch)) {
-				continue;
-			}
-			if (ch == '[') {
-				state = GROUP;
-				idx = 0;
-			} else {
-				state = ERROR;
-			}
-			break;
-		case GROUP:
-			if (ch == ']') {
-				if (idx == 0) {
-					state = ERROR;
-				} else {
-					group[idx] = '\0';
-					state = TAG;
-					idx = 0;
-					ptr = NULL;
-				}
-			} else if (idx < MAX_ABI) {
-				group[idx++] = ch;
-			} else {
-				ErrPrint("Overflow\n");
-				state = ERROR;
-			}
-			break;
-		case TAG:
-			if (ptr == NULL) {
-				if (idx == 0) {
-					if (isspace(ch)) {
-						continue;
-					}
-
-					/* New group started */
-					if (ch == '[') {
-						ungetc(ch, fp);
-						state = INIT;
-						continue;
-					}
-				}
-
-				ptr = field[idx];
-			}
-
-			if (ptr == NULL) {
-				ErrPrint("unknown tag\n");
-				state = ERROR;
-				continue;
-			}
-
-			if (*ptr == '\0' && ch == '=') {
-				/* MATCHED */
-				state = VALUE;
-				tag_id = idx;
-				idx = 0;
-				ptr = NULL;
-			} else if (*ptr == ch) {
-				ptr++;
-			} else {
-				ungetc(ch, fp);
-				ptr--;
-				while (ptr >= field[idx]) {
-					ungetc(*ptr, fp);
-					ptr--;
-				}
-				ptr = NULL;
-				idx++;
-			}
-			break;
-		case VALUE:
-			switch (tag_id) {
-			case PKGNAME:
-				if (idx == 0) { /* LTRIM */
-					if (isspace(ch)) {
-						continue;
-					}
-
-					pkgname[idx] = ch;
-					idx++;
-				} else if (isspace(ch)) {
-					int ret;
-					pkgname[idx] = '\0';
-
-					ret = abi_add_entry(group, pkgname);
-					if (ret != 0) {
-						ErrPrint("Failed to add %s for %s\n", pkgname, group);
-					}
-
-					state = TAG;
-					idx = 0;
-				} else if (idx < MAX_PKGNAME) {
-					pkgname[idx] = ch;
-					idx++;
-				} else {
-					ErrPrint("Overflow\n");
-					state = ERROR;
-				}
-				break;
-			default:
-				break;
-			}
-			break;
-		case ERROR:
-		default:
-			break;
-		}
-	}
-
-	if (state == VALUE) {
-		switch (tag_id) {
-		case PKGNAME:
-			if (idx) {
-				int ret;
-				pkgname[idx] = '\0';
-				ret = abi_add_entry(group, pkgname);
-				if (ret != 0) {
-					ErrPrint("Failed to add %s for %s\n", pkgname, group);
-				}
-			}
-			break;
-		default:
-			break;
-		}
-	}
-
-	if (fclose(fp) != 0) {
-		ErrPrint("fclose: %s\n", strerror(errno));
-	}
-	return WIDGET_ERROR_NONE;
-}
 
 static inline int build_client_info(struct pkg_info *info)
 {
@@ -879,19 +709,12 @@ HAPI int io_init(void)
 		DbgPrint("DB initialized: %d\n", ret);
 	}
 
-	ret = load_abi_table();
-	if (ret < 0) {
-		DbgPrint("ABI table is loaded: %d\n", ret);
-	}
-
 	return WIDGET_ERROR_NONE;
 }
 
 HAPI int io_fini(void)
 {
 	int ret;
-
-	abi_del_all();
 
 	ret = db_fini();
 	if (ret < 0) {

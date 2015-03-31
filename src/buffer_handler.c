@@ -46,6 +46,7 @@
 #include <widget_service.h>
 #include <widget_buffer.h>
 #include <widget_conf.h>
+#include <widget_util.h>
 
 #include "debug.h"
 #include "conf.h"
@@ -599,7 +600,7 @@ static inline int unload_file_buffer(struct buffer_info *info)
 	DbgFree(info->buffer);
 	info->buffer = NULL;
 
-	path = util_uri_to_path(info->id);
+	path = widget_util_uri_to_path(info->id);
 	if (path && unlink(path) < 0) {
 		ErrPrint("unlink: %s\n", strerror(errno));
 	}
@@ -1232,9 +1233,9 @@ EAPI void buffer_handler_flush(struct buffer_info *info)
 			}
 		}
 	} else if (buffer->type == WIDGET_FB_TYPE_FILE) {
-		fd = open(util_uri_to_path(info->id), O_WRONLY | O_CREAT, 0644);
+		fd = open(widget_util_uri_to_path(info->id), O_WRONLY | O_CREAT, 0644);
 		if (fd < 0) {
-			ErrPrint("%s open falied: %s\n", util_uri_to_path(info->id), strerror(errno));
+			ErrPrint("%s open falied: %s\n", widget_util_uri_to_path(info->id), strerror(errno));
 			return;
 		}
 
