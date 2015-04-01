@@ -1,6 +1,6 @@
 PROJECT(widget-mgr C)
 
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/widget-info/include)
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/widget-mgr/include)
 
 INCLUDE(FindPkgConfig)
 pkg_check_modules(info_pkgs REQUIRED
