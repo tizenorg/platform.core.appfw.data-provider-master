@@ -103,7 +103,7 @@ export TARGET=emulator
 export TARGET=device
 %endif
 
-%cmake . -DPRODUCT=${LIVEBOX_SHM} -DENGINEER_BINARY=${ENGINEER} -DWAYLAND_SUPPORT=${WAYLAND_SUPPORT} -DX11_SUPPORT=${X11_SUPPORT} -DMOBILE=${MOBILE} -DWEARABLE=${WEARABLE} -DLIVEBOX=${LIVEBOX} -DTARGET=${TARGET}
+%cmake . -DNAME=%{name} -DPRODUCT=${LIVEBOX_SHM} -DENGINEER_BINARY=${ENGINEER} -DWAYLAND_SUPPORT=${WAYLAND_SUPPORT} -DX11_SUPPORT=${X11_SUPPORT} -DMOBILE=${MOBILE} -DWEARABLE=${WEARABLE} -DLIVEBOX=${LIVEBOX} -DTARGET=${TARGET}
 
 CFLAGS="${CFLAGS} -Wall -Winline -Werror" LDFLAGS="${LDFLAGS}" make %{?jobs:-j%jobs}
 
@@ -112,7 +112,7 @@ rm -rf %{buildroot}
 %make_install
 mkdir -p %{buildroot}/%{_datarootdir}/license
 mkdir -p %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants
-ln -sf ../data-provider-master.service %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants/data-provider-master.service
+ln -sf ../%{name}.service %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants/%{name}.service
 mkdir -p %{buildroot}/opt/usr/share/live_magazine
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/log
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/reader
@@ -138,8 +138,8 @@ fi
 
 %pre
 # Executing the stop script for stopping the service of installed provider (old version)
-if [ -x %{_sysconfdir}/rc.d/init.d/data-provider-master ]; then
-	%{_sysconfdir}/rc.d/init.d/data-provider-master stop
+if [ -x %{_sysconfdir}/rc.d/init.d/%{name} ]; then
+	%{_sysconfdir}/rc.d/init.d/%{name} stop
 fi
 
 %post
@@ -155,28 +155,29 @@ chown 200:5000 /opt/dbspace/.widget.db
 chmod 640 /opt/dbspace/.widget.db
 chown 200:5000 /opt/dbspace/.widget.db-journal
 chmod 640 /opt/dbspace/.widget.db-journal
-vconftool set -t bool "memory/data-provider-master/started" 0 -i -u 5000 -f -s system::vconf_system
-vconftool set -t int "memory/private/data-provider-master/restart_count" 0 -i -u 5000 -f -s data-provider-master
-vconftool set -t string "db/data-provider-master/serveraddr" "/opt/usr/share/live_magazine/.client.socket" -i -u 5000 -f -s system::vconf_system
+vconftool set -t bool "memory/%{name}/started" 0 -i -u 5000 -f -s system::vconf_system
+vconftool set -t int "memory/private/%{name}/restart_count" 0 -i -u 5000 -f -s %{name}
+vconftool set -t string "db/%{name}/serveraddr" "/opt/usr/share/live_magazine/.client.socket" -i -u 5000 -f -s system::vconf_system
+/usr/sbin/setcap -q cap_chown,cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_nice,cap_mac_override,cap_mac_admin+ep /usr/bin/data-provider-master
 echo "Successfully installed. Please start a daemon again manually"
-echo "%{_sysconfdir}/init.d/data-provider-master start"
+echo "%{_sysconfdir}/init.d/%{name} start"
 
-%files -n data-provider-master
+%files -n %{name}
 %manifest %{name}.manifest
 %defattr(-,system,system,-)
-%{_bindir}/data-provider-master
-%{_libdir}/systemd/system/multi-user.target.wants/data-provider-master.service
-%{_libdir}/systemd/system/data-provider-master.service
+%{_bindir}/%{name}
+%{_libdir}/systemd/system/multi-user.target.wants/%{name}.service
+%{_libdir}/systemd/system/%{name}.service
 %{_datarootdir}/license/*
 %if 0%{?tizen_build_binary_release_type_eng}
 /opt/usr/devel/usr/bin/*
 %endif
 %{_prefix}/etc/package-manager/parserlib/*
-%{_datarootdir}/data-provider-master/*
+%{_datarootdir}/%{name}/*
 /opt/etc/dump.d/module.d/dump_widget.sh
 /opt/usr/share/live_magazine/*
 /opt/dbspace/.widget.db
 /opt/dbspace/.widget.db-journal
-%{_sysconfdir}/smack/accesses.d/%{name}.rule
+%{_sysconfdir}/smack/accesses.d/%{name}
 
 # End of a file
