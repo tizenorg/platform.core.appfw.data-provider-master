@@ -2042,6 +2042,10 @@ int main(int argc, char *argv[])
 	g_type_init();
 #endif
 
+	/**
+	 * Make the system daemon can access proc file to validate myself
+	 */
+
 	com_core_add_event_callback(CONNECTOR_DISCONNECTED, disconnected_cb, NULL);
 	com_core_add_event_callback(CONNECTOR_CONNECTED, connected_cb, NULL);
 	widget_service_init();

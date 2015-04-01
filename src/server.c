@@ -6468,11 +6468,35 @@ out:
 	return NULL;
 }
 
-static struct packet *slave_hello(pid_t pid, int handle, const struct packet *packet) /* slave_name, ret */
+static inline __attribute__((always_inline)) int debug_mode_enabled(int pid, const char *slavename, const char *pkgname, int secured, const char *abi, const char *acceleration)
 {
 	struct slave_node *slave;
-	const char *slavename;
+
+	slave = slave_find_by_pkgname(pkgname);
+	if (!slave) {
+		slave = slave_create(slavename, secured, abi, pkgname, 0, acceleration);
+		if (!slave) {
+			return WIDGET_ERROR_FAULT;
+		}
+
+		DbgPrint("New slave is created net(%d) abi(%s) secured(%d) accel(%s)\n", 0, abi, secured, acceleration);
+	} else {
+		DbgPrint("Registered slave is replaced with this new one\n");
+	}
+
+	slave_set_pid(slave, pid);
+	slave_set_valid(slave);
+
+	DbgPrint("Provider is forcely activated, pkgname(%s), abi(%s), slavename(%s)\n", pkgname, abi, slavename);
+	return WIDGET_ERROR_NONE;
+}
+
+static struct packet *slave_hello(pid_t pid, int handle, const struct packet *packet) /* slave_name, ret */
+{
+	char pkgname[pathconf("/", _PC_PATH_MAX)];
+	struct slave_node *slave;
 	const char *acceleration;
+	const char *slavename;
 	const char *abi;
 	int secured;
 	int ret;
@@ -6494,34 +6518,25 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 		slave = slave_find_by_pid(pid);
 	}
 
+	if (aul_app_get_pkgname_bypid(pid, pkgname, sizeof(pkgname)) != AUL_R_OK) {
+		ErrPrint("pid[%d] is not authroized provider package, try to find it using its name[%s]\n", pid, slavename);
+		goto out;
+	}
+
 	if (!slave) {
-		char pkgname[pathconf("/", _PC_PATH_MAX)];
-
-		if (aul_app_get_pkgname_bypid(pid, pkgname, sizeof(pkgname)) != AUL_R_OK) {
-			ErrPrint("pid[%d] is not authroized provider package, try to find it using its name[%s]\n", pid, slavename);
-			goto out;
-		}
-
 		if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
-			slave = slave_find_by_pkgname(pkgname);
-			if (!slave) {
-				slave = slave_create(slavename, secured, abi, pkgname, 0, acceleration);
-				if (!slave) {
-					ErrPrint("Failed to create a new slave for %s\n", slavename);
-					goto out;
-				}
-
-				DbgPrint("New slave is created net(%d) abi(%s) secured(%d) accel(%s)\n", 0, abi, secured, acceleration);
-			} else {
-				DbgPrint("Registered slave is replaced with this new one\n");
+			if (debug_mode_enabled(pid, slavename, pkgname, secured, abi, acceleration) != WIDGET_ERROR_NONE) {
+				ErrPrint("Failed to create a new slave for %s\n", slavename);
+				goto out;
 			}
-
-			slave_set_pid(slave, pid);
-			DbgPrint("Provider is forcely activated, pkgname(%s), abi(%s), slavename(%s)\n", pkgname, abi, slavename);
 		} else {
 			char *widget_id;
 			struct pkg_info *info;
+			unsigned int widget_size;
 			int network;
+			int width;
+			int height;
+			struct inst_info *inst;
 
 			widget_id = is_valid_slave(pid, abi, pkgname);
 			if (!widget_id) {
@@ -6529,10 +6544,10 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 			}
 
 			info = package_find(widget_id);
-			DbgFree(widget_id);
 
 			if (!info) {
 				DbgPrint("There is no loaded package information\n");
+				DbgFree(widget_id);
 				goto out;
 			} else {
 				const char *category;
@@ -6547,21 +6562,25 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 
 				if (db_secured != secured) {
 					DbgPrint("%s secured (%d)\n", pkgname, db_secured);
+					DbgFree(widget_id);
 					goto out;
 				}
 
 				if (strcmp(tmp, abi)) {
 					DbgPrint("%s abi (%s)\n", pkgname, tmp);
+					DbgFree(widget_id);
 					goto out;
 				}
 
 				if (strcmp(acceleration, db_acceleration)) {
 					DbgPrint("%s accel (%s)\n", pkgname, db_acceleration);
+					DbgFree(widget_id);
 					goto out;
 				}
 
 				if (util_string_is_in_list(category, WIDGET_CONF_CATEGORY_LIST) == 0) {
 					DbgPrint("%s category (%s)\n", pkgname, category);
+					DbgFree(widget_id);
 					goto out;
 				}
 
@@ -6571,11 +6590,37 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 			slave = slave_create(slavename, secured, abi, pkgname, network, acceleration);
 			if (!slave) {
 				ErrPrint("Failed to create a new slave for %s\n", slavename);
+				DbgFree(widget_id);
 				goto out;
 			}
 
 			slave_set_pid(slave, pid);
+			slave_set_valid(slave);
+			slave_activated(slave);
 			DbgPrint("Slave is activated by request: %d (%s)/(%s)\n", pid, pkgname, slavename);
+
+			widget_size = package_size_list(info);
+
+			if (widget_size & WIDGET_SIZE_TYPE_2x2) {
+				widget_service_get_size(WIDGET_SIZE_TYPE_2x2, &width, &height);
+			} else if (widget_size & WIDGET_SIZE_TYPE_4x4) {
+				widget_service_get_size(WIDGET_SIZE_TYPE_4x4, &width, &height);
+			} else {
+				widget_service_get_size(WIDGET_SIZE_TYPE_1x1, &width, &height);
+				DbgPrint("widget[%s] doesn't support size [2x2], [4x4]\n", pkgname);
+			}
+
+			/**
+			 * @note
+			 * Create an instance by provider's request.
+			 * And then assign its client when a viewer tries to create this instance.
+			 */
+			inst = instance_create(NULL, util_timestamp(), widget_id, "", "", "", WIDGET_CONF_DEFAULT_PERIOD, width, height);
+			if (!inst) {
+				ErrPrint("Failed to create a new instance\n");
+			}
+
+			DbgFree(widget_id);
 		}
 	} else {
 		if (slave_pid(slave) != pid) {
@@ -6589,6 +6634,19 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 			}
 			CRITICAL_LOG("PID of slave(%s) is updated (%d -> %d)\n", slave_name(slave), slave_pid(slave), pid);
 			slave_set_pid(slave, pid);
+		}
+
+		if (!slave_valid(slave)) {
+			char *widget_id;
+
+			widget_id = is_valid_slave(pid, abi, pkgname);
+			if (widget_id) {
+				slave_set_valid(slave);
+				DbgFree(widget_id);
+			} else {
+				ErrPrint("slave is not valid (%s)\n", pkgname);
+				goto out;
+			}
 		}
 	}
 
@@ -7970,22 +8028,10 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 
 	if (!slave) {
 		if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
-			slave = slave_find_by_pkgname(pkgname);
-			if (!slave) {
-				slave = slave_create(slavename, secured, abi, pkgname, 0, acceleration);
-				if (!slave) {
-					ErrPrint("Failed to create a new slave for %s\n", slavename);
-					goto out;
-				}
-
-				DbgPrint("New slave is created net(%d) abi(%s) secured(%d) accel(%s)\n", 0, abi, secured, acceleration);
-			} else {
-				DbgPrint("Registered slave is replaced with this new one\n");
+			if (debug_mode_enabled(pid, slavename, pkgname, secured, abi, acceleration) != WIDGET_ERROR_NONE) {
+				ErrPrint("Failed to create a new slave for %s\n", slavename);
+				goto out;
 			}
-			slave_set_pid(slave, pid);
-			slave_set_valid(slave);
-
-			DbgPrint("Provider is forcely activated, pkgname(%s), abi(%s), slavename(%s)\n", pkgname, abi, slavename);
 		} else {
 			struct pkg_info *info;
 			int network;
@@ -8116,6 +8162,9 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			DbgFree(pkgid);
 		}
 
+		/**
+		 * Finding a created instance information
+		 */
 		category = package_category(info);
 		inst_list = package_instance_list(info);
 		inst = NULL;
@@ -8148,6 +8197,11 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 
 		slave_set_valid(slave);
 
+		/**
+		 * @TODO
+		 * This should able to be configurable by .conf file.
+		 * Watch instance can be created only ONE in this system.
+		 */
 		if (strcmp(CATEGORY_WATCH_CLOCK, category) == 0) {
 			/**
 			 * @note
