@@ -46,10 +46,10 @@
 
 #include <Ecore.h>
 
-#include "liveinfo.h"
+#include "widget-info.h"
 #include "node.h"
 
-#define PROMPT "liveinfo "
+#define PROMPT "widget-mgr "
 #define PROVIDER_FOLDER "provider"
 #define PACKAGE_FOLDER "package"
 
@@ -570,7 +570,7 @@ static void send_inst_list(const char *pkgname)
 
 static void help(void)
 {
-	printf("liveinfo - widget utility\n");
+	printf("widget-mgr - widget utility\n");
 	printf("------------------------------ [Option] ------------------------------\n");
 	printf("-b Batch mode\n");
 	printf("-x execute command\n");
@@ -1944,7 +1944,7 @@ static int connected_cb(int handle, void *data)
 
 	printf("Connected\n");
 
-	packet = packet_create("liveinfo_hello", "d", 0.0f);
+	packet = packet_create("widget_mgr_hello", "d", 0.0f);
 	if (!packet) {
 		printf("Failed to build a packet for hello\n");
 		com_core_packet_client_fini(s_info.fd);

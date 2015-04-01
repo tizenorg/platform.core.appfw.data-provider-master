@@ -121,7 +121,7 @@ IF (LIVEBOX)
 		src/client_rpc.c
 		src/group.c
 		src/script_handler.c
-		src/liveinfo.c
+		src/widget-mgr.c
 		src/pkgmgr.c
 		src/event.c
 		src/file_service.c
@@ -217,7 +217,7 @@ ENDIF (LIVEBOX)
 
 IF (X11_SUPPORT)
 	IF ("${ENGINEER_BINARY}" STREQUAL "true")
-		ADD_SUBDIRECTORY(util_liveinfo)
+		ADD_SUBDIRECTORY(widget-mgr)
 	ENDIF ("${ENGINEER_BINARY}" STREQUAL "true")
 ENDIF (X11_SUPPORT)
 

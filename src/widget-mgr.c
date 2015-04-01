@@ -41,7 +41,7 @@ static struct info {
 	.info_list = NULL,
 };
 
-struct liveinfo {
+struct widget_mgr {
 	FILE *fp;
 	char fifo_name[60];
 	pid_t pid;
@@ -49,14 +49,14 @@ struct liveinfo {
 	void *data;
 };
 
-HAPI int liveinfo_init(void)
+HAPI int widget_mgr_init(void)
 {
 	return 0;
 }
 
-HAPI void liveinfo_fini(void)
+HAPI void widget_mgr_fini(void)
 {
-	struct liveinfo *info;
+	struct widget_mgr *info;
 
 	EINA_LIST_FREE(s_info.info_list, info) {
 		if (fclose(info->fp) != 0) {
@@ -84,15 +84,6 @@ static inline int valid_requestor(pid_t pid)
 		return 0;
 	}
 
-	if (stat("/opt/usr/devel/usr/bin/liveinfo", &src) < 0) {
-		ErrPrint("Error: %s\n", strerror(errno));
-		return 0;
-	}
-
-	if (target.st_ino == src.st_ino) {
-		return 1;
-	}
-
 	if (stat("/opt/usr/devel/usr/bin/widget-mgr", &src) < 0) {
 		ErrPrint("Error: %s\n", strerror(errno));
 		return 0;
@@ -101,19 +92,19 @@ static inline int valid_requestor(pid_t pid)
 	return target.st_ino == src.st_ino;
 }
 
-HAPI void liveinfo_set_data(struct liveinfo *info, void *data)
+HAPI void widget_mgr_set_data(struct widget_mgr *info, void *data)
 {
 	info->data = data;
 }
 
-HAPI void *liveinfo_data(struct liveinfo *info)
+HAPI void *widget_mgr_data(struct widget_mgr *info)
 {
 	return info->data;
 }
 
-HAPI struct liveinfo *liveinfo_create(pid_t pid, int handle)
+HAPI struct widget_mgr *widget_mgr_create(pid_t pid, int handle)
 {
-	struct liveinfo *info;
+	struct widget_mgr *info;
 
 	if (!valid_requestor(pid)) {
 		ErrPrint("Invalid requestor\n");
@@ -145,7 +136,7 @@ HAPI struct liveinfo *liveinfo_create(pid_t pid, int handle)
 	return info;
 }
 
-HAPI int liveinfo_open_fifo(struct liveinfo *info)
+HAPI int widget_mgr_open_fifo(struct widget_mgr *info)
 {
 	DbgPrint("FIFO is created (%s)\n", info->fifo_name);
 	info->fp = fopen(info->fifo_name, "w");
@@ -157,7 +148,7 @@ HAPI int liveinfo_open_fifo(struct liveinfo *info)
 	return WIDGET_ERROR_NONE;
 }
 
-HAPI void liveinfo_close_fifo(struct liveinfo *info)
+HAPI void widget_mgr_close_fifo(struct widget_mgr *info)
 {
 	if (info->fp) {
 		if (fclose(info->fp) != 0) {
@@ -167,35 +158,35 @@ HAPI void liveinfo_close_fifo(struct liveinfo *info)
 	}
 }
 
-HAPI void liveinfo_destroy(struct liveinfo *info)
+HAPI void widget_mgr_destroy(struct widget_mgr *info)
 {
 	s_info.info_list = eina_list_remove(s_info.info_list, info);
-	liveinfo_close_fifo(info);
+	widget_mgr_close_fifo(info);
 	if (unlink(info->fifo_name) < 0) {
 		ErrPrint("unlink: %s\n", strerror(errno));
 	}
 	DbgFree(info);
 }
 
-HAPI pid_t liveinfo_pid(struct liveinfo *info)
+HAPI pid_t widget_mgr_pid(struct widget_mgr *info)
 {
 	return info ? info->pid : (pid_t)-1;
 }
 
-HAPI const char *liveinfo_filename(struct liveinfo *info)
+HAPI const char *widget_mgr_filename(struct widget_mgr *info)
 {
 	return info ? info->fifo_name : NULL;
 }
 
-HAPI FILE *liveinfo_fifo(struct liveinfo *info)
+HAPI FILE *widget_mgr_fifo(struct widget_mgr *info)
 {
 	return info ? info->fp : NULL;
 }
 
-HAPI struct liveinfo *liveinfo_find_by_pid(pid_t pid)
+HAPI struct widget_mgr *widget_mgr_find_by_pid(pid_t pid)
 {
 	Eina_List *l;
-	struct liveinfo *info;
+	struct widget_mgr *info;
 
 	EINA_LIST_FOREACH(s_info.info_list, l, info) {
 		if (info->pid == pid) {
@@ -206,10 +197,10 @@ HAPI struct liveinfo *liveinfo_find_by_pid(pid_t pid)
 	return NULL;
 }
 
-HAPI struct liveinfo *liveinfo_find_by_handle(int handle)
+HAPI struct widget_mgr *widget_mgr_find_by_handle(int handle)
 {
 	Eina_List *l;
-	struct liveinfo *info;
+	struct widget_mgr *info;
 
 	EINA_LIST_FOREACH(s_info.info_list, l, info) {
 		if (info->handle == handle) {

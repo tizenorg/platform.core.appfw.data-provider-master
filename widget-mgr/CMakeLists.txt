@@ -1,6 +1,6 @@
-PROJECT(liveinfo C)
+PROJECT(widget-mgr C)
 
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/util_liveinfo/include)
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/widget-info/include)
 
 INCLUDE(FindPkgConfig)
 pkg_check_modules(info_pkgs REQUIRED
@@ -27,7 +27,7 @@ ADD_DEFINITIONS("-DPREFIX=\"${PREFIX}\"")
 ADD_DEFINITIONS("-DSOCKET_FILE=\"/opt/usr/share/live_magazine/.live.socket\"")
 
 ADD_EXECUTABLE(${PROJECT_NAME}
-	src/liveinfo.c
+	src/widget-mgr.c
 	src/node.c
 )
 

@@ -32,7 +32,7 @@
 #include "fault_manager.h"
 #include "util.h"
 #include "debug.h"
-#include "liveinfo.h"
+#include "widget-mgr.h"
 #include "conf.h"
 
 struct cb_item {
@@ -51,7 +51,7 @@ static int evt_cb(int handle, void *data)
 {
 	struct slave_node *slave;
 	struct client_node *client;
-	struct liveinfo *liveinfo;
+	struct widget_mgr *widget_mgr;
 	struct cb_item *dead_item;
 	Eina_List *l;
 	Eina_List *n;
@@ -98,9 +98,9 @@ static int evt_cb(int handle, void *data)
 		return 0;
 	}
 
-	liveinfo = liveinfo_find_by_handle(handle);
-	if (liveinfo) {
-		liveinfo_destroy(liveinfo);
+	widget_mgr = widget_mgr_find_by_handle(handle);
+	if (widget_mgr) {
+		widget_mgr_destroy(widget_mgr);
 		return 0;
 	}
 

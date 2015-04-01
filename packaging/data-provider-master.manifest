@@ -38,7 +38,7 @@
 	<assign>
 		<!-- Executable file -->
 		<filesystem path="/usr/bin/data-provider-master" label="data-provider-master::bin" exec_label="data-provider-master::bin" />
-		<filesystem path="/opt/usr/devel/usr/bin/liveinfo" label="data-provider-master::bin" exec_label="data-provider-master::bin" />
+		<filesystem path="/opt/usr/devel/usr/bin/widget-mgr" label="data-provider-master::bin" exec_label="data-provider-master::bin" />
 		<filesystem path="/opt/usr/devel/usr/bin" label="_" />
 
 		<!-- Configuration data -->

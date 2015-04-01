@@ -52,7 +52,7 @@
 #include "fault_manager.h"
 #include "group.h"
 #include "xmonitor.h"
-#include "liveinfo.h"
+#include "widget-mgr.h"
 #include "io.h"
 #include "event.h"
 #include "dead_monitor.h"
@@ -8380,9 +8380,9 @@ out:
 	return result;
 }
 
-static struct packet *liveinfo_hello(pid_t pid, int handle, const struct packet *packet)
+static struct packet *widget_mgr_hello(pid_t pid, int handle, const struct packet *packet)
 {
-	struct liveinfo *info;
+	struct widget_mgr *info;
 	struct packet *result;
 	int ret;
 	const char *fifo_name;
@@ -8397,16 +8397,16 @@ static struct packet *liveinfo_hello(pid_t pid, int handle, const struct packet 
 		goto out;
 	}
 
-	info = liveinfo_create(pid, handle);
+	info = widget_mgr_create(pid, handle);
 	if (!info) {
-		ErrPrint("Failed to create a liveinfo object\n");
+		ErrPrint("Failed to create a widget_mgr object\n");
 		fifo_name = "";
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
 	ret = 0;
-	fifo_name = liveinfo_filename(info);
+	fifo_name = widget_mgr_filename(info);
 	DbgPrint("FIFO Created: %s (Serve for %d)\n", fifo_name, pid);
 
 out:
@@ -8425,10 +8425,10 @@ static Eina_Bool lazy_slave_list_cb(void *info)
 	Eina_List *l;
 	struct slave_node *slave;
 
-	liveinfo_open_fifo(info);
-	fp = liveinfo_fifo(info);
+	widget_mgr_open_fifo(info);
+	fp = widget_mgr_fifo(info);
 	if (!fp) {
-		liveinfo_close_fifo(info);
+		widget_mgr_close_fifo(info);
 		return ECORE_CALLBACK_CANCEL;
 	}
 
@@ -8450,13 +8450,13 @@ static Eina_Bool lazy_slave_list_cb(void *info)
 	}
 
 	fprintf(fp, "EOD\n");
-	liveinfo_close_fifo(info);
+	widget_mgr_close_fifo(info);
 	return ECORE_CALLBACK_CANCEL;
 }
 
-static struct packet *liveinfo_slave_list(pid_t pid, int handle, const struct packet *packet)
+static struct packet *widget_mgr_slave_list(pid_t pid, int handle, const struct packet *packet)
 {
-	struct liveinfo *info;
+	struct widget_mgr *info;
 	double timestamp;
 
 	if (packet_get(packet, "d", &timestamp) != 1) {
@@ -8464,7 +8464,7 @@ static struct packet *liveinfo_slave_list(pid_t pid, int handle, const struct pa
 		goto out;
 	}
 
-	info = liveinfo_find_by_pid(pid);
+	info = widget_mgr_find_by_pid(pid);
 	if (!info) {
 		ErrPrint("Invalid request\n");
 		goto out;
@@ -8500,16 +8500,16 @@ static Eina_Bool inst_list_cb(void *info)
 	Eina_List *inst_list;
 	struct inst_info *inst;
 
-	pkgname = liveinfo_data(info);
+	pkgname = widget_mgr_data(info);
 	if (!pkgname) {
 		return ECORE_CALLBACK_CANCEL;
 	}
 
-	liveinfo_open_fifo(info);
-	fp = liveinfo_fifo(info);
+	widget_mgr_open_fifo(info);
+	fp = widget_mgr_fifo(info);
 	if (!fp) {
 		ErrPrint("Invalid fp\n");
-		liveinfo_close_fifo(info);
+		widget_mgr_close_fifo(info);
 		free(pkgname);
 		return ECORE_CALLBACK_CANCEL;
 	}
@@ -8542,23 +8542,23 @@ static Eina_Bool inst_list_cb(void *info)
 
 close_out:
 	fprintf(fp, "EOD\n");
-	liveinfo_close_fifo(info);
+	widget_mgr_close_fifo(info);
 
 	return ECORE_CALLBACK_CANCEL;
 }
 
-static struct packet *liveinfo_inst_list(pid_t pid, int handle, const struct packet *packet)
+static struct packet *widget_mgr_inst_list(pid_t pid, int handle, const struct packet *packet)
 {
 	const char *pkgname;
 	char *dup_pkgname;
-	struct liveinfo *info;
+	struct widget_mgr *info;
 
 	if (packet_get(packet, "s", &pkgname) != 1) {
 		ErrPrint("Invalid argument\n");
 		goto out;
 	}
 
-	info = liveinfo_find_by_pid(pid);
+	info = widget_mgr_find_by_pid(pid);
 	if (!info) {
 		ErrPrint("Invalid request\n");
 		goto out;
@@ -8570,7 +8570,7 @@ static struct packet *liveinfo_inst_list(pid_t pid, int handle, const struct pac
 		goto out;
 	}
 
-	liveinfo_set_data(info, dup_pkgname);
+	widget_mgr_set_data(info, dup_pkgname);
 	inst_list_cb(info);
 
 out:
@@ -8588,11 +8588,11 @@ static Eina_Bool pkg_list_cb(void *info)
 	const char *slavename;
 	pid_t pid;
 
-	liveinfo_open_fifo(info);
-	fp = liveinfo_fifo(info);
+	widget_mgr_open_fifo(info);
+	fp = widget_mgr_fifo(info);
 	if (!fp) {
 		DbgPrint("Failed to open a pipe\n");
-		liveinfo_close_fifo(info);
+		widget_mgr_close_fifo(info);
 		return ECORE_CALLBACK_CANCEL;
 	}
 
@@ -8631,13 +8631,13 @@ static Eina_Bool pkg_list_cb(void *info)
 
 	fprintf(fp, "EOD\n");
 	DbgPrint("EOD\n");
-	liveinfo_close_fifo(info);
+	widget_mgr_close_fifo(info);
 	return ECORE_CALLBACK_CANCEL;
 }
 
-static struct packet *liveinfo_pkg_list(pid_t pid, int handle, const struct packet *packet)
+static struct packet *widget_mgr_pkg_list(pid_t pid, int handle, const struct packet *packet)
 {
-	struct liveinfo *info;
+	struct widget_mgr *info;
 	double timestamp;
 
 	if (packet_get(packet, "d", &timestamp) != 1) {
@@ -8647,7 +8647,7 @@ static struct packet *liveinfo_pkg_list(pid_t pid, int handle, const struct pack
 
 	DbgPrint("Package List: %lf\n", timestamp);
 
-	info = liveinfo_find_by_pid(pid);
+	info = widget_mgr_find_by_pid(pid);
 	if (!info) {
 		ErrPrint("Invalid request\n");
 		goto out;
@@ -8658,7 +8658,7 @@ out:
 	return NULL;
 }
 
-static struct packet *liveinfo_slave_ctrl(pid_t pid, int handle, const struct packet *packet)
+static struct packet *widget_mgr_slave_ctrl(pid_t pid, int handle, const struct packet *packet)
 {
 	return NULL;
 }
@@ -8666,16 +8666,16 @@ static struct packet *liveinfo_slave_ctrl(pid_t pid, int handle, const struct pa
 static Eina_Bool pkg_ctrl_rmpack_cb(void *info)
 {
 	FILE *fp;
-	liveinfo_open_fifo(info);
-	fp = liveinfo_fifo(info);
+	widget_mgr_open_fifo(info);
+	fp = widget_mgr_fifo(info);
 	if (!fp) {
-		liveinfo_close_fifo(info);
+		widget_mgr_close_fifo(info);
 		return ECORE_CALLBACK_CANCEL;
 	}
 
 	fprintf(fp, "%d\n", ENOSYS);
 	fprintf(fp, "EOD\n");
-	liveinfo_close_fifo(info);
+	widget_mgr_close_fifo(info);
 	return ECORE_CALLBACK_CANCEL;
 }
 
@@ -8683,16 +8683,16 @@ static Eina_Bool pkg_ctrl_rminst_cb(void *info)
 {
 	FILE *fp;
 
-	liveinfo_open_fifo(info);
-	fp = liveinfo_fifo(info);
+	widget_mgr_open_fifo(info);
+	fp = widget_mgr_fifo(info);
 	if (!fp) {
-		liveinfo_close_fifo(info);
+		widget_mgr_close_fifo(info);
 		return ECORE_CALLBACK_CANCEL;
 	}
 
-	fprintf(fp, "%d\n", (int)liveinfo_data(info));
+	fprintf(fp, "%d\n", (int)widget_mgr_data(info));
 	fprintf(fp, "EOD\n");
-	liveinfo_close_fifo(info);
+	widget_mgr_close_fifo(info);
 	return ECORE_CALLBACK_CANCEL;
 }
 
@@ -8700,22 +8700,22 @@ static Eina_Bool pkg_ctrl_faultinst_cb(void *info)
 {
 	FILE *fp;
 
-	liveinfo_open_fifo(info);
-	fp = liveinfo_fifo(info);
+	widget_mgr_open_fifo(info);
+	fp = widget_mgr_fifo(info);
 	if (!fp) {
-		liveinfo_close_fifo(info);
+		widget_mgr_close_fifo(info);
 		return ECORE_CALLBACK_CANCEL;
 	}
 
-	fprintf(fp, "%d\n", (int)liveinfo_data(info));
+	fprintf(fp, "%d\n", (int)widget_mgr_data(info));
 	fprintf(fp, "EOD\n");
-	liveinfo_close_fifo(info);
+	widget_mgr_close_fifo(info);
 	return ECORE_CALLBACK_CANCEL;
 }
 
-static struct packet *liveinfo_pkg_ctrl(pid_t pid, int handle, const struct packet *packet)
+static struct packet *widget_mgr_pkg_ctrl(pid_t pid, int handle, const struct packet *packet)
 {
-	struct liveinfo *info;
+	struct widget_mgr *info;
 	char *cmd;
 	char *pkgname;
 	char *id;
@@ -8725,7 +8725,7 @@ static struct packet *liveinfo_pkg_ctrl(pid_t pid, int handle, const struct pack
 		goto out;
 	}
 
-	info = liveinfo_find_by_pid(pid);
+	info = widget_mgr_find_by_pid(pid);
 	if (!info) {
 		ErrPrint("Invalid request\n");
 		goto out;
@@ -8737,10 +8737,10 @@ static struct packet *liveinfo_pkg_ctrl(pid_t pid, int handle, const struct pack
 		struct inst_info *inst;
 		inst = package_find_instance_by_id(pkgname, id);
 		if (!inst) {
-			liveinfo_set_data(info, (void *)ENOENT);
+			widget_mgr_set_data(info, (void *)ENOENT);
 		} else {
 			(void)instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
-			liveinfo_set_data(info, (void *)0);
+			widget_mgr_set_data(info, (void *)0);
 		}
 
 		pkg_ctrl_rminst_cb(info);
@@ -8748,16 +8748,16 @@ static struct packet *liveinfo_pkg_ctrl(pid_t pid, int handle, const struct pack
 		struct inst_info *inst;
 		inst = package_find_instance_by_id(pkgname, id);
 		if (!inst) {
-			liveinfo_set_data(info, (void *)ENOENT);
+			widget_mgr_set_data(info, (void *)ENOENT);
 		} else {
 			struct pkg_info *pkg;
 
 			pkg = instance_package(inst);
 			if (!pkg) {
-				liveinfo_set_data(info, (void *)EFAULT);
+				widget_mgr_set_data(info, (void *)EFAULT);
 			} else {
 				(void)package_faulted(pkg, 1);
-				liveinfo_set_data(info, (void *)0);
+				widget_mgr_set_data(info, (void *)0);
 			}
 		}
 
@@ -8772,21 +8772,21 @@ static Eina_Bool master_ctrl_cb(void *info)
 {
 	FILE *fp;
 
-	liveinfo_open_fifo(info);
-	fp = liveinfo_fifo(info);
+	widget_mgr_open_fifo(info);
+	fp = widget_mgr_fifo(info);
 	if (!fp) {
-		liveinfo_close_fifo(info);
+		widget_mgr_close_fifo(info);
 		return ECORE_CALLBACK_CANCEL;
 	}
-	fprintf(fp, "%d\nEOD\n", (int)liveinfo_data(info));
-	liveinfo_close_fifo(info);
+	fprintf(fp, "%d\nEOD\n", (int)widget_mgr_data(info));
+	widget_mgr_close_fifo(info);
 
 	return ECORE_CALLBACK_CANCEL;
 }
 
-static struct packet *liveinfo_master_ctrl(pid_t pid, int handle, const struct packet *packet)
+static struct packet *widget_mgr_master_ctrl(pid_t pid, int handle, const struct packet *packet)
 {
-	struct liveinfo *info;
+	struct widget_mgr *info;
 	char *cmd;
 	char *var;
 	char *val;
@@ -8797,7 +8797,7 @@ static struct packet *liveinfo_master_ctrl(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
-	info = liveinfo_find_by_pid(pid);
+	info = widget_mgr_find_by_pid(pid);
 	if (!info) {
 		ErrPrint("Invalid request\n");
 		goto out;
@@ -8817,7 +8817,7 @@ static struct packet *liveinfo_master_ctrl(pid_t pid, int handle, const struct p
 		ret = g_conf.slave_max_load;
 	}
 
-	liveinfo_set_data(info, (void *)ret);
+	widget_mgr_set_data(info, (void *)ret);
 	master_ctrl_cb(info);
 
 out:
@@ -8827,31 +8827,31 @@ out:
 static struct method s_info_table[] = {
 	{
 		.cmd = CMD_STR_INFO_HELLO,
-		.handler = liveinfo_hello,
+		.handler = widget_mgr_hello,
 	},
 	{
 		.cmd = CMD_STR_INFO_SLAVE_LIST,
-		.handler = liveinfo_slave_list,
+		.handler = widget_mgr_slave_list,
 	},
 	{
 		.cmd = CMD_STR_INFO_PKG_LIST,
-		.handler = liveinfo_pkg_list,
+		.handler = widget_mgr_pkg_list,
 	},
 	{
 		.cmd = CMD_STR_INFO_INST_LIST,
-		.handler = liveinfo_inst_list,
+		.handler = widget_mgr_inst_list,
 	},
 	{
 		.cmd = CMD_STR_INFO_SLAVE_CTRL,
-		.handler = liveinfo_slave_ctrl,
+		.handler = widget_mgr_slave_ctrl,
 	},
 	{
 		.cmd = CMD_STR_INFO_PKG_CTRL,
-		.handler = liveinfo_pkg_ctrl,
+		.handler = widget_mgr_pkg_ctrl,
 	},
 	{
 		.cmd = CMD_STR_INFO_MASTER_CTRL,
-		.handler = liveinfo_master_ctrl,
+		.handler = widget_mgr_master_ctrl,
 	},
 	{
 		.cmd = NULL,
