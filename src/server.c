@@ -128,7 +128,7 @@ static char *is_valid_slave(pid_t pid, const char *abi, const char *provider_pkg
 {
 	char pid_pkgname[pathconf("/", _PC_PATH_MAX)];
 	const char *abi_pkgname;
-	widget_pkglist_h list_handle;
+	widget_list_h list_handle;
 	char *pkgid;
 	char *widget_id;
 	char *converted_provider_pkgname = NULL;
@@ -157,12 +157,12 @@ static char *is_valid_slave(pid_t pid, const char *abi, const char *provider_pkg
 	 * This request is comes from standalone widget provider (not the predefined service provider)
 	 */
 	pkgid = package_get_pkgid(provider_pkgname);
-	list_handle = widget_service_create_pkglist(pkgid, NULL);
+	list_handle = widget_service_create_widget_list(pkgid, NULL);
 	DbgFree(pkgid);
 
 	verified = 0;
 	widget_id = NULL;
-	while (widget_service_get_pkglist_item(list_handle, NULL, &widget_id, NULL) == WIDGET_ERROR_NONE) {
+	while (widget_service_get_item_from_widget_list(list_handle, NULL, &widget_id, NULL) == WIDGET_ERROR_NONE) {
 		if (!widget_id) {
 			ErrPrint("Invalid widget_id\n");
 			continue;
@@ -190,7 +190,7 @@ static char *is_valid_slave(pid_t pid, const char *abi, const char *provider_pkg
 		widget_id = NULL;
 	}
 
-	widget_service_destroy_pkglist(list_handle);
+	widget_service_destroy_widget_list(list_handle);
 	return widget_id;
 }
 

@@ -438,7 +438,7 @@ static void send_pkg_list(void)
 	s_info.cmd = PKG_LIST;
 	s_info.age++;
 
-	widget_service_get_pkglist(pkglist_cb, s_info.targetdir);
+	widget_service_get_widget_list(pkglist_cb, s_info.targetdir);
 }
 
 static void send_inst_delete(void)
@@ -704,7 +704,7 @@ static inline int do_stat(const char *cmd)
 
 	switch (type){
 	case PKG:
-		tmp = widget_service_get_i18n_name(node_name(node), NULL);
+		tmp = widget_service_get_name(node_name(node), NULL);
 		printf("Name: %s (", tmp);
 		free(tmp);
 
