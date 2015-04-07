@@ -7929,7 +7929,7 @@ static struct packet *slave_hello_sync_prepare(pid_t pid, int handle, const stru
 	ctx = NULL;
 	EINA_LIST_FOREACH_SAFE(s_info.hello_sync_ctx_list, l, n, ctx) {
 		if (ctx->timestamp == timestamp) {
-			if (strncmp(pkgname, ctx->pkgname)) {
+			if (strcmp(pkgname, ctx->pkgname)) {
 				ErrPrint("timestamp is valid, but pkgname is not matched: %s <> %s\n", pkgname, ctx->pkgname);
 				/* Go ahead */
 			}

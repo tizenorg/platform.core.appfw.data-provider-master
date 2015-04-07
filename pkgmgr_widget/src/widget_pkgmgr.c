@@ -49,8 +49,8 @@
 #define WIDGET_COUNT_OF_SIZE_TYPE 13
 #endif
 
-/*!
- * \note
+/**
+ * @note
  * DB Table schema
  *
  * version
@@ -120,41 +120,41 @@
  * +----+---------+----------+-------+
  * | id | cluster | category | pkgid |
  * +----+---------+----------+-------+
-* |  - |    -    |    -     |   -   |
-	* +----+---------+----------+-------|
-* CREATE TABLE groupinfo ( id INTEGER PRIMARY KEY AUTOINCREMENT, cluster TEXT NOT NULL, category TEXT NOT NULL, appid TEXT NOT NULL, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ))
-	*
-	* groupmap
-	* +-------+----+----------+-----------+
-	* | pkgid | id | ctx_item | option_id |
-	* +-------+----+----------+-----------+
-* CREATE TABLE groupmap ( option_id INTEGER PRIMARY KEY AUTOINCREMENT, id INTEGER, pkgid TEXT NOT NULL, ctx_item TEXT NOT NULL, FOREIGN KEY(id) REFERENCES groupinfo(id), FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
-	*
-	*
-	* option
-	* +-------+-----------+-----+-------+
-	* | pkgid | option_id | key | value |
-	* +-------+-----------+-----+-------+
-* CREATE TABLE option ( pkgid TEXT NOT NULL, option_id INTEGER, key TEXT NOT NULL, value TEXT NOT NULL, FOREIGN KEY(option_id) REFERENCES groupmap(option_id), FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid)  )
-	*/
+ * |  - |    -    |    -     |   -   |
+ * +----+---------+----------+-------|
+ * CREATE TABLE groupinfo ( id INTEGER PRIMARY KEY AUTOINCREMENT, cluster TEXT NOT NULL, category TEXT NOT NULL, appid TEXT NOT NULL, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ))
+ *
+ * groupmap
+ * +-------+----+----------+-----------+
+ * | pkgid | id | ctx_item | option_id |
+ * +-------+----+----------+-----------+
+ * CREATE TABLE groupmap ( option_id INTEGER PRIMARY KEY AUTOINCREMENT, id INTEGER, pkgid TEXT NOT NULL, ctx_item TEXT NOT NULL, FOREIGN KEY(id) REFERENCES groupinfo(id), FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
+ *
+ *
+ * option
+ * +-------+-----------+-----+-------+
+ * | pkgid | option_id | key | value |
+ * +-------+-----------+-----+-------+
+ * CREATE TABLE option ( pkgid TEXT NOT NULL, option_id INTEGER, key TEXT NOT NULL, value TEXT NOT NULL, FOREIGN KEY(option_id) REFERENCES groupmap(option_id), FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid)  )
+ */
 
 #if !defined(LIBXML_TREE_ENABLED)
-#error "LIBXML is not supporting the tree"
+	#error "LIBXML is not supporting the tree"
 #endif
 
 #if defined(LOG_TAG)
-#undef LOG_TAG
+	#undef LOG_TAG
 #endif
 
 #define LOG_TAG "PKGMGR_WIDGET2"
 
-	int errno;
+int errno;
 
-	struct i18n {
-		xmlChar *lang;
-		xmlChar *name;
-		xmlChar *icon;
-	};
+struct i18n {
+	xmlChar *lang;
+	xmlChar *name;
+	xmlChar *icon;
+};
 
 struct widget {
 	xmlChar *pkgid;
@@ -222,6 +222,89 @@ static struct {
 	.dbfile = "/opt/dbspace/.widget.db",
 	.handle = NULL,
 };
+
+static inline int next_state(int from, char ch)
+{
+	switch (ch) {
+	case '\0':
+	case '/':
+		return 1;
+	case '.':
+		if (from == 1) {
+			return 2;
+		}
+		if (from == 2) {
+			return 3;
+		}
+	}
+
+	return 4;
+}
+
+static inline void abspath(const char* pBuffer, char* pRet)
+{
+	int idx=0;
+	int state = 1;
+	int from;
+	int src_idx = 0;
+	int src_len = strlen(pBuffer);
+	pRet[idx] = '/';
+	idx ++;
+
+	while (src_idx <= src_len) {
+		from = state;
+		state = next_state(from, pBuffer[src_idx]);
+
+		switch (from) {
+		case 1:
+			if (state != 1) {
+				pRet[idx] = pBuffer[src_idx];
+				idx++;
+			}
+			break;
+		case 2:
+			if (state == 1) {
+				if (idx > 1) {
+					idx--;
+				}
+			} else {
+				pRet[idx] = pBuffer[src_idx];
+				idx++;
+			}
+			break;
+		case 3:
+			// Only can go to the 1 or 4
+			if (state == 1) {
+				idx -= 2;
+				if (idx < 1) {
+					idx = 1;
+				}
+
+				while (idx > 1 && pRet[idx] != '/') {
+					idx--; /* Remove .. */
+				}
+				if (idx > 1 && pRet[idx] == '/') {
+					idx--;
+				}
+				while (idx > 1 && pRet[idx] != '/') {
+					idx--; /* Remove parent folder */
+				}
+			}
+		case 4:
+			pRet[idx] = pBuffer[src_idx];
+			idx++;
+			break;
+		}
+
+		pRet[idx] = '\0';
+		src_idx++;
+	}
+}
+
+static inline xmlChar *abspath_strdup(xmlChar *src)
+{
+	return xmlMalloc(xmlStrlen(src) + 2);
+}
 
 int begin_transaction(void)
 {
@@ -602,30 +685,30 @@ void db_upgrade_db_schema(void)
 	version = get_version();
 
 	switch (version) {
-		case -ENOSYS:
-			db_create_version();
-			/* Need to create version table */
-		case -ENOENT:
-			if (set_version(CUR_VER) < 0) {
-				ErrPrint("Failed to set version\n");
-			}
-			/* Need to set version */
-		case 1:
-			upgrade_pkgmap_for_category();
-		case 2:
-			upgrade_to_version_3();
-		case 3:
-			upgrade_to_version_4();
-		case 4:
-			upgrade_to_version_5();
-		default:
-			/* Need to update version */
-			DbgPrint("Old version: %d\n", version);
-			if (update_version(CUR_VER) < 0) {
-				ErrPrint("Failed to update version\n");
-			}
-		case CUR_VER:
-			break;
+	case -ENOSYS:
+		db_create_version();
+		/* Need to create version table */
+	case -ENOENT:
+		if (set_version(CUR_VER) < 0) {
+			ErrPrint("Failed to set version\n");
+		}
+		/* Need to set version */
+	case 1:
+		upgrade_pkgmap_for_category();
+	case 2:
+		upgrade_to_version_3();
+	case 3:
+		upgrade_to_version_4();
+	case 4:
+		upgrade_to_version_5();
+	default:
+		/* Need to update version */
+		DbgPrint("Old version: %d\n", version);
+		if (update_version(CUR_VER) < 0) {
+			ErrPrint("Failed to update version\n");
+		}
+	case CUR_VER:
+		break;
 	}
 }
 
@@ -1997,7 +2080,7 @@ static inline void update_i18n_name(struct widget *widget, xmlNodePtr node)
 	widget->i18n_list = dlist_append(widget->i18n_list, i18n);
 }
 
-static inline void update_i18n_icon(struct widget *widget, xmlNodePtr node)
+static void update_i18n_icon(struct widget *widget, xmlNodePtr node)
 {
 	struct i18n *i18n;
 	struct dlist *l;
@@ -2029,6 +2112,14 @@ static inline void update_i18n_icon(struct widget *widget, xmlNodePtr node)
 			}
 
 			i18n->icon = icon;
+			icon = abspath_strdup(i18n->icon);
+			if (!icon) {
+				ErrPrint("Heap: %s\n", strerror(errno));
+			} else {
+				abspath((char *)i18n->icon, (char *)icon);
+				xmlFree(i18n->icon);
+				i18n->icon = icon;
+			}
 			return;
 		}
 	}
@@ -2042,6 +2133,14 @@ static inline void update_i18n_icon(struct widget *widget, xmlNodePtr node)
 	}
 
 	i18n->icon = icon;
+	icon = abspath_strdup(i18n->icon);
+	if (!icon) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+	} else {
+		abspath((char *)i18n->icon, (char *)icon);
+		xmlFree(i18n->icon);
+		i18n->icon = icon;
+	}
 	i18n->lang = lang;
 	DbgPrint("Icon[%s] - [%s] added\n", i18n->lang, i18n->icon);
 	widget->i18n_list = dlist_append(widget->i18n_list, i18n);
@@ -2159,7 +2258,18 @@ static inline void update_content(struct widget *widget, xmlNodePtr node)
 static void update_size_info(struct widget *widget, int idx, xmlNodePtr node)
 {
 	if (xmlHasProp(node, (const xmlChar *)"preview")) {
+		xmlChar *tmp_preview;
+
 		widget->preview[idx] = xmlGetProp(node, (const xmlChar *)"preview");
+
+		tmp_preview = abspath_strdup(widget->preview[idx]);
+		if (!tmp_preview) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+		} else {
+			abspath((char *)widget->preview[idx], (char *)tmp_preview);
+			xmlFree(widget->preview[idx]);
+			widget->preview[idx] = tmp_preview;
+		}
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"need_frame")) {
@@ -2382,6 +2492,14 @@ static void update_box(struct widget *widget, xmlNodePtr node)
 			}
 
 			widget->widget_src = src;
+			src = abspath_strdup(widget->widget_src);
+			if (!src) {
+				ErrPrint("Heap: %s\n", strerror(errno));
+			} else {
+				abspath((char *)widget->widget_src, (char *)src);
+				xmlFree(widget->widget_src);
+				widget->widget_src = src;
+			}
 
 			if (xmlHasProp(node, (const xmlChar *)"group")) {
 				xmlChar *group;
@@ -2592,6 +2710,14 @@ static inline void update_pd(struct widget *widget, xmlNodePtr node)
 			}
 
 			widget->gbar_src = src;
+			src = abspath_strdup(widget->gbar_src);
+			if (!src) {
+				ErrPrint("Heap: %s\n", strerror(errno));
+			} else {
+				abspath((char *)widget->gbar_src, (char *)src);
+				xmlFree(widget->gbar_src);
+				widget->gbar_src = src;
+			}
 
 			if (xmlHasProp(node, (const xmlChar *)"group")) {
 				xmlChar *group;
@@ -2607,8 +2733,8 @@ static inline void update_pd(struct widget *widget, xmlNodePtr node)
 					widget->gbar_group = group;
 				}
 			}
-		}
-	}
+		} // script
+	} // for
 }
 
 static int db_insert_widget(struct widget *widget, const char *appid)
@@ -2908,12 +3034,25 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"libexec")) {
+		xmlChar *tmp_libexec;
+
 		widget->libexec = xmlGetProp(node, (const xmlChar *)"libexec");
 		if (!widget->libexec) {
 			ErrPrint("libexec is NIL\n");
 			widget_destroy(widget);
 			return -EFAULT;
 		}
+
+		tmp_libexec = abspath_strdup(widget->libexec);
+		if (!tmp_libexec) {
+			ErrPrint("Heap: %s\n", strerror(errno));
+			widget_destroy(widget);
+			return -EFAULT;
+		}
+
+		abspath((char *)widget->libexec, (char *)tmp_libexec);
+		xmlFree(widget->libexec);
+		widget->libexec = tmp_libexec;
 	} else if (!xmlStrcasecmp(widget->abi, (const xmlChar *)"c") || !xmlStrcasecmp(widget->abi, (const xmlChar *)"cpp")) {
 		char *filename;
 		int len;
