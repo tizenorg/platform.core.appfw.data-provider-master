@@ -79,6 +79,7 @@ struct sync_ctx_item {
 	int handle;
 	char *pkgname;
 	double timestamp;
+	Ecore_Timer *prepare_sync_wait_timer;
 };
 
 static struct info {
@@ -7910,45 +7911,104 @@ static struct packet *slave_hello_sync_prepare(pid_t pid, int handle, const stru
 	char pkgname[pathconf("/", _PC_PATH_MAX)];
 	int ret;
 	struct sync_ctx_item *ctx;
+	double timestamp;
+	Eina_List *l;
+	Eina_List *n;
 
-	ctx = calloc(1, sizeof(*ctx));
-	if (!ctx) {
-		ErrPrint("calloc: %s\n", strerror(errno));
-		goto out;
-	}
-
-	ret = packet_get(packet, "d", &ctx->timestamp);
+	ret = packet_get(packet, "d", &timestamp);
 	if (ret != 1) {
-		DbgFree(ctx);
 		ErrPrint("Parameter is not matched\n");
 		goto out;
 	}
 
 	if (aul_app_get_pkgname_bypid(pid, pkgname, sizeof(pkgname)) != AUL_R_OK) {
-		DbgFree(ctx);
 		ErrPrint("pid[%d] is not authroized provider package, try to find it using its name\n", pid);
 		goto out;
 	}
 
-	ctx->pkgname = strdup(pkgname);
-	if (!ctx->pkgname) {
-		ErrPrint("strdup: %s\n", strerror(errno));
-		DbgFree(ctx);
-		goto out;
+	ctx = NULL;
+	EINA_LIST_FOREACH_SAFE(s_info.hello_sync_ctx_list, l, n, ctx) {
+		if (ctx->timestamp == timestamp) {
+			if (strncmp(pkgname, ctx->pkgname)) {
+				ErrPrint("timestamp is valid, but pkgname is not matched: %s <> %s\n", pkgname, ctx->pkgname);
+				/* Go ahead */
+			}
+
+			break;
+		}
+		ctx = NULL;
 	}
 
-	ctx->pid = pid;
-	ctx->handle = handle;
+	if (ctx) {
+		struct slave_node *slave;
+		/**
+		 * @note
+		 * This is only possible that the hello_sync comes first.
+		 * In that case, we should activate the slave from here.
+		 */
+		s_info.hello_sync_ctx_list  = eina_list_remove(s_info.hello_sync_ctx_list, ctx);
+		if (ctx->prepare_sync_wait_timer) {
+			ecore_timer_del(ctx->prepare_sync_wait_timer);
+		}
+		DbgFree(ctx->pkgname);
+		DbgFree(ctx);
 
-	DbgPrint("Sync context created: %s\n", pkgname);
-	s_info.hello_sync_ctx_list = eina_list_append(s_info.hello_sync_ctx_list, ctx);
+		slave = slave_find_by_pid(pid);
+		if (!slave) {
+			ErrPrint("Unable to activate slave %d\n", pid);
+			goto out;
+		}
 
-	if (dead_callback_add(handle, delete_ctx_cb, ctx) < 0) {
-		ErrPrint("Failed to add dead callback\n");
+		DbgPrint("Update handle for %s (%d)\n", pkgname, handle);
+		slave_rpc_update_handle(slave, handle, 1);
+	} else {
+		ctx = calloc(1, sizeof(*ctx));
+		if (!ctx) {
+			ErrPrint("calloc: %s\n", strerror(errno));
+			goto out;
+		}
+
+		ctx->timestamp = timestamp;
+
+		ctx->pkgname = strdup(pkgname);
+		if (!ctx->pkgname) {
+			ErrPrint("strdup: %s\n", strerror(errno));
+			DbgFree(ctx);
+			goto out;
+		}
+
+		ctx->pid = pid;
+		ctx->handle = handle;
+
+		DbgPrint("Sync context created: %s\n", pkgname);
+		s_info.hello_sync_ctx_list = eina_list_append(s_info.hello_sync_ctx_list, ctx);
+
+		if (dead_callback_add(handle, delete_ctx_cb, ctx) < 0) {
+			ErrPrint("Failed to add dead callback\n");
+		}
 	}
 
 out:
 	return NULL;
+}
+
+static Eina_Bool prepare_sync_wait_cb(void *data)
+{
+	struct sync_ctx_item *item = data;
+
+	s_info.hello_sync_ctx_list = eina_list_remove(s_info.hello_sync_ctx_list, item);
+
+	ErrPrint("Sync timer(%lf) expired (%s), Terminate %d\n", WIDGET_CONF_SLAVE_ACTIVATE_TIME * 2.0f, item->pkgname, item->pid);
+
+	if (item->pid > 0) {
+		aul_terminate_pid_async(item->pid);
+	}
+
+	item->prepare_sync_wait_timer = NULL;
+	DbgFree(item->pkgname);
+	DbgFree(item);
+
+	return ECORE_CALLBACK_CANCEL;
 }
 
 static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packet *packet) /* slave_name, ret */
@@ -8006,24 +8066,58 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 		}
 
 		if (!item) {
-			ErrPrint("There is no such sync context (%d)\n", pid);
-			goto out;
+			ErrPrint("There is no such sync context (%d), Waiting prepare ctx\n", pid);
+
+			item = calloc(1, sizeof(*item));
+			if (!item) {
+				ErrPrint("calloc: %s\n", strerror(errno));
+				goto out;
+			}
+
+			item->pkgname = strdup(pkgname);
+			if (!item->pkgname) {
+				ErrPrint("strdup: %s\n", strerror(errno));
+				DbgFree(item);
+				goto out;
+			}
+
+			item->handle = -1;
+			item->pid = pid;
+			item->timestamp = timestamp;
+
+			/**
+			 * @note
+			 * If the prepare sync doesn't come in ACTIVATE_TIME * 2.0f, there is a problem. we have to cancel it
+			 */
+			item->prepare_sync_wait_timer = ecore_timer_add(WIDGET_CONF_SLAVE_ACTIVATE_TIME * 2.0f, prepare_sync_wait_cb, item);
+
+			/**
+			 * @note
+			 * How can we delete this if there is no prepare context?
+			 */
+			s_info.hello_sync_ctx_list = eina_list_append(s_info.hello_sync_ctx_list, item);
+
+			/**
+			 * @note
+			 * Reset the handle to prevent from updating RPC handle of SLAVE object
+			 */
+			handle = -1;
+		} else {
+			if (strcmp(item->pkgname, pkgname)) {
+				ErrPrint("HELLO_SYNC is comes from different package: %s <> %s\n", item->pkgname, pkgname);
+			}
+
+			handle = item->handle;
+
+			if (dead_callback_del(handle, delete_ctx_cb) != item) {
+				ErrPrint("Dead callback is not valid\n");
+			}
+
+			DbgFree(item->pkgname);
+			DbgFree(item);
+
+			DbgPrint("Hello sync context found: %s\n", pkgname);
 		}
-
-		if (strcmp(item->pkgname, pkgname)) {
-			ErrPrint("HELLO_SYNC is comes from different package: %s <> %s\n", item->pkgname, pkgname);
-		}
-
-		handle = item->handle;
-
-		if (dead_callback_del(handle, delete_ctx_cb) != item) {
-			ErrPrint("Dead callback is not valid\n");
-		}
-
-		DbgFree(item->pkgname);
-		DbgFree(item);
-
-		DbgPrint("Hello sync context found: %s\n", pkgname);
 	}
 
 	if (!slave) {
@@ -8110,7 +8204,11 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			 * In this case, there could not be exists any pended packets.
 			 * But we tried to clear them for a case!
 			 */
-			slave_rpc_update_handle(slave, handle, 1);
+			if (handle >= 0) {
+				slave_rpc_update_handle(slave, handle, 1);
+			} else {
+				DbgPrint("Slave RPC should be updated soon (waiting prepare sync)\n");
+			}
 
 			DbgPrint("Slave is activated by request: %d (%s)/(%s)\n", pid, pkgname, slavename);
 
@@ -8210,7 +8308,11 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			package_del_instance_by_category(CATEGORY_WATCH_CLOCK, widget_id);
 		}
 
-		slave_rpc_update_handle(slave, handle, 0);
+		if (handle >= 0) {
+			slave_rpc_update_handle(slave, handle, 0);
+		} else {
+			DbgPrint("Slave RPC should be updated soon (waiting prepare sync)\n");
+		}
 
 		DbgPrint("Slave is activated by request: %d (%s)/(%s)\n", pid, pkgname, slavename);
 		widget_size = package_size_list(info);
