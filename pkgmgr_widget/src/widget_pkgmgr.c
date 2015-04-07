@@ -1951,7 +1951,7 @@ int db_check(void)
 	return 1;
 }
 
-static inline int validate_pkgid(const char *appid, const char *pkgid)
+static int validate_pkgid(const char *appid, const char *pkgid)
 {
 	/* Just return 1 Always */
 	return 1 || !strncmp(appid, pkgid, strlen(appid));
@@ -2030,7 +2030,7 @@ static int widget_destroy(struct widget *widget)
 	return 0;
 }
 
-static inline void update_i18n_name(struct widget *widget, xmlNodePtr node)
+static void update_i18n_name(struct widget *widget, xmlNodePtr node)
 {
 	struct i18n *i18n;
 	struct dlist *l;
@@ -2146,7 +2146,7 @@ static void update_i18n_icon(struct widget *widget, xmlNodePtr node)
 	widget->i18n_list = dlist_append(widget->i18n_list, i18n);
 }
 
-static inline void update_launch(struct widget *widget, xmlNodePtr node)
+static void update_launch(struct widget *widget, xmlNodePtr node)
 {
 	xmlChar *launch;
 
@@ -2167,7 +2167,7 @@ static inline void update_launch(struct widget *widget, xmlNodePtr node)
 	}
 }
 
-static inline int update_category(struct widget *widget, xmlNodePtr node)
+static int update_category(struct widget *widget, xmlNodePtr node)
 {
 	xmlChar *category;
 
@@ -2195,7 +2195,7 @@ static inline int update_category(struct widget *widget, xmlNodePtr node)
 	return 0;
 }
 
-static inline void update_ui_appid(struct widget *widget, xmlNodePtr node)
+static void update_ui_appid(struct widget *widget, xmlNodePtr node)
 {
 	xmlChar *uiapp;
 	uiapp = xmlNodeGetContent(node);
@@ -2215,7 +2215,7 @@ static inline void update_ui_appid(struct widget *widget, xmlNodePtr node)
 	}
 }
 
-static inline void update_setup(struct widget *widget, xmlNodePtr node)
+static void update_setup(struct widget *widget, xmlNodePtr node)
 {
 	xmlChar *setup;
 	setup = xmlNodeGetContent(node);
@@ -2235,7 +2235,7 @@ static inline void update_setup(struct widget *widget, xmlNodePtr node)
 	}
 }
 
-static inline void update_content(struct widget *widget, xmlNodePtr node)
+static void update_content(struct widget *widget, xmlNodePtr node)
 {
 	xmlChar *content;
 	content = xmlNodeGetContent(node);
@@ -2519,7 +2519,7 @@ static void update_box(struct widget *widget, xmlNodePtr node)
 	}
 }
 
-static inline void update_group(struct widget *widget, xmlNodePtr node)
+static void update_group(struct widget *widget, xmlNodePtr node)
 {
 	xmlNodePtr cluster;
 	xmlNodePtr category;
@@ -2649,7 +2649,7 @@ static inline void update_group(struct widget *widget, xmlNodePtr node)
 	}
 }
 
-static inline void update_pd(struct widget *widget, xmlNodePtr node)
+static void update_glance_bar(struct widget *widget, xmlNodePtr node)
 {
 	if (!xmlHasProp(node, (const xmlChar *)"type")) {
 		widget->gbar_type = GBAR_TYPE_SCRIPT;
@@ -3098,7 +3098,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"glancebar")) {
-			update_pd(widget, node);
+			update_glance_bar(widget, node);
 			continue;
 		}
 
