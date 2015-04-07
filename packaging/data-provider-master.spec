@@ -143,6 +143,11 @@ if [ -x %{_sysconfdir}/rc.d/init.d/%{name} ]; then
 fi
 
 %post
+#
+# NOTE:
+# This SYSTEM_UID should be updated properly.
+# In the SPIN, system user id is 1000
+SYSTEM_UID=1000
 chown 5000:5000 /opt/usr/share/live_magazine
 chmod 750 /opt/usr/share/live_magazine
 chown 5000:5000 /opt/usr/share/live_magazine/log
@@ -151,9 +156,9 @@ chown 5000:5000 /opt/usr/share/live_magazine/reader
 chmod 750 /opt/usr/share/live_magazine/reader
 chown 5000:5000 /opt/usr/share/live_magazine/always
 chmod 750 /opt/usr/share/live_magazine/always
-chown 200:5000 /opt/dbspace/.widget.db
+chown ${SYSTEM}:5000 /opt/dbspace/.widget.db
 chmod 640 /opt/dbspace/.widget.db
-chown 200:5000 /opt/dbspace/.widget.db-journal
+chown ${SYSTEM}:5000 /opt/dbspace/.widget.db-journal
 chmod 640 /opt/dbspace/.widget.db-journal
 vconftool set -t bool "memory/%{name}/started" 0 -i -u 5000 -f -s system::vconf_system
 vconftool set -t int "memory/private/%{name}/restart_count" 0 -i -u 5000 -f -s %{name}

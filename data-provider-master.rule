@@ -25,3 +25,4 @@ data-provider-master::bin system::media r-x-- ------
 data-provider-master::bin system::vconf --x--- ------
 data-provider-master::bin system::vconf_system r----- ------
 _ data-provider-master::bin r-x--- ------
+data-provider-master::bin sdbd r----- ------
