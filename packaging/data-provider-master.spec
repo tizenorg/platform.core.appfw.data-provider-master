@@ -148,24 +148,31 @@ fi
 # This SYSTEM_UID should be updated properly.
 # In the SPIN, system user id is 1000
 SYSTEM_UID=1000
-chown 5000:5000 /opt/usr/share/live_magazine
-chmod 750 /opt/usr/share/live_magazine
-chown 5000:5000 /opt/usr/share/live_magazine/log
+APP_UID=5000
+APP_GID=5000
+
+chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine
+# System tool(widget-mgr) should be able to access this folder.
+# So give the "rx" permission to the other group. (750 -> 755)
+chmod 755 /opt/usr/share/live_magazine
+chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine/log
 chmod 750 /opt/usr/share/live_magazine/log
-chown 5000:5000 /opt/usr/share/live_magazine/reader
+chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine/reader
 chmod 750 /opt/usr/share/live_magazine/reader
-chown 5000:5000 /opt/usr/share/live_magazine/always
+chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine/always
 chmod 750 /opt/usr/share/live_magazine/always
-chown ${SYSTEM}:5000 /opt/dbspace/.widget.db
+chown ${SYSTEM}:${APP_GID} /opt/dbspace/.widget.db
 chmod 640 /opt/dbspace/.widget.db
-chown ${SYSTEM}:5000 /opt/dbspace/.widget.db-journal
+chown ${SYSTEM}:${APP_GID} /opt/dbspace/.widget.db-journal
 chmod 640 /opt/dbspace/.widget.db-journal
-vconftool set -t bool "memory/%{name}/started" 0 -i -u 5000 -f -s system::vconf_system
-vconftool set -t int "memory/private/%{name}/restart_count" 0 -i -u 5000 -f -s %{name}
-vconftool set -t string "db/%{name}/serveraddr" "/opt/usr/share/live_magazine/.client.socket" -i -u 5000 -f -s system::vconf_system
+
+vconftool set -t bool "memory/%{name}/started" 0 -i -u ${APP_UID} -f -s system::vconf_system
+vconftool set -t int "memory/private/%{name}/restart_count" 0 -i -u ${APP_UID} -f -s %{name}
+vconftool set -t string "db/%{name}/serveraddr" "/opt/usr/share/live_magazine/.client.socket" -i -u ${APP_UID} -f -s system::vconf_system
+
 /usr/sbin/setcap -q cap_chown,cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_nice,cap_mac_override,cap_mac_admin+ep /usr/bin/data-provider-master
+
 echo "Successfully installed. Please start a daemon again manually"
-echo "%{_sysconfdir}/init.d/%{name} start"
 
 %files -n %{name}
 %manifest %{name}.manifest

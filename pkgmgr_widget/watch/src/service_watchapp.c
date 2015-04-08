@@ -16,7 +16,7 @@
 
 #include "common.h"
 
-#define WATCH_APP_TAG	"WATCH_PKGMGR"
+#define WATCH_APP_TAG	"watch-application"
 #define EAPI __attribute__((visibility("default")))
 
 static inline int remove_all_watch(const char *appid)

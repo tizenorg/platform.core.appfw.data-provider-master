@@ -19,7 +19,7 @@
 
 #include "common.h"
 
-#define WIDGET_TAG "WIDGET_PKGMGR"
+#define WIDGET_TAG "widget"
 #define EAPI __attribute__((visibility("default")))
 
 static inline int remove_all_widgets(const char *appid)

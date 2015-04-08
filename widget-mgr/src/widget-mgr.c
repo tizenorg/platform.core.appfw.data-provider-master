@@ -715,6 +715,10 @@ static inline int do_stat(const char *cmd)
 		printf("Icon: %s\n", tmp);
 		free(tmp);
 
+		tmp = widget_service_get_category(node_name(node));
+		printf("Category: %s\n", tmp);
+		free(tmp);
+
 		tmp = widget_service_get_provider_name(node_name(node));
 		printf("Provider: %s (content:", tmp);
 		free(tmp);

@@ -685,6 +685,7 @@ static Eina_Bool relaunch_timer_cb(void *data)
 			case AUL_R_ECOMM:		/**< Comunication Error */
 			case AUL_R_ETERMINATING:	/**< application terminating */
 			case AUL_R_ECANCELED:		/**< Operation canceled */
+			case AUL_R_EREJECTED:
 				slave->relaunch_count--;
 
 				CRITICAL_LOG("Try relaunch again %s (%d), %d\n", slave_name(slave), slave->pid, slave->relaunch_count);
@@ -778,6 +779,7 @@ HAPI int slave_activate(struct slave_node *slave)
 		case AUL_R_ETERMINATING:	/**< application terminating */
 		case AUL_R_ECANCELED:		/**< Operation canceled */
 		case AUL_R_ETIMEOUT:		/**< Timeout */
+		case AUL_R_EREJECTED:
 			CRITICAL_LOG("Try relaunch this soon %s (%d)\n", slave_name(slave), slave->pid);
 			slave->relaunch_timer = ecore_timer_add(WIDGET_CONF_SLAVE_RELAUNCH_TIME, relaunch_timer_cb, slave);
 			if (!slave->relaunch_timer) {
@@ -853,6 +855,11 @@ HAPI int slave_activated(struct slave_node *slave)
 {
 	slave->state = SLAVE_RESUMED;
 
+	/**
+	 * Condition for activating TTL Timer
+	 * 1. If the slave is INHOUSE(data-provider-slave) and LIMIT_TO_TTL is true, and SLAVE_TTL is greater than 0.0f
+	 * 2. Service provider is "secured" and SLAVE_TTL is greater than 0.0f
+	 */
 	if (((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured == 1) && WIDGET_CONF_SLAVE_TTL > 0.0f) {
 		DbgPrint("Slave deactivation timer is added (%s - %lf)\n", slave_name(slave), WIDGET_CONF_SLAVE_TTL);
 		slave->ttl_timer = ecore_timer_add(WIDGET_CONF_SLAVE_TTL, slave_ttl_cb, slave);
