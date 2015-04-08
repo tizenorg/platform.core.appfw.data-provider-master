@@ -8320,7 +8320,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 		}
 
 		if (handle >= 0) {
-			slave_rpc_update_handle(slave, handle, 0);
+			slave_rpc_update_handle(slave, handle, 1);
 		} else {
 			DbgPrint("Slave RPC should be updated soon (waiting prepare sync)\n");
 		}
