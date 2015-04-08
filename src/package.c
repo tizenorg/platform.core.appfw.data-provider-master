@@ -1125,6 +1125,7 @@ HAPI const char *package_category(struct pkg_info *info)
 static inline int assign_new_slave(const char *slave_pkgname, struct pkg_info *info)
 {
 	char *s_name;
+	int launch_async = 0;
 
 	s_name = util_slavename();
 	if (!s_name) {
@@ -1132,8 +1133,10 @@ static inline int assign_new_slave(const char *slave_pkgname, struct pkg_info *i
 		return WIDGET_ERROR_FAULT;
 	}
 
-	DbgPrint("New slave[%s] is assigned for %s (using %s / abi[%s] / accel[%s])\n", s_name, info->widget_id, slave_pkgname, info->abi, info->hw_acceleration);
-	info->slave = slave_create(s_name, info->secured, info->abi, slave_pkgname, info->network, info->hw_acceleration);
+	launch_async = (!!package_category(info) && !strcmp(package_category(info), CATEGORY_WATCH_CLOCK));
+
+	DbgPrint("New slave[%s] is assigned for %s (using %s / abi[%s] / accel[%s] / launch_async[%d])\n", s_name, info->widget_id, slave_pkgname, info->abi, info->hw_acceleration, launch_async);
+	info->slave = slave_create(s_name, info->secured, info->abi, slave_pkgname, info->network, info->hw_acceleration, launch_async);
 
 	DbgFree(s_name);
 

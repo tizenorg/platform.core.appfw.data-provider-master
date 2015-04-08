@@ -64,8 +64,6 @@
 #define LAZY_GBAR_OPEN_TAG "lazy,gbar,open"
 #define LAZY_GBAR_CLOSE_TAG "lazy,gbar,close"
 
-#define CATEGORY_WATCH_CLOCK	"org.tizen.wmanager.WATCH_CLOCK"
-
 #define ACCESS_TYPE_DOWN 0
 #define ACCESS_TYPE_MOVE 1
 #define ACCESS_TYPE_UP 2
@@ -6479,7 +6477,7 @@ static inline __attribute__((always_inline)) int debug_mode_enabled(int pid, con
 
 	slave = slave_find_by_pkgname(pkgname);
 	if (!slave) {
-		slave = slave_create(slavename, secured, abi, pkgname, 0, acceleration);
+		slave = slave_create(slavename, secured, abi, pkgname, 0, acceleration, 0);
 		if (!slave) {
 			return WIDGET_ERROR_FAULT;
 		}
@@ -6592,7 +6590,7 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 				network = package_network(info);
 			}
 
-			slave = slave_create(slavename, secured, abi, pkgname, network, acceleration);
+			slave = slave_create(slavename, secured, abi, pkgname, network, acceleration, 0);
 			if (!slave) {
 				ErrPrint("Failed to create a new slave for %s\n", slavename);
 				DbgFree(widget_id);
@@ -8020,6 +8018,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 	struct packet *result = NULL;
 	struct slave_node *slave;
 	const char *slavename;
+	const char *slave_pkgname;
 	const char *acceleration;
 	const char *abi;
 	char *widget_id;
@@ -8028,8 +8027,8 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 	char pkgname[pathconf("/", _PC_PATH_MAX)];
 	double timestamp;
 
-	ret = packet_get(packet, "disss", &timestamp, &secured, &slavename, &acceleration, &abi);
-	if (ret != 5) {
+	ret = packet_get(packet, "dissss", &timestamp, &secured, &slavename, &slave_pkgname, &acceleration, &abi);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		goto out;
 	}
@@ -8048,6 +8047,10 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 	slave = slave_find_by_name(slavename);
 	if (!slave) { /* Try again to find a slave using pid */
 		slave = slave_find_by_pid(pid);
+		if (!slave) {
+			slave = slave_find_by_pkgname(slave_pkgname);
+			ErrPrint("Failed to find, Find it using pkgname(%s) - %p\n", slave_pkgname, slave);
+		}
 	}
 
 	if (aul_app_get_pkgname_bypid(pid, pkgname, sizeof(pkgname)) != AUL_R_OK) {
@@ -8194,7 +8197,11 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 				package_del_instance_by_category(CATEGORY_WATCH_CLOCK, NULL);
 			}
 
-			slave = slave_create(slavename, secured, abi, pkgname, network, acceleration);
+			/**
+			 * If a provider sent hello_sync, we will assumes it as a watch widget.
+			 * In this case, activate it again asynchronously.
+			 */
+			slave = slave_create(slavename, secured, abi, pkgname, network, acceleration, 1);
 			if (!slave) {
 				ErrPrint("Failed to create a new slave for %s\n", slavename);
 				goto out;

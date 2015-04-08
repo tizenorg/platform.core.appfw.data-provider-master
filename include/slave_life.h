@@ -96,7 +96,7 @@ extern const int const slave_refcnt(struct slave_node *slave);
  * \param[in] period
  * \return slave_node
  */
-extern struct slave_node *slave_create(const char *name, int is_secured, const char *abi, const char *pkgname, int network, const char *hw_acceleration);
+extern struct slave_node *slave_create(const char *name, int is_secured, const char *abi, const char *pkgname, int network, const char *hw_acceleration, int launch_async);
 
 /*!
  * \brief
