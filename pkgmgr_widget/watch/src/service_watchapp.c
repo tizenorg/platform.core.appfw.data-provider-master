@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include "widget_pkgmgr.h"
+#include "common.h"
 
-#define WATCH_APP_TAG	"watch-application"
+#define WATCH_APP_TAG	"WATCH_PKGMGR"
 #define EAPI __attribute__((visibility("default")))
 
 static inline int remove_all_watch(const char *appid)

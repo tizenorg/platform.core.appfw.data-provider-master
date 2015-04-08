@@ -1336,6 +1336,10 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		goto out;
 	}
 
+	/**
+	 * @TODO
+	 * Should be replaced with package manager API to decide whether it is enabled or not.
+	 */
 	mainappid = widget_service_get_main_app_id(widget_id);
 	if (!package_is_enabled(mainappid)) {
 		ErrPrint("%s is disabled\n", mainappid);

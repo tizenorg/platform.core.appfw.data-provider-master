@@ -33,7 +33,7 @@
 #include <widget_service_internal.h>
 
 #include "dlist.h"
-#include "widget_pkgmgr.h"
+#include "common.h"
 
 #if !defined(FLOG)
 #define DbgPrint(format, arg...)	SECURE_LOGD("[[32m%s/%s[0m:%d] " format, basename(__FILE__), __func__, __LINE__, ##arg)

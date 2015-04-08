@@ -1,6 +1,5 @@
-PROJECT(widget C)
-
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/pkgmgr_widget/include)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
+PROJECT(pkgmgr_plugin C)
 
 INCLUDE(FindPkgConfig)
 pkg_check_modules(bin_pkgs REQUIRED
@@ -15,19 +14,14 @@ FOREACH(flag ${bin_pkgs_CFLAGS})
 	SET(EXTRA_CFLAGS "${EXTRA_CFLAGS} ${flag}")
 ENDFOREACH(flag)
 
-SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EXTRA_CFLAGS} -g -Wall -Werror -fvisibility=hidden")
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EXTRA_CFLAGS} -g -Wall -Werror")
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/common/include)
 
-ADD_DEFINITIONS("-DPREFIX=\"${PREFIX}\"")
+ADD_SUBDIRECTORY(common)
+ADD_SUBDIRECTORY(watch)
+ADD_SUBDIRECTORY(widget)
 
-ADD_LIBRARY(${PROJECT_NAME} SHARED
-	src/service_widget.c
-	src/widget_pkgmgr.c
-	src/dlist.c
-)
+ADD_DEPENDENCIES("watch-application" "common")
+ADD_DEPENDENCIES("widget" "common")
 
-TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${bin_pkgs_LDFLAGS})
-
-INSTALL(TARGETS ${PROJECT_NAME} DESTINATION "etc/package-manager/parserlib")
-
-ADD_SUBDIRECTORY(watchapp)
 # End of a file

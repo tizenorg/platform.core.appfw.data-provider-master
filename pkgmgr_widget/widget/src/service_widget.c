@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-#include "widget_pkgmgr.h"
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 
-#define WIDGET_TAG "widget"
+#include "common.h"
+
+#define WIDGET_TAG "WIDGET_PKGMGR"
 #define EAPI __attribute__((visibility("default")))
 
 static inline int remove_all_widgets(const char *appid)
