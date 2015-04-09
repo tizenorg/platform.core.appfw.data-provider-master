@@ -34,8 +34,11 @@
 #include <packet.h>
 #include <widget_errno.h>
 #include <widget_conf.h>
+#include <widget_abi.h>
+#include <widget_util.h>
 #include <widget_cmd_list.h>
 #include <widget_service.h>
+#include <widget_service_internal.h>
 
 #include "critical_log.h"
 #include "slave_life.h"
@@ -46,7 +49,6 @@
 #include "conf.h"
 #include "setting.h"
 #include "util.h"
-#include "abi.h"
 #include "xmonitor.h"
 
 #include "package.h"
@@ -74,6 +76,8 @@ struct slave_node {
 
 	int reactivate_instances;
 	int reactivate_slave;
+
+	int launch_async;
 
 	pid_t pid;
 
@@ -110,6 +114,7 @@ struct slave_node {
 #endif
 
 	char *hw_acceleration;
+	int valid;
 };
 
 struct event {
@@ -284,16 +289,16 @@ static Eina_Bool slave_ttl_cb(void *data)
 static inline int xmonitor_pause_cb(void *data)
 {
 	slave_pause(data);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 static inline int xmonitor_resume_cb(void *data)
 {
 	slave_resume(data);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
-static inline struct slave_node *create_slave_node(const char *name, int is_secured, const char *abi, const char *pkgname, int network, const char *hw_acceleration)
+static inline struct slave_node *create_slave_node(const char *name, int is_secured, const char *abi, const char *pkgname, int network, const char *hw_acceleration, int launch_async)
 {
 	struct slave_node *slave;
 
@@ -344,6 +349,7 @@ static inline struct slave_node *create_slave_node(const char *name, int is_secu
 	slave->state = SLAVE_TERMINATED;
 	slave->network = network;
 	slave->relaunch_count = WIDGET_CONF_SLAVE_RELAUNCH_COUNT;
+	slave->launch_async = launch_async;
 
 	xmonitor_add_event_callback(XMONITOR_PAUSED, xmonitor_pause_cb, slave);
 	xmonitor_add_event_callback(XMONITOR_RESUMED, xmonitor_resume_cb, slave);
@@ -489,7 +495,7 @@ HAPI const int const slave_refcnt(struct slave_node *slave)
 	return slave->refcnt;
 }
 
-HAPI struct slave_node *slave_create(const char *name, int is_secured, const char *abi, const char *pkgname, int network, const char *hw_acceleration)
+HAPI struct slave_node *slave_create(const char *name, int is_secured, const char *abi, const char *pkgname, int network, const char *hw_acceleration, int launch_async)
 {
 	struct slave_node *slave;
 
@@ -501,7 +507,7 @@ HAPI struct slave_node *slave_create(const char *name, int is_secured, const cha
 		return slave;
 	}
 
-	slave = create_slave_node(name, is_secured, abi, pkgname, network, hw_acceleration);
+	slave = create_slave_node(name, is_secured, abi, pkgname, network, hw_acceleration, launch_async);
 	if (!slave) {
 		return NULL;
 	}
@@ -657,7 +663,13 @@ static Eina_Bool relaunch_timer_cb(void *data)
 			bundle_add(param, WIDGET_CONF_BUNDLE_SLAVE_ABI, slave->abi);
 			bundle_add(param, WIDGET_CONF_BUNDLE_SLAVE_HW_ACCELERATION, slave->hw_acceleration);
 
-			slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
+			if (slave->launch_async) {
+				ErrPrint("Launch App Async [%s]\n", slave_pkgname(slave));
+				slave->pid = (pid_t)aul_launch_app_async(slave_pkgname(slave), param);
+			} else {
+				ErrPrint("Launch App Sync [%s]\n", slave_pkgname(slave));
+				slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
+			}
 
 			bundle_free(param);
 
@@ -682,6 +694,7 @@ static Eina_Bool relaunch_timer_cb(void *data)
 			case AUL_R_ECOMM:		/**< Comunication Error */
 			case AUL_R_ETERMINATING:	/**< application terminating */
 			case AUL_R_ECANCELED:		/**< Operation canceled */
+			case AUL_R_EREJECTED:
 				slave->relaunch_count--;
 
 				CRITICAL_LOG("Try relaunch again %s (%d), %d\n", slave_name(slave), slave->pid, slave->relaunch_count);
@@ -731,10 +744,10 @@ HAPI int slave_activate(struct slave_node *slave)
 		} else if (slave_state(slave) == SLAVE_REQUEST_TO_TERMINATE || slave_state(slave) == SLAVE_REQUEST_TO_DISCONNECT) {
 			slave_set_reactivation(slave, 1);
 		}
-		return WIDGET_STATUS_ERROR_ALREADY;
+		return WIDGET_ERROR_ALREADY_STARTED;
 	} else if (slave_state(slave) == SLAVE_REQUEST_TO_LAUNCH) {
 		DbgPrint("Slave is already launched: but the AUL is timed out\n");
-		return WIDGET_STATUS_ERROR_ALREADY;
+		return WIDGET_ERROR_ALREADY_STARTED;
 	}
 
 	if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
@@ -747,7 +760,7 @@ HAPI int slave_activate(struct slave_node *slave)
 		param = bundle_create();
 		if (!param) {
 			ErrPrint("Failed to create a bundle\n");
-			return WIDGET_STATUS_ERROR_FAULT;
+			return WIDGET_ERROR_FAULT;
 		}
 
 		bundle_add(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
@@ -756,7 +769,13 @@ HAPI int slave_activate(struct slave_node *slave)
 		bundle_add(param, WIDGET_CONF_BUNDLE_SLAVE_ABI, slave->abi);
 		bundle_add(param, WIDGET_CONF_BUNDLE_SLAVE_HW_ACCELERATION, slave->hw_acceleration);
 
-		slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
+		if (slave->launch_async) {
+			ErrPrint("Launch App Async [%s]\n", slave_pkgname(slave));
+			slave->pid = (pid_t)aul_launch_app_async(slave_pkgname(slave), param);
+		} else {
+			ErrPrint("Launch App Sync [%s]\n", slave_pkgname(slave));
+			slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
+		}
 
 		bundle_free(param);
 
@@ -775,12 +794,13 @@ HAPI int slave_activate(struct slave_node *slave)
 		case AUL_R_ETERMINATING:	/**< application terminating */
 		case AUL_R_ECANCELED:		/**< Operation canceled */
 		case AUL_R_ETIMEOUT:		/**< Timeout */
+		case AUL_R_EREJECTED:
 			CRITICAL_LOG("Try relaunch this soon %s (%d)\n", slave_name(slave), slave->pid);
 			slave->relaunch_timer = ecore_timer_add(WIDGET_CONF_SLAVE_RELAUNCH_TIME, relaunch_timer_cb, slave);
 			if (!slave->relaunch_timer) {
 				CRITICAL_LOG("Failed to register a relaunch timer (%s)\n", slave_name(slave));
 				slave->pid = (pid_t)-1;
-				return WIDGET_STATUS_ERROR_FAULT;
+				return WIDGET_ERROR_FAULT;
 			}
 			/* Try again after a few secs later */
 			break;
@@ -805,7 +825,7 @@ HAPI int slave_activate(struct slave_node *slave)
 	 */
 	(void)slave_ref(slave);
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int slave_give_more_ttl(struct slave_node *slave)
@@ -813,22 +833,22 @@ HAPI int slave_give_more_ttl(struct slave_node *slave)
 	double delay;
 
 	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) && (!slave->secured || !slave->ttl_timer)) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	delay = WIDGET_CONF_SLAVE_TTL - ecore_timer_pending_get(slave->ttl_timer);
 	ecore_timer_delay(slave->ttl_timer, delay);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int slave_freeze_ttl(struct slave_node *slave)
 {
 	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) && (!slave->secured || !slave->ttl_timer)) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	ecore_timer_freeze(slave->ttl_timer);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int slave_thaw_ttl(struct slave_node *slave)
@@ -836,24 +856,25 @@ HAPI int slave_thaw_ttl(struct slave_node *slave)
 	double delay;
 
 	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) && (!slave->secured || !slave->ttl_timer)) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	ecore_timer_thaw(slave->ttl_timer);
 
 	delay = WIDGET_CONF_SLAVE_TTL - ecore_timer_pending_get(slave->ttl_timer);
 	ecore_timer_delay(slave->ttl_timer, delay);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int slave_activated(struct slave_node *slave)
 {
 	slave->state = SLAVE_RESUMED;
 
-	if (xmonitor_is_paused()) {
-		slave_pause(slave);
-	}
-
+	/**
+	 * Condition for activating TTL Timer
+	 * 1. If the slave is INHOUSE(data-provider-slave) and LIMIT_TO_TTL is true, and SLAVE_TTL is greater than 0.0f
+	 * 2. Service provider is "secured" and SLAVE_TTL is greater than 0.0f
+	 */
 	if (((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured == 1) && WIDGET_CONF_SLAVE_TTL > 0.0f) {
 		DbgPrint("Slave deactivation timer is added (%s - %lf)\n", slave_name(slave), WIDGET_CONF_SLAVE_TTL);
 		slave->ttl_timer = ecore_timer_add(WIDGET_CONF_SLAVE_TTL, slave_ttl_cb, slave);
@@ -888,7 +909,7 @@ HAPI int slave_activated(struct slave_node *slave)
 	}
 
 	slave_set_priority(slave, LOW_PRIORITY);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 static inline int invoke_deactivate_cb(struct slave_node *slave)
@@ -988,7 +1009,7 @@ HAPI struct slave_node *slave_deactivated(struct slave_node *slave)
 
 		DbgPrint("Need to reactivate a slave\n");
 		ret = slave_activate(slave);
-		if (ret < 0 && ret != WIDGET_STATUS_ERROR_ALREADY) {
+		if (ret < 0 && ret != WIDGET_ERROR_ALREADY_STARTED) {
 			ErrPrint("Failed to reactivate a slave\n");
 		}
 	} else if (slave_loaded_instance(slave) == 0) {
@@ -1131,7 +1152,7 @@ HAPI int slave_event_callback_add(struct slave_node *slave, enum slave_event eve
 	ev = calloc(1, sizeof(*ev));
 	if (!ev) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	ev->slave = slave;
@@ -1177,10 +1198,10 @@ HAPI int slave_event_callback_add(struct slave_node *slave, enum slave_event eve
 		break;
 	default:
 		DbgFree(ev);
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int slave_event_callback_del(struct slave_node *slave, enum slave_event event, int (*cb)(struct slave_node *, void *), void *data)
@@ -1199,7 +1220,7 @@ HAPI int slave_event_callback_del(struct slave_node *slave, enum slave_event eve
 					slave->event_deactivate_list = eina_list_remove(slave->event_deactivate_list, ev);
 					DbgFree(ev);
 				}
-				return WIDGET_STATUS_ERROR_NONE;
+				return WIDGET_ERROR_NONE;
 			}
 		}
 		break;
@@ -1212,7 +1233,7 @@ HAPI int slave_event_callback_del(struct slave_node *slave, enum slave_event eve
 					slave->event_delete_list = eina_list_remove(slave->event_delete_list, ev);
 					DbgFree(ev);
 				}
-				return WIDGET_STATUS_ERROR_NONE;
+				return WIDGET_ERROR_NONE;
 			}
 		}
 		break;
@@ -1225,7 +1246,7 @@ HAPI int slave_event_callback_del(struct slave_node *slave, enum slave_event eve
 					slave->event_activate_list = eina_list_remove(slave->event_activate_list, ev);
 					DbgFree(ev);
 				}
-				return WIDGET_STATUS_ERROR_NONE;
+				return WIDGET_ERROR_NONE;
 			}
 		}
 		break;
@@ -1238,7 +1259,7 @@ HAPI int slave_event_callback_del(struct slave_node *slave, enum slave_event eve
 					slave->event_pause_list = eina_list_remove(slave->event_pause_list, ev);
 					DbgFree(ev);
 				}
-				return WIDGET_STATUS_ERROR_NONE;
+				return WIDGET_ERROR_NONE;
 			}
 		}
 		break;
@@ -1251,7 +1272,7 @@ HAPI int slave_event_callback_del(struct slave_node *slave, enum slave_event eve
 					slave->event_resume_list = eina_list_remove(slave->event_resume_list, ev);
 					DbgFree(ev);
 				}
-				return WIDGET_STATUS_ERROR_NONE;
+				return WIDGET_ERROR_NONE;
 			}
 		}
 		break;
@@ -1264,15 +1285,15 @@ HAPI int slave_event_callback_del(struct slave_node *slave, enum slave_event eve
 					slave->event_fault_list = eina_list_remove(slave->event_fault_list, ev);
 					DbgFree(ev);
 				}
-				return WIDGET_STATUS_ERROR_NONE;
+				return WIDGET_ERROR_NONE;
 			}
 		}
 		break;
 	default:
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
-	return WIDGET_STATUS_ERROR_NOT_EXIST;
+	return WIDGET_ERROR_NOT_EXIST;
 }
 
 HAPI int slave_set_data(struct slave_node *slave, const char *tag, void *data)
@@ -1282,19 +1303,19 @@ HAPI int slave_set_data(struct slave_node *slave, const char *tag, void *data)
 	priv = calloc(1, sizeof(*priv));
 	if (!priv) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	priv->tag = strdup(tag);
 	if (!priv->tag) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 		DbgFree(priv);
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	priv->data = data;
 	slave->data_list = eina_list_append(slave->data_list, priv);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI void *slave_del_data(struct slave_node *slave, const char *tag)
@@ -1431,7 +1452,7 @@ HAPI struct slave_node *slave_find_by_pkgname(const char *pkgname)
 
 	EINA_LIST_FOREACH(s_info.slave_list, l, slave) {
 		if (!strcmp(slave_pkgname(slave), pkgname)) {
-			if (slave_pid(slave) == (pid_t)-1) {
+			if (slave_pid(slave) == (pid_t)-1 || slave_pid(slave) == (pid_t)0) {
 				return slave;
 			}
 		}
@@ -1465,13 +1486,13 @@ HAPI char *slave_package_name(const char *abi, const char *lbid)
 	char *s_pkgname;
 	const char *tmp;
 
-	tmp = abi_find_slave(abi);
+	tmp = widget_abi_get_pkgname_by_abi(abi);
 	if (!tmp) {
 		ErrPrint("Failed to find a proper pkgname of a slave\n");
 		return NULL;
 	}
 
-	s_pkgname = util_replace_string(tmp, WIDGET_CONF_REPLACE_TAG_APPID, lbid);
+	s_pkgname = widget_util_replace_string(tmp, WIDGET_CONF_REPLACE_TAG_APPID, lbid);
 	if (!s_pkgname) {
 		DbgPrint("Failed to get replaced string\n");
 		s_pkgname = strdup(tmp);
@@ -1557,13 +1578,13 @@ HAPI const pid_t const slave_pid(const struct slave_node *slave)
 HAPI int slave_set_pid(struct slave_node *slave, pid_t pid)
 {
 	if (!slave) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	DbgPrint("Slave PID is updated to %d from %d\n", pid, slave_pid(slave));
 
 	slave->pid = pid;
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 static inline void invoke_resumed_cb(struct slave_node *slave)
@@ -1663,10 +1684,10 @@ HAPI int slave_resume(struct slave_node *slave)
 	case SLAVE_REQUEST_TO_LAUNCH:
 	case SLAVE_REQUEST_TO_TERMINATE:
 	case SLAVE_TERMINATED:
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	case SLAVE_RESUMED:
 	case SLAVE_REQUEST_TO_RESUME:
-		return WIDGET_STATUS_ERROR_NONE;
+		return WIDGET_ERROR_NONE;
 	default:
 		break;
 	}
@@ -1676,7 +1697,7 @@ HAPI int slave_resume(struct slave_node *slave)
 	packet = packet_create((const char *)&cmd, "d", timestamp);
 	if (!packet) {
 		ErrPrint("Failed to prepare param\n");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	slave->state = SLAVE_REQUEST_TO_RESUME;
@@ -1694,10 +1715,10 @@ HAPI int slave_pause(struct slave_node *slave)
 	case SLAVE_REQUEST_TO_LAUNCH:
 	case SLAVE_REQUEST_TO_TERMINATE:
 	case SLAVE_TERMINATED:
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	case SLAVE_PAUSED:
 	case SLAVE_REQUEST_TO_PAUSE:
-		return WIDGET_STATUS_ERROR_NONE;
+		return WIDGET_ERROR_NONE;
 	default:
 		break;
 	}
@@ -1707,7 +1728,7 @@ HAPI int slave_pause(struct slave_node *slave)
 	packet = packet_create((const char *)&cmd, "d", timestamp);
 	if (!packet) {
 		ErrPrint("Failed to prepare param\n");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	slave->state = SLAVE_REQUEST_TO_PAUSE;
@@ -1865,20 +1886,21 @@ HAPI int slave_set_priority(struct slave_node *slave, int priority)
 	pid_t pid;
 
 	if (!slave) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	pid = slave_pid(slave);
-	if (pid < 0) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+	if (pid <= 0) {
+		DbgPrint("Skip for %d\n", pid);
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	if (setpriority(PRIO_PROCESS, slave_pid(slave), priority) < 0) {
 		ErrPrint("setpriority: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int slave_priority(struct slave_node *slave)
@@ -1887,21 +1909,37 @@ HAPI int slave_priority(struct slave_node *slave)
 	int priority;
 
 	if (!slave) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	pid = slave_pid(slave);
-	if (pid < 0) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+	if (pid <= 0) {
+		DbgPrint("Skip for %d\n", pid);
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	priority = getpriority(PRIO_PROCESS, pid);
 	if (priority < 0) {
 		ErrPrint("getpriority: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	return priority;
+}
+
+HAPI int slave_valid(const struct slave_node *slave)
+{
+    if (!slave->valid) {
+        DbgPrint("slave is invalid");
+    }
+
+    return slave->valid;
+}
+
+HAPI void slave_set_valid(struct slave_node *slave)
+{
+    DbgPrint("slave is set valid\n");
+    slave->valid = 1;
 }
 
 /* End of a file */

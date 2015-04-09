@@ -38,6 +38,7 @@
 
 #include <widget_service.h>
 #include <widget_conf.h>
+#include <widget_abi.h>
 
 #include "slave_life.h"
 #include "slave_rpc.h"
@@ -363,6 +364,7 @@ int main(int argc, char *argv[])
 
 	widget_conf_init();
 	widget_conf_load();
+	widget_abi_init();
 
 	/*!
 	 * How could we care this return values?
@@ -448,6 +450,7 @@ int main(int argc, char *argv[])
 #endif
 
 	widget_conf_reset();
+	widget_abi_fini();
 	return 0;
 }
 

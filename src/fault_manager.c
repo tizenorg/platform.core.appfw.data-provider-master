@@ -25,6 +25,7 @@
 #include <dlog.h>
 #include <widget_errno.h>
 #include <widget_service.h>
+#include <widget_service_internal.h>
 #include <widget_conf.h>
 #include <widget_cmd_list.h>
 
@@ -159,12 +160,12 @@ HAPI int fault_info_set(struct slave_node *slave, const char *pkgname, const cha
 
 	pkg = package_find(pkgname);
 	if (!pkg) {
-		return WIDGET_STATUS_ERROR_NOT_EXIST;
+		return WIDGET_ERROR_NOT_EXIST;
 	}
 
 	ret = package_set_fault_info(pkg, util_timestamp(), id, func);
 	if (ret < 0) {
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	dump_fault_info(slave_name(slave), slave_pid(slave), pkgname, id, func);
@@ -176,7 +177,7 @@ HAPI int fault_info_set(struct slave_node *slave, const char *pkgname, const cha
 	 * Update statistics
 	 */
 	s_info.fault_mark_count++;
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int fault_check_pkgs(struct slave_node *slave)
@@ -301,7 +302,7 @@ HAPI int fault_func_call(struct slave_node *slave, const char *pkgname, const ch
 
 	info = malloc(sizeof(*info));
 	if (!info) {
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	info->slave = slave;
@@ -309,14 +310,14 @@ HAPI int fault_func_call(struct slave_node *slave, const char *pkgname, const ch
 	info->pkgname = strdup(pkgname);
 	if (!info->pkgname) {
 		DbgFree(info);
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	info->filename = strdup(filename);
 	if (!info->filename) {
 		DbgFree(info->pkgname);
 		DbgFree(info);
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	info->func = strdup(func);
@@ -324,7 +325,7 @@ HAPI int fault_func_call(struct slave_node *slave, const char *pkgname, const ch
 		DbgFree(info->filename);
 		DbgFree(info->pkgname);
 		DbgFree(info);
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	info->timestamp = util_timestamp();
@@ -332,7 +333,7 @@ HAPI int fault_func_call(struct slave_node *slave, const char *pkgname, const ch
 	s_info.call_list = eina_list_append(s_info.call_list, info);
 
 	s_info.fault_mark_count++;
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int fault_func_ret(struct slave_node *slave, const char *pkgname, const char *filename, const char *func)
@@ -367,7 +368,7 @@ HAPI int fault_func_ret(struct slave_node *slave, const char *pkgname, const cha
 		return 0;
 	} 
 
-	return WIDGET_STATUS_ERROR_NOT_EXIST;
+	return WIDGET_ERROR_NOT_EXIST;
 }
 
 /* End of a file */

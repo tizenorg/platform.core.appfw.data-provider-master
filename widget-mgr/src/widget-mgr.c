@@ -42,13 +42,14 @@
 #include <com-core.h>
 
 #include <widget_service.h>
+#include <widget_service_internal.h>
 
 #include <Ecore.h>
 
-#include "liveinfo.h"
+#include "widget-info.h"
 #include "node.h"
 
-#define PROMPT "liveinfo "
+#define PROMPT "widget-mgr "
 #define PROVIDER_FOLDER "provider"
 #define PACKAGE_FOLDER "package"
 
@@ -437,7 +438,7 @@ static void send_pkg_list(void)
 	s_info.cmd = PKG_LIST;
 	s_info.age++;
 
-	widget_service_get_pkglist(pkglist_cb, s_info.targetdir);
+	widget_service_get_widget_list(pkglist_cb, s_info.targetdir);
 }
 
 static void send_inst_delete(void)
@@ -569,7 +570,7 @@ static void send_inst_list(const char *pkgname)
 
 static void help(void)
 {
-	printf("liveinfo - widget utility\n");
+	printf("widget-mgr - widget utility\n");
 	printf("------------------------------ [Option] ------------------------------\n");
 	printf("-b Batch mode\n");
 	printf("-x execute command\n");
@@ -703,15 +704,19 @@ static inline int do_stat(const char *cmd)
 
 	switch (type){
 	case PKG:
-		tmp = widget_service_get_i18n_name(node_name(node), NULL);
+		tmp = widget_service_get_name(node_name(node), NULL);
 		printf("Name: %s (", tmp);
 		free(tmp);
 
 		i = widget_service_is_enabled(node_name(node));
 		printf("%s)\n", i ? "enabled" : "disabled");
 
-		tmp = widget_service_get_i18n_icon(node_name(node), NULL);
+		tmp = widget_service_get_icon(node_name(node), NULL);
 		printf("Icon: %s\n", tmp);
+		free(tmp);
+
+		tmp = widget_service_get_category(node_name(node));
+		printf("Category: %s\n", tmp);
 		free(tmp);
 
 		tmp = widget_service_get_provider_name(node_name(node));
@@ -1943,7 +1948,7 @@ static int connected_cb(int handle, void *data)
 
 	printf("Connected\n");
 
-	packet = packet_create("liveinfo_hello", "d", 0.0f);
+	packet = packet_create("widget_mgr_hello", "d", 0.0f);
 	if (!packet) {
 		printf("Failed to build a packet for hello\n");
 		com_core_packet_client_fini(s_info.fd);
@@ -2040,6 +2045,10 @@ int main(int argc, char *argv[])
 #if (GLIB_MAJOR_VERSION <= 2 && GLIB_MINOR_VERSION < 36)
 	g_type_init();
 #endif
+
+	/**
+	 * Make the system daemon can access proc file to validate myself
+	 */
 
 	com_core_add_event_callback(CONNECTOR_DISCONNECTED, disconnected_cb, NULL);
 	com_core_add_event_callback(CONNECTOR_CONNECTED, connected_cb, NULL);

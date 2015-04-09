@@ -92,13 +92,13 @@ HAPI int util_check_ext(const char *filename, const char *check_ptr)
 	name_len = strlen(filename);
 	while (--name_len >= 0 && *check_ptr) {
 		if (filename[name_len] != *check_ptr) {
-			return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+			return WIDGET_ERROR_INVALID_PARAMETER;
 		}
 
 		check_ptr ++;
 	}
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int util_unlink(const char *filename)
@@ -108,28 +108,28 @@ HAPI int util_unlink(const char *filename)
 	int ret;
 
 	if (!filename) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	desclen = strlen(filename) + 6; /* .desc */
 	descfile = malloc(desclen);
 	if (!descfile) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	ret = snprintf(descfile, desclen, "%s.desc", filename);
 	if (ret < 0) {
 		ErrPrint("Error: %s\n", strerror(errno));
 		DbgFree(descfile);
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	(void)unlink(descfile);
 	DbgFree(descfile);
 	(void)unlink(filename);
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI char *util_slavename(void)
@@ -189,124 +189,6 @@ static inline char *extend_heap(char *buffer, int *sz, int incsz)
 	}
 
 	return tmp;
-}
-
-HAPI char *util_replace_string(const char *src, const char *pattern, const char *replace)
-{
-	const char *ptr;
-	char *tmp;
-	char *ret = NULL;
-	int idx = 0;
-	int out_idx;
-	int out_sz;
-	enum {
-		STATE_START,
-		STATE_FIND,
-		STATE_CHECK,
-		STATE_END
-	} state;
-
-	if (!src || !pattern) {
-		return NULL;
-	}
-
-	out_sz = strlen(src);
-	ret = strdup(src);
-	if (!ret) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		return NULL;
-	}
-
-	out_idx = 0;
-	for (state = STATE_START, ptr = src; state != STATE_END; ptr++) {
-		switch (state) {
-		case STATE_START:
-			if (*ptr == '\0') {
-				state = STATE_END;
-			} else if (!isblank(*ptr)) {
-				state = STATE_FIND;
-				ptr--;
-			}
-			break;
-		case STATE_FIND:
-			if (*ptr == '\0') {
-				state = STATE_END;
-			} else if (*ptr == *pattern) {
-				state = STATE_CHECK;
-				ptr--;
-				idx = 0;
-			} else {
-				ret[out_idx] = *ptr;
-				out_idx++;
-				if (out_idx == out_sz) {
-					tmp = extend_heap(ret, &out_sz, strlen(replace) + 1);
-					if (!tmp) {
-						DbgFree(ret);
-						return NULL;
-					}
-					ret = tmp;
-				}
-			}
-			break;
-		case STATE_CHECK:
-			if (!pattern[idx]) {
-				/*!
-				 * If there is no space for copying the replacement,
-				 * Extend size of the return buffer.
-				 */
-				if (out_sz - out_idx < strlen(replace) + 1) {
-					tmp = extend_heap(ret, &out_sz, strlen(replace) + 1);
-					if (!tmp) {
-						DbgFree(ret);
-						return NULL;
-					}
-					ret = tmp;
-				}
-
-				strcpy(ret + out_idx, replace);
-				out_idx += strlen(replace);
-
-				state = STATE_FIND;
-				ptr--;
-			} else if (*ptr != pattern[idx]) {
-				ptr -= idx;
-
-				/* Copy the first matched character */
-				ret[out_idx] = *ptr;
-				out_idx++;
-				if (out_idx == out_sz) {
-					tmp = extend_heap(ret, &out_sz, strlen(replace) + 1);
-					if (!tmp) {
-						DbgFree(ret);
-						return NULL;
-					}
-
-					ret = tmp;
-				}
-
-				state = STATE_FIND;
-			} else {
-				idx++;
-			}
-			break;
-		default:
-			break;
-		}
-	}
-
-	return ret;
-}
-
-HAPI const char *util_uri_to_path(const char *uri)
-{
-	int len;
-
-	len = strlen(SCHEMA_FILE);
-	if (strncasecmp(uri, SCHEMA_FILE, len)) {
-		return NULL;
-	}
-
-	return uri + len;
 }
 
 HAPI double util_time_delay_for_compensation(double period)
@@ -377,18 +259,18 @@ HAPI int util_unlink_files(const char *folder)
 
 	if (lstat(folder, &info) < 0) {
 		ErrPrint("Error: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_IO_ERROR;
+		return WIDGET_ERROR_IO_ERROR;
 	}
 
 	if (!S_ISDIR(info.st_mode)) {
 		ErrPrint("Error: %s is not a folder", folder);
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	handle = opendir(folder);
 	if (!handle) {
 		ErrPrint("Error: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_IO_ERROR;
+		return WIDGET_ERROR_IO_ERROR;
 	}
 
 	while ((entry = readdir(handle))) {
@@ -418,7 +300,7 @@ HAPI int util_unlink_files(const char *folder)
 	if (closedir(handle) < 0) {
 		ErrPrint("closedir: %s\n", strerror(errno));
 	}
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI void util_remove_emergency_disk(void)

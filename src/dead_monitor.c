@@ -24,6 +24,7 @@
 
 #include <Eina.h>
 #include <widget_service.h> /* destroy_type for instance.h */
+#include <widget_errno.h>
 
 #include "slave_life.h"
 #include "client_life.h"
@@ -31,14 +32,36 @@
 #include "fault_manager.h"
 #include "util.h"
 #include "debug.h"
-#include "liveinfo.h"
+#include "widget-mgr.h"
 #include "conf.h"
+
+struct cb_item {
+	int handle;
+	void (*dead_cb)(int handle, void *data);
+	void *data;
+};
+
+static struct info {
+	Eina_List *cb_list;
+} s_info = {
+	.cb_list = NULL,
+};
 
 static int evt_cb(int handle, void *data)
 {
 	struct slave_node *slave;
 	struct client_node *client;
-	struct liveinfo *liveinfo;
+	struct widget_mgr *widget_mgr;
+	struct cb_item *dead_item;
+	Eina_List *l;
+	Eina_List *n;
+
+	EINA_LIST_FOREACH_SAFE(s_info.cb_list, l, n, dead_item) {
+		if (dead_item->handle == handle) {
+			dead_item->dead_cb(dead_item->handle, dead_item->data);
+			break;
+		}
+	}
 
 	slave = slave_find_by_rpc_handle(handle);
 	if (slave) {
@@ -75,9 +98,9 @@ static int evt_cb(int handle, void *data)
 		return 0;
 	}
 
-	liveinfo = liveinfo_find_by_handle(handle);
-	if (liveinfo) {
-		liveinfo_destroy(liveinfo);
+	widget_mgr = widget_mgr_find_by_handle(handle);
+	if (widget_mgr) {
+		widget_mgr_destroy(widget_mgr);
 		return 0;
 	}
 
@@ -92,8 +115,60 @@ HAPI int dead_init(void)
 
 HAPI int dead_fini(void)
 {
+	struct cb_item *item;
+
 	com_core_del_event_callback(CONNECTOR_DISCONNECTED, evt_cb, NULL);
+
+	EINA_LIST_FREE(s_info.cb_list, item) {
+		DbgFree(item);
+	}
+
 	return 0;
+}
+
+HAPI int dead_callback_add(int handle, void (*dead_cb)(int handle, void *data), void *data)
+{
+	struct cb_item *item;
+	Eina_List *l;
+
+	EINA_LIST_FOREACH(s_info.cb_list, l, item) {
+		if (item->handle == handle) {
+			return WIDGET_ERROR_ALREADY_EXIST;
+		}
+	}
+
+	item = malloc(sizeof(*item));
+	if (!item) {
+		return WIDGET_ERROR_OUT_OF_MEMORY;
+	}
+
+	item->handle = handle;
+	item->dead_cb = dead_cb;
+	item->data = data;
+
+	s_info.cb_list = eina_list_append(s_info.cb_list, item);
+	return 0;
+}
+
+HAPI void *dead_callback_del(int handle, void (*dead_cb)(int handle, void *data))
+{
+	struct cb_item *item;
+	Eina_List *l;
+	Eina_List *n;
+
+	EINA_LIST_FOREACH_SAFE(s_info.cb_list, l, n, item) {
+		if (item->handle == handle && item->dead_cb == dead_cb) {
+			void *cbdata;
+
+			s_info.cb_list = eina_list_remove(s_info.cb_list, item);
+			cbdata = item->data;
+			DbgFree(item);
+
+			return cbdata;
+		}
+	}
+
+	return NULL;
 }
 
 /* End of a file */

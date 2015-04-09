@@ -353,7 +353,7 @@ HAPI int service_register_tcb_callback(struct service_context *svc_ctx, struct t
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	cbdata->tcb = tcb;
@@ -372,10 +372,10 @@ HAPI int service_register_tcb_callback(struct service_context *svc_ctx, struct t
 		break;
 	default:
 		DbgFree(cbdata);
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 /*!
@@ -393,7 +393,7 @@ HAPI int service_unregister_tcb_callback(struct service_context *svc_ctx, struct
 			if (cbdata->tcb == tcb && cbdata->cb == cb && cbdata->data == data) {
 				svc_ctx->tcb_create_cb_list = eina_list_remove(svc_ctx->tcb_create_cb_list, cbdata);
 				DbgFree(cbdata);
-				return WIDGET_STATUS_ERROR_NONE;
+				return WIDGET_ERROR_NONE;
 			}
 		}
 		break;
@@ -402,15 +402,15 @@ HAPI int service_unregister_tcb_callback(struct service_context *svc_ctx, struct
 			if (cbdata->tcb == tcb && cbdata->cb == cb && cbdata->data == data) {
 				svc_ctx->tcb_destroy_cb_list = eina_list_remove(svc_ctx->tcb_destroy_cb_list, cbdata);
 				DbgFree(cbdata);
-				return WIDGET_STATUS_ERROR_NONE;
+				return WIDGET_ERROR_NONE;
 			}
 		}
 		break;
 	default:
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
-	return WIDGET_STATUS_ERROR_NOT_EXIST;
+	return WIDGET_ERROR_NOT_EXIST;
 }
 
 /*!
@@ -825,7 +825,7 @@ static void *server_main(void *data)
  * \NOTE
  * MAIN THREAD
  */
-HAPI struct service_context *service_common_create(const char *addr, int (*service_thread_main)(struct tcb *tcb, struct packet *packet, void *data), void *data)
+HAPI struct service_context *service_common_create(const char *addr, const char *label, int (*service_thread_main)(struct tcb *tcb, struct packet *packet, void *data), void *data)
 {
 	int status;
 	struct service_context *svc_ctx;
@@ -854,7 +854,7 @@ HAPI struct service_context *service_common_create(const char *addr, int (*servi
 		return NULL;
 	}
 
-	svc_ctx->fd = secure_socket_create_server(addr);
+	svc_ctx->fd = secure_socket_create_server_with_permission(addr, label);
 	if (svc_ctx->fd < 0) {
 		DbgFree(svc_ctx);
 		return NULL;

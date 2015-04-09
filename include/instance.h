@@ -152,8 +152,8 @@ extern int instance_resize(struct inst_info *inst, int w, int h);
 extern int instance_hold_scroll(struct inst_info *inst, int seize);
 extern int instance_set_period(struct inst_info *inst, double period);
 extern int instance_clicked(struct inst_info *inst, const char *event, double timestamp, double x, double y);
-extern int instance_text_signal_emit(struct inst_info *inst, const char *emission, const char *source, double sx, double sy, double ex, double ey);
-extern int instance_signal_emit(struct inst_info *inst, const char *emission, const char *source, double sx, double sy, double ex, double ey, double x, double y, int down);
+extern int instance_text_signal_emit(struct inst_info *inst, const char *signal_name, const char *source, double sx, double sy, double ex, double ey);
+extern int instance_signal_emit(struct inst_info *inst, const char *signal_name, const char *source, double sx, double sy, double ex, double ey, double x, double y, int down);
 extern int instance_change_group(struct inst_info *inst, const char *cluster, const char *category);
 extern int instance_set_visible_state(struct inst_info *inst, enum widget_visible_state state);
 extern enum widget_visible_state instance_visible_state(struct inst_info *inst);
@@ -224,7 +224,7 @@ extern void instance_extra_info_updated_by_instance(struct inst_info *inst);
 
 /*!
  * \note
- * if the status is WIDGET_STATUS_ERROR_FAULT (slave is faulted)
+ * if the status is WIDGET_ERROR_FAULT (slave is faulted)
  * even though the GBAR is not created, this will forcely send the GBAR_DESTROYED event to the client.
  */
 extern int instance_client_gbar_destroyed(struct inst_info *inst, int status);
@@ -264,4 +264,7 @@ extern void *instance_del_data(struct inst_info *inst, const char *tag);
 extern void *instance_get_data(struct inst_info *inst, const char *tag);
 
 extern void instance_reload_period(struct inst_info *inst, double period);
+extern struct packet *instance_duplicate_packet_create(struct inst_info *inst, struct pkg_info *info, int width, int height);
+
+extern struct packet *instance_watch_create(const char *pkgname, int width, int height);
 /* End of a file */

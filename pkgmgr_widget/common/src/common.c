@@ -27,10 +27,13 @@
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 #include <dlog.h>
+#include <pkgmgr-info.h>
 
 #include <widget_service.h>
+#include <widget_service_internal.h>
 
 #include "dlist.h"
+#include "common.h"
 
 #if !defined(FLOG)
 #define DbgPrint(format, arg...)	SECURE_LOGD("[[32m%s/%s[0m:%d] " format, basename(__FILE__), __func__, __LINE__, ##arg)
@@ -40,9 +43,14 @@
 
 #define CUR_VER 5
 #define DEFAULT_CATEGORY	"http://tizen.org/category/default"
+#define WATCH_CATEGORY		"org.tizen.wmanager.WATCH_CLOCK"
 
-/*!
- * \note
+#if !defined(WIDGET_COUNT_OF_SIZE_TYPE)
+#define WIDGET_COUNT_OF_SIZE_TYPE 13
+#endif
+
+/**
+ * @note
  * DB Table schema
  *
  * version
@@ -112,41 +120,41 @@
  * +----+---------+----------+-------+
  * | id | cluster | category | pkgid |
  * +----+---------+----------+-------+
-* |  - |    -    |    -     |   -   |
-	* +----+---------+----------+-------|
-* CREATE TABLE groupinfo ( id INTEGER PRIMARY KEY AUTOINCREMENT, cluster TEXT NOT NULL, category TEXT NOT NULL, appid TEXT NOT NULL, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ))
-	*
-	* groupmap
-	* +-------+----+----------+-----------+
-	* | pkgid | id | ctx_item | option_id |
-	* +-------+----+----------+-----------+
-* CREATE TABLE groupmap ( option_id INTEGER PRIMARY KEY AUTOINCREMENT, id INTEGER, pkgid TEXT NOT NULL, ctx_item TEXT NOT NULL, FOREIGN KEY(id) REFERENCES groupinfo(id), FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
-	*
-	*
-	* option
-	* +-------+-----------+-----+-------+
-	* | pkgid | option_id | key | value |
-	* +-------+-----------+-----+-------+
-* CREATE TABLE option ( pkgid TEXT NOT NULL, option_id INTEGER, key TEXT NOT NULL, value TEXT NOT NULL, FOREIGN KEY(option_id) REFERENCES groupmap(option_id), FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid)  )
-	*/
+ * |  - |    -    |    -     |   -   |
+ * +----+---------+----------+-------|
+ * CREATE TABLE groupinfo ( id INTEGER PRIMARY KEY AUTOINCREMENT, cluster TEXT NOT NULL, category TEXT NOT NULL, appid TEXT NOT NULL, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ))
+ *
+ * groupmap
+ * +-------+----+----------+-----------+
+ * | pkgid | id | ctx_item | option_id |
+ * +-------+----+----------+-----------+
+ * CREATE TABLE groupmap ( option_id INTEGER PRIMARY KEY AUTOINCREMENT, id INTEGER, pkgid TEXT NOT NULL, ctx_item TEXT NOT NULL, FOREIGN KEY(id) REFERENCES groupinfo(id), FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) )
+ *
+ *
+ * option
+ * +-------+-----------+-----+-------+
+ * | pkgid | option_id | key | value |
+ * +-------+-----------+-----+-------+
+ * CREATE TABLE option ( pkgid TEXT NOT NULL, option_id INTEGER, key TEXT NOT NULL, value TEXT NOT NULL, FOREIGN KEY(option_id) REFERENCES groupmap(option_id), FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid)  )
+ */
 
 #if !defined(LIBXML_TREE_ENABLED)
-#error "LIBXML is not supporting the tree"
+	#error "LIBXML is not supporting the tree"
 #endif
 
 #if defined(LOG_TAG)
-#undef LOG_TAG
+	#undef LOG_TAG
 #endif
 
-#define LOG_TAG "PKGMGR_WIDGET"
+#define LOG_TAG "PKGMGR_WIDGET2"
 
-	int errno;
+int errno;
 
-	struct i18n {
-		xmlChar *lang;
-		xmlChar *name;
-		xmlChar *icon;
-	};
+struct i18n {
+	xmlChar *lang;
+	xmlChar *name;
+	xmlChar *icon;
+};
 
 struct widget {
 	xmlChar *pkgid;
@@ -180,10 +188,10 @@ struct widget {
 	xmlChar *widget_group;
 	int size_list; /* 1x1, 2x1, 2x2, 4x1, 4x2, 4x3, 4x4 */
 
-	xmlChar *preview[WIDGET_NR_OF_SIZE_LIST];
-	int touch_effect[WIDGET_NR_OF_SIZE_LIST]; /* Touch effect of a widget */
-	int need_frame[WIDGET_NR_OF_SIZE_LIST]; /* Box needs frame which should be cared by viewer */
-	int mouse_event[WIDGET_NR_OF_SIZE_LIST];
+	xmlChar *preview[WIDGET_COUNT_OF_SIZE_TYPE];
+	int touch_effect[WIDGET_COUNT_OF_SIZE_TYPE]; /* Touch effect of a widget */
+	int need_frame[WIDGET_COUNT_OF_SIZE_TYPE]; /* Box needs frame which should be cared by viewer */
+	int mouse_event[WIDGET_COUNT_OF_SIZE_TYPE];
 
 	enum widget_gbar_type gbar_type;
 	xmlChar *gbar_src;
@@ -217,8 +225,7 @@ static struct {
 
 static inline int next_state(int from, char ch)
 {
-	switch (ch)
-	{
+	switch (ch) {
 	case '\0':
 	case '/':
 		return 1;
@@ -294,7 +301,12 @@ static inline void abspath(const char* pBuffer, char* pRet)
 	}
 }
 
-static inline int begin_transaction(void)
+static inline xmlChar *abspath_strdup(xmlChar *src)
+{
+	return xmlMalloc(xmlStrlen(src) + 2);
+}
+
+int begin_transaction(void)
 {
 	sqlite3_stmt *stmt;
 	int ret;
@@ -339,7 +351,7 @@ static inline int rollback_transaction(void)
 	return EXIT_SUCCESS;
 }
 
-static inline int commit_transaction(void)
+inline int commit_transaction(void)
 {
 	sqlite3_stmt *stmt;
 	int ret;
@@ -666,7 +678,7 @@ static void upgrade_to_version_3(void)
 	return;
 }
 
-static void do_upgrade_db_schema(void)
+void db_upgrade_db_schema(void)
 {
 	int version;
 
@@ -1885,7 +1897,7 @@ static inline void db_create_table(void)
 	commit_transaction();
 }
 
-static int db_init(void)
+int db_init(void)
 {
 	int ret;
 	struct stat stat;
@@ -1917,7 +1929,7 @@ static int db_init(void)
 	return 0;
 }
 
-static inline int db_fini(void)
+int db_fini(void)
 {
 	if (!s_info.handle) {
 		return 0;
@@ -1929,7 +1941,17 @@ static inline int db_fini(void)
 	return 0;
 }
 
-static inline int validate_pkgid(const char *appid, const char *pkgid)
+int db_check(void)
+{
+	if (s_info.handle == NULL)
+	{
+		return 0;
+	}
+
+	return 1;
+}
+
+static int validate_pkgid(const char *appid, const char *pkgid)
 {
 	/* Just return 1 Always */
 	return 1 || !strncmp(appid, pkgid, strlen(appid));
@@ -2008,7 +2030,7 @@ static int widget_destroy(struct widget *widget)
 	return 0;
 }
 
-static inline void update_i18n_name(struct widget *widget, xmlNodePtr node)
+static void update_i18n_name(struct widget *widget, xmlNodePtr node)
 {
 	struct i18n *i18n;
 	struct dlist *l;
@@ -2058,7 +2080,7 @@ static inline void update_i18n_name(struct widget *widget, xmlNodePtr node)
 	widget->i18n_list = dlist_append(widget->i18n_list, i18n);
 }
 
-static inline void update_i18n_icon(struct widget *widget, xmlNodePtr node)
+static void update_i18n_icon(struct widget *widget, xmlNodePtr node)
 {
 	struct i18n *i18n;
 	struct dlist *l;
@@ -2090,7 +2112,7 @@ static inline void update_i18n_icon(struct widget *widget, xmlNodePtr node)
 			}
 
 			i18n->icon = icon;
-			icon = xmlMalloc(xmlStrlen(i18n->icon) + 2);
+			icon = abspath_strdup(i18n->icon);
 			if (!icon) {
 				ErrPrint("Heap: %s\n", strerror(errno));
 			} else {
@@ -2111,7 +2133,7 @@ static inline void update_i18n_icon(struct widget *widget, xmlNodePtr node)
 	}
 
 	i18n->icon = icon;
-	icon = xmlMalloc(xmlStrlen(i18n->icon) + 2);
+	icon = abspath_strdup(i18n->icon);
 	if (!icon) {
 		ErrPrint("Heap: %s\n", strerror(errno));
 	} else {
@@ -2119,13 +2141,12 @@ static inline void update_i18n_icon(struct widget *widget, xmlNodePtr node)
 		xmlFree(i18n->icon);
 		i18n->icon = icon;
 	}
-
 	i18n->lang = lang;
 	DbgPrint("Icon[%s] - [%s] added\n", i18n->lang, i18n->icon);
 	widget->i18n_list = dlist_append(widget->i18n_list, i18n);
 }
 
-static inline void update_launch(struct widget *widget, xmlNodePtr node)
+static void update_launch(struct widget *widget, xmlNodePtr node)
 {
 	xmlChar *launch;
 
@@ -2146,14 +2167,19 @@ static inline void update_launch(struct widget *widget, xmlNodePtr node)
 	}
 }
 
-static inline void update_category(struct widget *widget, xmlNodePtr node)
+static int update_category(struct widget *widget, xmlNodePtr node)
 {
 	xmlChar *category;
 
 	category = xmlGetProp(node, (const xmlChar *)"name");
 	if (!category) {
 		DbgPrint("Has no valid category\n");
-		return;
+		return 0;
+	}
+
+	if (!xmlStrcasecmp(category, (const xmlChar *)WATCH_CATEGORY)) {
+		ErrPrint("Widget tries to install WATCH: %s\n", widget->pkgid);
+		return -EINVAL;
 	}
 
 	if (widget->category) {
@@ -2163,11 +2189,13 @@ static inline void update_category(struct widget *widget, xmlNodePtr node)
 	widget->category = xmlStrdup(category);
 	if (!widget->category) {
 		ErrPrint("Failed to duplicate string: %s\n", (char *)category);
-		return;
+		return -EINVAL;
 	}
+
+	return 0;
 }
 
-static inline void update_ui_appid(struct widget *widget, xmlNodePtr node)
+static void update_ui_appid(struct widget *widget, xmlNodePtr node)
 {
 	xmlChar *uiapp;
 	uiapp = xmlNodeGetContent(node);
@@ -2187,7 +2215,7 @@ static inline void update_ui_appid(struct widget *widget, xmlNodePtr node)
 	}
 }
 
-static inline void update_setup(struct widget *widget, xmlNodePtr node)
+static void update_setup(struct widget *widget, xmlNodePtr node)
 {
 	xmlChar *setup;
 	setup = xmlNodeGetContent(node);
@@ -2207,7 +2235,7 @@ static inline void update_setup(struct widget *widget, xmlNodePtr node)
 	}
 }
 
-static inline void update_content(struct widget *widget, xmlNodePtr node)
+static void update_content(struct widget *widget, xmlNodePtr node)
 {
 	xmlChar *content;
 	content = xmlNodeGetContent(node);
@@ -2231,8 +2259,10 @@ static void update_size_info(struct widget *widget, int idx, xmlNodePtr node)
 {
 	if (xmlHasProp(node, (const xmlChar *)"preview")) {
 		xmlChar *tmp_preview;
+
 		widget->preview[idx] = xmlGetProp(node, (const xmlChar *)"preview");
-		tmp_preview = xmlMalloc(xmlStrlen(widget->preview[idx]) + 2);
+
+		tmp_preview = abspath_strdup(widget->preview[idx]);
 		if (!tmp_preview) {
 			ErrPrint("Heap: %s\n", strerror(errno));
 		} else {
@@ -2435,7 +2465,7 @@ static void update_box(struct widget *widget, xmlNodePtr node)
 				widget->size_list |= WIDGET_SIZE_TYPE_EASY_3x3;
 				update_size_info(widget, 11, node);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"0x0")) {
-				widget->size_list |= WIDGET_SIZE_TYPE_0x0;
+				widget->size_list |= WIDGET_SIZE_TYPE_FULL;
 				update_size_info(widget, 12, node);
 			} else {
 				ErrPrint("Invalid size tag (%s)\n", size);
@@ -2462,7 +2492,7 @@ static void update_box(struct widget *widget, xmlNodePtr node)
 			}
 
 			widget->widget_src = src;
-			src = xmlMalloc(xmlStrlen(widget->widget_src) + 2);
+			src = abspath_strdup(widget->widget_src);
 			if (!src) {
 				ErrPrint("Heap: %s\n", strerror(errno));
 			} else {
@@ -2489,7 +2519,7 @@ static void update_box(struct widget *widget, xmlNodePtr node)
 	}
 }
 
-static inline void update_group(struct widget *widget, xmlNodePtr node)
+static void update_group(struct widget *widget, xmlNodePtr node)
 {
 	xmlNodePtr cluster;
 	xmlNodePtr category;
@@ -2619,7 +2649,7 @@ static inline void update_group(struct widget *widget, xmlNodePtr node)
 	}
 }
 
-static inline void update_gbar(struct widget *widget, xmlNodePtr node)
+static void update_glance_bar(struct widget *widget, xmlNodePtr node)
 {
 	if (!xmlHasProp(node, (const xmlChar *)"type")) {
 		widget->gbar_type = GBAR_TYPE_SCRIPT;
@@ -2680,7 +2710,7 @@ static inline void update_gbar(struct widget *widget, xmlNodePtr node)
 			}
 
 			widget->gbar_src = src;
-			src = xmlMalloc(xmlStrlen(widget->gbar_src) + 2);
+			src = abspath_strdup(widget->gbar_src);
 			if (!src) {
 				ErrPrint("Heap: %s\n", strerror(errno));
 			} else {
@@ -2703,8 +2733,8 @@ static inline void update_gbar(struct widget *widget, xmlNodePtr node)
 					widget->gbar_group = group;
 				}
 			}
-		}
-	}
+		} // script
+	} // for
 }
 
 static int db_insert_widget(struct widget *widget, const char *appid)
@@ -2824,8 +2854,8 @@ static int db_insert_widget(struct widget *widget, const char *appid)
 		}
 	}
 
-	if (widget->size_list & WIDGET_SIZE_TYPE_0x0) {
-		ret = db_insert_box_size((char *)widget->pkgid, WIDGET_SIZE_TYPE_0x0, (char *)widget->preview[12], widget->touch_effect[12], widget->need_frame[12], widget->mouse_event[12]);
+	if (widget->size_list & WIDGET_SIZE_TYPE_FULL) {
+		ret = db_insert_box_size((char *)widget->pkgid, WIDGET_SIZE_TYPE_FULL, (char *)widget->preview[12], widget->touch_effect[12], widget->need_frame[12], widget->mouse_event[12]);
 		if (ret < 0) {
 			goto errout;
 		}
@@ -2886,7 +2916,7 @@ errout:
 	return ret;
 }
 
-static int do_install(xmlNodePtr node, const char *appid)
+int db_install_widget(xmlNodePtr node, const char *appid)
 {
 	struct widget *widget;
 	xmlChar *pkgid;
@@ -3013,7 +3043,7 @@ static int do_install(xmlNodePtr node, const char *appid)
 			return -EFAULT;
 		}
 
-		tmp_libexec = xmlMalloc(xmlStrlen(widget->libexec) + 2);
+		tmp_libexec = abspath_strdup(widget->libexec);
 		if (!tmp_libexec) {
 			ErrPrint("Heap: %s\n", strerror(errno));
 			widget_destroy(widget);
@@ -3068,7 +3098,7 @@ static int do_install(xmlNodePtr node, const char *appid)
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"glancebar")) {
-			update_gbar(widget, node);
+			update_glance_bar(widget, node);
 			continue;
 		}
 
@@ -3098,7 +3128,11 @@ static int do_install(xmlNodePtr node, const char *appid)
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"category")) {
-			update_category(widget, node);
+			if (update_category(widget, node) < 0) {
+				widget_destroy(widget);
+				return -EINVAL;
+			}
+
 			continue;
 		}
 	}
@@ -3106,7 +3140,77 @@ static int do_install(xmlNodePtr node, const char *appid)
 	return db_insert_widget(widget, appid);
 }
 
-static inline int do_uninstall(xmlNodePtr node, const char *appid)
+int db_install_watchapp(xmlNodePtr node, const char *appid)
+{
+	struct widget *widget;
+	xmlChar *pkgid;
+
+	if (!xmlHasProp(node, (const xmlChar *)"appid")) {
+		ErrPrint("Missing appid\n");
+		return -EINVAL;
+	}
+
+	pkgid = xmlGetProp(node, (const xmlChar *)"appid");
+	if (!pkgid || !validate_pkgid(appid, (char *)pkgid)) {
+		ErrPrint("Invalid appid\n");
+		xmlFree(pkgid);
+		return -EINVAL;
+	}
+
+	DbgPrint("appid: %s\n", (char *)pkgid);
+
+	widget = calloc(1, sizeof(*widget));
+	if (!widget) {
+		ErrPrint("Heap: %s\n", strerror(errno));
+		xmlFree(pkgid);
+		return -ENOMEM;
+	}
+
+	widget->pkgid = pkgid;
+
+	widget->primary = 1;
+	widget->secured = 1;
+	widget->nodisplay = 1;
+	widget->hw_acceleration = xmlStrdup((const xmlChar *)"use-sw"); //use-gl
+	widget->abi = xmlStrdup((const xmlChar *)"app");
+	widget->category = xmlStrdup((const xmlChar *)WATCH_CATEGORY);
+
+	widget->widget_type = WIDGET_TYPE_BUFFER;
+	widget->default_mouse_event = 1;
+	widget->default_touch_effect = 0;
+	widget->default_need_frame = 0;
+	widget->size_list = WIDGET_SIZE_TYPE_2x2;
+
+	if (xmlHasProp(node, (const xmlChar *)"exec")) {
+		widget->libexec = xmlGetProp(node, (const xmlChar *)"exec");
+		if (!widget->libexec) {
+			ErrPrint("libexec is NIL\n");
+			widget_destroy(widget);
+			return -EFAULT;
+		}
+	}
+
+	for (node = node->children; node; node = node->next) {
+		if (!xmlStrcmp(node->name, (const xmlChar *)"text")) {
+			continue;
+		}
+
+		DbgPrint("Nodename: %s\n", node->name);
+		if (!xmlStrcasecmp(node->name, (const xmlChar *)"label")) {
+			update_i18n_name(widget, node);
+			continue;
+		}
+
+		if (!xmlStrcasecmp(node->name, (const xmlChar *)"icon")) {
+			update_i18n_icon(widget, node);
+			continue;
+		}
+	}
+
+	return db_insert_widget(widget, appid);
+}
+
+int db_uninstall(xmlNodePtr node, const char *appid)
 {
 	xmlChar *pkgid;
 	int ret;
@@ -3124,38 +3228,38 @@ static inline int do_uninstall(xmlNodePtr node, const char *appid)
 	}
 
 	begin_transaction();
-	ret = db_remove_box_size((char *)pkgid);
+	ret = db_remove_box_size((const char *)pkgid);
 	if (ret < 0) {
 		goto errout;
 	}
 
-	ret = db_remove_i18n((char *)pkgid);
+	ret = db_remove_i18n((const char *)pkgid);
 	if (ret < 0) {
 		goto errout;
 	}
 
-	ret = db_remove_client((char *)pkgid);
+	ret = db_remove_client((const char *)pkgid);
 	if (ret < 0) {
 		goto errout;
 	}
 
-	ret = db_remove_provider((char *)pkgid);
+	ret = db_remove_provider((const char *)pkgid);
 	if (ret < 0) {
 		goto errout;
 	}
 
-	ret = db_remove_option((char *)pkgid);
+	ret = db_remove_option((const char *)pkgid);
 	DbgPrint("Remove option: %d\n", ret);
 
-	ret = db_remove_groupmap((char *)pkgid);
+	ret = db_remove_groupmap((const char *)pkgid);
 	DbgPrint("Remove groupmap: %d\n", ret);
 
-	ret = db_remove_group((char *)pkgid);
+	ret = db_remove_group((const char *)pkgid);
 	if (ret < 0) {
 		goto errout;
 	}
 
-	ret = db_remove_pkgmap((char *)pkgid);
+	ret = db_remove_pkgmap((const char *)pkgid);
 	if (ret < 0) {
 		goto errout;
 	}
@@ -3171,9 +3275,9 @@ errout:
 	return ret;
 }
 
-static int pkglist_get_via_callback(const char *appid, void (*cb)(const char *appid, const char *pkgid, int prime, void *data), void *data)
+int pkglist_get_via_callback(const char *appid, int is_watch_widget, void (*cb)(const char *appid, const char *pkgid, int prime, void *data), void *data)
 {
-	const char *dml = "SELECT pkgid, prime FROM pkgmap WHERE appid = ?";
+	const char *dml;
 	int ret;
 	sqlite3_stmt *stmt;
 	const char *pkgid;
@@ -3189,6 +3293,12 @@ static int pkglist_get_via_callback(const char *appid, void (*cb)(const char *ap
 			ErrPrint("Failed to init DB\n");
 			return -EIO;
 		}
+	}
+
+	if (is_watch_widget) { /* Watch */
+		dml = "SELECT pkgid, prime FROM pkgmap WHERE appid = ? AND category = '" WATCH_CATEGORY "'";
+	} else { /* Widget */
+		dml = "SELECT pkgid, prime FROM pkgmap WHERE appid = ? AND (category IS NULL OR category <> '" WATCH_CATEGORY "')";
 	}
 
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
@@ -3221,7 +3331,7 @@ out:
 	return cnt;
 }
 
-static void clear_all_pkg(const char *appid, const char *pkgid, int prime, void *data)
+void delete_record_cb(const char *appid, const char *pkgid, int prime, void *data)
 {
 	int ret;
 
@@ -3266,177 +3376,6 @@ static void clear_all_pkg(const char *appid, const char *pkgid, int prime, void 
 	if (ret < 0) {
 		ErrPrint("Remove pkgmap: %d\n", ret);
 	}
-}
-
-int PKGMGR_PARSER_PLUGIN_PRE_INSTALL(const char *appid)
-{
-	int cnt;
-
-	ErrPrintWithConsole("%s\n", appid);
-
-	if (!s_info.handle) {
-		if (db_init() < 0) {
-			ErrPrintWithConsole("Failed to init DB\n");
-			return -EIO;
-		}
-	}
-
-	do_upgrade_db_schema();
-
-	begin_transaction();
-	cnt = pkglist_get_via_callback(appid, clear_all_pkg, NULL);
-	commit_transaction();
-
-	if (cnt > 0) {
-		DbgPrint("Package[%s] is not deleted: %d\n", appid, cnt);
-	}
-	return 0;
-}
-
-int PKGMGR_PARSER_PLUGIN_POST_INSTALL(const char *appid)
-{
-	ErrPrintWithConsole("[%s]\n", appid);
-	db_fini();
-	return 0;
-}
-
-int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *appid)
-{
-	xmlNodePtr node;
-	int ret;
-
-	ErrPrintWithConsole("[%s]\n", appid);
-
-	if (!s_info.handle) {
-		ErrPrintWithConsole("Failed to init DB\n");
-		return -EIO;
-	}
-
-	node = xmlDocGetRootElement(docPtr);
-	if (!node) {
-		ErrPrintWithConsole("Invalid document\n");
-		return -EINVAL;
-	}
-
-	for (node = node->children; node; node = node->next) {
-		DbgPrint("node->name: %s\n", node->name);
-		if (!xmlStrcasecmp(node->name, (const xmlChar *)"widget")) {
-			ret = do_install(node, appid);
-			if (ret < 0) {
-				DbgPrint("Returns: %d\n", ret);
-			}
-		}
-	}
-
-	return 0;
-}
-
-int PKGMGR_PARSER_PLUGIN_PRE_UPGRADE(const char *appid)
-{
-	int cnt;
-
-	ErrPrintWithConsole("[%s]\n", appid);
-
-	if (!s_info.handle) {
-		if (db_init() < 0) {
-			ErrPrint("Failed to init DB\n");
-			return -EIO;
-		}
-	}
-
-	do_upgrade_db_schema();
-
-	begin_transaction();
-	cnt = pkglist_get_via_callback(appid, clear_all_pkg, NULL);
-	commit_transaction();
-
-	if (cnt > 0) {
-		DbgPrint("Package %s is deleted: %d\n", appid, cnt);
-	}
-	return 0;
-}
-
-int PKGMGR_PARSER_PLUGIN_POST_UPGRADE(const char *appid)
-{
-	ErrPrintWithConsole("[%s]\n", appid);
-	db_fini();
-	return 0;
-}
-
-int PKGMGR_PARSER_PLUGIN_UPGRADE(xmlDocPtr docPtr, const char *appid)
-{
-	xmlNodePtr node;
-	int ret;
-
-	ErrPrintWithConsole("[%s]\n", appid);
-
-	if (!s_info.handle) {
-		ErrPrint("Failed to init DB\n");
-		return -EIO;
-	}
-
-	node = xmlDocGetRootElement(docPtr);
-	if (!node) {
-		ErrPrint("Invalid document\n");
-		return -EINVAL;
-	}
-
-	for (node = node->children; node; node = node->next) {
-		if (!xmlStrcasecmp(node->name, (const xmlChar *)"widget")) {
-			ret = do_install(node, appid);
-			if (ret < 0) {
-				DbgPrint("Returns: %d\n", ret);
-			}
-		}
-	}
-
-	return 0;
-}
-
-int PKGMGR_PARSER_PLUGIN_PRE_UNINSTALL(const char *appid)
-{
-	ErrPrintWithConsole("[%s]\n", appid);
-
-	if (!s_info.handle) {
-		if (db_init() < 0) {
-			ErrPrint("Failed to init DB\n");
-			return -EIO;
-		}
-	}
-
-	do_upgrade_db_schema();
-	return 0;
-}
-
-int PKGMGR_PARSER_PLUGIN_POST_UNINSTALL(const char *appid)
-{
-	int cnt;
-
-	ErrPrintWithConsole("[%s]\n", appid);
-
-	if (!s_info.handle) {
-		return -EIO;
-	}
-
-	begin_transaction();
-	cnt = pkglist_get_via_callback(appid, clear_all_pkg, NULL);
-	commit_transaction();
-
-	if (cnt > 0) {
-		DbgPrint("Package %s is deleted: %d\n", appid, cnt);
-	}
-	db_fini();
-	return 0;
-}
-
-int PKGMGR_PARSER_PLUGIN_UNINSTALL(xmlDocPtr docPtr, const char *appid)
-{
-	ErrPrintWithConsole("[%s]\n", appid);
-	if (!s_info.handle) {
-		return -EIO;
-	}
-	/* Doesn't need to do anything from here, we already dealt it with this */
-	return 0;
 }
 
 /* End of a file */

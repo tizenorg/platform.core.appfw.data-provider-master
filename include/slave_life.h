@@ -96,7 +96,7 @@ extern const int const slave_refcnt(struct slave_node *slave);
  * \param[in] period
  * \return slave_node
  */
-extern struct slave_node *slave_create(const char *name, int is_secured, const char *abi, const char *pkgname, int network, const char *hw_acceleration);
+extern struct slave_node *slave_create(const char *name, int is_secured, const char *abi, const char *pkgname, int network, const char *hw_acceleration, int launch_async);
 
 /*!
  * \brief
@@ -211,5 +211,8 @@ extern char *slave_package_name(const char *abi, const char *lbid);
 
 extern int slave_priority(struct slave_node *slave);
 extern int slave_set_priority(struct slave_node *slave, int priority);
+
+extern int slave_valid(const struct slave_node *slave);
+extern void slave_set_valid(struct slave_node *slave);
 
 /* End of a file */

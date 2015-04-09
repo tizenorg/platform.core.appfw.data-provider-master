@@ -30,6 +30,7 @@
 #include <com-core_packet.h>
 #include <widget_errno.h>
 #include <widget_service.h>
+#include <widget_service_internal.h>
 #include <widget_cmd_list.h>
 #include <widget_conf.h>
 
@@ -128,7 +129,7 @@ static int slave_async_cb(pid_t pid, int handle, const struct packet *packet, vo
 
 	if (!command) {
 		ErrPrint("Command is NIL\n");
-		return WIDGET_STATUS_ERROR_NONE;
+		return WIDGET_ERROR_NONE;
 	}
 
 	/*!
@@ -166,7 +167,7 @@ static int slave_async_cb(pid_t pid, int handle, const struct packet *packet, vo
 
 out:
 	destroy_command(command);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 static Eina_Bool command_consumer_cb(void *data)
@@ -299,7 +300,7 @@ static int slave_deactivate_cb(struct slave_node *slave, void *data)
 		 * \note
 		 * Return negative value will remove this callback from the event list of the slave
 		 */
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	if (rpc->pong_timer) {
@@ -342,7 +343,7 @@ static int slave_deactivate_cb(struct slave_node *slave, void *data)
 	 */
 	rpc->ping_count = 0;
 	rpc->next_ping_count = 1;
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 static Eina_Bool ping_timeout_cb(void *data)
@@ -393,7 +394,7 @@ HAPI int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, 
 		}
 
 		packet_unref(packet);
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	command->ret_cb = ret_cb;
@@ -407,7 +408,7 @@ HAPI int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, 
 			ret_cb(slave, NULL, data);
 		}
 		destroy_command(command);
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	if (rpc->handle < 0) {
@@ -418,7 +419,7 @@ HAPI int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, 
 			int ret;
 			DbgPrint("Activate slave forcely\n");
 			ret = slave_activate(slave);
-			if (ret < 0 && ret != WIDGET_STATUS_ERROR_ALREADY) {
+			if (ret < 0 && ret != WIDGET_ERROR_ALREADY_STARTED) {
 
 				if (ret_cb) {
 					ret_cb(slave, NULL, data);
@@ -435,7 +436,7 @@ HAPI int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, 
 			rpc->pending_list = eina_list_append(rpc->pending_list, command);
 		}
 
-		return WIDGET_STATUS_ERROR_NONE;
+		return WIDGET_ERROR_NONE;
 	}
 
 	if (urgent) {
@@ -444,7 +445,7 @@ HAPI int slave_rpc_async_request(struct slave_node *slave, const char *pkgname, 
 		push_command(command);
 	}
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, struct packet *packet, int urgent)
@@ -456,7 +457,7 @@ HAPI int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, s
 	if (!command) {
 		ErrPrint("Failed to create a command\n");
 		packet_unref(packet);
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	command->ret_cb = NULL;
@@ -467,7 +468,7 @@ HAPI int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, s
 	if (!rpc) {
 		ErrPrint("Slave has no RPC\n");
 		destroy_command(command);
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	if (rpc->handle < 0) {
@@ -479,7 +480,7 @@ HAPI int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, s
 
 			DbgPrint("Activate slave forcely\n");
 			ret = slave_activate(slave);
-			if (ret < 0 && ret != WIDGET_STATUS_ERROR_ALREADY) {
+			if (ret < 0 && ret != WIDGET_ERROR_ALREADY_STARTED) {
 				destroy_command(command);
 				return ret;
 			}
@@ -491,7 +492,7 @@ HAPI int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, s
 			rpc->pending_list = eina_list_append(rpc->pending_list, command);
 		}
 
-		return WIDGET_STATUS_ERROR_NONE;
+		return WIDGET_ERROR_NONE;
 	}
 
 	if (urgent) {
@@ -500,17 +501,17 @@ HAPI int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, s
 		push_command(command);
 	}
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
-HAPI int slave_rpc_update_handle(struct slave_node *slave, int handle)
+HAPI int slave_rpc_update_handle(struct slave_node *slave, int handle, int delete_pending_packet)
 {
 	struct slave_rpc *rpc;
 	struct command *command;
 
 	rpc = slave_data(slave, "rpc");
 	if (!rpc) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	DbgPrint("SLAVE: New handle assigned for %d, %d\n", slave_pid(slave), handle);
@@ -533,10 +534,14 @@ HAPI int slave_rpc_update_handle(struct slave_node *slave, int handle)
 	slave_activated(slave);
 
 	EINA_LIST_FREE(rpc->pending_list, command) {
-		push_command(command);
+		if (delete_pending_packet) {
+			destroy_command(command);
+		} else {
+			push_command(command);
+		}
 	}
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int slave_rpc_init(struct slave_node *slave)
@@ -546,12 +551,12 @@ HAPI int slave_rpc_init(struct slave_node *slave)
 	rpc = calloc(1, sizeof(*rpc));
 	if (!rpc) {
 		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	if (slave_set_data(slave, "rpc", rpc) < 0) {
 		DbgFree(rpc);
-		return WIDGET_STATUS_ERROR_OUT_OF_MEMORY;
+		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivate_cb, NULL) < 0) {
@@ -562,7 +567,7 @@ HAPI int slave_rpc_init(struct slave_node *slave)
 	rpc->next_ping_count = 1;
 	rpc->handle = -1;
 
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int slave_rpc_fini(struct slave_node *slave)
@@ -571,7 +576,7 @@ HAPI int slave_rpc_fini(struct slave_node *slave)
 
 	rpc = slave_del_data(slave, "rpc");
 	if (!rpc) {
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	slave_event_callback_del(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivate_cb, NULL);
@@ -581,7 +586,7 @@ HAPI int slave_rpc_fini(struct slave_node *slave)
 	}
 
 	DbgFree(rpc);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int slave_rpc_ping(struct slave_node *slave)
@@ -591,12 +596,12 @@ HAPI int slave_rpc_ping(struct slave_node *slave)
 	rpc = slave_data(slave, "rpc");
 	if (!rpc) {
 		ErrPrint("Slave RPC is not valid\n");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	if (!slave_is_activated(slave)) {
 		ErrPrint("Slave is not activated\n");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	rpc->ping_count++;
@@ -607,7 +612,7 @@ HAPI int slave_rpc_ping(struct slave_node *slave)
 	rpc->next_ping_count++;
 
 	ecore_timer_reset(rpc->pong_timer);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int slave_rpc_ping_freeze(struct slave_node *slave)
@@ -617,16 +622,16 @@ HAPI int slave_rpc_ping_freeze(struct slave_node *slave)
 	rpc = slave_data(slave, "rpc");
 	if (!rpc) {
 		ErrPrint("Slave RPC is not valid\n");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	if (!slave_is_activated(slave)) {
 		ErrPrint("Slave is not activated\n");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	ecore_timer_freeze(rpc->pong_timer);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI int slave_rpc_ping_thaw(struct slave_node *slave)
@@ -636,16 +641,16 @@ HAPI int slave_rpc_ping_thaw(struct slave_node *slave)
 	rpc = slave_data(slave, "rpc");
 	if (!rpc) {
 		ErrPrint("Slave RPC is not valid\n");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	if (!slave_is_activated(slave)) {
 		ErrPrint("Slave is not activated\n");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	ecore_timer_thaw(rpc->pong_timer);
-	return WIDGET_STATUS_ERROR_NONE;
+	return WIDGET_ERROR_NONE;
 }
 
 HAPI void slave_rpc_request_update(const char *pkgname, const char *id, const char *cluster, const char *category, const char *content, int force)
@@ -683,7 +688,7 @@ HAPI int slave_rpc_handle(struct slave_node *slave)
 	rpc = slave_data(slave, "rpc");
 	if (!rpc) {
 		DbgPrint("Slave RPC is not initiated\n");
-		return WIDGET_STATUS_ERROR_INVALID_PARAMETER;
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	return rpc->handle;
@@ -697,7 +702,7 @@ HAPI int slave_rpc_disconnect(struct slave_node *slave)
 	packet = packet_create_noack((const char *)&cmd, "d", util_timestamp());
 	if (!packet) {
 		ErrPrint("Failed to create a packet\n");
-		return WIDGET_STATUS_ERROR_FAULT;
+		return WIDGET_ERROR_FAULT;
 	}
 
 	DbgPrint("Send disconnection request packet\n");
