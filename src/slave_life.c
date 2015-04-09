@@ -453,7 +453,7 @@ HAPI int slave_expired_ttl(struct slave_node *slave)
 		return 0;
 	}
 
-	if (!slave->secured && !(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL)) {
+	if (!slave_is_app(slave) && !slave->secured && !(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL)) {
 		return 0;
 	}
 
@@ -832,7 +832,7 @@ HAPI int slave_give_more_ttl(struct slave_node *slave)
 {
 	double delay;
 
-	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) && (!slave->secured || !slave->ttl_timer)) {
+	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) && ((!slave_is_app(slave) && !slave->secured) || !slave->ttl_timer)) {
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
@@ -843,7 +843,7 @@ HAPI int slave_give_more_ttl(struct slave_node *slave)
 
 HAPI int slave_freeze_ttl(struct slave_node *slave)
 {
-	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) && (!slave->secured || !slave->ttl_timer)) {
+	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) && ((!slave_is_app(slave) && !slave->secured) || !slave->ttl_timer)) {
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
@@ -855,7 +855,7 @@ HAPI int slave_thaw_ttl(struct slave_node *slave)
 {
 	double delay;
 
-	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) && (!slave->secured || !slave->ttl_timer)) {
+	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) && ((!slave_is_app(slave) && !slave->secured) || !slave->ttl_timer)) {
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
@@ -875,7 +875,7 @@ HAPI int slave_activated(struct slave_node *slave)
 	 * 1. If the slave is INHOUSE(data-provider-slave) and LIMIT_TO_TTL is true, and SLAVE_TTL is greater than 0.0f
 	 * 2. Service provider is "secured" and SLAVE_TTL is greater than 0.0f
 	 */
-	if (((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured == 1) && WIDGET_CONF_SLAVE_TTL > 0.0f) {
+	if (((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured == 1 || slave_is_app(slave)) && WIDGET_CONF_SLAVE_TTL > 0.0f) {
 		DbgPrint("Slave deactivation timer is added (%s - %lf)\n", slave_name(slave), WIDGET_CONF_SLAVE_TTL);
 		slave->ttl_timer = ecore_timer_add(WIDGET_CONF_SLAVE_TTL, slave_ttl_cb, slave);
 		if (!slave->ttl_timer) {
@@ -1558,6 +1558,11 @@ HAPI struct slave_node *slave_unload_instance(struct slave_node *slave)
 HAPI const int const slave_is_secured(const struct slave_node *slave)
 {
 	return slave->secured;
+}
+
+HAPI const int const slave_is_app(const struct slave_node *slave)
+{
+	return !strcasecmp(slave_abi(slave), WIDGET_CONF_APP_ABI);
 }
 
 HAPI const char * const slave_name(const struct slave_node *slave)

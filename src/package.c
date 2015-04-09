@@ -684,6 +684,7 @@ static int package_is_faulted(struct pkg_info *info, double timestamp)
 		return 1;
 	}
 
+	DbgPrint("Faulted: %d (%d / %lf)\n", info->fault_count, WIDGET_CONF_FAULT_DETECT_COUNT, WIDGET_CONF_FAULT_DETECT_IN_TIME);
 	return 0;
 }
 
@@ -704,6 +705,7 @@ HAPI int package_set_fault_info(struct pkg_info *info, double timestamp, const c
 	struct fault_info *fault;
 
 	if (!package_is_faulted(info, timestamp)) {
+		DbgPrint("Faulted but excused\n");
 		return WIDGET_ERROR_CANCELED;
 	}
 
@@ -1516,12 +1518,15 @@ HAPI int package_fini(void)
 	return 0;
 }
 
+/**
+ * Find a standalone provider
+ */
 HAPI const char *package_find_by_secured_slave(struct slave_node *slave)
 {
 	Eina_List *l;
 	struct pkg_info *info;
 
-	if (!slave_is_secured(slave)) {
+	if (!slave_is_secured(slave) && !slave_is_app(slave)) {
 		return NULL;
 	}
 
