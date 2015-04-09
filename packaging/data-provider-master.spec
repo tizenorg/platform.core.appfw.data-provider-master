@@ -170,14 +170,12 @@ vconftool set -t bool "memory/%{name}/started" 0 -i -u ${APP_UID} -f -s system::
 vconftool set -t int "memory/private/%{name}/restart_count" 0 -i -u ${APP_UID} -f -s %{name}
 vconftool set -t string "db/%{name}/serveraddr" "/opt/usr/share/live_magazine/.client.socket" -i -u ${APP_UID} -f -s system::vconf_system
 
-/usr/sbin/setcap -q cap_chown,cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_nice,cap_mac_override,cap_mac_admin+ep /usr/bin/data-provider-master
-
 echo "Successfully installed. Please start a daemon again manually"
 
 %files -n %{name}
 %manifest %{name}.manifest
 %defattr(-,system,system,-)
-%{_bindir}/%{name}
+%caps(cap_chown,cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_nice,cap_mac_override,cap_mac_admin+ep) %{_bindir}/%{name}
 %{_libdir}/systemd/system/multi-user.target.wants/%{name}.service
 %{_libdir}/systemd/system/%{name}.service
 %{_datarootdir}/license/*
