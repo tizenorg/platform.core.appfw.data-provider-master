@@ -198,9 +198,10 @@ HAPI int fault_check_pkgs(struct slave_node *slave)
 	if (pkgname) {
 		pkg = package_find(pkgname);
 		if (pkg) {
-			(void)package_set_fault_info(pkg, util_timestamp(), NULL, NULL);
-			dump_fault_info(slave_name(slave), slave_pid(slave), pkgname, "", "");
-			fault_broadcast_info(pkgname, "", "");
+			if (package_set_fault_info(pkg, util_timestamp(), NULL, NULL) != WIDGET_ERROR_CANCELED) {
+				dump_fault_info(slave_name(slave), slave_pid(slave), pkgname, "", "");
+				fault_broadcast_info(pkgname, "", "");
+			}
 			DbgFree((char *)pkgname);
 
 			s_info.fault_mark_count = 0;
@@ -231,9 +232,10 @@ HAPI int fault_check_pkgs(struct slave_node *slave)
 	if (pkgname) {
 		pkg = package_find(pkgname);
 		if (pkg) {
-			(void)package_set_fault_info(pkg, util_timestamp(), NULL, NULL);
-			dump_fault_info(slave_name(slave), slave_pid(slave), pkgname, "", "");
-			fault_broadcast_info(pkgname, "", "");
+			if (package_set_fault_info(pkg, util_timestamp(), NULL, NULL) != WIDGET_ERROR_CANCELED) {
+				dump_fault_info(slave_name(slave), slave_pid(slave), pkgname, "", "");
+				fault_broadcast_info(pkgname, "", "");
+			}
 
 			s_info.fault_mark_count = 0;
 			clear_log_file(slave);
@@ -249,6 +251,7 @@ HAPI int fault_check_pkgs(struct slave_node *slave)
 				DbgFree(info->func);
 				DbgFree(info);
 			}
+
 			return 0;
 		}
 	}
@@ -273,12 +276,12 @@ HAPI int fault_check_pkgs(struct slave_node *slave)
 			func = info->func ? info->func : "";
 
 			if (!checked) {
-				(void)package_set_fault_info(pkg, info->timestamp, info->filename, info->func);
-				fault_broadcast_info(info->pkgname, info->filename, info->func);
+				if (package_set_fault_info(pkg, info->timestamp, info->filename, info->func) != WIDGET_ERROR_CANCELED) {
+					fault_broadcast_info(info->pkgname, info->filename, info->func);
+				}
 			} else {
 				DbgPrint("Treated as a false log\n");
-				dump_fault_info(
-						slave_name(info->slave), slave_pid(info->slave), info->pkgname, filename, func);
+				dump_fault_info(slave_name(info->slave), slave_pid(info->slave), info->pkgname, filename, func);
 			}
 
 			s_info.call_list = eina_list_remove_list(s_info.call_list, l);

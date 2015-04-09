@@ -1809,7 +1809,41 @@ HAPI void slave_set_reactivation(struct slave_node *slave, int flag)
 
 HAPI int slave_need_to_reactivate(struct slave_node *slave)
 {
-	return slave->reactivate_slave;
+	int reactivate;
+
+	if (!WIDGET_CONF_REACTIVATE_ON_PAUSE) {
+		Eina_List *pkg_list;
+		Eina_List *l;
+		struct pkg_info *info;
+
+		/**
+		 * @TODO
+		 * Check all instances on this slave, whether they are all paused or not.
+		 */
+		pkg_list = (Eina_List *)package_list();
+
+		reactivate = 0;
+
+		EINA_LIST_FOREACH(pkg_list, l, info) {
+			if (package_slave(info) == slave) {
+				Eina_List *inst_list;
+				Eina_List *n;
+				struct inst_info *inst;
+
+				inst_list = (Eina_List *)package_instance_list(info);
+				EINA_LIST_FOREACH(inst_list, n, inst) {
+					if (instance_visible_state(inst) == WIDGET_SHOW) {
+						reactivate++;
+					}
+				}
+			}
+		}
+		DbgPrint("visible instances: %d\n", reactivate);
+	} else {
+		reactivate = 1;
+	}
+
+	return reactivate && slave->reactivate_slave;
 }
 
 HAPI int slave_network(const struct slave_node *slave)
