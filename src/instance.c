@@ -1046,7 +1046,7 @@ HAPI struct packet *instance_duplicate_packet_create(struct inst_info *inst, str
 	/**
 	 * @TODO
 	 */
-	DbgPrint("[TODO] Instance package info: %p\n", inst->info);
+	DbgPrint("[TODO] Instance package info: %p:%s (%p:%s)\n", inst->info, package_name(inst->info), info, package_name(info));
 	// inst->info = info;
 
 	inst->unicast_delete_event = 1;
