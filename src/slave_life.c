@@ -199,8 +199,8 @@ static struct slave_node *slave_deactivate(struct slave_node *slave, int no_time
 		(void)slave_rpc_disconnect(slave);
 	} else if (slave->terminate_timer) {
 		ErrPrint("Terminate timer is already fired (%d)\n", slave->pid);
-	} else if (!no_timer && !slave->secured) {
-		DbgPrint("Fire the terminate timer: %d\n", slave->pid);
+	} else if ((!no_timer && !slave->secured) || slave_is_app(slave)) {
+		DbgPrint("Fire the terminate timer: %d (%d)\n", slave->pid, slave_is_app(slave));
 		slave->terminate_timer = ecore_timer_add(WIDGET_CONF_SLAVE_ACTIVATE_TIME, terminate_timer_cb, slave);
 		if (!slave->terminate_timer) {
 			/*!
