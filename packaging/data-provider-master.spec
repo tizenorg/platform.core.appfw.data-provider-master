@@ -119,11 +119,9 @@ mkdir -p %{buildroot}/opt/usr/share/live_magazine/reader
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/always
 mkdir -p %{buildroot}/opt/usr/devel/usr/bin
 mkdir -p %{buildroot}/opt/dbspace
-touch %{buildroot}/opt/dbspace/.widget.db
-touch %{buildroot}/opt/dbspace/.widget.db-journal
-if [ ! -s %{buildroot}/opt/dbspace/.widget.db ]; then
+
 echo "widget DB file is not exists, initiate it"
-sqlite3 %{buildroot}/opt/dbspace/.widget.db <<EOF
+sqlite3 %{buildroot}/opt/dbspace/.widget.db-new <<EOF
 CREATE TABLE version ( version INTEGER );
 CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, preview TEXT, touch_effect INTEGER, need_frame INTEGER, mouse_event INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
 CREATE TABLE client (pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch TEXT, gbar_size TEXT, content TEXT, nodisplay INTEGER, setup TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
@@ -134,7 +132,6 @@ CREATE TABLE option ( pkgid TEXT NOT NULL, option_id INTEGER, key TEXT NOT NULL,
 CREATE TABLE pkgmap ( pkgid TEXT PRIMARY KEY NOT NULL, appid TEXT, uiapp TEXT, prime INTEGER, category TEXT DEFAULT 'http://tizen.org/category/default' );
 CREATE TABLE provider ( pkgid TEXT PRIMARY KEY NOT NULL, network INTEGER, abi TEXT, secured INTEGER, box_type INTEGER, box_src TEXT, box_group TEXT, gbar_type INTEGER, gbar_src TEXT, gbar_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, count INTEGER, direct_input INTEGER DEFAULT 0, hw_acceleration TEXT DEFAULT '', FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
 EOF
-fi
 
 %pre
 # Executing the stop script for stopping the service of installed provider (old version)
@@ -150,6 +147,20 @@ fi
 SYSTEM_UID=1000
 APP_UID=5000
 APP_GID=5000
+
+if [ ! -s /opt/dbspace/.widget.db ]; then
+	echo "DB is not exists"
+	mv /opt/dbspace/.widget.db-new /opt/dbspace/.widget.db
+	mv /opt/dbspace/.widget.db-new-journal /opt/dbspace/.widget.db-journal
+else
+	VERSION=`sqlite3 /opt/dbspace/.widget.db "SELECT * FROM version"`
+	echo "DB is already exists (Version: $VERSION)"
+	echo "==============================================="
+	sqlite3 /opt/dbspace/.widget.db "SELECT * FROM pkgmap"
+	echo "==============================================="
+	rm -rf /opt/dbspace/.widget.db-new
+	rm -rf /opt/dbspace/.widget.db-new-journal
+fi
 
 chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine
 # System tool(widget-mgr) should be able to access this folder.
@@ -186,8 +197,7 @@ echo "Successfully installed. Please start a daemon again manually"
 %{_datarootdir}/%{name}/*
 /opt/etc/dump.d/module.d/dump_widget.sh
 /opt/usr/share/live_magazine/*
-/opt/dbspace/.widget.db
-/opt/dbspace/.widget.db-journal
+/opt/dbspace/.widget.db*
 %{_sysconfdir}/smack/accesses.d/%{name}
 
 # End of a file
