@@ -151,6 +151,7 @@ extern struct slave_node *slave_find_by_rpc_handle(int handle);
 
 extern void slave_dead_handler(struct slave_node *slave);
 extern const int const slave_is_secured(const struct slave_node *slave);
+extern const int const slave_is_app(const struct slave_node *slave);
 extern const char * const slave_name(const struct slave_node *slave);
 extern const pid_t const slave_pid(const struct slave_node *slave);
 extern const char * const slave_abi(const struct slave_node *slave);

@@ -199,8 +199,8 @@ static struct slave_node *slave_deactivate(struct slave_node *slave, int no_time
 		(void)slave_rpc_disconnect(slave);
 	} else if (slave->terminate_timer) {
 		ErrPrint("Terminate timer is already fired (%d)\n", slave->pid);
-	} else if (!no_timer && !slave->secured) {
-		DbgPrint("Fire the terminate timer: %d\n", slave->pid);
+	} else if ((!no_timer && !slave->secured) || slave_is_app(slave)) {
+		DbgPrint("Fire the terminate timer: %d (%d)\n", slave->pid, slave_is_app(slave));
 		slave->terminate_timer = ecore_timer_add(WIDGET_CONF_SLAVE_ACTIVATE_TIME, terminate_timer_cb, slave);
 		if (!slave->terminate_timer) {
 			/*!
@@ -453,7 +453,7 @@ HAPI int slave_expired_ttl(struct slave_node *slave)
 		return 0;
 	}
 
-	if (!slave->secured && !(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL)) {
+	if (!slave_is_app(slave) && !slave->secured && !(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL)) {
 		return 0;
 	}
 
@@ -832,7 +832,7 @@ HAPI int slave_give_more_ttl(struct slave_node *slave)
 {
 	double delay;
 
-	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) && (!slave->secured || !slave->ttl_timer)) {
+	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) && ((!slave_is_app(slave) && !slave->secured) || !slave->ttl_timer)) {
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
@@ -843,7 +843,7 @@ HAPI int slave_give_more_ttl(struct slave_node *slave)
 
 HAPI int slave_freeze_ttl(struct slave_node *slave)
 {
-	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) && (!slave->secured || !slave->ttl_timer)) {
+	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) && ((!slave_is_app(slave) && !slave->secured) || !slave->ttl_timer)) {
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
@@ -855,7 +855,7 @@ HAPI int slave_thaw_ttl(struct slave_node *slave)
 {
 	double delay;
 
-	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) && (!slave->secured || !slave->ttl_timer)) {
+	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) && ((!slave_is_app(slave) && !slave->secured) || !slave->ttl_timer)) {
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
@@ -875,7 +875,7 @@ HAPI int slave_activated(struct slave_node *slave)
 	 * 1. If the slave is INHOUSE(data-provider-slave) and LIMIT_TO_TTL is true, and SLAVE_TTL is greater than 0.0f
 	 * 2. Service provider is "secured" and SLAVE_TTL is greater than 0.0f
 	 */
-	if (((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured == 1) && WIDGET_CONF_SLAVE_TTL > 0.0f) {
+	if (((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured == 1 || slave_is_app(slave)) && WIDGET_CONF_SLAVE_TTL > 0.0f) {
 		DbgPrint("Slave deactivation timer is added (%s - %lf)\n", slave_name(slave), WIDGET_CONF_SLAVE_TTL);
 		slave->ttl_timer = ecore_timer_add(WIDGET_CONF_SLAVE_TTL, slave_ttl_cb, slave);
 		if (!slave->ttl_timer) {
@@ -1560,6 +1560,11 @@ HAPI const int const slave_is_secured(const struct slave_node *slave)
 	return slave->secured;
 }
 
+HAPI const int const slave_is_app(const struct slave_node *slave)
+{
+	return !strcasecmp(slave_abi(slave), WIDGET_CONF_APP_ABI);
+}
+
 HAPI const char * const slave_name(const struct slave_node *slave)
 {
 	return slave->name;
@@ -1809,7 +1814,41 @@ HAPI void slave_set_reactivation(struct slave_node *slave, int flag)
 
 HAPI int slave_need_to_reactivate(struct slave_node *slave)
 {
-	return slave->reactivate_slave;
+	int reactivate;
+
+	if (!WIDGET_CONF_REACTIVATE_ON_PAUSE) {
+		Eina_List *pkg_list;
+		Eina_List *l;
+		struct pkg_info *info;
+
+		/**
+		 * @TODO
+		 * Check all instances on this slave, whether they are all paused or not.
+		 */
+		pkg_list = (Eina_List *)package_list();
+
+		reactivate = 0;
+
+		EINA_LIST_FOREACH(pkg_list, l, info) {
+			if (package_slave(info) == slave) {
+				Eina_List *inst_list;
+				Eina_List *n;
+				struct inst_info *inst;
+
+				inst_list = (Eina_List *)package_instance_list(info);
+				EINA_LIST_FOREACH(inst_list, n, inst) {
+					if (instance_visible_state(inst) == WIDGET_SHOW) {
+						reactivate++;
+					}
+				}
+			}
+		}
+		DbgPrint("visible instances: %d\n", reactivate);
+	} else {
+		reactivate = 1;
+	}
+
+	return reactivate && slave->reactivate_slave;
 }
 
 HAPI int slave_network(const struct slave_node *slave)

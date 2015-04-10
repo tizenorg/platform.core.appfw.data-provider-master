@@ -123,6 +123,7 @@ struct pkg_info {
 	char *hw_acceleration;
 	char *category;
 
+	double faulted_at; /* Fault started time */
 	int fault_count;
 	struct fault_info *fault_info;
 
@@ -666,6 +667,27 @@ HAPI int package_dump_fault_info(struct pkg_info *info)
 	return WIDGET_ERROR_NONE;
 }
 
+static int package_is_faulted(struct pkg_info *info, double timestamp)
+{
+	if ((timestamp - info->faulted_at) < WIDGET_CONF_FAULT_DETECT_IN_TIME) {
+		info->fault_count++;
+		DbgPrint("Triggered faulted_in_time (%lf)\n", WIDGET_CONF_FAULT_DETECT_IN_TIME);
+	} else {
+		info->fault_count = 1;
+		info->faulted_at = timestamp;
+	}
+
+	if (info->fault_count > WIDGET_CONF_FAULT_DETECT_COUNT) {
+		info->fault_count = 0;
+		info->faulted_at = timestamp;
+		DbgPrint("Triggered fault_count, return 1\n", WIDGET_CONF_FAULT_DETECT_COUNT);
+		return 1;
+	}
+
+	DbgPrint("Faulted: %d (%d / %lf)\n", info->fault_count, WIDGET_CONF_FAULT_DETECT_COUNT, WIDGET_CONF_FAULT_DETECT_IN_TIME);
+	return 0;
+}
+
 HAPI int package_get_fault_info(struct pkg_info *info, double *timestamp, const char **filename, const char **function)
 {
 	if (!info->fault_info) {
@@ -681,6 +703,11 @@ HAPI int package_get_fault_info(struct pkg_info *info, double *timestamp, const 
 HAPI int package_set_fault_info(struct pkg_info *info, double timestamp, const char *filename, const char *function)
 {
 	struct fault_info *fault;
+
+	if (!package_is_faulted(info, timestamp)) {
+		DbgPrint("Faulted but excused\n");
+		return WIDGET_ERROR_CANCELED;
+	}
 
 	package_clear_fault(info);
 
@@ -714,7 +741,6 @@ HAPI int package_set_fault_info(struct pkg_info *info, double timestamp, const c
 	}
 
 	info->fault_info = fault;
-	info->fault_count++;
 	return WIDGET_ERROR_NONE;
 }
 
@@ -1492,12 +1518,15 @@ HAPI int package_fini(void)
 	return 0;
 }
 
+/**
+ * Find a standalone provider
+ */
 HAPI const char *package_find_by_secured_slave(struct slave_node *slave)
 {
 	Eina_List *l;
 	struct pkg_info *info;
 
-	if (!slave_is_secured(slave)) {
+	if (!slave_is_secured(slave) && !slave_is_app(slave)) {
 		return NULL;
 	}
 
