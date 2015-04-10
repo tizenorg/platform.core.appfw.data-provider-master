@@ -1695,12 +1695,13 @@ HAPI int slave_resume(struct slave_node *slave)
 
 	switch (slave->state) {
 	case SLAVE_REQUEST_TO_DISCONNECT:
-	case SLAVE_REQUEST_TO_LAUNCH:
 	case SLAVE_REQUEST_TO_TERMINATE:
 	case SLAVE_TERMINATED:
+		ErrPrint("Slave state[%d]\n", slave->state);
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	case SLAVE_RESUMED:
 	case SLAVE_REQUEST_TO_RESUME:
+		ErrPrint("Slave state[%d]\n", slave->state);
 		return WIDGET_ERROR_NONE;
 	default:
 		break;
@@ -1726,12 +1727,13 @@ HAPI int slave_pause(struct slave_node *slave)
 
 	switch (slave->state) {
 	case SLAVE_REQUEST_TO_DISCONNECT:
-	case SLAVE_REQUEST_TO_LAUNCH:
 	case SLAVE_REQUEST_TO_TERMINATE:
 	case SLAVE_TERMINATED:
+		ErrPrint("Slave state[%d]\n", slave->state);
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	case SLAVE_PAUSED:
 	case SLAVE_REQUEST_TO_PAUSE:
+		ErrPrint("Slave state[%d]\n", slave->state);
 		return WIDGET_ERROR_NONE;
 	default:
 		break;

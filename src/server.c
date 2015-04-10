@@ -7874,12 +7874,6 @@ static struct packet *slave_hello_sync_prepare(pid_t pid, int handle, const stru
 			goto out;
 		}
 
-		/**
-		 * @note
-		 * To send the pause/resume event to the provider, reverse set its state from here
-		 */
-		slave_set_state(slave, xmonitor_is_paused() ? SLAVE_RESUMED : SLAVE_PAUSED);
-
 		DbgPrint("Update handle for %s (%d)\n", pkgname, handle);
 		slave_rpc_update_handle(slave, handle, 1);
 	} else {
@@ -8126,16 +8120,11 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 				goto out;
 			}
 
+			slave_set_state(slave, SLAVE_REQUEST_TO_LAUNCH);
 			slave_set_pid(slave, pid);
 			slave_set_valid(slave);
 
 			if (handle >= 0) {
-				/**
-				 * @note
-				 * To send the pause/resume event to the provider, reverse set its state from here
-				 */
-				slave_set_state(slave, xmonitor_is_paused() ? SLAVE_RESUMED : SLAVE_PAUSED);
-
 				/**
 				 * @note
 				 * In this case, there could not be exists any pended packets.
@@ -8245,12 +8234,6 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 		}
 
 		if (handle >= 0) {
-			/**
-			 * @note
-			 * To send the pause/resume event to the provider, reverse set its state from here
-			 */
-			slave_set_state(slave, xmonitor_is_paused() ? SLAVE_RESUMED : SLAVE_PAUSED);
-
 			slave_rpc_update_handle(slave, handle, 1);
 
 			/**
