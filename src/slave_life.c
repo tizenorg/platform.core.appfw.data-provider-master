@@ -868,7 +868,16 @@ HAPI int slave_thaw_ttl(struct slave_node *slave)
 
 HAPI int slave_activated(struct slave_node *slave)
 {
-	slave->state = SLAVE_RESUMED;
+	/**
+	 * @note
+	 * Send the client's state to the provider.
+	 * After the slave is activated.
+	 */
+	if (xmonitor_is_paused()) {
+		slave_pause(slave);
+	} else {
+		slave_resume(slave);
+	}
 
 	/**
 	 * Condition for activating TTL Timer
@@ -1748,6 +1757,11 @@ HAPI const char *slave_pkgname(const struct slave_node *slave)
 HAPI enum slave_state slave_state(const struct slave_node *slave)
 {
 	return slave ? slave->state : SLAVE_ERROR;
+}
+
+HAPI void slave_set_state(struct slave_node *slave, enum slave_state state)
+{
+	slave->state = state;
 }
 
 HAPI const char *slave_state_string(const struct slave_node *slave)

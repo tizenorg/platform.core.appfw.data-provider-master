@@ -6533,97 +6533,10 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 				goto out;
 			}
 		} else {
-			char *widget_id;
-			struct pkg_info *info;
-			unsigned int widget_size;
-			int network;
-			int width;
-			int height;
-			struct inst_info *inst;
-
-			widget_id = is_valid_slave(pid, abi, pkgname);
-			if (!widget_id) {
-				goto out;
-			}
-
-			info = package_find(widget_id);
-
-			if (!info) {
-				DbgPrint("There is no loaded package information\n");
-				DbgFree(widget_id);
-				goto out;
-			} else {
-				const char *category;
-				const char *db_acceleration;
-				int db_secured;
-				const char *tmp;
-
-				category = package_category(info);
-				tmp = package_abi(info);
-				db_secured = package_secured(info);
-				db_acceleration = package_hw_acceleration(info);
-
-				if (db_secured != secured) {
-					DbgPrint("%s secured (%d)\n", pkgname, db_secured);
-					DbgFree(widget_id);
-					goto out;
-				}
-
-				if (strcmp(tmp, abi)) {
-					DbgPrint("%s abi (%s)\n", pkgname, tmp);
-					DbgFree(widget_id);
-					goto out;
-				}
-
-				if (strcmp(acceleration, db_acceleration)) {
-					DbgPrint("%s accel (%s)\n", pkgname, db_acceleration);
-					DbgFree(widget_id);
-					goto out;
-				}
-
-				if (util_string_is_in_list(category, WIDGET_CONF_CATEGORY_LIST) == 0) {
-					DbgPrint("%s category (%s)\n", pkgname, category);
-					DbgFree(widget_id);
-					goto out;
-				}
-
-				network = package_network(info);
-			}
-
-			slave = slave_create(slavename, secured, abi, pkgname, network, acceleration, 0);
-			if (!slave) {
-				ErrPrint("Failed to create a new slave for %s\n", slavename);
-				DbgFree(widget_id);
-				goto out;
-			}
-
-			slave_set_pid(slave, pid);
-			slave_set_valid(slave);
-			slave_activated(slave);
-			DbgPrint("Slave is activated by request: %d (%s)/(%s)\n", pid, pkgname, slavename);
-
-			widget_size = package_size_list(info);
-
-			if (widget_size & WIDGET_SIZE_TYPE_2x2) {
-				widget_service_get_size(WIDGET_SIZE_TYPE_2x2, &width, &height);
-			} else if (widget_size & WIDGET_SIZE_TYPE_4x4) {
-				widget_service_get_size(WIDGET_SIZE_TYPE_4x4, &width, &height);
-			} else {
-				widget_service_get_size(WIDGET_SIZE_TYPE_1x1, &width, &height);
-				DbgPrint("widget[%s] doesn't support size [2x2], [4x4]\n", pkgname);
-			}
-
-			/**
-			 * @note
-			 * Create an instance by provider's request.
-			 * And then assign its client when a viewer tries to create this instance.
-			 */
-			inst = instance_create(NULL, util_timestamp(), widget_id, "", "", "", WIDGET_CONF_DEFAULT_PERIOD, width, height);
-			if (!inst) {
-				ErrPrint("Failed to create a new instance\n");
-			}
-
-			DbgFree(widget_id);
+			ErrPrint("Request comes from unknown: %d\n", pid);
+			ret = aul_terminate_pid_async(pid);
+			DbgPrint("Terminate %d (%d)\n", pid, ret);
+			goto out;
 		}
 	} else {
 		if (slave_pid(slave) != pid) {
@@ -7961,6 +7874,12 @@ static struct packet *slave_hello_sync_prepare(pid_t pid, int handle, const stru
 			goto out;
 		}
 
+		/**
+		 * @note
+		 * To send the pause/resume event to the provider, reverse set its state from here
+		 */
+		slave_set_state(slave, xmonitor_is_paused() ? SLAVE_RESUMED : SLAVE_PAUSED);
+
 		DbgPrint("Update handle for %s (%d)\n", pkgname, handle);
 		slave_rpc_update_handle(slave, handle, 1);
 	} else {
@@ -8210,12 +8129,18 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			slave_set_pid(slave, pid);
 			slave_set_valid(slave);
 
-			/**
-			 * @note
-			 * In this case, there could not be exists any pended packets.
-			 * But we tried to clear them for a case!
-			 */
 			if (handle >= 0) {
+				/**
+				 * @note
+				 * To send the pause/resume event to the provider, reverse set its state from here
+				 */
+				slave_set_state(slave, xmonitor_is_paused() ? SLAVE_RESUMED : SLAVE_PAUSED);
+
+				/**
+				 * @note
+				 * In this case, there could not be exists any pended packets.
+				 * But we tried to clear them for a case!
+				 */
 				slave_rpc_update_handle(slave, handle, 1);
 			} else {
 				DbgPrint("Slave RPC should be updated soon (waiting prepare sync)\n");
@@ -8234,7 +8159,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 				DbgPrint("widget(%s] does not support size [2x2], [4x4]\n",pkgname);
 			}
 
-			result = instance_watch_create(widget_id, width, height);
+			result = instance_watch_create(packet, widget_id, width, height);
 			if (!result) {
 				ErrPrint("Failed to create a new instance\n");
 				if (slave_unref(slave)) {
@@ -8320,7 +8245,19 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 		}
 
 		if (handle >= 0) {
+			/**
+			 * @note
+			 * To send the pause/resume event to the provider, reverse set its state from here
+			 */
+			slave_set_state(slave, xmonitor_is_paused() ? SLAVE_RESUMED : SLAVE_PAUSED);
+
 			slave_rpc_update_handle(slave, handle, 1);
+
+			/**
+			 * @note
+			 * This PAUSE/RESUME state will be sent to the provider after the instance is created.
+			 * Because, this command is sync. so there is no way to get the state packet first then create packet.
+			 */
 		} else {
 			DbgPrint("Slave RPC should be updated soon (waiting prepare sync)\n");
 		}
@@ -8337,7 +8274,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			DbgPrint("widget(%s] does not support size [2x2], [4x4]\n",pkgname);
 		}
 
-		result = instance_duplicate_packet_create(inst, info, width, height);
+		result = instance_duplicate_packet_create(packet, inst, info, width, height);
 
 		DbgFree(widget_id);
 	}

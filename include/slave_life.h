@@ -187,8 +187,10 @@ extern int slave_resume(struct slave_node *slave);
 extern int slave_pause(struct slave_node *slave);
 
 extern const char *slave_pkgname(const struct slave_node *slave);
-extern enum slave_state slave_state(const struct slave_node *slave);
 extern const char *slave_state_string(const struct slave_node *slave);
+
+extern enum slave_state slave_state(const struct slave_node *slave);
+extern void slave_set_state(struct slave_node *slave, enum slave_state state);
 
 extern const void *slave_list(void);
 extern int const slave_fault_count(const struct slave_node *slave);
