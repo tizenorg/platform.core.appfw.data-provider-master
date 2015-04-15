@@ -27,6 +27,7 @@ data-provider-master::bin system::media r-x-- ------
 data-provider-master::bin system::vconf --x--- ------
 data-provider-master::bin system::vconf_system r----- ------
 data-provider-master::bin notification::db rw---- ------
-data-provider-master::bin shortcut::db rw---- ------
+data-provider-master::bin shortcut-service::db rw---- ------
+data-provider-master::bin badge::db rw---- ------
 _ data-provider-master::bin r-x--- ------
 data-provider-master::bin sdbd r----- ------
