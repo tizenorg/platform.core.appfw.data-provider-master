@@ -23,7 +23,6 @@
 #include <dlog.h>
 #include <aul.h>
 #include <Ecore.h>
-#include <ail.h>
 
 #include <packet.h>
 #include <com-core_packet.h>
