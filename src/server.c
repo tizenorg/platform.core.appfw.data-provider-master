@@ -6470,7 +6470,7 @@ out:
 	return NULL;
 }
 
-static inline __attribute__((always_inline)) int debug_mode_enabled(int pid, const char *slavename, const char *pkgname, int secured, const char *abi, const char *acceleration)
+static inline __attribute__((always_inline)) struct slave_node *debug_mode_enabled(int pid, const char *slavename, const char *pkgname, int secured, const char *abi, const char *acceleration)
 {
 	struct slave_node *slave;
 
@@ -6478,7 +6478,7 @@ static inline __attribute__((always_inline)) int debug_mode_enabled(int pid, con
 	if (!slave) {
 		slave = slave_create(slavename, secured, abi, pkgname, 0, acceleration, 0);
 		if (!slave) {
-			return WIDGET_ERROR_FAULT;
+			return NULL;
 		}
 
 		DbgPrint("New slave is created net(%d) abi(%s) secured(%d) accel(%s)\n", 0, abi, secured, acceleration);
@@ -6490,7 +6490,7 @@ static inline __attribute__((always_inline)) int debug_mode_enabled(int pid, con
 	slave_set_valid(slave);
 
 	DbgPrint("Provider is forcely activated, pkgname(%s), abi(%s), slavename(%s)\n", pkgname, abi, slavename);
-	return WIDGET_ERROR_NONE;
+	return slave;
 }
 
 static struct packet *slave_hello(pid_t pid, int handle, const struct packet *packet) /* slave_name, ret */
@@ -6527,7 +6527,8 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 
 	if (!slave) {
 		if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
-			if (debug_mode_enabled(pid, slavename, pkgname, secured, abi, acceleration) != WIDGET_ERROR_NONE) {
+			slave = debug_mode_enabled(pid, slavename, pkgname, secured, abi, acceleration);
+			if (!slave) {
 				ErrPrint("Failed to create a new slave for %s\n", slavename);
 				goto out;
 			}
@@ -8041,7 +8042,8 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 
 	if (!slave) {
 		if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
-			if (debug_mode_enabled(pid, slavename, pkgname, secured, abi, acceleration) != WIDGET_ERROR_NONE) {
+			slave = debug_mode_enabled(pid, slavename, pkgname, secured, abi, acceleration);
+			if (!slave) {
 				ErrPrint("Failed to create a new slave for %s\n", slavename);
 				goto out;
 			}
