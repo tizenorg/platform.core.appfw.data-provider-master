@@ -28,7 +28,6 @@
 #include <widget_service_internal.h>
 #include <widget_conf.h>
 #include <pkgmgr-info.h>
-#include <ail.h>
 
 #include "critical_log.h"
 #include "debug.h"
