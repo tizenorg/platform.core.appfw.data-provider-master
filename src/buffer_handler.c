@@ -1233,7 +1233,15 @@ EAPI void buffer_handler_flush(struct buffer_info *info)
 			}
 		}
 	} else if (buffer->type == WIDGET_FB_TYPE_FILE) {
-		fd = open(widget_util_uri_to_path(info->id), O_WRONLY | O_CREAT, 0644);
+		const char *path;
+
+		path = widget_util_uri_to_path(info->id);
+		if (!path) {
+			ErrPrint("Invalid id: [%s]\n", info->id);
+			return;
+		}
+
+		fd = open(path, O_WRONLY | O_CREAT, 0644);
 		if (fd < 0) {
 			ErrPrint("%s open: %d\n", widget_util_uri_to_path(info->id), errno);
 			return;
