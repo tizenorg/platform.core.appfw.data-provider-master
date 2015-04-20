@@ -69,7 +69,7 @@ static struct info {
 static inline void touch_paused_file(void)
 {
 	int fd;
-	fd = creat(PAUSED_FILE, 0644);
+	fd = creat(WIDGET_CONF_PAUSED_FILE, 0644);
 	if (fd >= 0) {
 		if (close(fd) < 0) {
 			ErrPrint("close: %s\n", strerror(errno));
@@ -81,7 +81,7 @@ static inline void touch_paused_file(void)
 
 static inline void remove_paused_file(void)
 {
-	if (unlink(PAUSED_FILE) < 0) {
+	if (unlink(WIDGET_CONF_PAUSED_FILE) < 0) {
 		ErrPrint("Unlink .live.paused: %s\n", strerror(errno));
 	}
 }
@@ -125,7 +125,7 @@ HAPI int xmonitor_update_state(int target_pid)
 {
 	struct client_node *client;
 
-	if (!USE_XMONITOR || target_pid < 0) {
+	if (!WIDGET_CONF_USE_XMONITOR || target_pid < 0) {
 		return WIDGET_ERROR_NONE;
 	}
 
@@ -159,7 +159,7 @@ HAPI int xmonitor_resume(struct client_node *client)
 
 HAPI int xmonitor_init(void)
 {
-	if (USE_XMONITOR) {
+	if (WIDGET_CONF_USE_XMONITOR) {
 		return WIDGET_ERROR_NONE;
 	}
 
@@ -175,7 +175,7 @@ HAPI int xmonitor_init(void)
 
 HAPI void xmonitor_fini(void)
 {
-	if (USE_XMONITOR) {
+	if (WIDGET_CONF_USE_XMONITOR) {
 	}
 }
 
