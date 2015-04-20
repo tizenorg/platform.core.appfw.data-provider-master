@@ -328,13 +328,13 @@ static inline int load_conf(struct pkg_info *info)
 
 		info->script = strdup(WIDGET_CONF_DEFAULT_SCRIPT);
 		if (!info->script) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			return WIDGET_ERROR_OUT_OF_MEMORY;
 		}
 
 		info->abi = strdup(WIDGET_CONF_DEFAULT_ABI);
 		if (!info->abi) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			DbgFree(info->script);
 			info->script = NULL;
 			return WIDGET_ERROR_OUT_OF_MEMORY;
@@ -358,7 +358,7 @@ static inline int load_conf(struct pkg_info *info)
 
 			info->widget.info.script.path = strdup(str);
 			if (!info->widget.info.script.path) {
-				ErrPrint("Heap: %s\n", strerror(errno));
+				ErrPrint("strdup: %d\n", errno);
 				parser_unload(parser);
 				return WIDGET_ERROR_OUT_OF_MEMORY;
 			}
@@ -367,7 +367,7 @@ static inline int load_conf(struct pkg_info *info)
 			if (str) {
 				info->widget.info.script.group = strdup(str);
 				if (!info->widget.info.script.group) {
-					ErrPrint("Heap: %s\n", strerror(errno));
+					ErrPrint("strdup: %d\n", errno);
 					DbgFree(info->widget.info.script.path);
 					parser_unload(parser);
 					return WIDGET_ERROR_OUT_OF_MEMORY;
@@ -386,7 +386,7 @@ static inline int load_conf(struct pkg_info *info)
 			info->gbar.type = GBAR_TYPE_SCRIPT;
 			info->gbar.info.script.path = strdup(str);
 			if (!info->gbar.info.script.path) {
-				ErrPrint("Heap: %s\n", strerror(errno));
+				ErrPrint("strdup: %d\n", errno);
 				if (info->widget.type == WIDGET_TYPE_SCRIPT) {
 					DbgFree(info->widget.info.script.path);
 					DbgFree(info->widget.info.script.group);
@@ -399,7 +399,7 @@ static inline int load_conf(struct pkg_info *info)
 			if (str) {
 				info->gbar.info.script.group = strdup(str);
 				if (!info->gbar.info.script.group) {
-					ErrPrint("Heap: %s\n", strerror(errno));
+					ErrPrint("strdup: %d\n", errno);
 					DbgFree(info->gbar.info.script.path);
 					if (info->widget.type == WIDGET_TYPE_SCRIPT) {
 						DbgFree(info->widget.info.script.path);
@@ -416,7 +416,7 @@ static inline int load_conf(struct pkg_info *info)
 	str = str ? str : WIDGET_CONF_DEFAULT_SCRIPT;
 	info->script = strdup(str);
 	if (!info->script) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		if (info->gbar.type == GBAR_TYPE_SCRIPT) {
 			DbgFree(info->gbar.info.script.path);
 			DbgFree(info->gbar.info.script.group);
@@ -435,7 +435,7 @@ static inline int load_conf(struct pkg_info *info)
 	str = str ? str : WIDGET_CONF_DEFAULT_ABI;
 	info->abi = strdup(str);
 	if (!info->abi) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(info->script);
 		if (info->gbar.type == GBAR_TYPE_SCRIPT) {
 			DbgFree(info->gbar.info.script.path);
@@ -466,7 +466,7 @@ static inline int load_conf(struct pkg_info *info)
 	str = str ? str : "";
 	info->widget.auto_launch = strdup(str);
 	if (!info->widget.auto_launch) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(info->abi);
 		DbgFree(info->script);
 		if (info->gbar.type == GBAR_TYPE_SCRIPT) {
@@ -502,13 +502,13 @@ HAPI struct pkg_info *package_create(const char *pkgid, const char *widget_id)
 
 	pkginfo = calloc(1, sizeof(*pkginfo));
 	if (!pkginfo) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return NULL;
 	}
 
 	pkginfo->pkgid = strdup(pkgid);
 	if (!pkginfo->pkgid) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(pkginfo);
 		return NULL;
 	}
@@ -518,7 +518,7 @@ HAPI struct pkg_info *package_create(const char *pkgid, const char *widget_id)
 		ErrPrint("Failed to get pkgname, fallback to fs checker\n");
 		pkginfo->widget_id = strdup(widget_id);
 		if (!pkginfo->widget_id) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			DbgFree(pkginfo->pkgid);
 			DbgFree(pkginfo);
 			return NULL;
@@ -572,7 +572,7 @@ HAPI char *package_widget_pkgname(const char *pkgname)
 	if (!widget_id) {
 		widget_id = strdup(pkgname);
 		if (!widget_id) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			return NULL;
 		}
 	}
@@ -712,7 +712,7 @@ HAPI int package_set_fault_info(struct pkg_info *info, double timestamp, const c
 
 	fault = calloc(1, sizeof(*fault));
 	if (!fault) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -726,14 +726,14 @@ HAPI int package_set_fault_info(struct pkg_info *info, double timestamp, const c
 
 	fault->filename = strdup(filename);
 	if (!fault->filename) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(fault);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	fault->function = strdup(function);
 	if (!fault->function) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(fault->filename);
 		DbgFree(fault);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
@@ -809,7 +809,7 @@ HAPI int package_set_script(struct pkg_info *info, const char *script)
 
 	tmp = strdup(script);
 	if (!tmp) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -828,7 +828,7 @@ HAPI int package_set_abi(struct pkg_info *info, const char *abi)
 	char *tmp;
 	tmp = strdup(abi);
 	if (!tmp) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -856,7 +856,7 @@ HAPI int package_set_widget_path(struct pkg_info *info, const char *path)
 
 	tmp = strdup(path);
 	if (!tmp) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -884,7 +884,7 @@ HAPI int package_set_widget_group(struct pkg_info *info, const char *group)
 
 	tmp = strdup(group);
 	if (!tmp) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -912,7 +912,7 @@ HAPI int package_set_gbar_path(struct pkg_info *info, const char *path)
 
 	tmp = strdup(path);
 	if (!tmp) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -940,7 +940,7 @@ HAPI int package_set_gbar_group(struct pkg_info *info, const char *group)
 
 	tmp = strdup(group);
 	if (!tmp) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -972,7 +972,7 @@ HAPI void package_set_auto_launch(struct pkg_info *info, const char *auto_launch
 
 	info->widget.auto_launch = strdup(auto_launch);
 	if (!info->widget.auto_launch) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		return;
 	}
 }
@@ -1055,7 +1055,7 @@ HAPI int package_set_libexec(struct pkg_info *info, const char *libexec)
 
 	tmp = strdup(libexec);
 	if (!tmp) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -1109,7 +1109,7 @@ HAPI int package_set_hw_acceleration(struct pkg_info *info, const char *hw_accel
 
 	tmp = strdup(hw_acceleration);
 	if (!tmp) {
-		ErrPrint("strdup: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -1128,7 +1128,7 @@ HAPI int package_set_category(struct pkg_info *info, const char *category)
 
 	tmp = strdup(category);
 	if (!tmp) {
-		ErrPrint("strdup: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -1710,7 +1710,7 @@ HAPI char *package_get_pkgid(const char *appid)
 	if (new_appid && new_appid[0] != '\0') {
 		pkgid = strdup(new_appid);
 		if (!pkgid) {
-			ErrPrint("strdup: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 		}
 	}
 	pkgmgrinfo_appinfo_destroy_appinfo(handle);

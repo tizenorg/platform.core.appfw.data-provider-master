@@ -50,13 +50,13 @@ extern FILE *__file_log_fp;
 
 #define PERF_BEGIN() do { \
 	if (gettimeofday(&__stv, NULL) < 0) { \
-		ErrPrint("gettimeofday: %s\n", strerror(errno)); \
+		ErrPrint("gettimeofday: %d\n", errno); \
 	} \
 } while (0)
 
 #define PERF_MARK(tag) do { \
 	if (gettimeofday(&__etv, NULL) < 0) { \
-		ErrPrint("gettimeofday: %s\n", strerror(errno)); \
+		ErrPrint("gettimeofday: %d\n", errno); \
 	} \
 	timersub(&__etv, &__stv, &__rtv); \
 	DbgPrint("[%s] %u.%06u\n", tag, __rtv.tv_sec, __rtv.tv_usec); \

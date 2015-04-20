@@ -77,7 +77,7 @@ static inline int app_create(void)
 
 	if (access(WIDGET_CONF_LOG_PATH, R_OK | W_OK) != 0) {
 		if (mkdir(WIDGET_CONF_LOG_PATH, 0755) < 0) {
-			ErrPrint("Failed to create %s (%s)\n", WIDGET_CONF_LOG_PATH, strerror(errno));
+			ErrPrint("mkdir %s (%d)\n", WIDGET_CONF_LOG_PATH, errno);
 		}
 	}
 
@@ -289,7 +289,7 @@ static Eina_Bool signal_cb(void *data, Ecore_Fd_Handler *handler)
 
 	size = read(fd, &fdsi, sizeof(fdsi));
 	if (size != sizeof(fdsi)) {
-		ErrPrint("Unable to get siginfo: %s\n", strerror(errno));
+		ErrPrint("read: %d\n", errno);
 		ecore_main_fd_handler_del(handler);
 		return ECORE_CALLBACK_CANCEL;
 	}
@@ -301,7 +301,7 @@ static Eina_Bool signal_cb(void *data, Ecore_Fd_Handler *handler)
 
 		cfd = creat("/tmp/.stop.provider", 0644);
 		if (cfd < 0 || close(cfd) < 0) {
-			ErrPrint("stop.provider: %s\n", strerror(errno));
+			ErrPrint("stop.provider: %d\n", errno);
 		}
 
 		vconf_set_bool(VCONFKEY_MASTER_STARTED, 0);
@@ -395,27 +395,27 @@ int main(int argc, char *argv[])
 
 	ret = sigaddset(&mask, SIGTERM);
 	if (ret < 0) {
-		CRITICAL_LOG("Failed to do sigemptyset: %s\n", strerror(errno));
+		CRITICAL_LOG("sigaddset: %d\n", errno);
 	}
 
 	ret = sigaddset(&mask, SIGUSR1);
 	if (ret < 0) {
-		CRITICAL_LOG("Failed to do sigemptyset: %s\n", strerror(errno));
+		CRITICAL_LOG("sigaddset: %d\n", errno);
 	}
 
 	ret = sigaddset(&mask, SIGUSR2);
 	if (ret < 0) {
-		CRITICAL_LOG("Failed to do sigemptyset: %s\n", strerror(errno));
+		CRITICAL_LOG("sigaddset: %d\n", errno);
 	}
 
 	ret = sigprocmask(SIG_BLOCK, &mask, NULL);
 	if (ret < 0) {
-		CRITICAL_LOG("Failed to mask the SIGTERM: %s\n", strerror(errno));
+		CRITICAL_LOG("sigprocmask: %d\n", errno);
 	}
 
 	ret = signalfd(-1, &mask, 0);
 	if (ret < 0) {
-		CRITICAL_LOG("Failed to initiate the signalfd: %s\n", strerror(errno));
+		CRITICAL_LOG("signalfd: %d\n", errno);
 	} else {
 		signal_handler = ecore_main_fd_handler_add(ret, ECORE_FD_READ, signal_cb, NULL, NULL, NULL);
 		CRITICAL_LOG("Signal handler initiated: %d\n", ret);

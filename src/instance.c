@@ -232,7 +232,7 @@ static inline void timer_freeze(struct inst_info *inst)
 #else
 	struct timeval tv;
 	if (gettimeofday(&tv, NULL) < 0) {
-		ErrPrint("gettimeofday: %s\n", strerror(errno));
+		ErrPrint("gettimeofday: %d\n", errno);
 		tv.tv_sec = 0;
 		tv.tv_usec = 0;
 	}
@@ -700,7 +700,7 @@ HAPI int instance_event_callback_add(struct inst_info *inst, enum instance_event
 	case INSTANCE_EVENT_DESTROY:
 		item = malloc(sizeof(*item));
 		if (!item) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("malloc: %d\n", errno);
 			return WIDGET_ERROR_OUT_OF_MEMORY;
 		}
 
@@ -890,7 +890,7 @@ static inline int fork_package(struct inst_info *inst, const char *pkgname)
 	len = strlen(SCHEMA_FILE "%s%s_%d_%lf.png") + strlen(WIDGET_CONF_IMAGE_PATH) + strlen(package_name(info)) + 50;
 	inst->id = malloc(len);
 	if (!inst->id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -924,7 +924,7 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 
 	inst = calloc(1, sizeof(*inst));
 	if (!inst) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return NULL;
 	}
 
@@ -934,14 +934,14 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 
 	inst->content = strdup(content);
 	if (!inst->content) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(inst);
 		return NULL;
 	}
 
 	inst->cluster = strdup(cluster);
 	if (!inst->cluster) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(inst->content);
 		DbgFree(inst);
 		return NULL;
@@ -949,7 +949,7 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 
 	inst->category = strdup(category);
 	if (!inst->category) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(inst->cluster);
 		DbgFree(inst->content);
 		DbgFree(inst);
@@ -958,7 +958,7 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 
 	inst->title = strdup(WIDGET_CONF_DEFAULT_TITLE); /*!< Use the DEFAULT Title "" */
 	if (!inst->title) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(inst->category);
 		DbgFree(inst->cluster);
 		DbgFree(inst->content);
@@ -1095,7 +1095,7 @@ HAPI struct packet *instance_watch_create(const struct packet *packet, const cha
 
 	inst = calloc(1, sizeof(*inst));
 	if (!inst) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return NULL;
 	}
 
@@ -1353,7 +1353,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 
 		tmp = strdup(content);
 		if (!tmp) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			goto out;
 		}
 
@@ -1366,7 +1366,7 @@ static void reactivate_cb(struct slave_node *slave, const struct packet *packet,
 
 		tmp = strdup(title);
 		if (!tmp) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			goto out;
 		}
 
@@ -2320,7 +2320,7 @@ HAPI void instance_gbar_updated_by_instance(struct inst_info *inst, const char *
 		if (descfile) {
 			inst->gbar.pended_update_desc = strdup(descfile);
 			if (!inst->gbar.pended_update_desc) {
-				ErrPrint("Heap: %s\n", strerror(errno));
+				ErrPrint("strdup: %d\n", errno);
 			}
 		}
 
@@ -2384,7 +2384,7 @@ HAPI int instance_set_update_mode(struct inst_info *inst, int active_update)
 
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -2416,14 +2416,14 @@ HAPI void instance_set_widget_info(struct inst_info *inst, double priority, cons
 	if (content && strlen(content)) {
 		_content = strdup(content);
 		if (!_content) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 		}
 	}
 
 	if (title && strlen(title)) {
 		_title = strdup(title);
 		if (!_title) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 		}
 	}
 
@@ -2450,14 +2450,14 @@ HAPI void instance_set_alt_info(struct inst_info *inst, const char *icon, const 
 	if (icon && strlen(icon)) {
 		_icon = strdup(icon);
 		if (!_icon) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 		}
 	}
 
 	if (name && strlen(name)) {
 		_name = strdup(name);
 		if (!_name) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 		}
 	}
 
@@ -2523,7 +2523,7 @@ static void pinup_cb(struct slave_node *slave, const struct packet *packet, void
 
 		new_content = strdup(content);
 		if (!new_content) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			/*!
 			 * \note
 			 * send pinup failed event to client
@@ -2754,7 +2754,7 @@ HAPI int instance_resize(struct inst_info *inst, int w, int h)
 
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -2881,7 +2881,7 @@ HAPI int instance_set_period(struct inst_info *inst, double period)
 
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -3060,20 +3060,20 @@ HAPI int instance_change_group(struct inst_info *inst, const char *cluster, cons
 
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("mlloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	cbdata->cluster = strdup(cluster);
 	if (!cbdata->cluster) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(cbdata);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	cbdata->category = strdup(category);
 	if (!cbdata->category) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(cbdata->cluster);
 		DbgFree(cbdata);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
@@ -3815,13 +3815,13 @@ HAPI int instance_set_data(struct inst_info *inst, const char *tag, void *data)
 	if (!item) {
 		item = malloc(sizeof(*item));
 		if (!item) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("malloc: %d\n", errno);
 			return WIDGET_ERROR_OUT_OF_MEMORY;
 		}
 
 		item->tag = strdup(tag);
 		if (!item->tag) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			DbgFree(item);
 			return WIDGET_ERROR_OUT_OF_MEMORY;
 		}

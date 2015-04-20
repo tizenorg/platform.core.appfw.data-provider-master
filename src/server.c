@@ -1189,7 +1189,7 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 
 			item = malloc(sizeof(*item));
 			if (!item) {
-				ErrPrint("Heap: %s\n", strerror(errno));
+				ErrPrint("malloc: %d\n", errno);
 				ret = WIDGET_ERROR_OUT_OF_MEMORY;
 			} else {
 				/*!
@@ -7071,7 +7071,7 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 			}
 
 			if (unlink(safe_filename) < 0) {
-				ErrPrint("unlink: %s - %s\n", strerror(errno), safe_filename);
+				ErrPrint("unlink: %d - %s\n", errno, safe_filename);
 			}
 			break;
 		case WIDGET_TYPE_BUFFER:
@@ -7878,7 +7878,7 @@ static struct packet *slave_hello_sync_prepare(pid_t pid, int handle, const stru
 	} else {
 		ctx = calloc(1, sizeof(*ctx));
 		if (!ctx) {
-			ErrPrint("calloc: %s\n", strerror(errno));
+			ErrPrint("calloc: %d\n", errno);
 			goto out;
 		}
 
@@ -7886,7 +7886,7 @@ static struct packet *slave_hello_sync_prepare(pid_t pid, int handle, const stru
 
 		ctx->pkgname = strdup(pkgname);
 		if (!ctx->pkgname) {
-			ErrPrint("strdup: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			DbgFree(ctx);
 			goto out;
 		}
@@ -7989,13 +7989,13 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 
 			item = calloc(1, sizeof(*item));
 			if (!item) {
-				ErrPrint("calloc: %s\n", strerror(errno));
+				ErrPrint("calloc: %d\n", errno);
 				goto out;
 			}
 
 			item->pkgname = strdup(pkgname);
 			if (!item->pkgname) {
-				ErrPrint("strdup: %s\n", strerror(errno));
+				ErrPrint("strdup: %d\n", errno);
 				DbgFree(item);
 				goto out;
 			}
@@ -9453,19 +9453,19 @@ HAPI int server_init(void)
 	com_core_packet_use_thread(WIDGET_CONF_COM_CORE_THREAD);
 
 	if (unlink(INFO_SOCKET) < 0) {
-		ErrPrint("info socket: %s\n", strerror(errno));
+		ErrPrint("unlink info: %d\n", errno);
 	}
 
 	if (unlink(SLAVE_SOCKET) < 0) {
-		ErrPrint("slave socket: %s\n", strerror(errno));
+		ErrPrint("unlink slave: %d\n", errno);
 	}
 
 	if (unlink(CLIENT_SOCKET) < 0) {
-		ErrPrint("client socket: %s\n", strerror(errno));
+		ErrPrint("unlink client: %d\n", errno);
 	}
 
 	if (unlink(SERVICE_SOCKET) < 0) {
-		ErrPrint("service socket: %s\n", strerror(errno));
+		ErrPrint("unlink service: %d\n", errno);
 	}
 
 	s_info.info_fd = com_core_packet_server_init(INFO_SOCKET, s_info_table);
@@ -9499,19 +9499,19 @@ HAPI int server_init(void)
 	}
 
 	if (chmod(INFO_SOCKET, 0600) < 0) {
-		ErrPrint("info socket: %s\n", strerror(errno));
+		ErrPrint("chmod info: %d\n", errno);
 	}
 
 	if (chmod(SLAVE_SOCKET, 0666) < 0) {
-		ErrPrint("slave socket: %s\n", strerror(errno));
+		ErrPrint("chmod slave: %d\n", errno);
 	}
 
 	if (chmod(CLIENT_SOCKET, 0666) < 0) {
-		ErrPrint("client socket: %s\n", strerror(errno));
+		ErrPrint("chmod client: %d\n", errno);
 	}
 
 	if (chmod(SERVICE_SOCKET, 0666) < 0) {
-		ErrPrint("service socket: %s\n", strerror(errno));
+		ErrPrint("chmod service: %d\n", errno);
 	}
 
 	return 0;

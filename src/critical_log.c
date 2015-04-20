@@ -73,7 +73,7 @@ static inline void rotate_log(void)
 
 		if (s_info.fp) {
 			if (fclose(s_info.fp) != 0) {
-				ErrPrint("fclose: %s\n", strerror(errno));
+				ErrPrint("fclose: %d\n", errno);
 			}
 		}
 
@@ -147,7 +147,7 @@ HAPI int critical_log_init(const char *name)
 
 	s_info.fp = fopen(filename, "w+");
 	if (!s_info.fp) {
-		ErrPrint("Failed to open log: %s\n", strerror(errno));
+		ErrPrint("fopen: %d\n", errno);
 		DbgFree(s_info.filename);
 		s_info.filename = NULL;
 		DbgFree(filename);
@@ -169,7 +169,7 @@ HAPI void critical_log_fini(void)
 
 	if (s_info.fp) {
 		if (fclose(s_info.fp) != 0) {
-			ErrPrint("fclose: %s\n", strerror(errno));
+			ErrPrint("fclose: %d\n", errno);
 		}
 		s_info.fp = NULL;
 	}

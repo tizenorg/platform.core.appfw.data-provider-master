@@ -100,7 +100,7 @@ static inline struct request_item *create_request_item(struct tcb *tcb, int type
 
 	item = malloc(sizeof(*item));
 	if (!item) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return NULL;
 	}
 
@@ -108,7 +108,7 @@ static inline struct request_item *create_request_item(struct tcb *tcb, int type
 	case REQUEST_TYPE_FILE:
 		item->data.filename = strdup(data);
 		if (!item->data.filename) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			DbgFree(item);
 			return NULL;
 		}
@@ -290,7 +290,7 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 
 			ret = write(s_info.request_pipe[PIPE_WRITE], &ch, sizeof(ch));
 			if (ret < 0) {
-				ErrPrint("write: %s\n", strerror(errno));
+				ErrPrint("write: %d\n", errno);
 
 				CRITICAL_SECTION_BEGIN(&s_info.request_list_lock);
 				s_info.request_list = eina_list_remove(s_info.request_list, item);
@@ -333,7 +333,7 @@ static int send_file(int handle, const struct request_item *item)
 	/* TODO: push a file to the client */
 	fd = open(item->data.filename, O_RDONLY);
 	if (fd < 0) {
-		ErrPrint("open: %s\n", strerror(errno));
+		ErrPrint("open: %d\n", errno);
 		return -EIO;
 	}
 
@@ -347,14 +347,14 @@ static int send_file(int handle, const struct request_item *item)
 
 	head = malloc(pktsz);
 	if (!head) {
-		ErrPrint("heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		ret = -ENOMEM;
 		goto errout;
 	}
 
 	fsize = lseek(fd, 0L, SEEK_END);
 	if (fsize == (off_t)-1) {
-		ErrPrint("heap: %s\n", strerror(errno));
+		ErrPrint("lseek: %d\n", errno);
 		DbgFree(head);
 		ret = -EIO;
 		goto errout;
@@ -373,11 +373,11 @@ static int send_file(int handle, const struct request_item *item)
 	}
 
 	if (lseek(fd, 0L, SEEK_SET) == (off_t)-1) {
-		ErrPrint("seek: %s\n", strerror(errno));
+		ErrPrint("lseek: %s\n", errno);
 
 		body = malloc(sizeof(*body));
 		if (!body) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("malloc: %d\n", errno);
 			return -ENOMEM;
 		}
 
@@ -396,7 +396,7 @@ static int send_file(int handle, const struct request_item *item)
 
 	body = malloc(PKT_CHUNKSZ + sizeof(*body));
 	if (!body) {
-		ErrPrint("heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		goto errout;
 	}
 
@@ -410,7 +410,7 @@ static int send_file(int handle, const struct request_item *item)
 
 		ret = read(fd, body->data, body->size); 
 		if (ret < 0) {
-			ErrPrint("read: %s\n", strerror(errno));
+			ErrPrint("read: %d\n", errno);
 			ret = -EIO;
 			break;
 		}
@@ -438,7 +438,7 @@ static int send_file(int handle, const struct request_item *item)
 
 errout:
 	if (close(fd) < 0) {
-		ErrPrint("close: %s\n", strerror(errno));
+		ErrPrint("close: %d\n", errno);
 	}
 
 	return ret;
@@ -471,7 +471,7 @@ static int send_buffer(int handle, const struct request_item *item)
 
 	head = malloc(pktsz);
 	if (!head) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		(void)buffer_handler_raw_close(buffer);
 		return -ENOMEM;
 	}
@@ -546,7 +546,7 @@ static void *push_main(void *data)
 				ret = 0;
 				continue;
 			}
-			ErrPrint("Error: %s\n", strerror(errno));
+			ErrPrint("select: %d\n", errno);
 			break;
 		} else if (ret == 0) {
 			ErrPrint("Timeout\n");
@@ -562,7 +562,7 @@ static void *push_main(void *data)
 
 		ret = read(s_info.request_pipe[PIPE_READ], &ch, sizeof(ch));
 		if (ret != sizeof(ch)) {
-			ErrPrint("read: %s\n", strerror(errno));
+			ErrPrint("read: %d\n", errno);
 			ret = -EFAULT;
 			break;
 		}
@@ -620,13 +620,13 @@ int file_service_init(void)
 	}
 
 	if (pipe2(s_info.request_pipe, O_CLOEXEC) < 0) {
-		ErrPrint("pipe: %s\n", strerror(errno));
+		ErrPrint("pipe: %d\n", errno);
 		return WIDGET_ERROR_FAULT;
 	}
 
 	status = pthread_mutex_init(&s_info.request_list_lock, NULL);
 	if (status != 0) {
-		ErrPrint("Failed to create lock: %s\n", strerror(status));
+		ErrPrint("Failed to create lock: %d\n", status);
 		CLOSE_PIPE(s_info.request_pipe);
 		return WIDGET_ERROR_FAULT;
 	}
@@ -637,7 +637,7 @@ int file_service_init(void)
 
 		status = pthread_mutex_destroy(&s_info.request_list_lock);
 		if (status != 0) {
-			ErrPrint("Destroy lock: %s\n", strerror(status));
+			ErrPrint("Destroy lock: %d\n", status);
 		}
 
 		CLOSE_PIPE(s_info.request_pipe);
@@ -646,14 +646,14 @@ int file_service_init(void)
 
 	status = pthread_create(&s_info.push_thid, NULL, push_main, NULL);
 	if (status != 0) {
-		ErrPrint("Failed to create a push service: %s\n", strerror(status));
+		ErrPrint("Failed to create a push service: %d\n", status);
 
 		service_common_destroy(s_info.svc_ctx);
 		s_info.svc_ctx = NULL;
 
 		status = pthread_mutex_destroy(&s_info.request_list_lock);
 		if (status != 0) {
-			ErrPrint("Destroy lock: %s\n", strerror(status));
+			ErrPrint("Destroy lock: %d\n", status);
 		}
 
 		CLOSE_PIPE(s_info.request_pipe);
@@ -684,17 +684,17 @@ int file_service_fini(void)
 	ch = PUSH_EXIT;
 	status = write(s_info.request_pipe[PIPE_WRITE], &ch, sizeof(ch));
 	if (status != sizeof(ch)) {
-		ErrPrint("write: %s\n", strerror(errno));
+		ErrPrint("write: %d\n", errno);
 		/* Forcely terminate the thread */
 		status = pthread_cancel(s_info.push_thid);
 		if (status != 0) {
-			ErrPrint("cancel: %s\n", strerror(status));
+			ErrPrint("cancel: %d\n", status);
 		}
 	}
 
 	status = pthread_join(s_info.push_thid, &retval);
 	if (status != 0) {
-		ErrPrint("join: %s\n", strerror(status));
+		ErrPrint("join: %d\n", status);
 	}
 
 	CRITICAL_SECTION_BEGIN(&s_info.request_list_lock);
@@ -708,7 +708,7 @@ int file_service_fini(void)
 
 	status = pthread_mutex_destroy(&s_info.request_list_lock);
 	if (status != 0) {
-		ErrPrint("destroy mutex: %s\n", strerror(status));
+		ErrPrint("destroy mutex: %d\n", status);
 	}
 
 	CLOSE_PIPE(s_info.request_pipe);

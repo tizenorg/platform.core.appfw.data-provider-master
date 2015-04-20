@@ -162,7 +162,7 @@ struct node *node_find(const struct node *node, const char *path)
 
 	buffer = malloc(strlen(path) + 3); /* add 2 more bytes */
 	if (!buffer) {
-		printf("Error: %s\n", strerror(errno));
+		printf("malloc: %d\n", errno);
 		return NULL;
 	}
 
@@ -212,7 +212,7 @@ struct node *node_create(struct node *parent, const char *name, enum node_type t
 
 	node = malloc(sizeof(*node));
 	if (!node) {
-		printf("Error: %s\n", strerror(errno));
+		printf("malloc: %d\n", errno);
 		return NULL;
 	}
 
@@ -221,7 +221,7 @@ struct node *node_create(struct node *parent, const char *name, enum node_type t
 	if (name) {
 		node->name = strdup(name);
 		if (!node->name) {
-			printf("Error: %s\n", strerror(errno));
+			printf("strdup: %d\n", errno);
 			free(node);
 			return NULL;
 		}

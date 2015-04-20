@@ -494,7 +494,7 @@ HAPI char *io_widget_pkgname(const char *pkgname)
 	if (tmp && strlen(tmp)) {
 		pkgid = strdup(tmp);
 		if (!pkgid) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 		}
 	}
 
@@ -549,7 +549,7 @@ HAPI int io_crawling_widgetes(int (*cb)(const char *pkgid, const char *lbid, int
 
 	dir = opendir(WIDGET_CONF_ROOT_PATH);
 	if (!dir) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("opendir: %d\n", errno);
 	} else {
 		struct dirent *ent;
 
@@ -560,14 +560,14 @@ HAPI int io_crawling_widgetes(int (*cb)(const char *pkgid, const char *lbid, int
 
 			if (cb(ent->d_name, ent->d_name, -2, data) < 0) {
 				if (closedir(dir) < 0) {
-					ErrPrint("closedir: %s\n", strerror(errno));
+					ErrPrint("closedir: %d\n", errno);
 				}
 				return WIDGET_ERROR_CANCELED;
 			}
 		}
 
 		if (closedir(dir) < 0) {
-			ErrPrint("closedir: %s\n", strerror(errno));
+			ErrPrint("closedir: %d\n", errno);
 		}
 	}
 
@@ -669,9 +669,9 @@ static inline int db_init(void)
 	}
 
 	if (lstat(WIDGET_CONF_DBFILE, &stat) < 0) {
+		ErrPrint("lstat: %d\n", errno);
 		db_util_close(s_info.handle);
 		s_info.handle = NULL;
-		ErrPrint("%s\n", strerror(errno));
 		return WIDGET_ERROR_IO_ERROR;
 	}
 

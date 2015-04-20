@@ -274,7 +274,7 @@ static inline struct client_node *create_client_data(pid_t pid, const char *dire
 
 	client = calloc(1, sizeof(*client));
 	if (!client) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return NULL;
 	}
 
@@ -503,7 +503,7 @@ HAPI int client_event_callback_add(struct client_node *client, enum client_event
 
 	item = malloc(sizeof(*item));
 	if (!item) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -598,13 +598,13 @@ HAPI int client_set_data(struct client_node *client, const char *tag, void *data
 
 	item = calloc(1, sizeof(*item));
 	if (!item) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	item->tag = strdup(tag);
 	if (!item->tag) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(item);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
@@ -700,7 +700,7 @@ HAPI int client_global_event_handler_add(enum client_global_event event_type, in
 
 	handler = malloc(sizeof(*handler));
 	if (!handler) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -783,13 +783,13 @@ HAPI int client_subscribe_category(struct client_node *client, const char *categ
 
 	item = malloc(sizeof(*item));
 	if (!item) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	item->category = strdup(category);
 	if (!item->category) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(item);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
@@ -853,20 +853,20 @@ HAPI int client_subscribe_group(struct client_node *client, const char *cluster,
 
 	item = malloc(sizeof(*item));
 	if (!item) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	item->cluster = strdup(cluster);
 	if (!item->cluster) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(item);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	item->category = strdup(category);
 	if (!item->category) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(item->cluster);
 		DbgFree(item);
 		return WIDGET_ERROR_OUT_OF_MEMORY;

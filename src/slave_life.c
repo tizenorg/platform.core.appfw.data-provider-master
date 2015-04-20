@@ -304,20 +304,20 @@ static inline struct slave_node *create_slave_node(const char *name, int is_secu
 
 	slave = calloc(1, sizeof(*slave));
 	if (!slave) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return NULL;
 	}
 
 	slave->name = strdup(name);
 	if (!slave->name) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(slave);
 		return NULL;
 	}
 
 	slave->abi = strdup(abi);
 	if (!slave->abi) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(slave->name);
 		DbgFree(slave);
 		return NULL;
@@ -325,7 +325,7 @@ static inline struct slave_node *create_slave_node(const char *name, int is_secu
 
 	slave->pkgname = strdup(pkgname);
 	if (!slave->pkgname) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(slave->abi);
 		DbgFree(slave->name);
 		DbgFree(slave);
@@ -335,7 +335,7 @@ static inline struct slave_node *create_slave_node(const char *name, int is_secu
 	if (hw_acceleration) {
 		slave->hw_acceleration = strdup(hw_acceleration);
 		if (!slave->hw_acceleration) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			DbgFree(slave->pkgname);
 			DbgFree(slave->abi);
 			DbgFree(slave->name);
@@ -901,7 +901,7 @@ HAPI int slave_activated(struct slave_node *slave)
 	slave->activated_at = ecore_time_get();
 #else
 	if (gettimeofday(&slave->activated_at, NULL) < 0) {
-		ErrPrint("Failed to get time of day: %s\n", strerror(errno));
+		ErrPrint("getimeofday: %d\n", errno);
 		slave->activated_at.tv_sec = 0;
 		slave->activated_at.tv_usec = 0;
 	}
@@ -1118,7 +1118,7 @@ HAPI struct slave_node *slave_deactivated_by_fault(struct slave_node *slave)
 			slave->critical_fault_count = 0;
 		}
 	} else {
-		ErrPrint("Failed to get time of day: %s\n", strerror(errno));
+		ErrPrint("gettimeofday: %d\n", errno);
 	}
 #endif
 
@@ -1160,7 +1160,7 @@ HAPI int slave_event_callback_add(struct slave_node *slave, enum slave_event eve
 
 	ev = calloc(1, sizeof(*ev));
 	if (!ev) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -1311,13 +1311,13 @@ HAPI int slave_set_data(struct slave_node *slave, const char *tag, void *data)
 
 	priv = calloc(1, sizeof(*priv));
 	if (!priv) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	priv->tag = strdup(tag);
 	if (!priv->tag) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(priv);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
@@ -1506,7 +1506,7 @@ HAPI char *slave_package_name(const char *abi, const char *lbid)
 		DbgPrint("Failed to get replaced string\n");
 		s_pkgname = strdup(tmp);
 		if (!s_pkgname) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			return NULL;
 		}
 	}
@@ -1951,7 +1951,7 @@ HAPI int slave_set_priority(struct slave_node *slave, int priority)
 	}
 
 	if (setpriority(PRIO_PROCESS, slave_pid(slave), priority) < 0) {
-		ErrPrint("setpriority: %s\n", strerror(errno));
+		ErrPrint("setpriority: %d\n", errno);
 		return WIDGET_ERROR_FAULT;
 	}
 
@@ -1975,7 +1975,7 @@ HAPI int slave_priority(struct slave_node *slave)
 
 	priority = getpriority(PRIO_PROCESS, pid);
 	if (priority < 0) {
-		ErrPrint("getpriority: %s\n", strerror(errno));
+		ErrPrint("getpriority: %d\n", errno);
 		return WIDGET_ERROR_FAULT;
 	}
 

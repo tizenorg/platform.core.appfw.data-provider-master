@@ -1909,7 +1909,7 @@ int db_init(void)
 	}
 
 	if (lstat(s_info.dbfile, &stat) < 0) {
-		ErrPrint("%s\n", strerror(errno));
+		ErrPrint("%d\n", errno);
 		db_util_close(s_info.handle);
 		s_info.handle = NULL;
 		return -EIO;
@@ -2068,7 +2068,7 @@ static void update_i18n_name(struct widget *widget, xmlNodePtr node)
 
 	i18n = calloc(1, sizeof(*i18n));
 	if (!i18n) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		xmlFree(name);
 		xmlFree(lang);
 		return;
@@ -2114,7 +2114,7 @@ static void update_i18n_icon(struct widget *widget, xmlNodePtr node)
 			i18n->icon = icon;
 			icon = abspath_strdup(i18n->icon);
 			if (!icon) {
-				ErrPrint("Heap: %s\n", strerror(errno));
+				ErrPrint("strdup: %d\n", errno);
 			} else {
 				abspath((char *)i18n->icon, (char *)icon);
 				xmlFree(i18n->icon);
@@ -2126,7 +2126,7 @@ static void update_i18n_icon(struct widget *widget, xmlNodePtr node)
 
 	i18n = calloc(1, sizeof(*i18n));
 	if (!i18n) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		xmlFree(icon);
 		xmlFree(lang);
 		return;
@@ -2135,7 +2135,7 @@ static void update_i18n_icon(struct widget *widget, xmlNodePtr node)
 	i18n->icon = icon;
 	icon = abspath_strdup(i18n->icon);
 	if (!icon) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 	} else {
 		abspath((char *)i18n->icon, (char *)icon);
 		xmlFree(i18n->icon);
@@ -2264,7 +2264,7 @@ static void update_size_info(struct widget *widget, int idx, xmlNodePtr node)
 
 		tmp_preview = abspath_strdup(widget->preview[idx]);
 		if (!tmp_preview) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 		} else {
 			abspath((char *)widget->preview[idx], (char *)tmp_preview);
 			xmlFree(widget->preview[idx]);
@@ -2494,7 +2494,7 @@ static void update_box(struct widget *widget, xmlNodePtr node)
 			widget->widget_src = src;
 			src = abspath_strdup(widget->widget_src);
 			if (!src) {
-				ErrPrint("Heap: %s\n", strerror(errno));
+				ErrPrint("strdup: %d\n", errno);
 			} else {
 				abspath((char *)widget->widget_src, (char *)src);
 				xmlFree(widget->widget_src);
@@ -2571,14 +2571,14 @@ static void update_group(struct widget *widget, xmlNodePtr node)
 
 			group = calloc(1, sizeof(*group));
 			if (!group) {
-				ErrPrint("Heap: %s\n", strerror(errno));
+				ErrPrint("calloc: %d\n", errno);
 				xmlFree(category_name);
 				continue;
 			}
 
 			group->cluster = xmlStrdup(cluster_name);
 			if (!group->cluster) {
-				ErrPrint("Heap: %s\n", strerror(errno));
+				ErrPrint("xmlStrdup: %d\n", errno);
 				xmlFree(category_name);
 				free(group);
 				continue;
@@ -2632,7 +2632,7 @@ static void update_group(struct widget *widget, xmlNodePtr node)
 
 				option = calloc(1, sizeof(*option));
 				if (!option) {
-					ErrPrint("Heap: %s\n", strerror(errno));
+					ErrPrint("calloc: %d\n", errno);
 					xmlFree(key);
 					xmlFree(value);
 					continue;
@@ -2712,7 +2712,7 @@ static void update_glance_bar(struct widget *widget, xmlNodePtr node)
 			widget->gbar_src = src;
 			src = abspath_strdup(widget->gbar_src);
 			if (!src) {
-				ErrPrint("Heap: %s\n", strerror(errno));
+				ErrPrint("strdup: %d\n", errno);
 			} else {
 				abspath((char *)widget->gbar_src, (char *)src);
 				xmlFree(widget->gbar_src);
@@ -2938,7 +2938,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 
 	widget = calloc(1, sizeof(*widget));
 	if (!widget) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		xmlFree(pkgid);
 		return -ENOMEM;
 	}
@@ -3027,7 +3027,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 	} else {
 		widget->abi = xmlStrdup((const xmlChar *)"c");
 		if (!widget->abi) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("xmlstrdup: %d\n", errno);
 			widget_destroy(widget);
 			return -ENOMEM;
 		}
@@ -3045,7 +3045,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 
 		tmp_libexec = abspath_strdup(widget->libexec);
 		if (!tmp_libexec) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			widget_destroy(widget);
 			return -EFAULT;
 		}
@@ -3161,7 +3161,7 @@ int db_install_watchapp(xmlNodePtr node, const char *appid)
 
 	widget = calloc(1, sizeof(*widget));
 	if (!widget) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		xmlFree(pkgid);
 		return -ENOMEM;
 	}

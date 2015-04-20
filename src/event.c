@@ -120,7 +120,7 @@ HAPI int event_init(void)
 
 	ret = pthread_mutex_init(&s_info.event_list_lock, NULL);
 	if (ret != 0) {
-		ErrPrint("Mutex: %s\n", strerror(ret));
+		ErrPrint("Mutex: %d\n", ret);
 		return WIDGET_ERROR_FAULT;
 	}
 
@@ -135,7 +135,7 @@ HAPI int event_fini(void)
 
 	ret = pthread_mutex_destroy(&s_info.event_list_lock);
 	if (ret != 0) {
-		ErrPrint("Mutex destroy failed: %s\n", strerror(ret));
+		ErrPrint("Mutex destroy: %d\n", ret);
 	}
 
 	return WIDGET_ERROR_NONE;
@@ -164,14 +164,14 @@ static int push_event_item(void)
 		CRITICAL_SECTION_END(&s_info.event_list_lock);
 
 		if (write(s_info.evt_pipe[PIPE_WRITE], &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
-			ErrPrint("Unable to send an event: %s\n", strerror(errno));
+			ErrPrint("write: %d\n", errno);
 			return WIDGET_ERROR_IO_ERROR;
 		}
 
 		/* Take a breathe */
 		pthread_yield();
 	} else {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 	}
 
 	return WIDGET_ERROR_NONE;
@@ -184,7 +184,7 @@ static double current_time_get(void)
 	if (WIDGET_CONF_USE_GETTIMEOFDAY) {
 		struct timeval tv;
 		if (gettimeofday(&tv, NULL) < 0) {
-			ErrPrint("gettimeofday: %s\n", strerror(errno));
+			ErrPrint("gettimeofday: %d\n", errno);
 			ret = ecore_time_get();
 		} else {
 			ret = (double)tv.tv_sec + ((double)tv.tv_usec / 1000000.0f);
@@ -505,7 +505,7 @@ static void *event_thread_main(void *data)
 				DbgPrint("Select receives INTR\n");
 				continue;
 			}
-			ErrPrint("Error: %s\n", strerror(errno));
+			ErrPrint("select: %d\n", errno);
 			break;
 		} else if (ret == 0) {
 			ErrPrint("Timeout expired\n");
@@ -516,7 +516,7 @@ static void *event_thread_main(void *data)
 		if (FD_ISSET(s_info.handle, &set)) {
 			readsize = read(s_info.handle, ptr + offset, sizeof(input_event) - offset);
 			if (readsize < 0) {
-				ErrPrint("Unable to read device: %s / fd: %d / offset: %d / size: %d - %d\n", strerror(errno), s_info.handle, offset, sizeof(input_event), readsize);
+				ErrPrint("read: %d / fd: %d / offset: %d / size: %d - %d\n", errno, s_info.handle, offset, sizeof(input_event), readsize);
 				ret = WIDGET_ERROR_FAULT;
 				break;
 			}
@@ -541,7 +541,7 @@ static void *event_thread_main(void *data)
 			 * So we have to wait it to be finished.
 			 */
 			if (read(s_info.tcb_pipe[PIPE_READ], &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
-				ErrPrint("Unable to read TCB_PIPE: %s\n", strerror(errno));
+				ErrPrint("read: %d\n", errno);
 			}
 
 			ret = WIDGET_ERROR_CANCELED;
@@ -551,7 +551,7 @@ static void *event_thread_main(void *data)
 
 	event_ch = EVENT_EXIT;
 	if (write(s_info.evt_pipe[PIPE_WRITE], &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
-		ErrPrint("Unable to send an event: %s\n", strerror(errno));
+		ErrPrint("write: %d\n", errno);
 	}
 
 	return (void *)ret;
@@ -674,7 +674,7 @@ static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 	}
 
 	if (read(fd, &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
-		ErrPrint("Unable to read event ch: %s\n", strerror(errno));
+		ErrPrint("read: %d\n", errno);
 		return ECORE_CALLBACK_CANCEL;
 	}
 
@@ -794,30 +794,30 @@ static int event_control_init(void)
 
 	s_info.handle = open(WIDGET_CONF_INPUT_PATH, O_RDONLY);
 	if (s_info.handle < 0) {
-		ErrPrint("Unable to access the device: %s\n", strerror(errno));
+		ErrPrint("open: %d\n", errno);
 		return WIDGET_ERROR_IO_ERROR;
 	}
 
 	if (fcntl(s_info.handle, F_SETFD, FD_CLOEXEC) < 0) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("fcntl: %d\n", errno);
 	}
 
 	if (fcntl(s_info.handle, F_SETFL, O_NONBLOCK) < 0) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("fcntl: %d\n", errno);
 	}
 
 	if (WIDGET_CONF_USE_EVENT_TIME && !WIDGET_CONF_USE_GETTIMEOFDAY) {
 		DbgPrint("Change timestamp to monotonic\n");
 		if (ioctl(s_info.handle, EVIOCSCLOCKID, &clockId) < 0) {
-			ErrPrint("Error: %s\n", strerror(errno));
+			ErrPrint("ioctl: %d\n", errno);
 		}
 	}
 
 	status = pipe2(s_info.evt_pipe, O_CLOEXEC);
 	if (status < 0) {
-		ErrPrint("Unable to prepare evt pipe: %s\n", strerror(errno));
+		ErrPrint("pipe2: %d\n", errno);
 		if (close(s_info.handle) < 0) {
-			ErrPrint("Failed to close handle: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 		s_info.handle = -1;
 		return WIDGET_ERROR_FAULT;
@@ -825,9 +825,9 @@ static int event_control_init(void)
 
 	status = pipe2(s_info.tcb_pipe, O_CLOEXEC);
 	if (status < 0) {
-		ErrPrint("Unable to prepare tcb pipe: %s\n", strerror(errno));
+		ErrPrint("pipe2: %d\n", errno);
 		if (close(s_info.handle) < 0) {
-			ErrPrint("Failed to close handle: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 		s_info.handle = -1;
 		CLOSE_PIPE(s_info.evt_pipe);
@@ -845,7 +845,7 @@ static int event_control_fini(void)
 	DbgPrint("Finalizing event controller\n");
 	if (s_info.handle != -1) {
 		if (close(s_info.handle) < 0) {
-			ErrPrint("Unable to release the fd: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 
 		s_info.handle = -1;
@@ -887,7 +887,7 @@ int event_activate_thread(enum event_handler_activate_type activate_type)
 
 	ret = pthread_create(&s_info.tid, NULL, event_thread_main, NULL);
 	if (ret != 0) {
-		ErrPrint("Failed to initiate the thread: %s\n", strerror(ret));
+		ErrPrint("pthread_create: %d\n", ret);
 		ecore_main_fd_handler_del(s_info.event_handler);
 		s_info.event_handler = NULL;
 		return WIDGET_ERROR_FAULT;
@@ -911,12 +911,12 @@ int event_deactivate_thread(enum event_handler_activate_type activate_type)
 
 	/* Terminating thread */
 	if (write(s_info.tcb_pipe[PIPE_WRITE], &event_ch, sizeof(event_ch)) != sizeof(event_ch)) {
-		ErrPrint("Unable to write tcb_pipe: %s\n", strerror(errno));
+		ErrPrint("write: %d\n", errno);
 	}
 
 	status = pthread_join(s_info.tid, &ret);
 	if (status != 0) {
-		ErrPrint("Failed to join a thread: %s\n", strerror(errno));
+		ErrPrint("pthread_join: %d\n", status);
 	} else {
 		DbgPrint("Thread returns: %p\n", ret);
 	}
@@ -943,7 +943,7 @@ HAPI int event_activate(int x, int y, int (*event_cb)(enum event_state state, st
 
 	listener = malloc(sizeof(*listener));
 	if (!listener) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 

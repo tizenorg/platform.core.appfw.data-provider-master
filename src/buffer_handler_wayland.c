@@ -82,7 +82,7 @@ static inline int load_file_buffer(struct buffer_info *info)
 	len = strlen(WIDGET_CONF_IMAGE_PATH) + 40;
 	new_id = malloc(len);
 	if (!new_id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -133,16 +133,16 @@ static inline int load_shm_buffer(struct buffer_info *info)
 
 	id = shmget(IPC_PRIVATE, size + sizeof(*buffer), IPC_CREAT | 0666);
 	if (id < 0) {
-		ErrPrint("shmget: %s\n", strerror(errno));
+		ErrPrint("shmget: %d\n", errno);
 		return WIDGET_ERROR_FAULT;
 	}
 
 	buffer = shmat(id, NULL, 0);
 	if (buffer == (void *)-1) {
-		ErrPrint("%s shmat: %s\n", info->id, strerror(errno));
+		ErrPrint("%s shmat: %d\n", info->id, errno);
 
 		if (shmctl(id, IPC_RMID, 0) < 0) {
-			ErrPrint("%s shmctl: %s\n", info->id, strerror(errno));
+			ErrPrint("%s shmctl: %d\n", info->id, errno);
 		}
 
 		return WIDGET_ERROR_FAULT;
@@ -157,13 +157,13 @@ static inline int load_shm_buffer(struct buffer_info *info)
 
 	new_id = malloc(len);
 	if (!new_id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		if (shmdt(buffer) < 0) {
-			ErrPrint("shmdt: %s\n", strerror(errno));
+			ErrPrint("shmdt: %d\n", errno);
 		}
 
 		if (shmctl(id, IPC_RMID, 0) < 0) {
-			ErrPrint("shmctl: %s\n", strerror(errno));
+			ErrPrint("shmctl: %d\n", errno);
 		}
 
 		return WIDGET_ERROR_OUT_OF_MEMORY;
@@ -228,7 +228,7 @@ static inline int unload_file_buffer(struct buffer_info *info)
 
 	new_id = strdup(SCHEMA_FILE "/tmp/.live.undefined");
 	if (!new_id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -237,7 +237,7 @@ static inline int unload_file_buffer(struct buffer_info *info)
 
 	path = widget_util_uri_to_path(info->id);
 	if (path && unlink(path) < 0) {
-		ErrPrint("unlink: %s\n", strerror(errno));
+		ErrPrint("unlink: %s\n", errno);
 	}
 
 	DbgFree(info->id);
@@ -252,7 +252,7 @@ static inline int unload_shm_buffer(struct buffer_info *info)
 
 	new_id = strdup(SCHEMA_SHM "-1");
 	if (!new_id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -269,11 +269,11 @@ static inline int unload_shm_buffer(struct buffer_info *info)
 	}
 
 	if (shmdt(info->buffer) < 0) {
-		ErrPrint("Detach shm: %s\n", strerror(errno));
+		ErrPrint("shmdt: %d\n", errno);
 	}
 
 	if (shmctl(id, IPC_RMID, 0) < 0) {
-		ErrPrint("Remove shm: %s\n", strerror(errno));
+		ErrPrint("shmctl: %d\n", errno);
 	}
 
 	info->buffer = NULL;
@@ -492,19 +492,19 @@ EAPI void buffer_handler_flush(struct buffer_info *info)
 	} else if (buffer->type == BUFFER_TYPE_FILE) {
 		fd = open(widget_util_uri_to_path(info->id), O_WRONLY | O_CREAT, 0644);
 		if (fd < 0) {
-			ErrPrint("%s open falied: %s\n", widget_util_uri_to_path(info->id), strerror(errno));
+			ErrPrint("%s open falied: %d\n", widget_util_uri_to_path(info->id), errno);
 			return;
 		}
 
 		size = info->w * info->h * info->pixel_size;
 		widget_service_acquire_lock(info->lock_info);
 		if (write(fd, info->buffer, size) != size) {
-			ErrPrint("Write is not completed: %s\n", strerror(errno));
+			ErrPrint("write: %d\n", errno);
 		}
 		widget_service_release_lock(info->lock_info);
 
 		if (close(fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 	} else {
 		DbgPrint("Flush nothing\n");
@@ -543,26 +543,26 @@ static inline struct buffer *raw_open_file(const char *filename)
 
 	fd = open(filename, O_RDONLY);
 	if (fd < 0) {
-		ErrPrint("open: %s\n", strerror(errno));
+		ErrPrint("open: %d\n", errno);
 		return NULL;
 	}
 
 	off = lseek(fd, 0L, SEEK_END);
 	if (off == (off_t)-1) {
-		ErrPrint("lseek: %s\n", strerror(errno));
+		ErrPrint("lseek: %d\n", errno);
 
 		if (close(fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 
 		return NULL;
 	}
 
 	if (lseek(fd, 0L, SEEK_SET) == (off_t)-1) {
-		ErrPrint("lseek: %s\n", strerror(errno));
+		ErrPrint("lseek: %d\n", errno);
 
 		if (close(fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 
 		return NULL;
@@ -570,10 +570,10 @@ static inline struct buffer *raw_open_file(const char *filename)
 
 	buffer = calloc(1, sizeof(*buffer) + off);
 	if (!buffer) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 
 		if (close(fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 
 		return NULL;
@@ -586,18 +586,18 @@ static inline struct buffer *raw_open_file(const char *filename)
 
 	ret = read(fd, buffer->data, off);
 	if (ret < 0) {
-		ErrPrint("read: %s\n", strerror(errno));
+		ErrPrint("read: %d\n", errno);
 		DbgFree(buffer);
 
 		if (close(fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 
 		return NULL;
 	}
 
 	if (close(fd) < 0) {
-		ErrPrint("close: %s\n", strerror(errno));
+		ErrPrint("close: %d\n", errno);
 	}
 
 	return buffer;
@@ -615,7 +615,7 @@ static inline struct buffer *raw_open_shm(int shm)
 
 	buffer = (widget_fb_t)shmat(shm, NULL, SHM_RDONLY);
 	if (buffer == (struct buffer *)-1) {
-		ErrPrint("shmat: %s\n", strerror(errno));
+		ErrPrint("shmat: %d\n", errno);
 		return NULL;
 	}
 
@@ -628,7 +628,7 @@ static inline int raw_close_shm(widget_fb_t buffer)
 
 	ret = shmdt(buffer);
 	if (ret < 0) {
-		ErrPrint("shmdt: %s\n", strerror(errno));
+		ErrPrint("shmdt: %d\n", errno);
 	}
 
 	return ret;
@@ -811,7 +811,7 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buff
 
 	info = malloc(sizeof(*info));
 	if (!info) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return NULL;
 	}
 
@@ -824,7 +824,7 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buff
 
 		info->id = strdup(SCHEMA_SHM "-1");
 		if (!info->id) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			DbgFree(info);
 			return NULL;
 		}
@@ -837,7 +837,7 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buff
 
 		info->id = strdup(SCHEMA_FILE "/tmp/.live.undefined");
 		if (!info->id) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			DbgFree(info);
 			return NULL;
 		}

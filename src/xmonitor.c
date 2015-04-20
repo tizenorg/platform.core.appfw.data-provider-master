@@ -76,17 +76,17 @@ static inline void touch_paused_file(void)
 	fd = creat(WIDGET_CONF_PAUSED_FILE, 0644);
 	if (fd >= 0) {
 		if (close(fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 	} else {
-		ErrPrint("Create .live.paused: %s\n", strerror(errno));
+		ErrPrint("Create .live.paused: %d\n", errno);
 	}
 }
 
 static inline void remove_paused_file(void)
 {
 	if (unlink(WIDGET_CONF_PAUSED_FILE) < 0) {
-		ErrPrint("Unlink .live.paused: %s\n", strerror(errno));
+		ErrPrint("Unlink .live.paused: %d\n", errno);
 	}
 }
 
@@ -262,7 +262,7 @@ static inline void sniff_all_windows(void)
 
 	new_item = malloc(sizeof(*new_item));
 	if (!new_item) {
-		ErrPrint("Error(%s)\n", strerror(errno));
+		ErrPrint("Error(%d)\n", errno);
 		return;
 	}
 
@@ -299,7 +299,7 @@ static inline void sniff_all_windows(void)
 
 			new_item = malloc(sizeof(*new_item));
 			if (!new_item) {
-				ErrPrint("Error %s\n", strerror(errno));
+				ErrPrint("Error %d\n", errno);
 				item->i++;
 				continue;
 			}
@@ -426,7 +426,7 @@ HAPI int xmonitor_add_event_callback(enum xmonitor_event event, int (*cb)(void *
 
 	item = malloc(sizeof(*item));
 	if (!item) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("Heap: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 

@@ -78,13 +78,13 @@ HAPI struct context_info *group_create_context_info(struct category *category, c
 
 	info = calloc(1, sizeof(*info));
 	if (!info) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return NULL;
 	}
 
 	info->pkgname = strdup(pkgname);
 	if (!info->pkgname) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(info);
 		return NULL;
 	}
@@ -122,13 +122,13 @@ HAPI struct context_item *group_add_context_item(struct context_info *info, cons
 
 	item = calloc(1, sizeof(*item));
 	if (!item) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return NULL;
 	}
 
 	item->ctx_item = strdup(ctx_item);
 	if (!item->ctx_item) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(item);
 		return NULL;
 	}
@@ -144,20 +144,20 @@ HAPI int group_add_option(struct context_item *item, const char *key, const char
 
 	option = calloc(1, sizeof(*option));
 	if (!option) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	option->key = strdup(key);
 	if (!option->key) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(option);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	option->value = strdup(value);
 	if (!option->value) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(option->key);
 		DbgFree(option);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
@@ -192,13 +192,13 @@ HAPI struct cluster *group_create_cluster(const char *name)
 
 	cluster = malloc(sizeof(*cluster));
 	if (!cluster) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return NULL;
 	}
 
 	cluster->name = strdup(name);
 	if (!cluster->name) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(cluster);
 		return NULL;
 	}
@@ -229,13 +229,13 @@ HAPI struct category *group_create_category(struct cluster *cluster, const char 
 
 	category = malloc(sizeof(*category));
 	if (!category) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return NULL;
 	}
 
 	category->name = strdup(name);
 	if (!category->name) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		DbgFree(category);
 		return NULL;
 	}
@@ -470,7 +470,7 @@ static inline char *get_token(char *ptr, int *len)
 
 	name = malloc(_len + 1);
 	if (!name) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return NULL;
 	}
 

@@ -67,7 +67,7 @@ static inline struct command *create_command(struct client_node *client, struct 
 
 	command = calloc(1, sizeof(*command));
 	if (!command) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return NULL;
 	}
 
@@ -227,7 +227,7 @@ HAPI int client_rpc_init(struct client_node *client, int handle)
 
 	rpc = calloc(1, sizeof(*rpc));
 	if (!rpc) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 

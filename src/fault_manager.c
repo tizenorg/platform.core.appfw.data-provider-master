@@ -73,7 +73,7 @@ static void clear_log_file(struct slave_node *slave)
 	}
 
 	if (unlink(filename) < 0) {
-		ErrPrint("unlink: %s\n", strerror(errno));
+		ErrPrint("unlink: %d\n", errno);
 	}
 }
 
@@ -87,13 +87,13 @@ static char *check_log_file(struct slave_node *slave)
 	snprintf(filename, sizeof(filename), "%s/slave.%d", WIDGET_CONF_LOG_PATH, slave_pid(slave));
 	fp = fopen(filename, "rt");
 	if (!fp) {
-		ErrPrint("No log file found [%s]\n", strerror(errno));
+		ErrPrint("fopen [%d]\n", errno);
 		return NULL;
 	}
 
 	ptr = fgets(libexec, sizeof(libexec), fp);
 	if (fclose(fp) != 0) {
-		ErrPrint("fclose: %s\n", strerror(errno));
+		ErrPrint("fclose: %d\n", errno);
 	}
 
 	if (ptr != libexec) {
