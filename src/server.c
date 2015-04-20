@@ -8081,21 +8081,25 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 
 			if (db_secured != secured) {
 				DbgPrint("%s secured (%d)\n", pkgname, db_secured);
+				DbgFree(widget_id);
 				goto out;
 			}
 
 			if (strcmp(tmp, abi)) {
 				DbgPrint("%s abi (%s)\n", pkgname, tmp);
+				DbgFree(widget_id);
 				goto out;
 			}
 
 			if (strcmp(acceleration, db_acceleration)) {
 				DbgPrint("%s accel (%s)\n", pkgname, db_acceleration);
+				DbgFree(widget_id);
 				goto out;
 			}
 
 			if (util_string_is_in_list(category, WIDGET_CONF_CATEGORY_LIST) == 0) {
 				DbgPrint("%s category (%s)\n", pkgname, category);
+				DbgFree(widget_id);
 				goto out;
 			}
 
@@ -8116,6 +8120,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			slave = slave_create(slavename, secured, abi, pkgname, network, acceleration, 1);
 			if (!slave) {
 				ErrPrint("Failed to create a new slave for %s\n", slavename);
+				DbgFree(widget_id);
 				goto out;
 			}
 
