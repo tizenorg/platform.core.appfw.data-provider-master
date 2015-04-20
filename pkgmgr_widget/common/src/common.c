@@ -2947,7 +2947,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 
 	if (xmlHasProp(node, (const xmlChar *)"count")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"count");
-		if (sscanf((const char *)tmp, "%d", &widget->count) != 1) {
+		if (tmp && sscanf((const char *)tmp, "%d", &widget->count) != 1) {
 			ErrPrint("Invalid syntax: %s\n", (const char *)tmp);
 		}
 		xmlFree(tmp);
@@ -2955,7 +2955,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 
 	if (xmlHasProp(node, (const xmlChar *)"primary")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"primary");
-		widget->primary = !xmlStrcasecmp(tmp, (const xmlChar *)"true");
+		widget->primary = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
 		xmlFree(tmp);
 	}
 
