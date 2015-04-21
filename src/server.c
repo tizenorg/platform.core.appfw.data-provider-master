@@ -3988,6 +3988,50 @@ out:
 	return NULL;
 }
 
+static struct packet *client_orientation(pid_t pid, int handle, const struct packet *packet)
+{
+	struct client_node *client;
+	double timestamp;
+	int degree;
+	int ret;
+	struct pkg_info *pkg;
+	Eina_List *pkg_list;
+	Eina_List *l;
+	Eina_List *inst_list;
+	Eina_List *inst_l;
+	struct inst_info *inst;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exist\n", pid);
+		goto out;
+	}
+
+	ret = packet_get(packet, "di", &timestamp, &degree);
+	if (ret != 2) {
+		ErrPrint("Invalid parameter\n");
+		goto out;
+	}
+
+	ret = 0;
+
+	pkg_list = (Eina_List *)package_list();
+
+	EINA_LIST_FOREACH(pkg_list, l, pkg) {
+		inst_list = package_instance_list(pkg);
+		EINA_LIST_FOREACH(inst_list, inst_l, inst) {
+			if (instance_client(inst) == client || instance_has_client(inst, client)) {
+				instance_set_orientation(inst, degree);
+				ret++;
+			}
+		}
+	}
+	DbgPrint("%d instances are affected (orientation: %d)\n", ret, degree);
+
+out:
+	return NULL;
+}
+
 static struct packet *client_gbar_key_up(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
@@ -9191,6 +9235,10 @@ static struct method s_client_table[] = {
 	{
 		.cmd = CMD_STR_GBAR_MOUSE_UNSET,
 		.handler = client_gbar_mouse_unset,
+	},
+	{
+		.cmd = CMD_STR_ORIENTATION,
+		.handler = client_orientation,
 	},
 	{
 		.cmd = CMD_STR_CHANGE_VISIBILITY,
