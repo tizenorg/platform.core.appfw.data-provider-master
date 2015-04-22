@@ -1637,6 +1637,30 @@ HAPI int const package_fault_count(struct pkg_info *info)
 	return info ? info->fault_count : 0;
 }
 
+HAPI int package_instance_count(struct pkg_info *info)
+{
+	Eina_List *l;
+	struct inst_info *inst;
+	int count = 0;
+
+	EINA_LIST_FOREACH(info->inst_list, l, inst) {
+		switch (instance_state(inst)) {
+		case INST_INIT:
+		case INST_ACTIVATED:
+		case INST_REQUEST_TO_ACTIVATE:
+		case INST_REQUEST_TO_REACTIVATE:
+			count++;
+			break;
+		case INST_DESTROYED:
+		case INST_REQUEST_TO_DESTROY:
+		default:
+			break;
+		}
+	}
+
+	return count;
+}
+
 HAPI int package_is_enabled(const char *appid)
 {
 	pkgmgrinfo_appinfo_h handle;

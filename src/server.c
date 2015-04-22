@@ -1308,6 +1308,7 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 	int height;
 	char *widget_id;
 	char *mainappid;
+	int max_count;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -1362,6 +1363,12 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		DbgFree(pkgid);
 	}
 
+	max_count = widget_service_get_widget_max_count(widget_id);
+	if (max_count < 0) {
+		ErrPrint("Failed to get max_count[%s] = %d\n", widget_id, max_count);
+		max_count = 0;
+	}
+
 	if (!info) {
 		ret = WIDGET_ERROR_FAULT;
 	} else if (package_is_fault(info)) {
@@ -1369,6 +1376,9 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 	} else if (util_free_space(WIDGET_CONF_IMAGE_PATH) <= WIDGET_CONF_MINIMUM_SPACE) {
 		ErrPrint("Not enough space\n");
 		ret = WIDGET_ERROR_FILE_NO_SPACE_ON_DEVICE;
+	} else if (max_count && max_count <= package_instance_count(info)) {
+		ErrPrint("Reached to the max count of widgets %d, %d\n", max_count, package_instance_count(info));
+		ret = WIDGET_ERROR_CANCELED;
 	} else {
 		struct inst_info *inst;
 

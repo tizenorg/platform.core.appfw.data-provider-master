@@ -123,4 +123,5 @@ extern int package_faulted(struct pkg_info *info, int broadcast);
 extern char *package_get_pkgid(const char *appid);
 
 extern int package_del_instance_by_category(const char *category, const char *except_widget_id);
+extern int package_instance_count(struct pkg_info *info);
 /* End of a file */
