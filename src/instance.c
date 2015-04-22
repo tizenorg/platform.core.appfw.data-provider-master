@@ -166,6 +166,7 @@ struct inst_info {
 	Eina_List *delete_event_list;
 
 	Eina_List *data_list;
+	int orientation;
 };
 
 static Eina_Bool update_timer_cb(void *data);
@@ -1922,7 +1923,7 @@ HAPI int instance_reactivate(struct inst_info *inst)
 		break;
 	}
 
-	packet = packet_create((const char *)&cmd, "sssiidssiisiis",
+	packet = packet_create((const char *)&cmd, "sssiidssiisiisi",
 			package_name(inst->info),
 			inst->id,
 			inst->content,
@@ -1935,7 +1936,8 @@ HAPI int instance_reactivate(struct inst_info *inst)
 			package_abi(inst->info),
 			inst->scroll_locked,
 			inst->active_update,
-			client_direct_addr(inst->client));
+			client_direct_addr(inst->client),
+			inst->orientation);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return WIDGET_ERROR_FAULT;
@@ -1990,7 +1992,7 @@ HAPI int instance_activate(struct inst_info *inst)
 		break;
 	}
 
-	packet = packet_create((const char *)&cmd, "sssiidssisiis",
+	packet = packet_create((const char *)&cmd, "sssiidssisiisi",
 			package_name(inst->info),
 			inst->id,
 			inst->content,
@@ -2003,7 +2005,8 @@ HAPI int instance_activate(struct inst_info *inst)
 			package_abi(inst->info),
 			inst->widget.width,
 			inst->widget.height,
-			client_direct_addr(inst->client));
+			client_direct_addr(inst->client),
+			inst->orientation);
 	if (!packet) {
 		ErrPrint("Failed to build a packet for %s\n", package_name(inst->info));
 		return WIDGET_ERROR_FAULT;
@@ -3873,6 +3876,36 @@ HAPI void *instance_get_data(struct inst_info *inst, const char *tag)
 HAPI struct client_node *instance_gbar_owner(struct inst_info *inst)
 {
 	return inst->gbar.owner;
+}
+
+HAPI void instance_set_orientation(struct inst_info *inst, int degree)
+{
+	struct packet *packet;
+	unsigned int cmd = CMD_ORIENTATION;
+
+	if (inst->orientation == degree) {
+		return;
+	}
+
+	inst->orientation = degree;
+
+	packet = packet_create_noack((const char *)&cmd, "ssi", package_name(inst->info), inst->id, degree);
+	if (!packet) {
+		ErrPrint("Failed to create a new packet\n");
+		return;
+	}
+
+	if (slave_rpc_request_only(package_slave(inst->info), package_name(inst->info), packet, 0) != WIDGET_ERROR_NONE) {
+		/* packet will be destroyed by slave_rpc_request_only if it fails */
+		ErrPrint("Failed to send a request\n");
+	}
+
+	return;
+}
+
+HAPI int instance_orientation(struct inst_info *inst)
+{
+	return inst->orientation;
 }
 
 /* End of a file */
