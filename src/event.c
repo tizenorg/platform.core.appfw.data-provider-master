@@ -666,6 +666,7 @@ static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 	Eina_List *l;
 	Eina_List *n;
 	enum event_state next_state;
+	int state;
 
 	fd = ecore_main_fd_handler_fd_get(handler);
 	if (fd < 0) {
@@ -734,14 +735,39 @@ static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 		case EVENT_STATE_DEACTIVATE:
 			if (compare_timestamp(listener, item) < 0) {
 				/* Consuming all events occurred while activating this listener */
+				state = listener->prev_state;
 				listener->prev_state = listener->state;
-				listener->state = EVENT_STATE_ACTIVATED;
+
+				if (state == EVENT_STATE_ACTIVATE) {
+					/**
+					 * @note
+					 * If the previous state is ACTIVATE
+					 * We should create DOWN event first.
+					 */
+					listener->state = EVENT_STATE_ACTIVATE;
+				} else {
+					listener->state = EVENT_STATE_ACTIVATED;
+				}
+
 				if (invoke_event_cb(listener, item) == 1) {
 					/* listener is deleted */
 					continue;
 				}
 
-				listener->prev_state = listener->state;
+				if (listener->state == EVENT_STATE_ACTIVATE) {
+					/**
+					 * We are already jumped into the DEACTIVATE state
+					 * But the state is ACTIVATE, it means, we forcely chnaged it from LINE 747
+					 * We successfully sent the DOWN event.
+					 * We only need to send UP (or move) event.
+					 * So change the previous states to ACTIVATED and then change current states to
+					 * DEACTIVATE again.
+					 */
+					listener->prev_state = EVENT_STATE_ACTIVATED;
+				} else {
+					listener->prev_state = listener->state;
+				}
+
 				listener->state = EVENT_STATE_DEACTIVATE;
 			} else {
 				memcpy(&s_info.skipped_event_data, item, sizeof(s_info.skipped_event_data));
@@ -1063,6 +1089,20 @@ HAPI int event_reset_cbdata(int (*event_cb)(enum event_state state, struct event
 HAPI int event_is_activated(void)
 {
 	return s_info.handle >= 0;
+}
+
+HAPI void event_set_mouse_xy(int x, int y, double timestamp)
+{
+	s_info.event_data.x = x;
+	s_info.event_data.y = y;
+	s_info.event_data.tv = timestamp;
+	/**
+	 * Don't touch the timestamp_updated variable.
+	 * if we toggle it, the input thread will not be terminated correctly. SEE LINE: 537
+	if (!s_info.timestamp_updated) {
+		// NOP
+	}
+	 */
 }
 
 /* End of a file */

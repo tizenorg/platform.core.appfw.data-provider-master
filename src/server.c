@@ -2264,6 +2264,9 @@ static struct packet *client_widget_mouse_unset(pid_t pid, int handle, const str
 
 	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
 		if (package_direct_input(pkg) == 0) {
+			/* Forcely update the X,Y position using viewer's */
+			event_set_mouse_xy(x, y, timestamp);
+
 			ret = event_deactivate(mouse_event_widget_route_cb, inst);
 			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
@@ -2288,6 +2291,9 @@ static struct packet *client_widget_mouse_unset(pid_t pid, int handle, const str
 			}
 		}
 	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
+		/* Forcely update the X,Y position using viewer's */
+		event_set_mouse_xy(x, y, timestamp);
+
 		ret = event_deactivate(mouse_event_widget_consume_cb, inst);
 		if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 			(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
@@ -2853,6 +2859,9 @@ static struct packet *client_gbar_mouse_unset(pid_t pid, int handle, const struc
 
 	if (package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
 		if (package_direct_input(pkg) == 0) {
+			/* Forcely update the X,Y position using viewer's */
+			event_set_mouse_xy(x, y, timestamp);
+
 			ret = event_deactivate(mouse_event_gbar_route_cb, inst);
 			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
@@ -2877,6 +2886,9 @@ static struct packet *client_gbar_mouse_unset(pid_t pid, int handle, const struc
 			}
 		}
 	} else if (package_gbar_type(pkg) == GBAR_TYPE_SCRIPT) {
+		/* Forcely update the X,Y position using viewer's */
+		event_set_mouse_xy(x, y, timestamp);
+
 		ret = event_deactivate(mouse_event_gbar_consume_cb, inst);
 		if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 			(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
