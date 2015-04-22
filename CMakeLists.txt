@@ -126,6 +126,7 @@ IF (LIVEBOX)
 		src/event.c
 		src/file_service.c
 		src/conf.c
+		src/monitor.c
 	)
 
 	IF (WAYLAND_SUPPORT)

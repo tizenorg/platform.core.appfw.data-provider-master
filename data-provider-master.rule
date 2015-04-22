@@ -8,7 +8,7 @@ data-provider-master::bin tizen::vconf::public::r r----l ------
 data-provider-master::bin data-provider-master::data r-x--- ------
 data-provider-master::bin data-provider-master::share rwx--- ------
 data-provider-master::bin data-provider-master::db rw---- ------
-data-provider-master::bin data-provider-master --x--- ------
+data-provider-master::bin data-provider-master rwx--- ------
 data-provider-master::bin pkgmgr::db rw----- ------
 data-provider-master::bin _ rw---- ------
 data-provider-master::bin security-server::api-privilege-by-pid rw---- ------

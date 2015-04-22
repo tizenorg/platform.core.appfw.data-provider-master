@@ -55,6 +55,7 @@
 #include "io.h"
 #include "event.h"
 #include "dead_monitor.h"
+#include "monitor.h"
 
 #define GBAR_OPEN_MONITOR_TAG "gbar,open,monitor"
 #define GBAR_RESIZE_MONITOR_TAG "gbar,resize,monitor"
@@ -8397,6 +8398,158 @@ out:
 	return result;
 }
 
+static struct packet *service_get_content(pid_t pid, int handle, const struct packet *packet)
+{
+	const char *inst_id;
+	const char *widget_id;
+	struct inst_info *inst;
+	struct packet *result;
+
+	if (packet_get(packet, "ss", &widget_id, &inst_id) != 1) {
+		ErrPrint("Invalid parameter\n");
+		return NULL;
+	}
+
+	inst = package_find_instance_by_id(widget_id, inst_id);
+	if (!inst) {
+		result = packet_create_reply(packet, "is", WIDGET_ERROR_NOT_EXIST, "?");
+	} else {
+		result = packet_create_reply(packet, "is", WIDGET_ERROR_NONE, instance_content(inst));
+	}
+
+	if (!result) {
+		ErrPrint("Failed to create a result packet\n");
+	}
+
+	return result;
+}
+
+static struct packet *service_get_inst_list(pid_t pid, int handle, const struct packet *packet)
+{
+	const char *widget_id;
+	struct pkg_info *pkg;
+	struct packet *result;
+
+	if (packet_get(packet, "s", &widget_id) != 1) {
+		ErrPrint("Invalid parameter\n");
+		return NULL;
+	}
+
+	pkg = package_find(widget_id);
+	if (!pkg) {
+		result = packet_create_reply(packet, "iis", WIDGET_ERROR_NOT_EXIST, 0, NULL);
+	} else {
+		Eina_List *inst_list;
+
+		inst_list = package_instance_list(pkg);
+		if (!inst_list) {
+			result = packet_create_reply(packet, "iis", WIDGET_ERROR_NOT_EXIST, 0, NULL);
+		} else {
+			char *id_buffer;
+			int size = sysconf(_SC_PAGESIZE);
+			Eina_List *l;
+			struct inst_info *inst;
+			int offset;
+			int len;
+			int cnt = 0;
+
+			id_buffer = malloc(size);
+			if (!id_buffer) {
+				result = packet_create_reply(packet, "iis", WIDGET_ERROR_OUT_OF_MEMORY, 0, NULL);
+				goto out;
+			}
+
+			offset = 0;
+			EINA_LIST_FOREACH(inst_list, l, inst) {
+				len = strlen(instance_id(inst));
+				if (offset + len > size) {
+					/* Expanding the ID_BUFFER */
+					char *resized_buffer;
+					size += sysconf(_SC_PAGESIZE);
+
+					DbgPrint("Expanding heap to %d\n", size);
+
+					resized_buffer = realloc(id_buffer, size);
+					if (!resized_buffer) {
+						ErrPrint("realloc: %d\n", errno);
+						DbgFree(id_buffer);
+						result = packet_create_reply(packet, "iis", WIDGET_ERROR_OUT_OF_MEMORY, 0, NULL);
+						goto out;
+					}
+
+					id_buffer = resized_buffer;
+					cnt++;
+				}
+
+				strcpy(id_buffer + offset, instance_id(inst));
+				/* Replace last NULL with NEW_LINE */
+				id_buffer[offset + len] = '\n';
+				offset += (len + 1);
+			}
+
+			id_buffer[offset] = '\0';
+			result = packet_create_reply(packet, "iis", WIDGET_ERROR_NONE, cnt, id_buffer);
+			DbgFree(id_buffer);
+		}
+	}
+
+out:
+	return result;
+}
+
+static struct packet *monitor_register(pid_t pid, int handle, const struct packet *packet)
+{
+	const char *widget_id;
+
+	if (packet_get(packet, "s", &widget_id) != 1) {
+		ErrPrint("Invalid parameter\n");
+		goto out;
+	}
+
+	if (widget_id[0] == '*' && widget_id[1] == '\0') {
+		widget_id = NULL;
+	}
+
+	DbgPrint("Register monitor target for [%s]\n", widget_id);
+
+	if (monitor_find_client_by_pid(widget_id, pid)) {
+		ErrPrint("Already registered: [%s], %d\n", widget_id, pid);
+	} else {
+		if (monitor_create_client(widget_id, pid, handle) == NULL) {
+			ErrPrint("Failed to create a new monitor client\n");
+		}
+	}
+
+out:
+	return NULL;
+}
+
+static struct packet *monitor_unregister(pid_t pid, int handle, const struct packet *packet)
+{
+	const char *widget_id;
+	struct monitor_client *monitor;
+
+	if (packet_get(packet, "s", &widget_id) != 1) {
+		ErrPrint("Invalid parameter\n");
+		goto out;
+	}
+
+	if (widget_id[0] == '*' && widget_id[1] == '\0') {
+		widget_id = NULL;
+	}
+
+	monitor = monitor_find_client_by_pid(widget_id, pid);
+	if (monitor) {
+		DbgPrint("Unregister monitor target: %s\n", widget_id);
+		monitor_destroy_client(monitor);
+	} else {
+		ErrPrint("Monitor for %s is not exists(%d)\n", widget_id, pid);
+	}
+
+out:
+	return NULL;
+}
+
 static struct packet *service_change_period(pid_t pid, int handle, const struct packet *packet)
 {
 	struct inst_info *inst;
@@ -9401,6 +9554,22 @@ static struct method s_service_table[] = {
 	{
 		.cmd = CMD_STR_SERVICE_INST_CNT,
 		.handler = service_instance_count,
+	},
+	{
+		.cmd = CMD_STR_MONITOR_REGISTER,
+		.handler = monitor_register,
+	},
+	{
+		.cmd = CMD_STR_MONITOR_UNREGISTER,
+		.handler = monitor_unregister,
+	},
+	{
+		.cmd = CMD_STR_SERVICE_GET_CONTENT,
+		.handler = service_get_content,
+	},
+	{
+		.cmd = CMD_STR_SERVICE_GET_INST_LIST,
+		.handler = service_get_inst_list,
 	},
 	{
 		.cmd = NULL,

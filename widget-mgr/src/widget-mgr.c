@@ -41,6 +41,7 @@
 #include <com-core_packet.h>
 #include <com-core.h>
 
+#include <widget_errno.h>
 #include <widget_service.h>
 #include <widget_service_internal.h>
 
@@ -151,6 +152,13 @@ int optopt;
 int opterr;
 
 static Eina_Bool input_cb(void *data, Ecore_Fd_Handler *fd_handler);
+
+static inline const char *trim_cmd(const char *cmd)
+{
+	while (*cmd && *cmd == ' ') cmd++;
+
+	return cmd;
+}
 
 static Eina_Bool process_line_cb(void *data)
 {
@@ -665,9 +673,7 @@ static inline int do_stat(const char *cmd)
 		ROOT,
 	} type;
 
-	cmd += 5;
-	while (*cmd && *cmd == ' ') cmd++;
-
+	cmd = trim_cmd(cmd + 5);
 	if (!*cmd){
 		printf("Invalid argument\n");
 		return -EINVAL;
@@ -769,11 +775,7 @@ static int do_set(const char *cmd)
 	cmd += 4;
 	i = get_token(cmd, variable);
 
-	cmd += i;
-	while (*cmd && *cmd == ' ') {
-		cmd++;
-	}
-
+	cmd = trim_cmd(cmd + i);
 	if (!i || !*cmd) {
 		printf("Invalid argument(%s): set [VAR] [VAL]\n", cmd);
 		return -EINVAL;
@@ -785,9 +787,7 @@ static int do_set(const char *cmd)
 
 static inline int do_get(const char *cmd)
 {
-	cmd += 4;
-
-	while (*cmd && *cmd == ' ') cmd++;
+	cmd = trim_cmd(cmd + 4);
 	if (!*cmd) {
 		printf("Invalid argument(%s): get [VAR]\n", cmd);
 		return -EINVAL;
@@ -802,11 +802,7 @@ static inline int do_ls(const char *cmd)
 	const char *name;
 	struct node *parent;
 
-	cmd += 2;
-
-	while (*cmd && *cmd == ' ') {
-		cmd++;
-	}
+	cmd = trim_cmd(cmd + 2);
 
 	s_info.targetdir = *cmd ? update_target_dir(cmd) : s_info.curdir;
 	if (!s_info.targetdir) {
@@ -854,12 +850,7 @@ static inline int do_ls(const char *cmd)
 
 static inline int do_cd(const char *cmd)
 {
-	cmd += 2;
-
-	while (*cmd && *cmd == ' ') {
-		cmd++;
-	}
-
+	cmd = trim_cmd(cmd + 2);
 	if (!*cmd) {
 		return -1;
 	}
@@ -891,8 +882,7 @@ static inline int do_cd(const char *cmd)
 
 static inline int do_rm(const char *cmd)
 {
-	cmd += 2;
-	while (*cmd && *cmd == ' ') cmd++;
+	cmd = trim_cmd(cmd + 2);
 	if (!*cmd) {
 		return -1;
 	}
@@ -919,8 +909,7 @@ static inline int do_rm(const char *cmd)
 
 static inline int do_fault(const char *cmd)
 {
-	cmd += 5;
-	while (*cmd && *cmd == ' ') cmd++;
+	cmd = trim_cmd(cmd + 5);
 	if (!*cmd) {
 		return -1;
 	}
@@ -953,12 +942,7 @@ static void do_sh(const char *cmd)
 {
 	pid_t pid;
 
-	cmd += 3;
-
-	while (*cmd && *cmd == ' ') {
-		cmd++;
-	}
-
+	cmd = trim_cmd(cmd + 3);
 	if (!*cmd) {
 		return;
 	}
@@ -1110,6 +1094,37 @@ static inline int do_capture(Display *disp, Pixmap id, const char *filename)
 	return 0;
 }
 
+static int widget_lifecycle_event(const char *widget_id, widget_lifecycle_event_e ev, const char *instance_id, void *data)
+{
+	printf("[%s] [%s] [STATE: 0x%X]\n", widget_id, instance_id, (unsigned int)ev);
+	return WIDGET_ERROR_NONE;
+}
+
+static void do_monitor(const char *cmd)
+{
+	cmd = trim_cmd(cmd + strlen("monitor"));
+
+	if (!*cmd) {
+		/* Monitor all instances */
+	} else {
+		/* Monitor one */
+		printf("Instance = [%s]\n", cmd);
+	}
+
+	widget_service_set_lifecycle_event_cb(*cmd ? cmd : NULL, widget_lifecycle_event, NULL);
+}
+
+static void do_demonitor(const char *cmd)
+{
+	cmd = trim_cmd(cmd + strlen("demonitor"));
+	if (!*cmd) {
+	} else {
+		printf("Instance = [%s]\n", cmd);
+	}
+
+	widget_service_unset_lifecycle_event_cb(*cmd ? cmd : NULL, NULL);
+}
+
 static void do_dump(const char *cmd)
 {
 	char path[256];
@@ -1118,12 +1133,7 @@ static void do_dump(const char *cmd)
 	struct node *curdir;
 	struct node *target;
 
-	cmd += 5;
-
-	while (*cmd && *cmd == ' ') {
-		cmd++;
-	}
-
+	cmd = trim_cmd(cmd + 5);
 	if (!*cmd) {
 		return;
 	}
@@ -1210,12 +1220,7 @@ static void do_x(const char *cmd)
 {
 	Display *disp;
 
-	cmd += 2;
-
-	while (*cmd && *cmd == ' ') {
-		cmd++;
-	}
-
+	cmd = trim_cmd(cmd + 2);
 	if (!*cmd) {
 		return;
 	}
@@ -1337,9 +1342,7 @@ static inline const char *get_command(int idx)
 static void do_command(const char *cmd)
 {
 	/* Skip the first spaces */
-	while (*cmd && *cmd == ' ') {
-		cmd++;
-	}
+	cmd = trim_cmd(cmd);
 
 	if (strlen(cmd) && *cmd != '#') {
 		if (!strncasecmp(cmd, "exit", 4) || !strncasecmp(cmd, "quit", 4)) {
@@ -1370,12 +1373,16 @@ static void do_command(const char *cmd)
 			if (do_fault(cmd) == 0) {
 				return;
 			}
-		} else if (!strncasecmp(cmd, "sh ", 3)) {
+		} else if (!strncasecmp(cmd, "sh ", strlen("sh "))) {
 			do_sh(cmd);
-		} else if (!strncasecmp(cmd, "x ", 2)) {
+		} else if (!strncasecmp(cmd, "x ", strlen("x "))) {
 			do_x(cmd);
-		} else if (!strncasecmp(cmd, "dump", 4)) {
+		} else if (!strncasecmp(cmd, "dump", strlen("dump"))) {
 			do_dump(cmd);
+		} else if (!strncasecmp(cmd, "monitor", strlen("monitor"))) {
+			do_monitor(cmd);
+		} else if (!strncasecmp(cmd, "demonitor", strlen("demonitor"))) {
+			do_demonitor(cmd);
 		} else {
 			help();
 		}

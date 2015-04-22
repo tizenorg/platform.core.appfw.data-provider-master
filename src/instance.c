@@ -45,6 +45,7 @@
 #include "script_handler.h"
 #include "buffer_handler.h"
 #include "setting.h"
+#include "monitor.h"
 
 int errno;
 
@@ -501,6 +502,7 @@ static int instance_broadcast_created_event(struct inst_info *inst)
 	const char *widget_file;
 	const char *gbar_file;
 	unsigned int cmd = CMD_CREATED;
+	int ret;
 
 	widget_type = package_widget_type(inst->info);
 	gbar_type = package_gbar_type(inst->info);
@@ -572,7 +574,11 @@ static int instance_broadcast_created_event(struct inst_info *inst)
 		owner_packet = NULL;
 	}
 
-	return client_send_event(inst, packet, owner_packet);
+	ret = client_send_event(inst, packet, owner_packet);
+
+	monitor_multicast_state_change_event(package_name(inst->info), MONITOR_EVENT_CREATED, instance_id(inst), instance_content(inst));
+
+	return ret;
 }
 
 HAPI int instance_unicast_deleted_event(struct inst_info *inst, struct client_node *client, int reason)
@@ -616,6 +622,8 @@ static int instance_broadcast_deleted_event(struct inst_info *inst, int reason)
 	EINA_LIST_FOREACH_SAFE(inst->client_list, l, n, client) {
 		instance_del_client(inst, client);
 	}
+
+	monitor_multicast_state_change_event(package_name(inst->info), MONITOR_EVENT_DESTROYED, instance_id(inst), instance_content(inst));
 
 	return ret;
 }
@@ -2653,6 +2661,7 @@ HAPI int instance_set_visible_state(struct inst_info *inst, enum widget_visible_
 		} else {
 			inst->visible = state;
 		}
+		monitor_multicast_state_change_event(package_name(inst->info), MONITOR_EVENT_RESUMED, instance_id(inst), instance_content(inst));
 		break;
 
 	case WIDGET_HIDE_WITH_PAUSE:
@@ -2661,6 +2670,7 @@ HAPI int instance_set_visible_state(struct inst_info *inst, enum widget_visible_
 		}
 
 		instance_freeze_updator(inst);
+		monitor_multicast_state_change_event(package_name(inst->info), MONITOR_EVENT_PAUSED, instance_id(inst), instance_content(inst));
 		break;
 
 	default:
