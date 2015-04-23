@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#define CATEGORY_WATCH_CLOCK	"org.tizen.wmanager.WATCH_CLOCK"
-
 enum alter_type {
 	ALTER_CREATE,
 	ALTER_DESTROY

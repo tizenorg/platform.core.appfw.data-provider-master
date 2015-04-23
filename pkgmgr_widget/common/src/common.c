@@ -43,7 +43,6 @@
 
 #define CUR_VER 5
 #define DEFAULT_CATEGORY	"http://tizen.org/category/default"
-#define WATCH_CATEGORY		"org.tizen.wmanager.WATCH_CLOCK"
 
 #if !defined(WIDGET_COUNT_OF_SIZE_TYPE)
 #define WIDGET_COUNT_OF_SIZE_TYPE 13
@@ -2177,7 +2176,7 @@ static int update_category(struct widget *widget, xmlNodePtr node)
 		return 0;
 	}
 
-	if (!xmlStrcasecmp(category, (const xmlChar *)WATCH_CATEGORY)) {
+	if (!xmlStrcasecmp(category, (const xmlChar *)CATEGORY_WATCH_CLOCK)) {
 		ErrPrint("Widget tries to install WATCH: %s\n", widget->pkgid);
 		return -EINVAL;
 	}
@@ -3173,7 +3172,7 @@ int db_install_watchapp(xmlNodePtr node, const char *appid)
 	widget->nodisplay = 1;
 	widget->hw_acceleration = xmlStrdup((const xmlChar *)"use-sw"); //use-gl
 	widget->abi = xmlStrdup((const xmlChar *)"app");
-	widget->category = xmlStrdup((const xmlChar *)WATCH_CATEGORY);
+	widget->category = xmlStrdup((const xmlChar *)CATEGORY_WATCH_CLOCK);
 
 	widget->widget_type = WIDGET_TYPE_BUFFER;
 	widget->default_mouse_event = 1;
@@ -3296,9 +3295,9 @@ int pkglist_get_via_callback(const char *appid, int is_watch_widget, void (*cb)(
 	}
 
 	if (is_watch_widget) { /* Watch */
-		dml = "SELECT pkgid, prime FROM pkgmap WHERE appid = ? AND category = '" WATCH_CATEGORY "'";
+		dml = "SELECT pkgid, prime FROM pkgmap WHERE appid = ? AND category = '" CATEGORY_WATCH_CLOCK "'";
 	} else { /* Widget */
-		dml = "SELECT pkgid, prime FROM pkgmap WHERE appid = ? AND (category IS NULL OR category <> '" WATCH_CATEGORY "')";
+		dml = "SELECT pkgid, prime FROM pkgmap WHERE appid = ? AND (category IS NULL OR category <> '" CATEGORY_WATCH_CLOCK "')";
 	}
 
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
