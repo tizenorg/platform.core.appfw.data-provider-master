@@ -15,6 +15,7 @@ pkg_check_modules(info_pkgs REQUIRED
 	xfixes
 	x11
 	xext
+	bundle
 )
 
 FOREACH(flag ${info_pkgs_CFLAGS})

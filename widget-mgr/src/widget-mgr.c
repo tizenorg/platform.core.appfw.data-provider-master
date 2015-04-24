@@ -27,6 +27,7 @@
 #include <sys/shm.h>
 #include <sys/ipc.h>
 #include <ctype.h>
+#include <bundle.h>
 
 #include <X11/Xlib.h>
 #include <X11/extensions/Xdamage.h>
@@ -1145,9 +1146,18 @@ static void do_get_content(const char *cmd)
 	}
 
 	if (sscanf(cmd, "%[^ ] %s", widget_id, inst_id) == 2) {
-		char *content = NULL;
-		if (widget_service_get_content_of_widget_instance(widget_id, inst_id, &content) == WIDGET_ERROR_NONE) {
-			printf("Widget: %s\nInstance: %s\nContent: [%s]\n", widget_id, inst_id, content);
+		bundle *b;
+		if (widget_service_get_content_of_widget_instance(widget_id, inst_id, &b) == WIDGET_ERROR_NONE) {
+			int len;
+			char *content = NULL;
+
+			if (b && bundle_encode(b, (bundle_raw **)&content, &len) == BUNDLE_ERROR_NONE) {
+				printf("Widget: %s\nInstance: %s\nContent: [%s]\n", widget_id, inst_id, content);
+				bundle_free(b);
+			} else {
+				printf("Widget: %s\nInstance: %s\nbundle: %p\n", widget_id, inst_id, b);
+			}
+
 			free(content);
 		} else {
 			printf("Failed to get content info for %s\n", inst_id);

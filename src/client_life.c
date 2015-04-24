@@ -29,6 +29,7 @@
 #include <packet.h>
 #include <widget_errno.h>
 #include <widget_service.h>
+#include <widget_service_internal.h>
 
 #include "client_life.h"
 #include "instance.h"
