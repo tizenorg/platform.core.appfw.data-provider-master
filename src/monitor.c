@@ -47,11 +47,18 @@ static struct info {
 
 static void monitor_disconnected_cb(int handle, void *data)
 {
-	struct monitor_client *monitor = data;
+	Eina_List *l;
+	Eina_List *n;
+	struct monitor_client *monitor;
 
-	DbgPrint("monitor: %d is deleted (%s)\n", monitor->handle, monitor->widget_id);
-	s_info.monitor_list = eina_list_remove(s_info.monitor_list, monitor);
-	DbgFree(monitor);
+	EINA_LIST_FOREACH_SAFE(s_info.monitor_list, l, n, monitor) {
+		if (monitor->handle == handle) {
+			DbgPrint("monitor: %d is deleted (%s)\n", monitor->handle, monitor->widget_id);
+			s_info.monitor_list = eina_list_remove(s_info.monitor_list, monitor);
+			DbgFree(monitor->widget_id);
+			DbgFree(monitor);
+		}
+	}
 }
 
 HAPI struct monitor_client *monitor_create_client(const char *widget_id, pid_t pid, int handle)
@@ -75,26 +82,39 @@ HAPI struct monitor_client *monitor_create_client(const char *widget_id, pid_t p
 	monitor->pid = pid;
 	monitor->handle = handle;
 
-	if (dead_callback_add(handle, monitor_disconnected_cb, monitor) < 0) {
-		ErrPrint("Failed to register the disconnected callback\n");
-		DbgFree(monitor);
-		return NULL;
-	}
-
 	s_info.monitor_list = eina_list_append(s_info.monitor_list, monitor);
+
+	if (dead_callback_add(handle, monitor_disconnected_cb, NULL) < 0) {
+		ErrPrint("It's Okay. Dead callback is already registered for %d\n", handle);
+	}
 
 	return monitor;
 }
 
 HAPI int monitor_destroy_client(struct monitor_client *monitor)
 {
-	if (dead_callback_del(monitor->handle, monitor_disconnected_cb) != monitor) {
+	Eina_List *l;
+	struct monitor_client *item;
+	int handle;
+	int cnt;
+
+	s_info.monitor_list = eina_list_remove(s_info.monitor_list, monitor);
+	handle = monitor->handle;
+	DbgFree(monitor->widget_id);
+	DbgFree(monitor);
+
+	cnt = 0;
+	EINA_LIST_FOREACH(s_info.monitor_list, l, item) {
+		if (item->handle == handle) {
+			cnt++;
+		}
+	}
+
+	if (cnt == 0) {
+		dead_callback_del(handle, monitor_disconnected_cb);
 		ErrPrint("Registered monitor object is not valid\n");
 	}
 
-	s_info.monitor_list = eina_list_remove(s_info.monitor_list, monitor);
-	DbgFree(monitor->widget_id);
-	DbgFree(monitor);
 	return WIDGET_ERROR_NONE;
 }
 

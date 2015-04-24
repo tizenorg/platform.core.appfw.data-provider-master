@@ -8405,7 +8405,7 @@ static struct packet *service_get_content(pid_t pid, int handle, const struct pa
 	struct inst_info *inst;
 	struct packet *result;
 
-	if (packet_get(packet, "ss", &widget_id, &inst_id) != 1) {
+	if (packet_get(packet, "ss", &widget_id, &inst_id) != 2) {
 		ErrPrint("Invalid parameter\n");
 		return NULL;
 	}

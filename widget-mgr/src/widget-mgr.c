@@ -1114,6 +1114,47 @@ static void do_monitor(const char *cmd)
 	widget_service_set_lifecycle_event_cb(*cmd ? cmd : NULL, widget_lifecycle_event, NULL);
 }
 
+static int widget_inst_list_cb(const char *widget_id, const char *instance_id, void *data)
+{
+	printf("Instance: %s\n", instance_id);
+	return WIDGET_ERROR_NONE;
+}
+
+static void do_get_list(const char *cmd)
+{
+	cmd = trim_cmd(cmd + strlen("get_list"));
+	if (!*cmd) {
+		return;
+	}
+
+	printf("Instance list of %s\n", cmd);
+	if (widget_service_get_widget_instance_list(cmd, widget_inst_list_cb, NULL) == WIDGET_ERROR_NONE) {
+		printf("=== Done\n");
+	} else {
+		printf("Failed to get instance list\n");
+	}
+}
+
+static void do_get_content(const char *cmd)
+{
+	char widget_id[256];
+	char inst_id[256];
+	cmd = trim_cmd(cmd + strlen("get_content"));
+	if (!*cmd) {
+		return;
+	}
+
+	if (sscanf(cmd, "%[^ ] %s", widget_id, inst_id) == 2) {
+		char *content = NULL;
+		if (widget_service_get_content_of_widget_instance(widget_id, inst_id, &content) == WIDGET_ERROR_NONE) {
+			printf("Widget: %s\nInstance: %s\nContent: [%s]\n", widget_id, inst_id, content);
+			free(content);
+		} else {
+			printf("Failed to get content info for %s\n", inst_id);
+		}
+	}
+}
+
 static void do_demonitor(const char *cmd)
 {
 	cmd = trim_cmd(cmd + strlen("demonitor"));
@@ -1383,6 +1424,10 @@ static void do_command(const char *cmd)
 			do_monitor(cmd);
 		} else if (!strncasecmp(cmd, "demonitor", strlen("demonitor"))) {
 			do_demonitor(cmd);
+		} else if (!strncasecmp(cmd, "get_content", strlen("get_content"))) {
+			do_get_content(cmd);
+		} else if (!strncasecmp(cmd, "get_list", strlen("get_list"))) {
+			do_get_list(cmd);
 		} else {
 			help();
 		}
