@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<manifest xmlns="http://tizen.org/ns/packages" package="org.tizen.nicesj" version="1.0" install-location="auto">
+
+<watchapp appid="org.tizen.nicesj.watchapp" >
+	<label>My widget</label>
+	<icon>/usr/share/icons/small/org.tizen.live-watch.png</icon>
+	<label xml:lang="en_US">Sample</label>
+	<label xml:lang="ko_KR">Hangul</label>
+</watchapp>
+</manifest>
