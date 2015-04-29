@@ -126,7 +126,7 @@ static inline widget_fb_t create_pixmap(struct buffer_info *info)
 
 	buffer = calloc(1, sizeof(*buffer) + sizeof(*gem));
 	if (!buffer) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return NULL;
 	}
 
@@ -188,7 +188,7 @@ static inline int create_gem(widget_fb_t buffer)
 	if (s_info.fd < 0) {
 		gem->data = calloc(1, gem->w * gem->h * gem->depth);
 		if (!gem->data) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("calloc: %d\n", errno);
 			return WIDGET_ERROR_OUT_OF_MEMORY;
 		}
 
@@ -401,7 +401,7 @@ static inline int load_file_buffer(struct buffer_info *info)
 	len = strlen(WIDGET_CONF_IMAGE_PATH) + 40;
 	new_id = malloc(len);
 	if (!new_id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -452,16 +452,16 @@ static inline int load_shm_buffer(struct buffer_info *info)
 
 	id = shmget(IPC_PRIVATE, size + sizeof(*buffer), IPC_CREAT | 0666);
 	if (id < 0) {
-		ErrPrint("shmget: %s\n", strerror(errno));
+		ErrPrint("shmget: %d\n", errno);
 		return WIDGET_ERROR_FAULT;
 	}
 
 	buffer = shmat(id, NULL, 0);
 	if (buffer == (void *)-1) {
-		ErrPrint("%s shmat: %s\n", info->id, strerror(errno));
+		ErrPrint("%s shmat: %d\n", info->id, errno);
 
 		if (shmctl(id, IPC_RMID, 0) < 0) {
-			ErrPrint("%s shmctl: %s\n", info->id, strerror(errno));
+			ErrPrint("%s shmctl: %d\n", info->id, errno);
 		}
 
 		return WIDGET_ERROR_FAULT;
@@ -476,13 +476,13 @@ static inline int load_shm_buffer(struct buffer_info *info)
 
 	new_id = malloc(len);
 	if (!new_id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		if (shmdt(buffer) < 0) {
-			ErrPrint("shmdt: %s\n", strerror(errno));
+			ErrPrint("shmdt: %d\n", errno);
 		}
 
 		if (shmctl(id, IPC_RMID, 0) < 0) {
-			ErrPrint("shmctl: %s\n", strerror(errno));
+			ErrPrint("shmctl: %d\n", errno);
 		}
 
 		return WIDGET_ERROR_OUT_OF_MEMORY;
@@ -526,7 +526,7 @@ static inline int load_pixmap_buffer(struct buffer_info *info)
 	len = strlen(SCHEMA_PIXMAP) + 30; /* strlen("pixmap://") + 30 */
 	new_id = malloc(len);
 	if (!new_id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		info->is_loaded = 0;
 		buffer_handler_pixmap_unref(buffer);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
@@ -593,7 +593,7 @@ static inline int unload_file_buffer(struct buffer_info *info)
 
 	new_id = strdup(SCHEMA_FILE "/tmp/.live.undefined");
 	if (!new_id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -602,7 +602,7 @@ static inline int unload_file_buffer(struct buffer_info *info)
 
 	path = widget_util_uri_to_path(info->id);
 	if (path && unlink(path) < 0) {
-		ErrPrint("unlink: %s\n", strerror(errno));
+		ErrPrint("unlink: %d\n", errno);
 	}
 
 	DbgFree(info->id);
@@ -617,7 +617,7 @@ static inline int unload_shm_buffer(struct buffer_info *info)
 
 	new_id = strdup(SCHEMA_SHM "-1");
 	if (!new_id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -634,11 +634,11 @@ static inline int unload_shm_buffer(struct buffer_info *info)
 	}
 
 	if (shmdt(info->buffer) < 0) {
-		ErrPrint("Detach shm: %s\n", strerror(errno));
+		ErrPrint("shmdt: %d\n", errno);
 	}
 
 	if (shmctl(id, IPC_RMID, 0) < 0) {
-		ErrPrint("Remove shm: %s\n", strerror(errno));
+		ErrPrint("shmctl: %d\n", errno);
 	}
 
 	info->buffer = NULL;
@@ -656,7 +656,7 @@ static inline int unload_pixmap_buffer(struct buffer_info *info)
 
 	new_id = strdup(SCHEMA_PIXMAP "0:0");
 	if (!new_id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -1122,7 +1122,7 @@ static inline int sync_for_pixmap(widget_fb_t buffer)
 
 	si.shmid = shmget(IPC_PRIVATE, gem->w * gem->h * gem->depth, IPC_CREAT | 0666);
 	if (si.shmid < 0) {
-		ErrPrint("shmget: %s\n", strerror(errno));
+		ErrPrint("shmget: %d\n", errno);
 		return WIDGET_ERROR_FAULT;
 	}
 
@@ -1130,7 +1130,7 @@ static inline int sync_for_pixmap(widget_fb_t buffer)
 	si.shmaddr = shmat(si.shmid, NULL, 0);
 	if (si.shmaddr == (void *)-1) {
 		if (shmctl(si.shmid, IPC_RMID, 0) < 0) {
-			ErrPrint("shmctl: %s\n", strerror(errno));
+			ErrPrint("shmctl: %d\n", errno);
 		}
 		return WIDGET_ERROR_FAULT;
 	}
@@ -1144,11 +1144,11 @@ static inline int sync_for_pixmap(widget_fb_t buffer)
 	xim = XShmCreateImage(disp, visual, (gem->depth << 3), ZPixmap, NULL, &si, gem->w, gem->h);
 	if (xim == NULL) {
 		if (shmdt(si.shmaddr) < 0) {
-			ErrPrint("shmdt: %s\n", strerror(errno));
+			ErrPrint("shmdt: %d\n", errno);
 		}
 
 		if (shmctl(si.shmid, IPC_RMID, 0) < 0) {
-			ErrPrint("shmctl: %s\n", strerror(errno));
+			ErrPrint("shmctl: %d\n", errno);
 		}
 		return WIDGET_ERROR_FAULT;
 	}
@@ -1163,11 +1163,11 @@ static inline int sync_for_pixmap(widget_fb_t buffer)
 		XDestroyImage(xim);
 
 		if (shmdt(si.shmaddr) < 0) {
-			ErrPrint("shmdt: %s\n", strerror(errno));
+			ErrPrint("shmdt: %d\n", errno);
 		}
 
 		if (shmctl(si.shmid, IPC_RMID, 0) < 0) {
-			ErrPrint("shmctl: %s\n", strerror(errno));
+			ErrPrint("shmctl: %d\n", errno);
 		}
 
 		return WIDGET_ERROR_FAULT;
@@ -1187,11 +1187,11 @@ static inline int sync_for_pixmap(widget_fb_t buffer)
 	XDestroyImage(xim);
 
 	if (shmdt(si.shmaddr) < 0) {
-		ErrPrint("shmdt: %s\n", strerror(errno));
+		ErrPrint("shmdt: %d\n", errno);
 	}
 
 	if (shmctl(si.shmid, IPC_RMID, 0) < 0) {
-		ErrPrint("shmctl: %s\n", strerror(errno));
+		ErrPrint("shmctl: %d\n", errno);
 	}
 
 	return WIDGET_ERROR_NONE;
@@ -1233,21 +1233,29 @@ EAPI void buffer_handler_flush(struct buffer_info *info)
 			}
 		}
 	} else if (buffer->type == WIDGET_FB_TYPE_FILE) {
-		fd = open(widget_util_uri_to_path(info->id), O_WRONLY | O_CREAT, 0644);
+		const char *path;
+
+		path = widget_util_uri_to_path(info->id);
+		if (!path) {
+			ErrPrint("Invalid id: [%s]\n", info->id);
+			return;
+		}
+
+		fd = open(path, O_WRONLY | O_CREAT, 0644);
 		if (fd < 0) {
-			ErrPrint("%s open falied: %s\n", widget_util_uri_to_path(info->id), strerror(errno));
+			ErrPrint("%s open: %d\n", widget_util_uri_to_path(info->id), errno);
 			return;
 		}
 
 		size = info->w * info->h * info->pixel_size;
 		widget_service_acquire_lock(info->lock_info);
 		if (write(fd, info->buffer, size) != size) {
-			ErrPrint("Write is not completed: %s\n", strerror(errno));
+			ErrPrint("write: %d\n", errno);
 		}
 		widget_service_release_lock(info->lock_info);
 
 		if (close(fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 	} else {
 		DbgPrint("Flush nothing\n");
@@ -1292,7 +1300,7 @@ HAPI int buffer_handler_init(void)
 	DbgFree(deviceName);
 	DbgFree(driverName);
 	if (s_info.fd < 0) {
-		ErrPrint("Failed to open a drm device: (%s)\n", strerror(errno));
+		ErrPrint("Failed to open a drm device: (%d)\n", errno);
 		s_info.evt_base = 0;
 		s_info.err_base = 0;
 		return WIDGET_ERROR_NONE;
@@ -1303,7 +1311,7 @@ HAPI int buffer_handler_init(void)
 	if (!DRI2Authenticate(ecore_x_display_get(), DefaultRootWindow(ecore_x_display_get()), (unsigned int)magic)) {
 		ErrPrint("Failed to do authenticate for DRI2\n");
 		if (close(s_info.fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 		s_info.fd = -1;
 		s_info.evt_base = 0;
@@ -1315,7 +1323,7 @@ HAPI int buffer_handler_init(void)
 	if (!s_info.slp_bufmgr) {
 		ErrPrint("Failed to init bufmgr\n");
 		if (close(s_info.fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 		s_info.fd = -1;
 		s_info.evt_base = 0;
@@ -1330,7 +1338,7 @@ HAPI int buffer_handler_fini(void)
 {
 	if (s_info.fd >= 0) {
 		if (close(s_info.fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 		s_info.fd = -1;
 	}
@@ -1352,26 +1360,26 @@ static inline widget_fb_t raw_open_file(const char *filename)
 
 	fd = open(filename, O_RDONLY);
 	if (fd < 0) {
-		ErrPrint("open: %s\n", strerror(errno));
+		ErrPrint("open: %d\n", errno);
 		return NULL;
 	}
 
 	off = lseek(fd, 0L, SEEK_END);
 	if (off == (off_t)-1) {
-		ErrPrint("lseek: %s\n", strerror(errno));
+		ErrPrint("lseek: %d\n", errno);
 
 		if (close(fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 
 		return NULL;
 	}
 
 	if (lseek(fd, 0L, SEEK_SET) == (off_t)-1) {
-		ErrPrint("lseek: %s\n", strerror(errno));
+		ErrPrint("lseek: %d\n", errno);
 
 		if (close(fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 
 		return NULL;
@@ -1379,10 +1387,10 @@ static inline widget_fb_t raw_open_file(const char *filename)
 
 	buffer = calloc(1, sizeof(*buffer) + off);
 	if (!buffer) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("Heap: %d\n", errno);
 
 		if (close(fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 
 		return NULL;
@@ -1395,18 +1403,18 @@ static inline widget_fb_t raw_open_file(const char *filename)
 
 	ret = read(fd, buffer->data, off);
 	if (ret < 0) {
-		ErrPrint("read: %s\n", strerror(errno));
+		ErrPrint("read: %d\n", errno);
 		DbgFree(buffer);
 
 		if (close(fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 
 		return NULL;
 	}
 
 	if (close(fd) < 0) {
-		ErrPrint("close: %s\n", strerror(errno));
+		ErrPrint("close: %d\n", errno);
 	}
 
 	return buffer;
@@ -1424,7 +1432,7 @@ static inline widget_fb_t raw_open_shm(int shm)
 
 	buffer = (widget_fb_t)shmat(shm, NULL, SHM_RDONLY);
 	if (buffer == (widget_fb_t)-1) {
-		ErrPrint("shmat: %s\n", strerror(errno));
+		ErrPrint("shmat: %d\n", errno);
 		return NULL;
 	}
 
@@ -1437,7 +1445,7 @@ static inline int raw_close_shm(widget_fb_t buffer)
 
 	ret = shmdt(buffer);
 	if (ret < 0) {
-		ErrPrint("shmdt: %s\n", strerror(errno));
+		ErrPrint("shmdt: %d\n", errno);
 	}
 
 	return ret;
@@ -1449,7 +1457,7 @@ static inline widget_fb_t raw_open_pixmap(unsigned int pixmap)
 
 	buffer = calloc(1, sizeof(*buffer) + WIDGET_CONF_DEFAULT_PIXELS);
 	if (!buffer) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return NULL;
 	}
 
@@ -1681,7 +1689,7 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum widg
 
 	info = malloc(sizeof(*info));
 	if (!info) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return NULL;
 	}
 
@@ -1694,7 +1702,7 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum widg
 
 		info->id = strdup(SCHEMA_SHM "-1");
 		if (!info->id) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			DbgFree(info);
 			return NULL;
 		}
@@ -1707,7 +1715,7 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum widg
 
 		info->id = strdup(SCHEMA_FILE "/tmp/.live.undefined");
 		if (!info->id) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			DbgFree(info);
 			return NULL;
 		}
@@ -1715,7 +1723,7 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum widg
 	case WIDGET_FB_TYPE_PIXMAP:
 		info->id = strdup(SCHEMA_PIXMAP "0:0");
 		if (!info->id) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			DbgFree(info);
 			return NULL;
 		}

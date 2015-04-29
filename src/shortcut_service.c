@@ -58,7 +58,7 @@ static inline int put_reply_context(struct tcb *tcb, double seq)
 
 	ctx = malloc(sizeof(*ctx));
 	if (!ctx) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return -ENOMEM;
 	}
 

@@ -218,7 +218,7 @@ HAPI int setting_add_oom_event_callback(int (*handler)(enum oom_event_type type,
 
 	item = malloc(sizeof(*item));
 	if (!item) {
-		ErrPrint("malloc: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 

@@ -158,7 +158,7 @@ static void *client_packet_pump_main(void *data)
 				ret = 0;
 				continue;
 			}
-			ErrPrint("Error: %s\n", strerror(errno));
+			ErrPrint("select: %d\n", errno);
 			DbgFree(ptr);
 			ptr = NULL;
 			break;
@@ -198,7 +198,7 @@ static void *client_packet_pump_main(void *data)
 			packet = NULL;
 			ptr = malloc(size);
 			if (!ptr) {
-				ErrPrint("Heap: %s\n", strerror(errno));
+				ErrPrint("malloc: %d\n", errno);
 				ret = -ENOMEM;
 				break;
 			}
@@ -241,7 +241,7 @@ static void *client_packet_pump_main(void *data)
 
 				ptr = malloc(size);
 				if (!ptr) {
-					ErrPrint("Heap: %s\n", strerror(errno));
+					ErrPrint("malloc: %d\n", errno);
 					ret = -ENOMEM;
 				}
 			}
@@ -289,7 +289,7 @@ static void *client_packet_pump_main(void *data)
 			packet_info = malloc(sizeof(*packet_info));
 			if (!packet_info) {
 				ret = -errno;
-				ErrPrint("Heap: %s\n", strerror(errno));
+				ErrPrint("malloc: %d\n", errno);
 				packet_destroy(packet);
 				break;
 			}
@@ -303,7 +303,7 @@ static void *client_packet_pump_main(void *data)
 
 			if (write(svc_ctx->evt_pipe[PIPE_WRITE], &evt_ch, sizeof(evt_ch)) != sizeof(evt_ch)) {
 				ret = -errno;
-				ErrPrint("Unable to write a pipe: %s\n", strerror(errno));
+				ErrPrint("write: %d\n", errno);
 				CRITICAL_SECTION_BEGIN(&svc_ctx->packet_list_lock);
 				svc_ctx->packet_list = eina_list_remove(svc_ctx->packet_list, packet_info);
 				CRITICAL_SECTION_END(&svc_ctx->packet_list_lock);
@@ -336,7 +336,7 @@ static void *client_packet_pump_main(void *data)
 	 * Emit a signal to collect this TCB from the SERVER THREAD.
 	 */
 	if (write(svc_ctx->tcb_pipe[PIPE_WRITE], &tcb, sizeof(tcb)) != sizeof(tcb)) {
-		ErrPrint("Unable to write pipe: %s\n", strerror(errno));
+		ErrPrint("write: %d\n", errno);
 	}
 
 	return (void *)ret;
@@ -352,7 +352,7 @@ HAPI int service_register_tcb_callback(struct service_context *svc_ctx, struct t
 
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -427,12 +427,12 @@ static inline struct tcb *tcb_create(struct service_context *svc_ctx, int fd)
 
 	tcb = malloc(sizeof(*tcb));
 	if (!tcb) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return NULL;
 	}
 
 	if (pipe2(tcb->ctrl_pipe, O_CLOEXEC) < 0) {
-		ErrPrint("pipe2: %s\n", strerror(errno));
+		ErrPrint("pipe2: %d\n", errno);
 		DbgFree(tcb);
 		return NULL;
 	}
@@ -445,7 +445,7 @@ static inline struct tcb *tcb_create(struct service_context *svc_ctx, int fd)
 	DbgPrint("Create a new service thread [%d]\n", fd);
 	status = pthread_create(&tcb->thid, NULL, client_packet_pump_main, tcb);
 	if (status != 0) {
-		ErrPrint("Unable to create a new thread: %s\n", strerror(status));
+		ErrPrint("pthread_create: %d\n", status);
 		CLOSE_PIPE(tcb->ctrl_pipe);
 		DbgFree(tcb);
 		return NULL;
@@ -491,12 +491,12 @@ static inline void tcb_teminate_all(struct service_context *svc_ctx)
 		 * ASSERT(tcb->fd >= 0);
 		 */
 		if (write(tcb->ctrl_pipe[PIPE_WRITE], &ch, sizeof(ch)) != sizeof(ch)) {
-			ErrPrint("write: %s\n", strerror(errno));
+			ErrPrint("write: %d\n", errno);
 		}
 
 		status = pthread_join(tcb->thid, &ret);
 		if (status != 0) {
-			ErrPrint("Unable to join a thread: %s\n", strerror(status));
+			ErrPrint("Unable to join a thread: %d\n", status);
 		} else {
 			DbgPrint("Thread returns: %p\n", ret);
 		}
@@ -550,12 +550,12 @@ static inline void tcb_destroy(struct service_context *svc_ctx, struct tcb *tcb)
 	 * Close the connection, and then collecting the return value of thread
 	 */
 	if (write(tcb->ctrl_pipe[PIPE_WRITE], &ch, sizeof(ch)) != sizeof(ch)) {
-		ErrPrint("write: %s\n", strerror(errno));
+		ErrPrint("write: %d\n", errno);
 	}
 
 	status = pthread_join(tcb->thid, &ret);
 	if (status != 0) {
-		ErrPrint("Unable to join a thread: %s\n", strerror(status));
+		ErrPrint("Unable to join a thread: %d\n", status);
 	} else {
 		DbgPrint("Thread returns: %p\n", ret);
 	}
@@ -627,7 +627,7 @@ static inline void processing_timer_event(struct service_context *svc_ctx, fd_se
 					break;
 				}
 			} else {
-				ErrPrint("read: %s\n", strerror(errno));
+				ErrPrint("read: %d\n", errno);
 			}
 
 			if (!eina_list_data_find(svc_ctx->event_list, item)) {
@@ -636,7 +636,7 @@ static inline void processing_timer_event(struct service_context *svc_ctx, fd_se
 
 			svc_ctx->event_list = eina_list_remove(svc_ctx->event_list, item);
 			if (close(item->info.timer.fd) < 0) {
-				ErrPrint("close: %s\n", strerror(errno));
+				ErrPrint("close: %d\n", errno);
 			}
 			DbgFree(item);
 			break;
@@ -678,7 +678,7 @@ static void *server_main(void *data)
 				DbgPrint("INTERRUPTED\n");
 				continue;
 			}
-			ErrPrint("Error: %s\n", strerror(errno));
+			ErrPrint("select: %d\n", errno);
 			break;
 		} else if (ret == 0) {
 			ErrPrint("Timeout\n");
@@ -703,7 +703,7 @@ static void *server_main(void *data)
 
 		if (FD_ISSET(svc_ctx->evt_pipe[PIPE_READ], &set)) {
 			if (read(svc_ctx->evt_pipe[PIPE_READ], &evt_ch, sizeof(evt_ch)) != sizeof(evt_ch)) {
-				ErrPrint("Unable to read pipe: %s\n", strerror(errno));
+				ErrPrint("read: %d\n", errno);
 				ret = -EFAULT;
 				break;
 			}
@@ -744,7 +744,7 @@ static void *server_main(void *data)
 			Eina_List *n;
 
 			if (read(svc_ctx->tcb_pipe[PIPE_READ], &tcb, sizeof(tcb)) != sizeof(tcb)) {
-				ErrPrint("Unable to read pipe: %s\n", strerror(errno));
+				ErrPrint("read: %d\n", errno);
 				ret = -EFAULT;
 				break;
 			}
@@ -844,13 +844,13 @@ HAPI struct service_context *service_common_create(const char *addr, const char 
 		}
 
 		if (unlink(addr + offset) < 0) {
-			ErrPrint("[%s] - %s\n", addr, strerror(errno));
+			ErrPrint("unlink [%s] - %d\n", addr, errno);
 		}
 	}
 
 	svc_ctx = calloc(1, sizeof(*svc_ctx));
 	if (!svc_ctx) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return NULL;
 	}
 
@@ -864,22 +864,22 @@ HAPI struct service_context *service_common_create(const char *addr, const char 
 	svc_ctx->service_thread_data = data;
 
 	if (fcntl(svc_ctx->fd, F_SETFD, FD_CLOEXEC) < 0) {
-		ErrPrint("fcntl: %s\n", strerror(errno));
+		ErrPrint("fcntl: %d\n", errno);
 	}
 
 	if (fcntl(svc_ctx->fd, F_SETFL, O_NONBLOCK) < 0) {
-		ErrPrint("fcntl: %s\n", strerror(errno));
+		ErrPrint("fcntl: %d\n", errno);
 	}
 
 	if (pipe2(svc_ctx->evt_pipe, O_CLOEXEC) < 0) {
-		ErrPrint("pipe: %d\n", strerror(errno));
+		ErrPrint("pipe2: %d\n", errno);
 		secure_socket_destroy_handle(svc_ctx->fd);
 		DbgFree(svc_ctx);
 		return NULL;
 	}
 
 	if (pipe2(svc_ctx->tcb_pipe, O_CLOEXEC) < 0) {
-		ErrPrint("pipe: %s\n", strerror(errno));
+		ErrPrint("pipe2: %d\n", errno);
 		CLOSE_PIPE(svc_ctx->evt_pipe);
 		secure_socket_destroy_handle(svc_ctx->fd);
 		DbgFree(svc_ctx);
@@ -888,7 +888,7 @@ HAPI struct service_context *service_common_create(const char *addr, const char 
 
 	status = pthread_mutex_init(&svc_ctx->packet_list_lock, NULL);
 	if (status != 0) {
-		ErrPrint("Unable to create a mutex: %s\n", strerror(status));
+		ErrPrint("Unable to create a mutex: %d\n", status);
 		CLOSE_PIPE(svc_ctx->evt_pipe);
 		CLOSE_PIPE(svc_ctx->tcb_pipe);
 		secure_socket_destroy_handle(svc_ctx->fd);
@@ -899,10 +899,10 @@ HAPI struct service_context *service_common_create(const char *addr, const char 
 	DbgPrint("Creating server thread\n");
 	status = pthread_create(&svc_ctx->server_thid, NULL, server_main, svc_ctx);
 	if (status != 0) {
-		ErrPrint("Unable to create a thread for shortcut service: %s\n", strerror(status));
+		ErrPrint("Unable to create a thread for shortcut service: %d\n", status);
 		status = pthread_mutex_destroy(&svc_ctx->packet_list_lock);
 		if (status != 0) {
-			ErrPrint("Error: %s\n", strerror(status));
+			ErrPrint("mutex_destroy: %d\n", status);
 		}
 		CLOSE_PIPE(svc_ctx->evt_pipe);
 		CLOSE_PIPE(svc_ctx->tcb_pipe);
@@ -938,12 +938,12 @@ HAPI int service_common_destroy(struct service_context *svc_ctx)
 	 * Terminate server thread
 	 */
 	if (write(svc_ctx->tcb_pipe[PIPE_WRITE], &status, sizeof(status)) != sizeof(status)) {
-		ErrPrint("Failed to write: %s\n", strerror(errno));
+		ErrPrint("write: %d\n", errno);
 	}
 
 	status = pthread_join(svc_ctx->server_thid, &ret);
 	if (status != 0) {
-		ErrPrint("Join: %s\n", strerror(status));
+		ErrPrint("Join: %d\n", status);
 	} else {
 		DbgPrint("Thread returns: %p\n", ret);
 	}
@@ -952,7 +952,7 @@ HAPI int service_common_destroy(struct service_context *svc_ctx)
 
 	status = pthread_mutex_destroy(&svc_ctx->packet_list_lock);
 	if (status != 0) {
-		ErrPrint("Unable to destroy a mutex: %s\n", strerror(status));
+		ErrPrint("destroy_mutex: %d\n", status);
 	}
 
 	CLOSE_PIPE(svc_ctx->evt_pipe);
@@ -1114,21 +1114,21 @@ HAPI struct service_event_item *service_common_add_timer(struct service_context 
 
 	item = calloc(1, sizeof(*item));
 	if (!item) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return NULL;
 	}
 
 	item->type = SERVICE_EVENT_TIMER;
 	item->info.timer.fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
 	if (item->info.timer.fd < 0) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("timerfd_create: %d\n", errno);
 		DbgFree(item);
 		return NULL;
 	}
 
 	if (service_common_update_timer(item, timer) < 0) {
 		if (close(item->info.timer.fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 		DbgFree(item);
 		return NULL;
@@ -1149,7 +1149,7 @@ HAPI int service_common_update_timer(struct service_event_item *item, double tim
 	spec.it_interval.tv_nsec = (timer - spec.it_interval.tv_sec) * 1000000000;
 
 	if (clock_gettime(CLOCK_MONOTONIC, &spec.it_value) < 0) {
-		ErrPrint("clock_gettime: %s\n", strerror(errno));
+		ErrPrint("clock_gettime: %d\n", errno);
 		return -EFAULT;
 	}
 
@@ -1157,7 +1157,7 @@ HAPI int service_common_update_timer(struct service_event_item *item, double tim
 	spec.it_value.tv_nsec += spec.it_interval.tv_nsec;
 
 	if (timerfd_settime(item->info.timer.fd, TFD_TIMER_ABSTIME, &spec, NULL) < 0) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("timerfd_settime: %d\n", errno);
 		return -EFAULT;
 	}
 
@@ -1179,7 +1179,7 @@ HAPI int service_common_del_timer(struct service_context *svc_ctx, struct servic
 	svc_ctx->event_list = eina_list_remove(svc_ctx->event_list, item);
 
 	if (close(item->info.timer.fd) < 0) {
-		ErrPrint("close: %s\n", strerror(errno));
+		ErrPrint("close: %d\n", errno);
 	}
 	DbgFree(item);
 	return 0;

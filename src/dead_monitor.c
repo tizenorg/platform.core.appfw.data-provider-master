@@ -24,6 +24,7 @@
 
 #include <Eina.h>
 #include <widget_service.h> /* destroy_type for instance.h */
+#include <widget_service_internal.h> /* destroy_type for instance.h */
 #include <widget_errno.h>
 
 #include "slave_life.h"

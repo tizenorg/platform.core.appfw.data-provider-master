@@ -43,7 +43,6 @@
 
 #define CUR_VER 5
 #define DEFAULT_CATEGORY	"http://tizen.org/category/default"
-#define WATCH_CATEGORY		"org.tizen.wmanager.WATCH_CLOCK"
 
 #if !defined(WIDGET_COUNT_OF_SIZE_TYPE)
 #define WIDGET_COUNT_OF_SIZE_TYPE 13
@@ -1909,7 +1908,7 @@ int db_init(void)
 	}
 
 	if (lstat(s_info.dbfile, &stat) < 0) {
-		ErrPrint("%s\n", strerror(errno));
+		ErrPrint("%d\n", errno);
 		db_util_close(s_info.handle);
 		s_info.handle = NULL;
 		return -EIO;
@@ -2068,7 +2067,7 @@ static void update_i18n_name(struct widget *widget, xmlNodePtr node)
 
 	i18n = calloc(1, sizeof(*i18n));
 	if (!i18n) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		xmlFree(name);
 		xmlFree(lang);
 		return;
@@ -2114,7 +2113,7 @@ static void update_i18n_icon(struct widget *widget, xmlNodePtr node)
 			i18n->icon = icon;
 			icon = abspath_strdup(i18n->icon);
 			if (!icon) {
-				ErrPrint("Heap: %s\n", strerror(errno));
+				ErrPrint("strdup: %d\n", errno);
 			} else {
 				abspath((char *)i18n->icon, (char *)icon);
 				xmlFree(i18n->icon);
@@ -2126,7 +2125,7 @@ static void update_i18n_icon(struct widget *widget, xmlNodePtr node)
 
 	i18n = calloc(1, sizeof(*i18n));
 	if (!i18n) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		xmlFree(icon);
 		xmlFree(lang);
 		return;
@@ -2135,7 +2134,7 @@ static void update_i18n_icon(struct widget *widget, xmlNodePtr node)
 	i18n->icon = icon;
 	icon = abspath_strdup(i18n->icon);
 	if (!icon) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 	} else {
 		abspath((char *)i18n->icon, (char *)icon);
 		xmlFree(i18n->icon);
@@ -2177,7 +2176,7 @@ static int update_category(struct widget *widget, xmlNodePtr node)
 		return 0;
 	}
 
-	if (!xmlStrcasecmp(category, (const xmlChar *)WATCH_CATEGORY)) {
+	if (!xmlStrcasecmp(category, (const xmlChar *)CATEGORY_WATCH_CLOCK)) {
 		ErrPrint("Widget tries to install WATCH: %s\n", widget->pkgid);
 		return -EINVAL;
 	}
@@ -2264,7 +2263,7 @@ static void update_size_info(struct widget *widget, int idx, xmlNodePtr node)
 
 		tmp_preview = abspath_strdup(widget->preview[idx]);
 		if (!tmp_preview) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 		} else {
 			abspath((char *)widget->preview[idx], (char *)tmp_preview);
 			xmlFree(widget->preview[idx]);
@@ -2494,7 +2493,7 @@ static void update_box(struct widget *widget, xmlNodePtr node)
 			widget->widget_src = src;
 			src = abspath_strdup(widget->widget_src);
 			if (!src) {
-				ErrPrint("Heap: %s\n", strerror(errno));
+				ErrPrint("strdup: %d\n", errno);
 			} else {
 				abspath((char *)widget->widget_src, (char *)src);
 				xmlFree(widget->widget_src);
@@ -2571,14 +2570,14 @@ static void update_group(struct widget *widget, xmlNodePtr node)
 
 			group = calloc(1, sizeof(*group));
 			if (!group) {
-				ErrPrint("Heap: %s\n", strerror(errno));
+				ErrPrint("calloc: %d\n", errno);
 				xmlFree(category_name);
 				continue;
 			}
 
 			group->cluster = xmlStrdup(cluster_name);
 			if (!group->cluster) {
-				ErrPrint("Heap: %s\n", strerror(errno));
+				ErrPrint("xmlStrdup: %d\n", errno);
 				xmlFree(category_name);
 				free(group);
 				continue;
@@ -2632,7 +2631,7 @@ static void update_group(struct widget *widget, xmlNodePtr node)
 
 				option = calloc(1, sizeof(*option));
 				if (!option) {
-					ErrPrint("Heap: %s\n", strerror(errno));
+					ErrPrint("calloc: %d\n", errno);
 					xmlFree(key);
 					xmlFree(value);
 					continue;
@@ -2712,7 +2711,7 @@ static void update_glance_bar(struct widget *widget, xmlNodePtr node)
 			widget->gbar_src = src;
 			src = abspath_strdup(widget->gbar_src);
 			if (!src) {
-				ErrPrint("Heap: %s\n", strerror(errno));
+				ErrPrint("strdup: %d\n", errno);
 			} else {
 				abspath((char *)widget->gbar_src, (char *)src);
 				xmlFree(widget->gbar_src);
@@ -2938,7 +2937,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 
 	widget = calloc(1, sizeof(*widget));
 	if (!widget) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		xmlFree(pkgid);
 		return -ENOMEM;
 	}
@@ -2947,7 +2946,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 
 	if (xmlHasProp(node, (const xmlChar *)"count")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"count");
-		if (sscanf((const char *)tmp, "%d", &widget->count) != 1) {
+		if (tmp && sscanf((const char *)tmp, "%d", &widget->count) != 1) {
 			ErrPrint("Invalid syntax: %s\n", (const char *)tmp);
 		}
 		xmlFree(tmp);
@@ -2955,7 +2954,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 
 	if (xmlHasProp(node, (const xmlChar *)"primary")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"primary");
-		widget->primary = !xmlStrcasecmp(tmp, (const xmlChar *)"true");
+		widget->primary = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
 		xmlFree(tmp);
 	}
 
@@ -3027,7 +3026,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 	} else {
 		widget->abi = xmlStrdup((const xmlChar *)"c");
 		if (!widget->abi) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("xmlstrdup: %d\n", errno);
 			widget_destroy(widget);
 			return -ENOMEM;
 		}
@@ -3045,7 +3044,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 
 		tmp_libexec = abspath_strdup(widget->libexec);
 		if (!tmp_libexec) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			widget_destroy(widget);
 			return -EFAULT;
 		}
@@ -3161,7 +3160,7 @@ int db_install_watchapp(xmlNodePtr node, const char *appid)
 
 	widget = calloc(1, sizeof(*widget));
 	if (!widget) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		xmlFree(pkgid);
 		return -ENOMEM;
 	}
@@ -3173,7 +3172,7 @@ int db_install_watchapp(xmlNodePtr node, const char *appid)
 	widget->nodisplay = 1;
 	widget->hw_acceleration = xmlStrdup((const xmlChar *)"use-sw"); //use-gl
 	widget->abi = xmlStrdup((const xmlChar *)"app");
-	widget->category = xmlStrdup((const xmlChar *)WATCH_CATEGORY);
+	widget->category = xmlStrdup((const xmlChar *)CATEGORY_WATCH_CLOCK);
 
 	widget->widget_type = WIDGET_TYPE_BUFFER;
 	widget->default_mouse_event = 1;
@@ -3296,9 +3295,9 @@ int pkglist_get_via_callback(const char *appid, int is_watch_widget, void (*cb)(
 	}
 
 	if (is_watch_widget) { /* Watch */
-		dml = "SELECT pkgid, prime FROM pkgmap WHERE appid = ? AND category = '" WATCH_CATEGORY "'";
+		dml = "SELECT pkgid, prime FROM pkgmap WHERE appid = ? AND category = '" CATEGORY_WATCH_CLOCK "'";
 	} else { /* Widget */
-		dml = "SELECT pkgid, prime FROM pkgmap WHERE appid = ? AND (category IS NULL OR category <> '" WATCH_CATEGORY "')";
+		dml = "SELECT pkgid, prime FROM pkgmap WHERE appid = ? AND (category IS NULL OR category <> '" CATEGORY_WATCH_CLOCK "')";
 	}
 
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);

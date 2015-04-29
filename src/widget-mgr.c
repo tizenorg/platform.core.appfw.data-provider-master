@@ -60,10 +60,10 @@ HAPI void widget_mgr_fini(void)
 
 	EINA_LIST_FREE(s_info.info_list, info) {
 		if (fclose(info->fp) != 0) {
-			ErrPrint("fclose: %s\n", strerror(errno));
+			ErrPrint("fclose: %d\n", errno);
 		}
 		if (unlink(info->fifo_name) < 0) {
-			ErrPrint("unlink: %s\n", strerror(errno));
+			ErrPrint("unlink: %d\n", errno);
 		}
 		DbgFree(info);
 	}
@@ -80,12 +80,12 @@ static inline int valid_requestor(pid_t pid)
 	DbgPrint("Open cmdline: %s (%d)\n", cmdline, pid);
 
 	if (stat(cmdline, &target) < 0) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("Error: %d\n", errno);
 		return 0;
 	}
 
 	if (stat("/opt/usr/devel/usr/bin/widget-mgr", &src) < 0) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("Error: %d\n", errno);
 		return 0;
 	}
 
@@ -113,15 +113,15 @@ HAPI struct widget_mgr *widget_mgr_create(pid_t pid, int handle)
 
 	info = calloc(1, sizeof(*info));
 	if (!info) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return NULL;
 	}
 
 	snprintf(info->fifo_name, sizeof(info->fifo_name), "/tmp/.live_info.%lf", util_timestamp());
 	if (mkfifo(info->fifo_name, 0644) < 0) {
-		ErrPrint("mkfifo: %s\n", strerror(errno));
+		ErrPrint("mkfifo: %d\n", errno);
 		if (unlink(info->fifo_name) < 0) {
-			ErrPrint("unlink: %s\n", strerror(errno));
+			ErrPrint("unlink: %d\n", errno);
 		}
 		DbgFree(info);
 		return NULL;
@@ -141,7 +141,7 @@ HAPI int widget_mgr_open_fifo(struct widget_mgr *info)
 	DbgPrint("FIFO is created (%s)\n", info->fifo_name);
 	info->fp = fopen(info->fifo_name, "w");
 	if (!info->fp) {
-		ErrPrint("open: %s\n", strerror(errno));
+		ErrPrint("open: %d\n", errno);
 		return WIDGET_ERROR_IO_ERROR;
 	}
 
@@ -152,7 +152,7 @@ HAPI void widget_mgr_close_fifo(struct widget_mgr *info)
 {
 	if (info->fp) {
 		if (fclose(info->fp) != 0) {
-			ErrPrint("fclose: %s\n", strerror(errno));
+			ErrPrint("fclose: %d\n", errno);
 		}
 		info->fp = NULL;
 	}
@@ -163,7 +163,7 @@ HAPI void widget_mgr_destroy(struct widget_mgr *info)
 	s_info.info_list = eina_list_remove(s_info.info_list, info);
 	widget_mgr_close_fifo(info);
 	if (unlink(info->fifo_name) < 0) {
-		ErrPrint("unlink: %s\n", strerror(errno));
+		ErrPrint("unlink: %d\n", errno);
 	}
 	DbgFree(info);
 }

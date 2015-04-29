@@ -27,6 +27,7 @@
 #include <sys/shm.h>
 #include <sys/ipc.h>
 #include <ctype.h>
+#include <bundle.h>
 
 #include <X11/Xlib.h>
 #include <X11/extensions/Xdamage.h>
@@ -41,6 +42,7 @@
 #include <com-core_packet.h>
 #include <com-core.h>
 
+#include <widget_errno.h>
 #include <widget_service.h>
 #include <widget_service_internal.h>
 
@@ -151,6 +153,13 @@ int optopt;
 int opterr;
 
 static Eina_Bool input_cb(void *data, Ecore_Fd_Handler *fd_handler);
+
+static inline const char *trim_cmd(const char *cmd)
+{
+	while (*cmd && *cmd == ' ') cmd++;
+
+	return cmd;
+}
 
 static Eina_Bool process_line_cb(void *data)
 {
@@ -377,7 +386,7 @@ static int pkglist_cb(const char *appid, const char *lbid, int is_prime, void *d
 		free(info->pkgid);
 		info->pkgid = strdup(appid);
 		if (!info->pkgid) {
-			printf("Error: %s\n", strerror(errno));
+			printf("strdup: %d\n", errno);
 			return -ENOMEM;
 		}
 
@@ -387,13 +396,13 @@ static int pkglist_cb(const char *appid, const char *lbid, int is_prime, void *d
 
 	info = calloc(1, sizeof(*info));
 	if (!info) {
-		printf("Error: %s\n", strerror(errno));
+		printf("calloc: %d\n", errno);
 		return -ENOMEM;
 	}
 
 	info->pkgid = strdup(appid);
 	if (!info->pkgid) {
-		printf("Error: %s\n", strerror(errno));
+		printf("strdup: %d\n", errno);
 		free(info);
 		return -ENOMEM;
 	}
@@ -665,9 +674,7 @@ static inline int do_stat(const char *cmd)
 		ROOT,
 	} type;
 
-	cmd += 5;
-	while (*cmd && *cmd == ' ') cmd++;
-
+	cmd = trim_cmd(cmd + 5);
 	if (!*cmd){
 		printf("Invalid argument\n");
 		return -EINVAL;
@@ -769,11 +776,7 @@ static int do_set(const char *cmd)
 	cmd += 4;
 	i = get_token(cmd, variable);
 
-	cmd += i;
-	while (*cmd && *cmd == ' ') {
-		cmd++;
-	}
-
+	cmd = trim_cmd(cmd + i);
 	if (!i || !*cmd) {
 		printf("Invalid argument(%s): set [VAR] [VAL]\n", cmd);
 		return -EINVAL;
@@ -785,9 +788,7 @@ static int do_set(const char *cmd)
 
 static inline int do_get(const char *cmd)
 {
-	cmd += 4;
-
-	while (*cmd && *cmd == ' ') cmd++;
+	cmd = trim_cmd(cmd + 4);
 	if (!*cmd) {
 		printf("Invalid argument(%s): get [VAR]\n", cmd);
 		return -EINVAL;
@@ -802,11 +803,7 @@ static inline int do_ls(const char *cmd)
 	const char *name;
 	struct node *parent;
 
-	cmd += 2;
-
-	while (*cmd && *cmd == ' ') {
-		cmd++;
-	}
+	cmd = trim_cmd(cmd + 2);
 
 	s_info.targetdir = *cmd ? update_target_dir(cmd) : s_info.curdir;
 	if (!s_info.targetdir) {
@@ -854,12 +851,7 @@ static inline int do_ls(const char *cmd)
 
 static inline int do_cd(const char *cmd)
 {
-	cmd += 2;
-
-	while (*cmd && *cmd == ' ') {
-		cmd++;
-	}
-
+	cmd = trim_cmd(cmd + 2);
 	if (!*cmd) {
 		return -1;
 	}
@@ -891,8 +883,7 @@ static inline int do_cd(const char *cmd)
 
 static inline int do_rm(const char *cmd)
 {
-	cmd += 2;
-	while (*cmd && *cmd == ' ') cmd++;
+	cmd = trim_cmd(cmd + 2);
 	if (!*cmd) {
 		return -1;
 	}
@@ -919,8 +910,7 @@ static inline int do_rm(const char *cmd)
 
 static inline int do_fault(const char *cmd)
 {
-	cmd += 5;
-	while (*cmd && *cmd == ' ') cmd++;
+	cmd = trim_cmd(cmd + 5);
 	if (!*cmd) {
 		return -1;
 	}
@@ -953,12 +943,7 @@ static void do_sh(const char *cmd)
 {
 	pid_t pid;
 
-	cmd += 3;
-
-	while (*cmd && *cmd == ' ') {
-		cmd++;
-	}
-
+	cmd = trim_cmd(cmd + 3);
 	if (!*cmd) {
 		return;
 	}
@@ -975,16 +960,16 @@ static void do_sh(const char *cmd)
 		command[idx] = '\0';
 
 		if (execl(command, cmd, NULL) < 0) {
-			printf("Failed to execute: %s\n", strerror(errno));
+			printf("execl: %d\n", errno);
 		}
 
 		exit(0);
 	} else if (pid < 0) {
-		printf("Failed to create a new process: %s\n", strerror(errno));
+		printf("Failed to create a new process: %d\n", errno);
 	} else {
 		int status;
 		if (waitpid(pid, &status, 0) < 0) {
-			printf("error: %s\n", strerror(errno));
+			printf("waitpid: %d\n", errno);
 		} else {
 			if (WIFEXITED(status)) {
 				printf("Exit: %d\n", WEXITSTATUS(status));
@@ -1045,7 +1030,7 @@ static inline int do_capture(Display *disp, Pixmap id, const char *filename)
 
 	si.shmid = shmget(IPC_PRIVATE, bufsz, IPC_CREAT | 0666);
 	if (si.shmid < 0) {
-		printf("shmget: %s\n", strerror(errno));
+		printf("shmget: %d\n", errno);
 		return -EFAULT;
 	}
 
@@ -1054,7 +1039,7 @@ static inline int do_capture(Display *disp, Pixmap id, const char *filename)
 	if (si.shmaddr == (void *)-1) {
 
 		if (shmctl(si.shmid, IPC_RMID, 0) < 0) {
-			printf("shmctl: %s\n", strerror(errno));
+			printf("shmctl: %d\n", errno);
 		}
 
 		return -EFAULT;
@@ -1067,11 +1052,11 @@ static inline int do_capture(Display *disp, Pixmap id, const char *filename)
 	xim = XShmCreateImage(disp, visual, 24 /* (depth << 3) */, ZPixmap, NULL, &si, w, h);
 	if (xim == NULL) {
 		if (shmdt(si.shmaddr) < 0) {
-			printf("shmdt: %s\n", strerror(errno));
+			printf("shmdt: %d\n", errno);
 		}
 
 		if (shmctl(si.shmid, IPC_RMID, 0) < 0) {
-			printf("shmctl: %s\n", strerror(errno));
+			printf("shmctl: %d\n", errno);
 		}
 
 		return -EFAULT;
@@ -1090,24 +1075,105 @@ static inline int do_capture(Display *disp, Pixmap id, const char *filename)
 		}
 
 		if (close(fd) < 0) {
-			printf("close: %s\n", strerror(errno));
+			printf("close: %d\n", errno);
 		}
 	} else {
-		printf("Error: %sn\n", strerror(errno));
+		printf("Error: %d\n", errno);
 	}
 
 	XShmDetach(disp, &si);
 	XDestroyImage(xim);
 
 	if (shmdt(si.shmaddr) < 0) {
-		printf("shmdt: %s\n", strerror(errno));
+		printf("shmdt: %d\n", errno);
 	}
 
 	if (shmctl(si.shmid, IPC_RMID, 0) < 0) {
-		printf("shmctl: %s\n", strerror(errno));
+		printf("shmctl: %d\n", errno);
 	}
 
 	return 0;
+}
+
+static int widget_lifecycle_event(const char *widget_id, widget_lifecycle_event_e ev, const char *instance_id, void *data)
+{
+	printf("[%s] [%s] [STATE: 0x%X]\n", widget_id, instance_id, (unsigned int)ev);
+	return WIDGET_ERROR_NONE;
+}
+
+static void do_monitor(const char *cmd)
+{
+	cmd = trim_cmd(cmd + strlen("monitor"));
+
+	if (!*cmd) {
+		/* Monitor all instances */
+	} else {
+		/* Monitor one */
+		printf("Instance = [%s]\n", cmd);
+	}
+
+	widget_service_set_lifecycle_event_cb(*cmd ? cmd : NULL, widget_lifecycle_event, NULL);
+}
+
+static int widget_inst_list_cb(const char *widget_id, const char *instance_id, void *data)
+{
+	printf("Instance: %s\n", instance_id);
+	return WIDGET_ERROR_NONE;
+}
+
+static void do_get_list(const char *cmd)
+{
+	cmd = trim_cmd(cmd + strlen("get_list"));
+	if (!*cmd) {
+		return;
+	}
+
+	printf("Instance list of %s\n", cmd);
+	if (widget_service_get_widget_instance_list(cmd, widget_inst_list_cb, NULL) == WIDGET_ERROR_NONE) {
+		printf("=== Done\n");
+	} else {
+		printf("Failed to get instance list\n");
+	}
+}
+
+static void do_get_content(const char *cmd)
+{
+	char widget_id[256];
+	char inst_id[256];
+	cmd = trim_cmd(cmd + strlen("get_content"));
+	if (!*cmd) {
+		return;
+	}
+
+	if (sscanf(cmd, "%[^ ] %s", widget_id, inst_id) == 2) {
+		bundle *b;
+		if (widget_service_get_content_of_widget_instance(widget_id, inst_id, &b) == WIDGET_ERROR_NONE) {
+			int len;
+			char *content = NULL;
+
+			if (b && bundle_encode(b, (bundle_raw **)&content, &len) == BUNDLE_ERROR_NONE) {
+				printf("Widget: %s\nInstance: %s\nContent: [%s]\n", widget_id, inst_id, content);
+				bundle_free(b);
+			} else {
+				printf("Widget: %s\nInstance: %s\nbundle: %p\n", widget_id, inst_id, b);
+			}
+
+			free(content);
+		} else {
+			printf("Failed to get content info for %s\n", inst_id);
+		}
+	}
+}
+
+static void do_demonitor(const char *cmd)
+{
+	cmd = trim_cmd(cmd + strlen("demonitor"));
+	if (!*cmd) {
+	} else {
+		printf("Instance = [%s]\n", cmd);
+	}
+
+	widget_service_unset_lifecycle_event_cb(*cmd ? cmd : NULL, NULL);
 }
 
 static void do_dump(const char *cmd)
@@ -1118,12 +1184,7 @@ static void do_dump(const char *cmd)
 	struct node *curdir;
 	struct node *target;
 
-	cmd += 5;
-
-	while (*cmd && *cmd == ' ') {
-		cmd++;
-	}
-
+	cmd = trim_cmd(cmd + 5);
 	if (!*cmd) {
 		return;
 	}
@@ -1210,12 +1271,7 @@ static void do_x(const char *cmd)
 {
 	Display *disp;
 
-	cmd += 2;
-
-	while (*cmd && *cmd == ' ') {
-		cmd++;
-	}
-
+	cmd = trim_cmd(cmd + 2);
 	if (!*cmd) {
 		return;
 	}
@@ -1337,9 +1393,7 @@ static inline const char *get_command(int idx)
 static void do_command(const char *cmd)
 {
 	/* Skip the first spaces */
-	while (*cmd && *cmd == ' ') {
-		cmd++;
-	}
+	cmd = trim_cmd(cmd);
 
 	if (strlen(cmd) && *cmd != '#') {
 		if (!strncasecmp(cmd, "exit", 4) || !strncasecmp(cmd, "quit", 4)) {
@@ -1370,12 +1424,20 @@ static void do_command(const char *cmd)
 			if (do_fault(cmd) == 0) {
 				return;
 			}
-		} else if (!strncasecmp(cmd, "sh ", 3)) {
+		} else if (!strncasecmp(cmd, "sh ", strlen("sh "))) {
 			do_sh(cmd);
-		} else if (!strncasecmp(cmd, "x ", 2)) {
+		} else if (!strncasecmp(cmd, "x ", strlen("x "))) {
 			do_x(cmd);
-		} else if (!strncasecmp(cmd, "dump", 4)) {
+		} else if (!strncasecmp(cmd, "dump", strlen("dump"))) {
 			do_dump(cmd);
+		} else if (!strncasecmp(cmd, "monitor", strlen("monitor"))) {
+			do_monitor(cmd);
+		} else if (!strncasecmp(cmd, "demonitor", strlen("demonitor"))) {
+			do_demonitor(cmd);
+		} else if (!strncasecmp(cmd, "get_content", strlen("get_content"))) {
+			do_get_content(cmd);
+		} else if (!strncasecmp(cmd, "get_list", strlen("get_list"))) {
+			do_get_list(cmd);
 		} else {
 			help();
 		}
@@ -1580,13 +1642,13 @@ static void processing_line_buffer(const char *buffer)
 		if (!node) {
 			pkginfo = calloc(1, sizeof(*pkginfo));
 			if (!pkginfo) {
-				printf("Error: %s\n", strerror(errno));
+				printf("calloc: %d\n", errno);
 				return;
 			}
 
 			pkginfo->pkgid = strdup("conf.file");
 			if (!pkginfo->pkgid) {
-				printf("Error: %s\n", strerror(errno));
+				printf("strdup: %d\n", errno);
 			}
 
 			pkginfo->primary = 1;
@@ -1618,12 +1680,12 @@ static void processing_line_buffer(const char *buffer)
 
 		pkginfo->slavename = strdup(slavename);
 		if (!pkginfo->slavename) {
-			printf("Error: %s\n", strerror(errno));
+			printf("strdup: %d\n", errno);
 		}
 
 		pkginfo->abi = strdup(abi);
 		if (!pkginfo->abi) {
-			printf("Error: %s\n", strerror(errno));
+			printf("strdup: %d\n", errno);
 		}
 
 		pkginfo->pid = pid;
@@ -1640,7 +1702,7 @@ static void processing_line_buffer(const char *buffer)
 		if (!node) {
 			slaveinfo = calloc(1, sizeof(*slaveinfo));
 			if (!slaveinfo) {
-				printf("Error: %s\n", strerror(errno));
+				printf("Error: %d\n", errno);
 				return;
 			}
 
@@ -1663,17 +1725,17 @@ static void processing_line_buffer(const char *buffer)
 
 		slaveinfo->pkgname = strdup(pkgname);
 		if (!slaveinfo->pkgname) {
-			printf("Error: %s\n", strerror(errno));
+			printf("strdup: %d\n", errno);
 		}
 
 		slaveinfo->abi = strdup(abi);
 		if (!slaveinfo->abi) {
-			printf("Error: %s\n", strerror(errno));
+			printf("strdup: %d\n", errno);
 		}
 
 		slaveinfo->state = strdup(state);
 		if (!slaveinfo->state) {
-			printf("Error: %s\n", strerror(errno));
+			printf("strdup: %d\n", errno);
 		}
 
 		slaveinfo->pid = pid;
@@ -1703,7 +1765,7 @@ static void processing_line_buffer(const char *buffer)
 		if (!node) {
 			instinfo = calloc(1, sizeof(*instinfo));
 			if (!instinfo) {
-				printf("Error: %s\n", strerror(errno));
+				printf("calloc: %d\n", errno);
 				return;
 			}
 
@@ -1733,22 +1795,22 @@ static void processing_line_buffer(const char *buffer)
 
 		instinfo->id = strdup(inst_id);
 		if (!instinfo->id) {
-			printf("Error: %s\n", strerror(errno));
+			printf("strdup: %d\n", errno);
 		}
 
 		instinfo->cluster = strdup(cluster);
 		if (!instinfo->cluster) {
-			printf("Error: %s\n", strerror(errno));
+			printf("strdup: %d\n", errno);
 		}
 
 		instinfo->category = strdup(category);
 		if (!instinfo->category) {
-			printf("Error: %s\n", strerror(errno));
+			printf("strdup: %d\n", errno);
 		}
 
 		instinfo->state = strdup(state);
 		if (!instinfo->state) {
-			printf("Error: %s\n", strerror(errno));
+			printf("strdup: %d\n", errno);
 		}
 
 		if (strlen(buf_id)) {
@@ -1761,7 +1823,7 @@ static void processing_line_buffer(const char *buffer)
 		break;
 	case INST_CTRL:
 		sscanf(buffer, "%d", &i);
-		printf("%s\n", strerror(i));
+		printf("%d\n", i);
 		printf("Result: %d\n", i);
 		break;
 	case SLAVE_CTRL:
@@ -1816,7 +1878,7 @@ static Eina_Bool read_cb(void *data, Ecore_Fd_Handler *fd_handler)
 	}
 
 	if (read(fd, &ch, sizeof(ch)) != sizeof(ch)) {
-		printf("Error: %s\n", strerror(errno));
+		printf("read: %d\n", errno);
 		return ECORE_CALLBACK_CANCEL;
 	}
 
@@ -1824,7 +1886,7 @@ static Eina_Bool read_cb(void *data, Ecore_Fd_Handler *fd_handler)
 		line_index = 0;
 		line_buffer = malloc(bufsz);
 		if (!line_buffer) {
-			printf("Error: %s\n", strerror(errno));
+			printf("malloc: %d\n", errno);
 			return ECORE_CALLBACK_CANCEL;
 		}
 	}	
@@ -1834,7 +1896,7 @@ static Eina_Bool read_cb(void *data, Ecore_Fd_Handler *fd_handler)
 			char *new_buf;
 			new_buf = realloc(line_buffer, bufsz + 2);
 			if (!new_buf) {
-				printf("Error: %s\n", strerror(errno));
+				printf("realloc: %d\n", errno);
 				free(line_buffer);
 				line_buffer = NULL;
 				line_index = 0;
@@ -1866,7 +1928,7 @@ static Eina_Bool read_cb(void *data, Ecore_Fd_Handler *fd_handler)
 			bufsz += 256;
 			new_buf = realloc(line_buffer, bufsz);
 			if (!new_buf) {
-				printf("Error: %s\n", strerror(errno));
+				printf("realloc: %d\n", errno);
 				free(line_buffer);
 				line_buffer = NULL;
 				line_index = 0;
@@ -1900,7 +1962,7 @@ static int ret_cb(pid_t pid, int handle, const struct packet *packet, void *data
 
 	s_info.fifo_handle = open(fifo_name, O_RDONLY | O_NONBLOCK);
 	if (s_info.fifo_handle < 0) {
-		printf("Error: %s\n", strerror(errno));
+		printf("open: %d\n", errno);
 		s_info.fifo_handle = -EINVAL;
 		ecore_main_loop_quit();
 		return -EINVAL;
@@ -1910,7 +1972,7 @@ static int ret_cb(pid_t pid, int handle, const struct packet *packet, void *data
 	if (!s_info.fd_handler) {
 		printf("Failed to add a fd handler\n");
 		if (close(s_info.fifo_handle) < 0) {
-			printf("close: %s\n", strerror(errno));
+			printf("close: %d\n", errno);
 		}
 		s_info.fifo_handle = -EINVAL;
 		ecore_main_loop_quit();
@@ -1921,7 +1983,7 @@ static int ret_cb(pid_t pid, int handle, const struct packet *packet, void *data
 
 	if (s_info.input_fd == STDIN_FILENO) {
 		if (fcntl(s_info.input_fd, F_SETFL, O_NONBLOCK) < 0) {
-			printf("Error: %s\n", strerror(errno));
+			printf("fcntl: %d\n", errno);
 		}
 
 		s_info.in_handler = ecore_main_fd_handler_add(s_info.input_fd, ECORE_FD_READ, input_cb, NULL, NULL, NULL);
@@ -2002,13 +2064,13 @@ int main(int argc, char *argv[])
 			if (s_info.input_fd != STDIN_FILENO) {
 				/* Close the previously, opened file */
 				if (close(s_info.input_fd) < 0) {
-					printf("close: %s\n", strerror(errno));
+					printf("close: %d\n", errno);
 				}
 			}
 
 			s_info.input_fd = open(optarg, O_RDONLY);
 			if (s_info.input_fd < 0) {
-				printf("Unable to access %s (%s)\n", optarg, strerror(errno));
+				printf("Unable to access %s (%d)\n", optarg, errno);
 				return -EIO;
 			}
 			break;
@@ -2064,13 +2126,13 @@ int main(int argc, char *argv[])
 		printf("Type your command on below empty line\n");
 
 		if (tcgetattr(s_info.input_fd, &ttystate) < 0) {
-			printf("Error: %s\n", strerror(errno));
+			printf("Error: %d\n", errno);
 		} else {
 			ttystate.c_lflag &= ~(ICANON | ECHO);
 			ttystate.c_cc[VMIN] = 1;
 
 			if (tcsetattr(s_info.input_fd, TCSANOW, &ttystate) < 0) {
-				printf("Error: %s\n", strerror(errno));
+				printf("Error: %d\n", errno);
 			}
 		}
 	} else {
@@ -2078,7 +2140,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (setvbuf(stdout, (char *)NULL, _IONBF, 0) != 0) {
-		printf("Error: %s\n", strerror(errno));
+		printf("setvbuf: %d\n", errno);
 	}
 
 	init_directory();
@@ -2101,17 +2163,17 @@ int main(int argc, char *argv[])
 	if (s_info.input_fd == STDIN_FILENO) {
 		ttystate.c_lflag |= ICANON | ECHO;
 		if (tcsetattr(s_info.input_fd, TCSANOW, &ttystate) < 0) {
-			printf("Error: %s\n", strerror(errno));
+			printf("tcsetattr: %d\n", errno);
 		}
 	} else {
 		if (close(s_info.input_fd) < 0) {
-			printf("close: %s\n", strerror(errno));
+			printf("close: %d\n", errno);
 		}
 	}
 
 	if (s_info.fifo_handle > 0) {
 		if (close(s_info.fifo_handle) < 0) {
-			printf("close: %s\n", strerror(errno));
+			printf("close: %d\n", errno);
 		}
 		s_info.fifo_handle = -EINVAL;
 	}

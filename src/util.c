@@ -76,7 +76,7 @@ HAPI double util_timestamp(void)
 	struct timeval tv;
 	if (gettimeofday(&tv, NULL) < 0) {
 		static unsigned long internal_count = 0;
-		ErrPrint("failed to get time of day: %s\n", strerror(errno));
+		ErrPrint("gettimeofday: %d\n", errno);
 		tv.tv_sec = internal_count++;
 		tv.tv_usec = 0;
 	}
@@ -114,13 +114,13 @@ HAPI int util_unlink(const char *filename)
 	desclen = strlen(filename) + 6; /* .desc */
 	descfile = malloc(desclen);
 	if (!descfile) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	ret = snprintf(descfile, desclen, "%s.desc", filename);
 	if (ret < 0) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("snprintf: %d\n", errno);
 		DbgFree(descfile);
 		return WIDGET_ERROR_FAULT;
 	}
@@ -163,7 +163,7 @@ HAPI unsigned long long util_free_space(const char *path)
 	unsigned long long space;
 
 	if (statvfs(path, &st) < 0) {
-		ErrPrint("statvfs: %s\n", strerror(errno));
+		ErrPrint("statvfs: %d\n", errno);
 		return 0lu;
 	}
 
@@ -184,7 +184,7 @@ static inline char *extend_heap(char *buffer, int *sz, int incsz)
 	*sz += incsz;
 	tmp = realloc(buffer, *sz);
 	if (!tmp) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("realloc: %d\n", errno);
 		return NULL;
 	}
 
@@ -205,7 +205,7 @@ HAPI double util_time_delay_for_compensation(double period)
 	}
 
 	if (gettimeofday(&tv, NULL) < 0){
-		ErrPrint("gettimeofday: %s\n", strerror(errno));
+		ErrPrint("gettimeofday: %d\n", errno);
 		return period;
 	}
 
@@ -258,7 +258,7 @@ HAPI int util_unlink_files(const char *folder)
 	int len;
 
 	if (lstat(folder, &info) < 0) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("lstat: %d\n", errno);
 		return WIDGET_ERROR_IO_ERROR;
 	}
 
@@ -269,7 +269,7 @@ HAPI int util_unlink_files(const char *folder)
 
 	handle = opendir(folder);
 	if (!handle) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("opendir: %d\n", errno);
 		return WIDGET_ERROR_IO_ERROR;
 	}
 
@@ -285,20 +285,20 @@ HAPI int util_unlink_files(const char *folder)
 		len = strlen(folder) + strlen(entry->d_name) + 3;
 		abspath = calloc(1, len);
 		if (!abspath) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("calloc: %d\n", errno);
 			continue;
 		}
 		snprintf(abspath, len - 1, "%s/%s", folder, entry->d_name);
 
 		if (unlink(abspath) < 0) {
-			DbgPrint("unlink: %s\n", strerror(errno));
+			DbgPrint("unlink: %d\n", errno);
 		}
 
 		DbgFree(abspath);
 	}
 
 	if (closedir(handle) < 0) {
-		ErrPrint("closedir: %s\n", strerror(errno));
+		ErrPrint("closedir: %d\n", errno);
 	}
 	return WIDGET_ERROR_NONE;
 }
@@ -308,7 +308,7 @@ HAPI void util_remove_emergency_disk(void)
 	int ret;
 	ret = umount(WIDGET_CONF_IMAGE_PATH);
 	if (ret < 0) {
-		ErrPrint("umount: %s\n", strerror(errno));
+		ErrPrint("umount: %d\n", errno);
 	}
 
 	DbgPrint("Try to unmount[%s] %d\n", WIDGET_CONF_IMAGE_PATH, ret);
@@ -444,17 +444,17 @@ HAPI void util_prepare_emergency_disk(void)
 	ret = mount(source, WIDGET_CONF_IMAGE_PATH, type, MS_NOSUID | MS_NOEXEC, option);
 	DbgFree(buf);
 	if (ret < 0) {
-		ErrPrint("Failed to mount: %s\n", strerror(errno));
+		ErrPrint("Failed to mount: %d\n", errno);
 		return;
 	}
 
 	ErrPrint("Disk space is not enough, use the tmpfs. Currently required minimum space is %lu bytes\n", WIDGET_CONF_MINIMUM_SPACE);
 	if (chmod(WIDGET_CONF_IMAGE_PATH, 0750) < 0) {
-		ErrPrint("chmod: %s\n", strerror(errno));
+		ErrPrint("chmod: %d\n", errno);
 	}
 
 	if (chown(WIDGET_CONF_IMAGE_PATH, 5000, 5000) < 0) {
-		ErrPrint("chown: %s\n", strerror(errno));
+		ErrPrint("chown: %d\n", errno);
 	}
 
 	ret = smack_setlabel(WIDGET_CONF_IMAGE_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
@@ -466,14 +466,14 @@ HAPI void util_prepare_emergency_disk(void)
 	}
 
 	if (mkdir(WIDGET_CONF_ALWAYS_PATH, 0755) < 0) {
-		ErrPrint("mkdir: (%s) %s\n", WIDGET_CONF_ALWAYS_PATH, strerror(errno));
+		ErrPrint("mkdir: (%s) %d\n", WIDGET_CONF_ALWAYS_PATH, errno);
 	} else {
 		if (chmod(WIDGET_CONF_ALWAYS_PATH, 0750) < 0) {
-			ErrPrint("chmod: %s\n", strerror(errno));
+			ErrPrint("chmod: %d\n", errno);
 		}
 
 		if (chown(WIDGET_CONF_ALWAYS_PATH, 5000, 5000) < 0) {
-			ErrPrint("chown: %s\n", strerror(errno));
+			ErrPrint("chown: %d\n", errno);
 		}
 
 		ret = smack_setlabel(WIDGET_CONF_ALWAYS_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
@@ -486,14 +486,14 @@ HAPI void util_prepare_emergency_disk(void)
 	}
 
 	if (mkdir(WIDGET_CONF_READER_PATH, 0755) < 0) {
-		ErrPrint("mkdir: (%s) %s\n", WIDGET_CONF_READER_PATH, strerror(errno));
+		ErrPrint("mkdir: (%s) %d\n", WIDGET_CONF_READER_PATH, errno);
 	} else {
 		if (chmod(WIDGET_CONF_READER_PATH, 0750) < 0) {
-			ErrPrint("chmod: %s\n", strerror(errno));
+			ErrPrint("chmod: %d\n", errno);
 		}
 
 		if (chown(WIDGET_CONF_READER_PATH, 5000, 5000) < 0) {
-			ErrPrint("chown: %s\n", strerror(errno));
+			ErrPrint("chown: %d\n", errno);
 		}
 
 		ret = smack_setlabel(WIDGET_CONF_READER_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
@@ -524,14 +524,14 @@ HAPI void util_setup_log_disk(void)
 
 	DbgPrint("Initiate the critical log folder [%s]\n", WIDGET_CONF_LOG_PATH);
 	if (mkdir(WIDGET_CONF_LOG_PATH, 0755) < 0) {
-		ErrPrint("mkdir: %s\n", strerror(errno));
+		ErrPrint("mkdir: %d\n", errno);
 	} else {
 		if (chmod(WIDGET_CONF_LOG_PATH, 0750) < 0) {
-			ErrPrint("chmod: %s\n", strerror(errno));
+			ErrPrint("chmod: %d\n", errno);
 		}
 
 		if (chown(WIDGET_CONF_LOG_PATH, 5000, 5000) < 0) {
-			ErrPrint("chown: %s\n", strerror(errno));
+			ErrPrint("chown: %d\n", errno);
 		}
 
 		ret = smack_setlabel(WIDGET_CONF_LOG_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);

@@ -58,155 +58,36 @@ struct buffer_info
 {
 	void *buffer;
 	char *id;
-	char *lock;
-	int lock_fd;
+	widget_lock_info_t lock_info;
 
 	enum buffer_type type;
 
 	int w;
 	int h;
 	int pixel_size;
-	int auto_align;
 	int is_loaded;
 
 	struct inst_info *inst;
 	void *data;
 };
 
-static int destroy_lock_file(struct buffer_info *info)
-{
-	if (!info->inst) {
-		return WIDGET_ERROR_INVALID_PARAMETER;
-	}
-
-	if (!info->lock) {
-		return WIDGET_ERROR_INVALID_PARAMETER;
-	}
-
-	if (close(info->lock_fd) < 0) {
-		ErrPrint("close: %s\n", strerror(errno));
-	}
-	info->lock_fd = -1;
-
-	if (unlink(info->lock) < 0) {
-		ErrPrint("unlink: %s\n", strerror(errno));
-	}
-
-	DbgFree(info->lock);
-	info->lock = NULL;
-	return WIDGET_ERROR_NONE;
-}
-
-static int create_lock_file(struct buffer_info *info)
-{
-	const char *id;
-	int len;
-	char *file;
-	char target[3] = "pd";
-
-	if (!info->inst) {
-		return WIDGET_ERROR_INVALID_PARAMETER;
-	}
-
-	id = instance_id(info->inst);
-	if (!id) {
-		return WIDGET_ERROR_INVALID_PARAMETER;
-	}
-
-	len = strlen(id);
-	file = malloc(len + 20);
-	if (!file) {
-		ErrPrint("Heap: %s\n", strerror(errno));
-		return WIDGET_ERROR_OUT_OF_MEMORY;
-	}
-
-	if (script_handler_buffer_info(instance_gbar_script(info->inst)) != info && instance_gbar_buffer(info->inst) != info) {
-		target[0] = 'l';
-		target[1] = 'b';
-		/* target[2] = '\0'; // We already have this ;) */
-	}
-
-	snprintf(file, len + 20, "%s.%s.lck", widget_util_uri_to_path(id), target);
-	info->lock_fd = open(file, O_WRONLY|O_CREAT, 0644);
-	if (info->lock_fd < 0) {
-		ErrPrint("open: %s\n", strerror(errno));
-		DbgFree(file);
-		return WIDGET_ERROR_IO_ERROR;
-	}
-
-	info->lock = file;
-	return WIDGET_ERROR_NONE;
-}
-
-static int do_buffer_lock(struct buffer_info *buffer)
-{
-	struct flock flock;
-	int ret;
-
-	if (buffer->lock_fd < 0) {
-		return WIDGET_ERROR_NONE;
-	}
-
-	flock.l_type = F_WRLCK;
-	flock.l_whence = SEEK_SET;
-	flock.l_start = 0;
-	flock.l_len = 0;
-	flock.l_pid = getpid();
-
-	do {
-		ret = fcntl(buffer->lock_fd, F_SETLKW, &flock);
-		if (ret < 0) {
-			ret = errno;
-			ErrPrint("fcntl: %s\n", strerror(errno));
-		}
-	} while (ret == EINTR);
-
-	return WIDGET_ERROR_NONE;
-}
-
-static int do_buffer_unlock(struct buffer_info *buffer)
-{
-	struct flock flock;
-	int ret;
-
-	if (buffer->lock_fd < 0) {
-		return WIDGET_ERROR_NONE;
-	}
-
-	flock.l_type = F_UNLCK;
-	flock.l_whence = SEEK_SET;
-	flock.l_start = 0;
-	flock.l_len = 0;
-	flock.l_pid = getpid();
-
-	do {
-		ret = fcntl(buffer->lock_fd, F_SETLKW, &flock);
-		if (ret < 0) {
-			ret = errno;
-			ErrPrint("fcntl: %s\n", strerror(errno));
-		}
-	} while (ret == EINTR);
-
-	return WIDGET_ERROR_NONE;
-}
-
 static inline int load_file_buffer(struct buffer_info *info)
 {
-	struct buffer *buffer;
+	widget_fb_t buffer;
 	double timestamp;
 	int size;
 	char *new_id;
 	int len;
 
-	len = strlen(IMAGE_PATH) + 40;
+	len = strlen(WIDGET_CONF_IMAGE_PATH) + 40;
 	new_id = malloc(len);
 	if (!new_id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
 	timestamp = util_timestamp();
-	snprintf(new_id, len, SCHEMA_FILE "%s%lf", IMAGE_PATH, timestamp);
+	snprintf(new_id, len, SCHEMA_FILE "%s%lf", WIDGET_CONF_IMAGE_PATH, timestamp);
 
 	size = sizeof(*buffer) + info->w * info->h * info->pixel_size;
 	if (!size) {
@@ -222,9 +103,9 @@ static inline int load_file_buffer(struct buffer_info *info)
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
-	buffer->type = BUFFER_TYPE_FILE;
+	buffer->type = WIDGET_FB_TYPE_FILE;
 	buffer->refcnt = 0;
-	buffer->state = CREATED;
+	buffer->state = WIDGET_FB_STATE_CREATED;
 	buffer->info = info;
 
 	DbgFree(info->id);
@@ -240,7 +121,7 @@ static inline int load_shm_buffer(struct buffer_info *info)
 {
 	int id;
 	int size;
-	struct buffer *buffer; /* Just for getting a size */
+	widget_fb_t buffer; /* Just for getting a size */
 	char *new_id;
 	int len;
 
@@ -252,37 +133,37 @@ static inline int load_shm_buffer(struct buffer_info *info)
 
 	id = shmget(IPC_PRIVATE, size + sizeof(*buffer), IPC_CREAT | 0666);
 	if (id < 0) {
-		ErrPrint("shmget: %s\n", strerror(errno));
+		ErrPrint("shmget: %d\n", errno);
 		return WIDGET_ERROR_FAULT;
 	}
 
 	buffer = shmat(id, NULL, 0);
 	if (buffer == (void *)-1) {
-		ErrPrint("%s shmat: %s\n", info->id, strerror(errno));
+		ErrPrint("%s shmat: %d\n", info->id, errno);
 
 		if (shmctl(id, IPC_RMID, 0) < 0) {
-			ErrPrint("%s shmctl: %s\n", info->id, strerror(errno));
+			ErrPrint("%s shmctl: %d\n", info->id, errno);
 		}
 
 		return WIDGET_ERROR_FAULT;
 	}
 
-	buffer->type = BUFFER_TYPE_SHM;
+	buffer->type = WIDGET_FB_TYPE_SHM;
 	buffer->refcnt = id;
-	buffer->state = CREATED; /*!< Needless */
+	buffer->state = WIDGET_FB_STATE_CREATED; /*!< Needless */
 	buffer->info = (void *)size; /*!< Use this field to indicates the size of SHM */
 
 	len = strlen(SCHEMA_SHM) + 30; /* strlen("shm://") + 30 */
 
 	new_id = malloc(len);
 	if (!new_id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		if (shmdt(buffer) < 0) {
-			ErrPrint("shmdt: %s\n", strerror(errno));
+			ErrPrint("shmdt: %d\n", errno);
 		}
 
 		if (shmctl(id, IPC_RMID, 0) < 0) {
-			ErrPrint("shmctl: %s\n", strerror(errno));
+			ErrPrint("shmctl: %d\n", errno);
 		}
 
 		return WIDGET_ERROR_OUT_OF_MEMORY;
@@ -300,6 +181,7 @@ static inline int load_shm_buffer(struct buffer_info *info)
 EAPI int buffer_handler_load(struct buffer_info *info)
 {
 	int ret;
+	widget_target_type_e type = TARGET_TYPE_GBAR;
 
 	if (!info) {
 		ErrPrint("buffer handler is nil\n");
@@ -314,13 +196,22 @@ EAPI int buffer_handler_load(struct buffer_info *info)
 	switch (info->type) {
 	case BUFFER_TYPE_FILE:
 		ret = load_file_buffer(info);
-		(void)create_lock_file(info);
+		if (script_handler_buffer_info(instance_gbar_script(info->inst)) != info && instance_gbar_buffer(info->inst) != info) {
+			type = WIDGET_TYPE_WIDGET;
+		}
+		info->lock_info = widget_service_create_lock(instance_id(info->inst), type, WIDGET_LOCK_WRITE);
 		break;
 	case BUFFER_TYPE_SHM:
 		ret = load_shm_buffer(info);
-		(void)create_lock_file(info);
+		if (script_handler_buffer_info(instance_gbar_script(info->inst)) != info && instance_gbar_buffer(info->inst) != info) {
+			type = WIDGET_TYPE_WIDGET;
+		}
+		info->lock_info = widget_service_create_lock(instance_id(info->inst), type, WIDGET_LOCK_WRITE);
 		break;
 	case BUFFER_TYPE_PIXMAP:
+		/**
+		 * TODO: load_wl_pixmap_buffer(info);
+		 */
 	default:
 		ErrPrint("Invalid buffer\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
@@ -337,7 +228,7 @@ static inline int unload_file_buffer(struct buffer_info *info)
 
 	new_id = strdup(SCHEMA_FILE "/tmp/.live.undefined");
 	if (!new_id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -346,7 +237,7 @@ static inline int unload_file_buffer(struct buffer_info *info)
 
 	path = widget_util_uri_to_path(info->id);
 	if (path && unlink(path) < 0) {
-		ErrPrint("unlink: %s\n", strerror(errno));
+		ErrPrint("unlink: %s\n", errno);
 	}
 
 	DbgFree(info->id);
@@ -361,7 +252,7 @@ static inline int unload_shm_buffer(struct buffer_info *info)
 
 	new_id = strdup(SCHEMA_SHM "-1");
 	if (!new_id) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -378,11 +269,11 @@ static inline int unload_shm_buffer(struct buffer_info *info)
 	}
 
 	if (shmdt(info->buffer) < 0) {
-		ErrPrint("Detach shm: %s\n", strerror(errno));
+		ErrPrint("shmdt: %d\n", errno);
 	}
 
 	if (shmctl(id, IPC_RMID, 0) < 0) {
-		ErrPrint("Remove shm: %s\n", strerror(errno));
+		ErrPrint("shmctl: %d\n", errno);
 	}
 
 	info->buffer = NULL;
@@ -408,14 +299,19 @@ EAPI int buffer_handler_unload(struct buffer_info *info)
 
 	switch (info->type) {
 	case BUFFER_TYPE_FILE:
-		(void)destroy_lock_file(info);
+		widget_service_destroy_lock(info->lock_info);
+		info->lock_info = NULL;
 		ret = unload_file_buffer(info);
 		break;
 	case BUFFER_TYPE_SHM:
-		(void)destroy_lock_file(info);
+		widget_service_destroy_lock(info->lock_info);
+		info->lock_info = NULL;
 		ret = unload_shm_buffer(info);
 		break;
 	case BUFFER_TYPE_PIXMAP:
+		/**
+		 * @todo: unload_wl_pixmap_buffer(info)
+		 */
 	default:
 		ErrPrint("Invalid buffer\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
@@ -436,12 +332,12 @@ EAPI const char *buffer_handler_id(const struct buffer_info *info)
 
 EAPI enum buffer_type buffer_handler_type(const struct buffer_info *info)
 {
-	return info ? info->type : BUFFER_TYPE_ERROR;
+	return info ? info->type : WIDGET_FB_TYPE_ERROR;
 }
 
 EAPI void *buffer_handler_fb(struct buffer_info *info)
 {
-	struct buffer *buffer;
+	widget_fb_t buffer;
 
 	if (!info) {
 		return NULL;
@@ -449,7 +345,9 @@ EAPI void *buffer_handler_fb(struct buffer_info *info)
 
 	buffer = info->buffer;
 
-	if (info->type == BUFFER_TYPE_PIXMAP) {
+	if (info->type == WIDGET_FB_TYPE_PIXMAP) {
+		/**
+		 */
 		return NULL;
 	}
 
@@ -577,7 +475,7 @@ EAPI void buffer_handler_flush(struct buffer_info *info)
 {
 	int fd;
 	int size;
-	struct buffer *buffer;
+	widget_fb_t buffer;
 
 	if (!info || !info->buffer) {
 		return;
@@ -585,27 +483,28 @@ EAPI void buffer_handler_flush(struct buffer_info *info)
 
 	buffer = info->buffer;
 
-	if (buffer->type == BUFFER_TYPE_PIXMAP) {
-		/*!
-		 * \note
+	if (buffer->type == WIDGET_FB_TYPE_PIXMAP) {
+		/**
+		 * @TODO
+		 * WL_XXX
 		 * Not supported for wayland or this should be ported correctly
 		 */
 	} else if (buffer->type == BUFFER_TYPE_FILE) {
 		fd = open(widget_util_uri_to_path(info->id), O_WRONLY | O_CREAT, 0644);
 		if (fd < 0) {
-			ErrPrint("%s open falied: %s\n", widget_util_uri_to_path(info->id), strerror(errno));
+			ErrPrint("%s open falied: %d\n", widget_util_uri_to_path(info->id), errno);
 			return;
 		}
 
 		size = info->w * info->h * info->pixel_size;
-		do_buffer_lock(info);
+		widget_service_acquire_lock(info->lock_info);
 		if (write(fd, info->buffer, size) != size) {
-			ErrPrint("Write is not completed: %s\n", strerror(errno));
+			ErrPrint("write: %d\n", errno);
 		}
-		do_buffer_unlock(info);
+		widget_service_release_lock(info->lock_info);
 
 		if (close(fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 	} else {
 		DbgPrint("Flush nothing\n");
@@ -618,7 +517,7 @@ HAPI int buffer_handler_init(void)
 	 * \TODO
 	 * Implement this for wayland
 	 */
-	if (USE_SW_BACKEND) {
+	if (WIDGET_CONF_USE_SW_BACKEND) {
 		DbgPrint("Fallback to the S/W Backend\n");
 		return WIDGET_ERROR_NONE;
 	}
@@ -637,33 +536,33 @@ HAPI int buffer_handler_fini(void)
 
 static inline struct buffer *raw_open_file(const char *filename)
 {
-	struct buffer *buffer;
+	widget_fb_t buffer;
 	int fd;
 	off_t off;
 	int ret;
 
 	fd = open(filename, O_RDONLY);
 	if (fd < 0) {
-		ErrPrint("open: %s\n", strerror(errno));
+		ErrPrint("open: %d\n", errno);
 		return NULL;
 	}
 
 	off = lseek(fd, 0L, SEEK_END);
 	if (off == (off_t)-1) {
-		ErrPrint("lseek: %s\n", strerror(errno));
+		ErrPrint("lseek: %d\n", errno);
 
 		if (close(fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 
 		return NULL;
 	}
 
 	if (lseek(fd, 0L, SEEK_SET) == (off_t)-1) {
-		ErrPrint("lseek: %s\n", strerror(errno));
+		ErrPrint("lseek: %d\n", errno);
 
 		if (close(fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 
 		return NULL;
@@ -671,34 +570,34 @@ static inline struct buffer *raw_open_file(const char *filename)
 
 	buffer = calloc(1, sizeof(*buffer) + off);
 	if (!buffer) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 
 		if (close(fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 
 		return NULL;
 	}
 
-	buffer->state = CREATED;
-	buffer->type = BUFFER_TYPE_FILE;
+	buffer->state = WIDGET_FB_STATE_CREATED;
+	buffer->type = WIDGET_FB_TYPE_FILE;
 	buffer->refcnt = 0;
 	buffer->info = (void *)off;
 
 	ret = read(fd, buffer->data, off);
 	if (ret < 0) {
-		ErrPrint("read: %s\n", strerror(errno));
+		ErrPrint("read: %d\n", errno);
 		DbgFree(buffer);
 
 		if (close(fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 
 		return NULL;
 	}
 
 	if (close(fd) < 0) {
-		ErrPrint("close: %s\n", strerror(errno));
+		ErrPrint("close: %d\n", errno);
 	}
 
 	return buffer;
@@ -712,32 +611,32 @@ static inline int raw_close_file(struct buffer *buffer)
 
 static inline struct buffer *raw_open_shm(int shm)
 {
-	struct buffer *buffer;
+	widget_fb_t buffer;
 
-	buffer = (struct buffer *)shmat(shm, NULL, SHM_RDONLY);
+	buffer = (widget_fb_t)shmat(shm, NULL, SHM_RDONLY);
 	if (buffer == (struct buffer *)-1) {
-		ErrPrint("shmat: %s\n", strerror(errno));
+		ErrPrint("shmat: %d\n", errno);
 		return NULL;
 	}
 
 	return buffer;
 }
 
-static inline int raw_close_shm(struct buffer *buffer)
+static inline int raw_close_shm(widget_fb_t buffer)
 {
 	int ret;
 
 	ret = shmdt(buffer);
 	if (ret < 0) {
-		ErrPrint("shmdt: %s\n", strerror(errno));
+		ErrPrint("shmdt: %d\n", errno);
 	}
 
 	return ret;
 }
 
-EAPI void *buffer_handler_raw_data(struct buffer *buffer)
+EAPI void *buffer_handler_raw_data(widget_fb_t buffer)
 {
-	if (!buffer || buffer->state != CREATED) {
+	if (!buffer || buffer->state != WIDGET_FB_STATE_CREATED) {
 		return NULL;
 	}
 
@@ -746,25 +645,29 @@ EAPI void *buffer_handler_raw_data(struct buffer *buffer)
 
 EAPI int buffer_handler_raw_size(struct buffer *buffer)
 {
-	if (!buffer || buffer->state != CREATED) {
+	if (!buffer || buffer->state != WIDGET_FB_STATE_CREATED) {
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	return (int)buffer->info;
 }
 
-EAPI struct buffer *buffer_handler_raw_open(enum buffer_type buffer_type, void *resource)
+EAPI widget_fb_t buffer_handler_raw_open(enum widget_fb_type widget_fb_type, void *resource)
 {
-	struct buffer *handle;
+	widget_fb_t handle;
 
-	switch (buffer_type) {
-	case BUFFER_TYPE_SHM:
+	switch (widget_fb_type) {
+	case WIDGET_FB_TYPE_SHM:
 		handle = raw_open_shm((int)resource);
 		break;
-	case BUFFER_TYPE_FILE:
+	case WIDGET_FB_TYPE_FILE:
 		handle = raw_open_file(resource);
 		break;
-	case BUFFER_TYPE_PIXMAP:
+	case WIDGET_FB_TYPE_PIXMAP:
+		/**
+		 * @TODO
+		 *  Implements me
+		 */
 	default:
 		handle = NULL;
 		break;
@@ -777,14 +680,18 @@ EAPI int buffer_handler_raw_close(struct buffer *buffer)
 {
 	int ret;
 
+	if (!buffer || buffer->state != WIDGET_FB_STATE_CREATED) {
+		return WIDGET_ERROR_INVALID_PARAMETER;
+	}
+
 	switch (buffer->type) {
-	case BUFFER_TYPE_SHM:
+	case WIDGET_FB_TYPE_SHM:
 		ret = raw_close_shm(buffer);
 		break;
-	case BUFFER_TYPE_FILE:
+	case WIDGET_FB_TYPE_FILE:
 		ret = raw_close_file(buffer);
 		break;
-	case BUFFER_TYPE_PIXMAP:
+	case WIDGET_FB_TYPE_PIXMAP:
 	default:
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		break;
@@ -793,30 +700,66 @@ EAPI int buffer_handler_raw_close(struct buffer *buffer)
 	return ret;
 }
 
-EAPI int buffer_handler_lock(struct buffer_info *buffer)
+EAPI int buffer_handler_lock(struct buffer_info *info)
 {
-	if (buffer->type == BUFFER_TYPE_PIXMAP) {
+	if (!info) {
+		return WIDGET_ERROR_INVALID_PARAMETER;
+	}
+
+	if (info->type == WIDGET_FB_TYPE_PIXMAP) {
 		return WIDGET_ERROR_NONE;
 	}
 
-	if (buffer->type == BUFFER_TYPE_FILE) {
+	if (buffer->type == WIDGET_FB_TYPE_FILE) {
 		return WIDGET_ERROR_NONE;
 	}
 
-	return do_buffer_lock(buffer);
+	return widget_service_acquire_lock(info->lock_info);
 }
 
 EAPI int buffer_handler_unlock(struct buffer_info *buffer)
 {
-	if (buffer->type == BUFFER_TYPE_PIXMAP) {
+	if (!info) {
+		return WIDGET_ERROR_INVALID_PARAMETER;
+	}
+
+	if (info->type == WIDGET_FB_TYPE_PIXMAP) {
 		return WIDGET_ERROR_NONE;
 	}
 
-	if (buffer->type == BUFFER_TYPE_FILE) {
+	if (info->type == WIDGET_FB_TYPE_FILE) {
 		return WIDGET_ERROR_NONE;
 	}
 
-	return do_buffer_unlock(buffer);
+	return widget_service_release_lock(info->lock_info);
+}
+
+EAPI int buffer_handler_auto_align(void)
+{
+	return WIDGET_CONF_AUTO_ALIGN;
+}
+
+EAPI int buffer_handler_stride(struct buffer_info *info)
+{
+	widget_fb_t buffer;
+	int stride;
+
+	if (!info) {
+		return WIDGET_ERROR_INVALID_PARAMETER;
+	}
+
+	switch (info->type) {
+	case WIDGET_FB_TYPE_FILE:
+	case WIDGET_FB_TYPE_SHM:
+		stride = info->w * info->pixel_size;
+		break;
+	case WIDGET_FB_TYPE_PIXMAP:
+	default:
+		stride = WIDGET_ERROR_INVALID_PARAMETER;
+		break;
+	}
+
+	return stride;
 }
 
 /*!
@@ -849,7 +792,7 @@ HAPI void *buffer_handler_data(struct buffer_info *buffer)
 HAPI int buffer_handler_destroy(struct buffer_info *info)
 {
 	Eina_List *l;
-	struct buffer *buffer;
+	widget_fb_t buffer;
 
 	if (!info) {
 		DbgPrint("Buffer is not created yet. info is NIL\n");
@@ -868,12 +811,12 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buff
 
 	info = malloc(sizeof(*info));
 	if (!info) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return NULL;
 	}
 
 	switch (type) {
-	case BUFFER_TYPE_SHM:
+	case WIDGET_FB_TYPE_SHM:
 		if (pixel_size != DEFAULT_PIXELS) {
 			DbgPrint("SHM only supportes %d bytes pixels (requested: %d)\n", DEFAULT_PIXELS, pixel_size);
 			pixel_size = DEFAULT_PIXELS;
@@ -881,7 +824,7 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buff
 
 		info->id = strdup(SCHEMA_SHM "-1");
 		if (!info->id) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			DbgFree(info);
 			return NULL;
 		}
@@ -894,7 +837,7 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buff
 
 		info->id = strdup(SCHEMA_FILE "/tmp/.live.undefined");
 		if (!info->id) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			DbgFree(info);
 			return NULL;
 		}
@@ -906,8 +849,7 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buff
 		return NULL;
 	}
 
-	info->lock = NULL;
-	info->lock_fd = -1;
+	info->lock_info = NULL;
 	info->w = w;
 	info->h = h;
 	info->pixel_size = pixel_size;
@@ -916,7 +858,6 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buff
 	info->inst = inst;
 	info->buffer = NULL;
 	info->data = NULL;
-	info->auto_align = auto_align;
 
 	return info;
 }

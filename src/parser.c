@@ -363,7 +363,7 @@ static inline char *dup_rtrim(char *buffer)
 
 	ret = strdup(buffer);
 	if (!ret) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		return NULL;
 	}
 
@@ -407,7 +407,7 @@ static void auto_launch_handler(struct parser *item, char *buffer)
 
 	item->auto_launch = strdup(buffer);
 	if (!item->auto_launch) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 		return;
 	}
 }
@@ -490,7 +490,7 @@ static void widget_path_handler(struct parser *item, char *buffer)
 
 	item->widget_path = dup_rtrim(buffer);
 	if (!item->widget_path) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 	}
 }
 
@@ -502,7 +502,7 @@ static void group_handler(struct parser *item, char *buffer)
 
 	item->group = dup_rtrim(buffer);
 	if (!item->group) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 	}
 }
 
@@ -523,7 +523,7 @@ static void widget_group_handler(struct parser *item, char *buffer)
 
 	item->widget_group = dup_rtrim(buffer);
 	if (!item->widget_group) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 	}
 }
 
@@ -535,7 +535,7 @@ static void gbar_path_handler(struct parser *item, char *buffer)
 
 	item->gbar_path = dup_rtrim(buffer);
 	if (!item->gbar_path) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 	}
 }
 
@@ -547,7 +547,7 @@ static void gbar_group_handler(struct parser *item, char *buffer)
 
 	item->gbar_group = dup_rtrim(buffer);
 	if (!item->gbar_group) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("strdup: %d\n", errno);
 	}
 }
 
@@ -668,14 +668,14 @@ HAPI struct parser *parser_load(const char *pkgname)
 	len = strlen(WIDGET_CONF_CONF_PATH) + strlen(pkgname) * 2;
 	item->filename = malloc(len);
 	if (!item->filename) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		DbgFree(item);
 		return 0;
 	}
 
 	ret = snprintf(item->filename, len, WIDGET_CONF_CONF_PATH, pkgname, pkgname);
 	if (ret < 0) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("snprintf: %d\n", errno);
 		DbgFree(item->filename);
 		DbgFree(item);
 		return 0;
@@ -865,7 +865,7 @@ HAPI struct parser *parser_load(const char *pkgname)
 	} while (c != EOF);
 
 	if (fclose(fp) != 0) {
-		ErrPrint("fclose: %s\n", strerror(errno));
+		ErrPrint("fclose: %d\n", errno);
 	}
 
 	s_list = eina_list_append(s_list, item);

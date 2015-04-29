@@ -65,6 +65,7 @@ ADD_DEFINITIONS("-DINFO_SOCKET=\"/opt/usr/share/live_magazine/.live.socket\"")
 ADD_DEFINITIONS("-DCLIENT_SOCKET=\"/opt/usr/share/live_magazine/.client.socket\"")
 ADD_DEFINITIONS("-DSLAVE_SOCKET=\"/opt/usr/share/live_magazine/.slave.socket\"")
 ADD_DEFINITIONS("-DSERVICE_SOCKET=\"/opt/usr/share/live_magazine/.service.socket\"")
+ADD_DEFINITIONS("-DCATEGORY_WATCH_CLOCK=\"http://tizen.org/category/wearable_clock\"")
 
 ADD_DEFINITIONS("-DCLIENT_PORT=\"8208\"")
 
@@ -126,6 +127,7 @@ IF (LIVEBOX)
 		src/event.c
 		src/file_service.c
 		src/conf.c
+		src/monitor.c
 	)
 
 	IF (WAYLAND_SUPPORT)

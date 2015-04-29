@@ -55,6 +55,7 @@
 #include "io.h"
 #include "event.h"
 #include "dead_monitor.h"
+#include "monitor.h"
 
 #define GBAR_OPEN_MONITOR_TAG "gbar,open,monitor"
 #define GBAR_RESIZE_MONITOR_TAG "gbar,resize,monitor"
@@ -1189,7 +1190,7 @@ static struct packet *client_delete(pid_t pid, int handle, const struct packet *
 
 			item = malloc(sizeof(*item));
 			if (!item) {
-				ErrPrint("Heap: %s\n", strerror(errno));
+				ErrPrint("malloc: %d\n", errno);
 				ret = WIDGET_ERROR_OUT_OF_MEMORY;
 			} else {
 				/*!
@@ -1308,6 +1309,7 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 	int height;
 	char *widget_id;
 	char *mainappid;
+	int max_count;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -1362,6 +1364,12 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		DbgFree(pkgid);
 	}
 
+	max_count = widget_service_get_widget_max_count(widget_id);
+	if (max_count < 0) {
+		ErrPrint("Failed to get max_count[%s] = %d\n", widget_id, max_count);
+		max_count = 0;
+	}
+
 	if (!info) {
 		ret = WIDGET_ERROR_FAULT;
 	} else if (package_is_fault(info)) {
@@ -1369,6 +1377,9 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 	} else if (util_free_space(WIDGET_CONF_IMAGE_PATH) <= WIDGET_CONF_MINIMUM_SPACE) {
 		ErrPrint("Not enough space\n");
 		ret = WIDGET_ERROR_FILE_NO_SPACE_ON_DEVICE;
+	} else if (max_count && max_count <= package_instance_count(info)) {
+		ErrPrint("Reached to the max count of widgets %d, %d\n", max_count, package_instance_count(info));
+		ret = WIDGET_ERROR_CANCELED;
 	} else {
 		struct inst_info *inst;
 
@@ -2264,6 +2275,9 @@ static struct packet *client_widget_mouse_unset(pid_t pid, int handle, const str
 
 	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
 		if (package_direct_input(pkg) == 0) {
+			/* Forcely update the X,Y position using viewer's */
+			event_set_mouse_xy(x, y, timestamp);
+
 			ret = event_deactivate(mouse_event_widget_route_cb, inst);
 			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
@@ -2288,6 +2302,9 @@ static struct packet *client_widget_mouse_unset(pid_t pid, int handle, const str
 			}
 		}
 	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
+		/* Forcely update the X,Y position using viewer's */
+		event_set_mouse_xy(x, y, timestamp);
+
 		ret = event_deactivate(mouse_event_widget_consume_cb, inst);
 		if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 			(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
@@ -2853,6 +2870,9 @@ static struct packet *client_gbar_mouse_unset(pid_t pid, int handle, const struc
 
 	if (package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
 		if (package_direct_input(pkg) == 0) {
+			/* Forcely update the X,Y position using viewer's */
+			event_set_mouse_xy(x, y, timestamp);
+
 			ret = event_deactivate(mouse_event_gbar_route_cb, inst);
 			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
@@ -2877,6 +2897,9 @@ static struct packet *client_gbar_mouse_unset(pid_t pid, int handle, const struc
 			}
 		}
 	} else if (package_gbar_type(pkg) == GBAR_TYPE_SCRIPT) {
+		/* Forcely update the X,Y position using viewer's */
+		event_set_mouse_xy(x, y, timestamp);
+
 		ret = event_deactivate(mouse_event_gbar_consume_cb, inst);
 		if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 			(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
@@ -3983,6 +4006,50 @@ static struct packet *client_resume_request(pid_t pid, int handle, const struct 
 	} else {
 		xmonitor_resume(client);
 	}
+
+out:
+	return NULL;
+}
+
+static struct packet *client_orientation(pid_t pid, int handle, const struct packet *packet)
+{
+	struct client_node *client;
+	double timestamp;
+	int degree;
+	int ret;
+	struct pkg_info *pkg;
+	Eina_List *pkg_list;
+	Eina_List *l;
+	Eina_List *inst_list;
+	Eina_List *inst_l;
+	struct inst_info *inst;
+
+	client = client_find_by_rpc_handle(handle);
+	if (!client) {
+		ErrPrint("Client %d is not exist\n", pid);
+		goto out;
+	}
+
+	ret = packet_get(packet, "di", &timestamp, &degree);
+	if (ret != 2) {
+		ErrPrint("Invalid parameter\n");
+		goto out;
+	}
+
+	ret = 0;
+
+	pkg_list = (Eina_List *)package_list();
+
+	EINA_LIST_FOREACH(pkg_list, l, pkg) {
+		inst_list = package_instance_list(pkg);
+		EINA_LIST_FOREACH(inst_list, inst_l, inst) {
+			if (instance_client(inst) == client || instance_has_client(inst, client)) {
+				instance_set_orientation(inst, degree);
+				ret++;
+			}
+		}
+	}
+	DbgPrint("%d instances are affected (orientation: %d)\n", ret, degree);
 
 out:
 	return NULL;
@@ -6470,7 +6537,7 @@ out:
 	return NULL;
 }
 
-static inline __attribute__((always_inline)) int debug_mode_enabled(int pid, const char *slavename, const char *pkgname, int secured, const char *abi, const char *acceleration)
+static inline __attribute__((always_inline)) struct slave_node *debug_mode_enabled(int pid, const char *slavename, const char *pkgname, int secured, const char *abi, const char *acceleration)
 {
 	struct slave_node *slave;
 
@@ -6478,7 +6545,7 @@ static inline __attribute__((always_inline)) int debug_mode_enabled(int pid, con
 	if (!slave) {
 		slave = slave_create(slavename, secured, abi, pkgname, 0, acceleration, 0);
 		if (!slave) {
-			return WIDGET_ERROR_FAULT;
+			return NULL;
 		}
 
 		DbgPrint("New slave is created net(%d) abi(%s) secured(%d) accel(%s)\n", 0, abi, secured, acceleration);
@@ -6490,7 +6557,7 @@ static inline __attribute__((always_inline)) int debug_mode_enabled(int pid, con
 	slave_set_valid(slave);
 
 	DbgPrint("Provider is forcely activated, pkgname(%s), abi(%s), slavename(%s)\n", pkgname, abi, slavename);
-	return WIDGET_ERROR_NONE;
+	return slave;
 }
 
 static struct packet *slave_hello(pid_t pid, int handle, const struct packet *packet) /* slave_name, ret */
@@ -6527,7 +6594,8 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 
 	if (!slave) {
 		if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
-			if (debug_mode_enabled(pid, slavename, pkgname, secured, abi, acceleration) != WIDGET_ERROR_NONE) {
+			slave = debug_mode_enabled(pid, slavename, pkgname, secured, abi, acceleration);
+			if (!slave) {
 				ErrPrint("Failed to create a new slave for %s\n", slavename);
 				goto out;
 			}
@@ -7071,7 +7139,7 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 			}
 
 			if (unlink(safe_filename) < 0) {
-				ErrPrint("unlink: %s - %s\n", strerror(errno), safe_filename);
+				ErrPrint("unlink: %d - %s\n", errno, safe_filename);
 			}
 			break;
 		case WIDGET_TYPE_BUFFER:
@@ -7878,7 +7946,7 @@ static struct packet *slave_hello_sync_prepare(pid_t pid, int handle, const stru
 	} else {
 		ctx = calloc(1, sizeof(*ctx));
 		if (!ctx) {
-			ErrPrint("calloc: %s\n", strerror(errno));
+			ErrPrint("calloc: %d\n", errno);
 			goto out;
 		}
 
@@ -7886,7 +7954,7 @@ static struct packet *slave_hello_sync_prepare(pid_t pid, int handle, const stru
 
 		ctx->pkgname = strdup(pkgname);
 		if (!ctx->pkgname) {
-			ErrPrint("strdup: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			DbgFree(ctx);
 			goto out;
 		}
@@ -7989,13 +8057,13 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 
 			item = calloc(1, sizeof(*item));
 			if (!item) {
-				ErrPrint("calloc: %s\n", strerror(errno));
+				ErrPrint("calloc: %d\n", errno);
 				goto out;
 			}
 
 			item->pkgname = strdup(pkgname);
 			if (!item->pkgname) {
-				ErrPrint("strdup: %s\n", strerror(errno));
+				ErrPrint("strdup: %d\n", errno);
 				DbgFree(item);
 				goto out;
 			}
@@ -8041,7 +8109,8 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 
 	if (!slave) {
 		if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
-			if (debug_mode_enabled(pid, slavename, pkgname, secured, abi, acceleration) != WIDGET_ERROR_NONE) {
+			slave = debug_mode_enabled(pid, slavename, pkgname, secured, abi, acceleration);
+			if (!slave) {
 				ErrPrint("Failed to create a new slave for %s\n", slavename);
 				goto out;
 			}
@@ -8081,21 +8150,25 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 
 			if (db_secured != secured) {
 				DbgPrint("%s secured (%d)\n", pkgname, db_secured);
+				DbgFree(widget_id);
 				goto out;
 			}
 
 			if (strcmp(tmp, abi)) {
 				DbgPrint("%s abi (%s)\n", pkgname, tmp);
+				DbgFree(widget_id);
 				goto out;
 			}
 
 			if (strcmp(acceleration, db_acceleration)) {
 				DbgPrint("%s accel (%s)\n", pkgname, db_acceleration);
+				DbgFree(widget_id);
 				goto out;
 			}
 
 			if (util_string_is_in_list(category, WIDGET_CONF_CATEGORY_LIST) == 0) {
 				DbgPrint("%s category (%s)\n", pkgname, category);
+				DbgFree(widget_id);
 				goto out;
 			}
 
@@ -8116,6 +8189,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			slave = slave_create(slavename, secured, abi, pkgname, network, acceleration, 1);
 			if (!slave) {
 				ErrPrint("Failed to create a new slave for %s\n", slavename);
+				DbgFree(widget_id);
 				goto out;
 			}
 
@@ -8322,6 +8396,158 @@ out:
 	}
 
 	return result;
+}
+
+static struct packet *service_get_content(pid_t pid, int handle, const struct packet *packet)
+{
+	const char *inst_id;
+	const char *widget_id;
+	struct inst_info *inst;
+	struct packet *result;
+
+	if (packet_get(packet, "ss", &widget_id, &inst_id) != 2) {
+		ErrPrint("Invalid parameter\n");
+		return NULL;
+	}
+
+	inst = package_find_instance_by_id(widget_id, inst_id);
+	if (!inst) {
+		result = packet_create_reply(packet, "is", WIDGET_ERROR_NOT_EXIST, "?");
+	} else {
+		result = packet_create_reply(packet, "is", WIDGET_ERROR_NONE, instance_content(inst));
+	}
+
+	if (!result) {
+		ErrPrint("Failed to create a result packet\n");
+	}
+
+	return result;
+}
+
+static struct packet *service_get_inst_list(pid_t pid, int handle, const struct packet *packet)
+{
+	const char *widget_id;
+	struct pkg_info *pkg;
+	struct packet *result;
+
+	if (packet_get(packet, "s", &widget_id) != 1) {
+		ErrPrint("Invalid parameter\n");
+		return NULL;
+	}
+
+	pkg = package_find(widget_id);
+	if (!pkg) {
+		result = packet_create_reply(packet, "iis", WIDGET_ERROR_NOT_EXIST, 0, NULL);
+	} else {
+		Eina_List *inst_list;
+
+		inst_list = package_instance_list(pkg);
+		if (!inst_list) {
+			result = packet_create_reply(packet, "iis", WIDGET_ERROR_NOT_EXIST, 0, NULL);
+		} else {
+			char *id_buffer;
+			int size = sysconf(_SC_PAGESIZE);
+			Eina_List *l;
+			struct inst_info *inst;
+			int offset;
+			int len;
+			int cnt = 0;
+
+			id_buffer = malloc(size);
+			if (!id_buffer) {
+				result = packet_create_reply(packet, "iis", WIDGET_ERROR_OUT_OF_MEMORY, 0, NULL);
+				goto out;
+			}
+
+			offset = 0;
+			EINA_LIST_FOREACH(inst_list, l, inst) {
+				len = strlen(instance_id(inst));
+				if (offset + len > size) {
+					/* Expanding the ID_BUFFER */
+					char *resized_buffer;
+					size += sysconf(_SC_PAGESIZE);
+
+					DbgPrint("Expanding heap to %d\n", size);
+
+					resized_buffer = realloc(id_buffer, size);
+					if (!resized_buffer) {
+						ErrPrint("realloc: %d\n", errno);
+						DbgFree(id_buffer);
+						result = packet_create_reply(packet, "iis", WIDGET_ERROR_OUT_OF_MEMORY, 0, NULL);
+						goto out;
+					}
+
+					id_buffer = resized_buffer;
+					cnt++;
+				}
+
+				strcpy(id_buffer + offset, instance_id(inst));
+				/* Replace last NULL with NEW_LINE */
+				id_buffer[offset + len] = '\n';
+				offset += (len + 1);
+			}
+
+			id_buffer[offset] = '\0';
+			result = packet_create_reply(packet, "iis", WIDGET_ERROR_NONE, cnt, id_buffer);
+			DbgFree(id_buffer);
+		}
+	}
+
+out:
+	return result;
+}
+
+static struct packet *monitor_register(pid_t pid, int handle, const struct packet *packet)
+{
+	const char *widget_id;
+
+	if (packet_get(packet, "s", &widget_id) != 1) {
+		ErrPrint("Invalid parameter\n");
+		goto out;
+	}
+
+	if (widget_id[0] == '*' && widget_id[1] == '\0') {
+		widget_id = NULL;
+	}
+
+	DbgPrint("Register monitor target for [%s]\n", widget_id);
+
+	if (monitor_find_client_by_pid(widget_id, pid)) {
+		ErrPrint("Already registered: [%s], %d\n", widget_id, pid);
+	} else {
+		if (monitor_create_client(widget_id, pid, handle) == NULL) {
+			ErrPrint("Failed to create a new monitor client\n");
+		}
+	}
+
+out:
+	return NULL;
+}
+
+static struct packet *monitor_unregister(pid_t pid, int handle, const struct packet *packet)
+{
+	const char *widget_id;
+	struct monitor_client *monitor;
+
+	if (packet_get(packet, "s", &widget_id) != 1) {
+		ErrPrint("Invalid parameter\n");
+		goto out;
+	}
+
+	if (widget_id[0] == '*' && widget_id[1] == '\0') {
+		widget_id = NULL;
+	}
+
+	monitor = monitor_find_client_by_pid(widget_id, pid);
+	if (monitor) {
+		DbgPrint("Unregister monitor target: %s\n", widget_id);
+		monitor_destroy_client(monitor);
+	} else {
+		ErrPrint("Monitor for %s is not exists(%d)\n", widget_id, pid);
+	}
+
+out:
+	return NULL;
 }
 
 static struct packet *service_change_period(pid_t pid, int handle, const struct packet *packet)
@@ -9186,6 +9412,10 @@ static struct method s_client_table[] = {
 		.handler = client_gbar_mouse_unset,
 	},
 	{
+		.cmd = CMD_STR_ORIENTATION,
+		.handler = client_orientation,
+	},
+	{
 		.cmd = CMD_STR_CHANGE_VISIBILITY,
 		.handler = client_change_visibility,
 	},
@@ -9326,6 +9556,22 @@ static struct method s_service_table[] = {
 		.handler = service_instance_count,
 	},
 	{
+		.cmd = CMD_STR_MONITOR_REGISTER,
+		.handler = monitor_register,
+	},
+	{
+		.cmd = CMD_STR_MONITOR_UNREGISTER,
+		.handler = monitor_unregister,
+	},
+	{
+		.cmd = CMD_STR_SERVICE_GET_CONTENT,
+		.handler = service_get_content,
+	},
+	{
+		.cmd = CMD_STR_SERVICE_GET_INST_LIST,
+		.handler = service_get_inst_list,
+	},
+	{
 		.cmd = NULL,
 		.handler = NULL,
 	},
@@ -9453,19 +9699,19 @@ HAPI int server_init(void)
 	com_core_packet_use_thread(WIDGET_CONF_COM_CORE_THREAD);
 
 	if (unlink(INFO_SOCKET) < 0) {
-		ErrPrint("info socket: %s\n", strerror(errno));
+		ErrPrint("unlink info: %d\n", errno);
 	}
 
 	if (unlink(SLAVE_SOCKET) < 0) {
-		ErrPrint("slave socket: %s\n", strerror(errno));
+		ErrPrint("unlink slave: %d\n", errno);
 	}
 
 	if (unlink(CLIENT_SOCKET) < 0) {
-		ErrPrint("client socket: %s\n", strerror(errno));
+		ErrPrint("unlink client: %d\n", errno);
 	}
 
 	if (unlink(SERVICE_SOCKET) < 0) {
-		ErrPrint("service socket: %s\n", strerror(errno));
+		ErrPrint("unlink service: %d\n", errno);
 	}
 
 	s_info.info_fd = com_core_packet_server_init(INFO_SOCKET, s_info_table);
@@ -9499,19 +9745,19 @@ HAPI int server_init(void)
 	}
 
 	if (chmod(INFO_SOCKET, 0600) < 0) {
-		ErrPrint("info socket: %s\n", strerror(errno));
+		ErrPrint("chmod info: %d\n", errno);
 	}
 
 	if (chmod(SLAVE_SOCKET, 0666) < 0) {
-		ErrPrint("slave socket: %s\n", strerror(errno));
+		ErrPrint("chmod slave: %d\n", errno);
 	}
 
 	if (chmod(CLIENT_SOCKET, 0666) < 0) {
-		ErrPrint("client socket: %s\n", strerror(errno));
+		ErrPrint("chmod client: %d\n", errno);
 	}
 
 	if (chmod(SERVICE_SOCKET, 0666) < 0) {
-		ErrPrint("service socket: %s\n", strerror(errno));
+		ErrPrint("chmod service: %d\n", errno);
 	}
 
 	return 0;

@@ -179,7 +179,7 @@ static int load_all_ports(void)
 
 	dir = opendir(WIDGET_CONF_SCRIPT_PORT_PATH);
 	if (!dir) {
-		ErrPrint("Error: %s\n", strerror(errno));
+		ErrPrint("opendir: %d\n", errno);
 		return WIDGET_ERROR_IO_ERROR;
 	}
 
@@ -191,9 +191,9 @@ static int load_all_ports(void)
 		pathlen = strlen(ent->d_name) + strlen(WIDGET_CONF_SCRIPT_PORT_PATH) + 1;
 		path = malloc(pathlen);
 		if (!path) {
-			ErrPrint("Heap: %s %d\n", strerror(errno), pathlen);
+			ErrPrint("malloc: %d %d\n", errno, pathlen);
 			if (closedir(dir) < 0) {
-				ErrPrint("closedir: %s\n", strerror(errno));
+				ErrPrint("closedir: %d\n", errno);
 			}
 			return WIDGET_ERROR_OUT_OF_MEMORY;
 		}
@@ -202,10 +202,10 @@ static int load_all_ports(void)
 
 		item = malloc(sizeof(*item));
 		if (!item) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("malloc: %d\n", errno);
 			DbgFree(path);
 			if (closedir(dir) < 0) {
-				ErrPrint("closedir: %s\n", strerror(errno));
+				ErrPrint("closedir: %d\n", errno);
 			}
 			return WIDGET_ERROR_OUT_OF_MEMORY;
 		}
@@ -217,7 +217,7 @@ static int load_all_ports(void)
 			ErrPrint("Error: %s\n", dlerror());
 			DbgFree(item);
 			if (closedir(dir) < 0) {
-				ErrPrint("closedir: %s\n", strerror(errno));
+				ErrPrint("closedir: %d\n", errno);
 			}
 			return WIDGET_ERROR_FAULT;
 		}
@@ -323,7 +323,7 @@ static int load_all_ports(void)
 	}
 
 	if (closedir(dir) < 0) {
-		ErrPrint("closedir: %s\n", strerror(errno));
+		ErrPrint("closedir: %d\n", errno);
 	}
 
 	return WIDGET_ERROR_NONE;
@@ -331,11 +331,11 @@ static int load_all_ports(void)
 errout:
 	ErrPrint("Error: %s\n", dlerror());
 	if (dlclose(item->handle) != 0) {
-		ErrPrint("dlclose: %s\n", strerror(errno));
+		ErrPrint("dlclose: %d\n", errno);
 	}
 	DbgFree(item);
 	if (closedir(dir) < 0) {
-		ErrPrint("closedir: %s\n", strerror(errno));
+		ErrPrint("closedir: %d\n", errno);
 	}
 	return WIDGET_ERROR_FAULT;
 }
@@ -551,7 +551,7 @@ HAPI struct script_info *script_handler_create(struct inst_info *inst, const cha
 
 	info = calloc(1, sizeof(*info));
 	if (!info) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return NULL;
 	}
 
@@ -1050,7 +1050,7 @@ HAPI int script_fini(void)
 	EINA_LIST_FREE(s_info.script_port_list, item) {
 		item->fini();
 		if (dlclose(item->handle) != 0) {
-			ErrPrint("dlclose: %s\n", strerror(errno));
+			ErrPrint("dlclose: %d\n", errno);
 		}
 		DbgFree(item);
 	}
@@ -1110,24 +1110,24 @@ static inline char *load_file(const char *filename)
 
 	fd = open(filename, O_RDONLY);
 	if (fd < 0) {
-		ErrPrint("open: %s\n", strerror(errno));
+		ErrPrint("open: %d\n", errno);
 		return NULL;
 	}
 
 	filesize = lseek(fd, 0L, SEEK_END);
 	if (filesize == (off_t)-1) {
-		ErrPrint("lseek: %s\n", strerror(errno));
+		ErrPrint("lseek: %d\n", errno);
 		goto errout;
 	}
 
 	if (lseek(fd, 0L, SEEK_SET) < 0) {
-		ErrPrint("lseek: %s\n", strerror(errno));
+		ErrPrint("lseek: %d\n", errno);
 		goto errout;
 	}
 
 	filebuf = malloc(filesize + 1);
 	if (!filebuf) {
-		ErrPrint("malloc: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		goto errout;
 	}
 
@@ -1139,7 +1139,7 @@ static inline char *load_file(const char *filename)
 				continue;
 			}
 
-			ErrPrint("read: %s\n", strerror(errno));
+			ErrPrint("read: %d\n", errno);
 			free(filebuf);
 			filebuf = NULL;
 			break;
@@ -1159,7 +1159,7 @@ static inline char *load_file(const char *filename)
 
 errout:
 	if (close(fd) < 0) {
-		ErrPrint("close: %s\n", strerror(errno));
+		ErrPrint("close: %d\n", errno);
 	}
 
 	return filebuf;
@@ -1226,7 +1226,7 @@ HAPI int script_handler_parse_desc(struct inst_info *inst, const char *filename,
 			if (*fileptr == '{') {
 				block = calloc(1, sizeof(*block));
 				if (!block) {
-					ErrPrint("calloc: %s\n", strerror(errno));
+					ErrPrint("calloc: %d\n", errno);
 					state = ERROR;
 					continue;
 				}
@@ -1485,7 +1485,7 @@ HAPI int script_handler_parse_desc(struct inst_info *inst, const char *filename,
 			}
 		}
 	} else {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		EINA_LIST_FREE(block_list, block) {
 			consuming_parsed_block(inst, is_pd, block);
 		}

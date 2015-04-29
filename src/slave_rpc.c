@@ -82,14 +82,14 @@ static inline struct command *create_command(struct slave_node *slave, const cha
 
 	command = calloc(1, sizeof(*command));
 	if (!command) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return NULL;
 	}
 
 	if (pkgname) {
 		command->pkgname = strdup(pkgname);
 		if (!command->pkgname) {
-			ErrPrint("Heap: %s\n", strerror(errno));
+			ErrPrint("strdup: %d\n", errno);
 			DbgFree(command);
 			return NULL;
 		}
@@ -550,7 +550,7 @@ HAPI int slave_rpc_init(struct slave_node *slave)
 
 	rpc = calloc(1, sizeof(*rpc));
 	if (!rpc) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("calloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 

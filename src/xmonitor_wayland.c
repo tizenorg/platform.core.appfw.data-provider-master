@@ -69,20 +69,20 @@ static struct info {
 static inline void touch_paused_file(void)
 {
 	int fd;
-	fd = creat(PAUSED_FILE, 0644);
+	fd = creat(WIDGET_CONF_PAUSED_FILE, 0644);
 	if (fd >= 0) {
 		if (close(fd) < 0) {
-			ErrPrint("close: %s\n", strerror(errno));
+			ErrPrint("close: %d\n", errno);
 		}
 	} else {
-		ErrPrint("Create .live.paused: %s\n", strerror(errno));
+		ErrPrint("Create .live.paused: %d\n", errno);
 	}
 }
 
 static inline void remove_paused_file(void)
 {
-	if (unlink(PAUSED_FILE) < 0) {
-		ErrPrint("Unlink .live.paused: %s\n", strerror(errno));
+	if (unlink(WIDGET_CONF_PAUSED_FILE) < 0) {
+		ErrPrint("Unlink .live.paused: %d\n", errno);
 	}
 }
 
@@ -125,7 +125,7 @@ HAPI int xmonitor_update_state(int target_pid)
 {
 	struct client_node *client;
 
-	if (!USE_XMONITOR || target_pid < 0) {
+	if (!WIDGET_CONF_USE_XMONITOR || target_pid < 0) {
 		return WIDGET_ERROR_NONE;
 	}
 
@@ -159,7 +159,7 @@ HAPI int xmonitor_resume(struct client_node *client)
 
 HAPI int xmonitor_init(void)
 {
-	if (USE_XMONITOR) {
+	if (WIDGET_CONF_USE_XMONITOR) {
 		return WIDGET_ERROR_NONE;
 	}
 
@@ -175,7 +175,7 @@ HAPI int xmonitor_init(void)
 
 HAPI void xmonitor_fini(void)
 {
-	if (USE_XMONITOR) {
+	if (WIDGET_CONF_USE_XMONITOR) {
 	}
 }
 
@@ -185,7 +185,7 @@ HAPI int xmonitor_add_event_callback(enum xmonitor_event event, int (*cb)(void *
 
 	item = malloc(sizeof(*item));
 	if (!item) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 

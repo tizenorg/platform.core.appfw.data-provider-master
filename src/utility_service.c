@@ -88,7 +88,7 @@ static int put_reply_tcb(struct tcb *tcb, double seq)
 
 	ctx = malloc(sizeof(*ctx));
 	if (!ctx) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -161,7 +161,7 @@ static inline int put_pended_request(struct tcb *tcb, struct packet *packet)
 
 	item = malloc(sizeof(*item));
 	if (!item) {
-		ErrPrint("Heap: %s\n", strerror(errno));
+		ErrPrint("malloc: %d\n", errno);
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
