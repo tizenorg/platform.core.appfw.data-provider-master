@@ -1999,14 +1999,23 @@ static int ret_cb(pid_t pid, int handle, const struct packet *packet, void *data
 
 static int disconnected_cb(int handle, void *data)
 {
-	printf("Disconnected\n");
-	ecore_main_loop_quit();
+	if (s_info.fd == handle) {
+		printf("Disconnected\n");
+		ecore_main_loop_quit();
+	} else {
+		printf("Disconnected: %d <> %d\n", s_info.fd, handle);
+	}
 	return 0;
 }
 
 static int connected_cb(int handle, void *data)
 {
 	struct packet *packet;
+
+	if (s_info.fd != -EINVAL && s_info.fd != handle) {
+		printf("Connected: %d <> %d\n", s_info.fd, handle);
+		return 0;
+	}
 
 	printf("Connected\n");
 

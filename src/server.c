@@ -120,6 +120,40 @@ struct deleted_item {
 	struct inst_info *inst;
 };
 
+static int is_valid_service_requestor(pid_t pid, const char *pkgname)
+{
+	char pid_pkgname[pathconf("/", _PC_PATH_MAX)];
+	char *caller_pkgname;
+	char *widget_pkgname;
+	int ret;
+
+	if (aul_app_get_pkgname_bypid(pid, pid_pkgname, sizeof(pid_pkgname)) != AUL_R_OK) {
+		ret = widget_mgr_is_valid_requestor(pid);
+		if (ret == 0) {
+			ErrPrint("pid[%d] is not authroized package\n", pid);
+		}
+		return ret;
+	}
+
+	caller_pkgname = package_get_pkgid(pid_pkgname);
+	if (!caller_pkgname) {
+		ErrPrint("Caller pkgname is not valid\n");
+		return 0;
+	}
+
+	widget_pkgname = package_get_pkgid(pkgname);
+	if (!widget_pkgname) {
+		ErrPrint("Widget pkgname is not valid\n");
+		return 0;
+	}
+
+	ret = strcmp(caller_pkgname, widget_pkgname);
+	DbgFree(caller_pkgname);
+	DbgFree(widget_pkgname);
+
+	return ret == 0;
+}
+
 /**
  * Returns widget Id from provider Id
  */
@@ -8410,6 +8444,11 @@ static struct packet *service_get_content(pid_t pid, int handle, const struct pa
 		return NULL;
 	}
 
+	if (is_valid_service_requestor(pid, widget_id)) {
+		ErrPrint("Invalid service requestor: %d %s\n", pid, widget_id);
+		return NULL;
+	}
+
 	inst = package_find_instance_by_id(widget_id, inst_id);
 	if (!inst) {
 		result = packet_create_reply(packet, "is", WIDGET_ERROR_NOT_EXIST, "?");
@@ -8432,6 +8471,11 @@ static struct packet *service_get_inst_list(pid_t pid, int handle, const struct 
 
 	if (packet_get(packet, "s", &widget_id) != 1) {
 		ErrPrint("Invalid parameter\n");
+		return NULL;
+	}
+
+	if (is_valid_service_requestor(pid, widget_id) == 0) {
+		ErrPrint("Invalid requestor: %d %s\n", pid, widget_id);
 		return NULL;
 	}
 
@@ -8511,6 +8555,21 @@ static struct packet *monitor_register(pid_t pid, int handle, const struct packe
 	}
 
 	DbgPrint("Register monitor target for [%s]\n", widget_id);
+	if (!widget_id) {
+		/**
+		 * @TODO
+		 *  Only the authorized requstor can listens all widget's lifecycle event.
+		WIDGET_CONF_MONITOR_PACKAGE required
+		 */
+		if (widget_mgr_is_valid_requestor(pid) == 0) {
+			ErrPrint("All widget's lifecycle event listener is not registered\n");
+			goto out;
+		}
+	} else {
+		if (is_valid_service_requestor(pid, widget_id) == 0) {
+			goto out;
+		}
+	}
 
 	if (monitor_find_client_by_pid(widget_id, pid)) {
 		ErrPrint("Already registered: [%s], %d\n", widget_id, pid);
@@ -8563,6 +8622,12 @@ static struct packet *service_change_period(pid_t pid, int handle, const struct 
 	if (ret != 3) {
 		ErrPrint("Invalid packet\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
+		goto out;
+	}
+
+	if (is_valid_service_requestor(pid, pkgname) == 0) {
+		ErrPrint("Invalid requestor: %d (%s)\n", pid, pkgname);
+		ret = WIDGET_ERROR_PERMISSION_DENIED;
 		goto out;
 	}
 
@@ -8627,6 +8692,12 @@ static struct packet *service_update(pid_t pid, int handle, const struct packet 
 	if (ret != 6) {
 		ErrPrint("Invalid Packet\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
+		goto out;
+	}
+
+	if (is_valid_service_requestor(pid, pkgname) == 0) {
+		ErrPrint("Requestor is not valid\n");
+		ret = WIDGET_ERROR_PERMISSION_DENIED;
 		goto out;
 	}
 
