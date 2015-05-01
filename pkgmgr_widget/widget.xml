@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<manifest xmlns="http://tizen.org/ns/packages" package="org.tizen.nicesj" version="1.0" install-location="auto">
+
+<widget appid="org.tizen.nicesj.widget" primary="true" secured="false" network="false" abi="c" timeout="20" period="10.0" libexec="/usr/apps/org.tizen.myapp/libexec/liblive-org.tizen.nicesj.so" pinup="false" script="edje" nodisplay="false" direct_input="true">
+	<label>My widget</label>
+	<icon>/usr/share/icons/small/org.tizen.live-nicesj.png</icon>
+	<label xml:lang="en_US">Sample</label>
+	<label xml:lang="ko_KR">Hangul</label>
+	<content>Content information</content>	<!-- This string will be passed to the widget_create -->
+	<category name="http://tizen.org/widget/default"></category>	<!-- Used for categorizing a package -->
+
+	<launch>org.tizen.nicesj</launch> <!-- Launch this app from homescreen directly -->
+
+	<setup>org.tizen.nicesj</setup> <!-- If the box needs to be setting up before adding it to the homscreen, this app will be launched -->
+
+	<box type="image" mouse_event="false" count="0">
+		<!-- 1x1 should be exists, mandatory size -->
+		<size touch_effect="true" preview="ABSPATH" mouse_event="false">1x1</size>
+
+		<size touch_effect="true" preview="ABSPATH" mouse_event="false">2x1</size>
+		<size touch_effect="true" need_frame="true" mouse_event="false">2x2</size>
+		<size>4x1</size>
+		<size need_frame="true">4x2</size>
+		<size touch_effect="false" need_frame="true" mouse_event="false">4x3</size>
+		<size touch_effect="false" mouse_event="false">4x4</size>
+
+		<!-- Only for the Easy home -->
+		<size>21x21</size>
+		<size preview="ABSPATH">23x21</size>
+		<size>23x23</size>
+
+		<!-- Only supported for special widget - inhouse / commercialization target only -->
+		<size>0x0</size>
+		<script src="/opt/usr/apps/org.tizen.myapp/res/script/my.edj" group="my_group" />
+	</box>
+
+	<glancebar type="script">
+		<size>720x100</size>
+		<script src="/opt/usr/apps/org.tizen.myapp/res/script/mypd.edj" group="group_string" />
+	</glancebar>
+
+	<group>
+		<cluster name="cluster1">
+			<category name="category1" context="APP_USED_FREQUENTLY">
+				<option key="time_span" value="value" />
+				<option key="result_size" value="value" />
+			</category>
+			<category name="category2" context="APP_USED_FREQUENTLY_THISTIME">
+				<option key="time_span" value="value" />
+				<option key="result_size" value="value" />
+				<option key="time_interval" value="value" />
+			</category>
+		</cluster>
+		<cluster name="cluster2">
+			<category name="category1" context="CONTACT_COMMUNICATED_FREQUENTLY">
+				<option key="data_provider" value="org.tizen.contact" />
+				<option key="time_span" value="value" />
+				<option key="result_size" value="size" />
+			</category>
+			<category name="category2" context="CONTACT_COMMUNICATED_FREQUENTLY_THISTIME">
+				<option key="data_provider" value="org.tizen.contact" />
+				<option key="time_span" value="value" />
+				<option key="result_size" value="value" />
+				<option key="time_interval" value="value" />
+			</category>
+			<category name="category3" context="CONTACT_COMMUNICATED_ATLEASTONCE">
+				<option key="data_provider" value="value" />
+				<option key="time_span" value="value" />
+				<option key="result_size" value="value" />
+			</category>
+		</cluster>
+		<cluster name="noctx_cluster">
+			<category name="noctx_category" />
+		</cluster>
+		<!--
+		     KEYWORD_SEARCHED_FREQUENTLY(DATA_PROVIDER, TIME_SPAN, RESULT_SIZE)
+		     MUSIC_PLAYED_FREQUENTLY(DATA_PROVIDER, TIME_SPAN, RESULT_SIZE)
+		-->
+	</group>
+</widget>
+</manifest>
