@@ -69,7 +69,7 @@ HAPI void widget_mgr_fini(void)
 	}
 }
 
-static inline int valid_requestor(pid_t pid)
+HAPI int widget_mgr_is_valid_requestor(pid_t pid)
 {
 	char cmdline[60]; /* strlen("/proc/%d/cmdline") + 30 */
 	struct stat target;
@@ -106,7 +106,7 @@ HAPI struct widget_mgr *widget_mgr_create(pid_t pid, int handle)
 {
 	struct widget_mgr *info;
 
-	if (!valid_requestor(pid)) {
+	if (!widget_mgr_is_valid_requestor(pid)) {
 		ErrPrint("Invalid requestor\n");
 		return NULL;
 	}

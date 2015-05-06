@@ -32,4 +32,5 @@ extern void widget_mgr_close_fifo(struct widget_mgr *info);
 extern void widget_mgr_set_data(struct widget_mgr *info, void *data);
 extern void *widget_mgr_data(struct widget_mgr *info);
 
+extern int widget_mgr_is_valid_requestor(pid_t pid);
 /* End of a file */

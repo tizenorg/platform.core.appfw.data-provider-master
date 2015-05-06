@@ -5,7 +5,7 @@ Summary: Master service provider for widgetes
 Version: 1.1.6
 Release: 1
 Group: HomeTF/widget
-License: Flora
+License: Flora License, Version 1.1
 Source0: %{name}-%{version}.tar.gz
 Source1001: %{name}.manifest
 BuildRequires: cmake, gettext-tools, smack, coreutils
