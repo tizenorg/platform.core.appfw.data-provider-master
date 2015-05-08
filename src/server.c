@@ -6607,7 +6607,7 @@ static inline __attribute__((always_inline)) struct slave_node *debug_mode_enabl
 
 	slave = slave_find_by_pkgname(pkgname);
 	if (!slave) {
-		slave = slave_create(slavename, secured, abi, pkgname, 0, acceleration, 0);
+		slave = slave_create(slavename, secured, abi, pkgname, 0, acceleration);
 		if (!slave) {
 			return NULL;
 		}
@@ -8179,120 +8179,8 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 				goto out;
 			}
 		} else {
-			struct pkg_info *info;
-			int network;
-			int width, height;
-			unsigned int widget_size;
-			const char *category;
-			const char *db_acceleration;
-			int db_secured;
-			const char *tmp;
-
-			widget_id = is_valid_slave(pid, abi, pkgname);
-			if (!widget_id) {
-				goto out;
-			}
-
-			info = package_find(widget_id);
-			if (!info) {
-				char *pkgid;
-
-				pkgid = widget_service_get_package_id(widget_id);
-				if (!pkgid) {
-					DbgFree(widget_id);
-					goto out;
-				}
-
-				info = package_create(pkgid, widget_id);
-				DbgFree(pkgid);
-			}
-
-			category = package_category(info);
-			tmp = package_abi(info);
-			db_secured = package_secured(info);
-			db_acceleration = package_hw_acceleration(info);
-
-			if (db_secured != secured) {
-				DbgPrint("%s secured (%d)\n", pkgname, db_secured);
-				DbgFree(widget_id);
-				goto out;
-			}
-
-			if (strcmp(tmp, abi)) {
-				DbgPrint("%s abi (%s)\n", pkgname, tmp);
-				DbgFree(widget_id);
-				goto out;
-			}
-
-			if (strcmp(acceleration, db_acceleration)) {
-				DbgPrint("%s accel (%s)\n", pkgname, db_acceleration);
-				DbgFree(widget_id);
-				goto out;
-			}
-
-			if (util_string_is_in_list(category, WIDGET_CONF_CATEGORY_LIST) == 0) {
-				DbgPrint("%s category (%s)\n", pkgname, category);
-				DbgFree(widget_id);
-				goto out;
-			}
-
-			network = package_network(info);
-
-			if (strcmp(CATEGORY_WATCH_CLOCK, category) == 0) {
-				/**
-				 * if the new provider is watch app,
-				 * destroy the old watch app instance
-				 */
-				package_del_instance_by_category(CATEGORY_WATCH_CLOCK, NULL);
-			}
-
-			/**
-			 * If a provider sent hello_sync, we will assumes it as a watch widget.
-			 * In this case, activate it again asynchronously.
-			 */
-			slave = slave_create(slavename, secured, abi, pkgname, network, acceleration, 1);
-			if (!slave) {
-				ErrPrint("Failed to create a new slave for %s\n", slavename);
-				DbgFree(widget_id);
-				goto out;
-			}
-
-			slave_set_state(slave, SLAVE_REQUEST_TO_LAUNCH);
-			slave_set_pid(slave, pid);
-			slave_set_valid(slave);
-
-			if (handle >= 0) {
-				/**
-				 * @note
-				 * In this case, there could not be exists any pended packets.
-				 * But we tried to clear them for a case!
-				 */
-				slave_rpc_update_handle(slave, handle, 1);
-			} else {
-				DbgPrint("Slave RPC should be updated soon (waiting prepare sync)\n");
-			}
-
-			DbgPrint("Slave is activated by request: %d (%s)/(%s)\n", pid, pkgname, slavename);
-
-			widget_size = package_size_list(info);
-
-			if (widget_size & WIDGET_SIZE_TYPE_2x2) {
-				widget_service_get_size(WIDGET_SIZE_TYPE_2x2, &width, &height);
-			} else if (widget_size & WIDGET_SIZE_TYPE_4x4) {
-				widget_service_get_size(WIDGET_SIZE_TYPE_4x4, &width, &height);
-			} else {
-				widget_service_get_size(WIDGET_SIZE_TYPE_1x1, &width, &height);
-				DbgPrint("widget(%s] does not support size [2x2], [4x4]\n",pkgname);
-			}
-
-			result = instance_watch_create(packet, widget_id, width, height);
-			if (!result) {
-				ErrPrint("Failed to create a new instance\n");
-				if (slave_unref(slave)) {
-					ErrPrint("Slave is not deleted yet\n");
-				}
-			}
-			DbgFree(widget_id);
+			ErrPrint("There is no valid slave instance. ignore this %s\n", slavename);
+			goto out;
 		}
 	} else {
 		struct pkg_info *info;
