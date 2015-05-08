@@ -137,13 +137,14 @@ static int is_valid_service_requestor(pid_t pid, const char *pkgname)
 
 	caller_pkgname = package_get_pkgid(pid_pkgname);
 	if (!caller_pkgname) {
-		ErrPrint("Caller pkgname is not valid\n");
+		ErrPrint("Caller pkgname is not valid (%s, %s)\n", pid_pkgname, pkgname);
 		return 0;
 	}
 
-	widget_pkgname = package_get_pkgid(pkgname);
+	widget_pkgname = widget_service_get_package_id(pkgname);
 	if (!widget_pkgname) {
-		ErrPrint("Widget pkgname is not valid\n");
+		DbgFree(caller_pkgname);
+		ErrPrint("Widget pkgname is not valid (%s, %s)\n", pid_pkgname, pkgname);
 		return 0;
 	}
 
