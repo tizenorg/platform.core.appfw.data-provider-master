@@ -643,7 +643,7 @@ static int mouse_event_widget_route_cb(enum event_state state, struct event_data
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
-	packet = packet_create_noack((const char *)&cmd, "ssdii", package_name(pkg), instance_id(inst), event_info->tv, event_info->x, event_info->y);
+	packet = packet_create_noack((const char *)&cmd, "ssdiii", package_name(pkg), instance_id(inst), event_info->tv, event_info->x, event_info->y, (int)event_info->source);
 	if (!packet) {
 		return WIDGET_ERROR_FAULT;
 	}
@@ -710,6 +710,11 @@ static int mouse_event_widget_consume_cb(enum event_state state, struct event_da
 
 	timestamp = event_info->tv;
 
+	/**
+	 * @TODO
+	 * Determines what will do for event coordinate.
+	 * Whether it should be rotated or not.
+	 */
 	switch (state) {
 	case EVENT_STATE_ACTIVATE:
 		script_handler_update_pointer(script, event_info->x, event_info->y, 1);
@@ -812,7 +817,7 @@ static int mouse_event_gbar_route_cb(enum event_state state, struct event_data *
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
-	packet = packet_create_noack((const char *)&cmd, "ssdii", package_name(pkg), instance_id(inst), event_info->tv, event_info->x, event_info->y);
+	packet = packet_create_noack((const char *)&cmd, "ssdiii", package_name(pkg), instance_id(inst), event_info->tv, event_info->x, event_info->y, (int)event_info->source);
 	if (!packet) {
 		return WIDGET_ERROR_FAULT;
 	}
@@ -878,6 +883,12 @@ static int mouse_event_gbar_consume_cb(enum event_state state, struct event_data
 	}
 
 	timestamp = event_info->tv;
+
+	/**
+	 * @TODO
+	 * Determines what will do for event coordinate.
+	 * Whether it should be rotated or not.
+	 */
 
 	switch (state) {
 	case EVENT_STATE_ACTIVATE:
@@ -1598,6 +1609,7 @@ static struct packet *client_gbar_mouse_enter(pid_t pid, int handle, const struc
 	int y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	int source;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -1606,8 +1618,8 @@ static struct packet *client_gbar_mouse_enter(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &x, &y, &source);
+	if (ret != 6) {
 		ErrPrint("Invalid parameter\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -1653,6 +1665,7 @@ static struct packet *client_gbar_mouse_leave(pid_t pid, int handle, const struc
 	int y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	int source;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -1661,8 +1674,8 @@ static struct packet *client_gbar_mouse_leave(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &x, &y, &source);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -1708,6 +1721,7 @@ static struct packet *client_gbar_mouse_down(pid_t pid, int handle, const struct
 	int y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	int source;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -1716,8 +1730,8 @@ static struct packet *client_gbar_mouse_down(pid_t pid, int handle, const struct
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &x, &y, &source);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -1763,6 +1777,7 @@ static struct packet *client_gbar_mouse_up(pid_t pid, int handle, const struct p
 	int y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	int source;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -1771,8 +1786,8 @@ static struct packet *client_gbar_mouse_up(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &x, &y, &source);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -1818,6 +1833,7 @@ static struct packet *client_gbar_mouse_move(pid_t pid, int handle, const struct
 	int y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	int source;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -1826,8 +1842,8 @@ static struct packet *client_gbar_mouse_move(pid_t pid, int handle, const struct
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &x, &y, &source);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -1873,6 +1889,7 @@ static struct packet *client_widget_mouse_move(pid_t pid, int handle, const stru
 	int y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	int source;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -1881,8 +1898,8 @@ static struct packet *client_widget_mouse_move(pid_t pid, int handle, const stru
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &x, &y, &source);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2319,7 +2336,7 @@ static struct packet *client_widget_mouse_unset(pid_t pid, int handle, const str
 			/*
 			 * This delete callback will be removed when the instance will be destroyed.
 			 if (ret == 0) {
-			 instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_widget_route_cb);
+				 instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_widget_route_cb);
 			 }
 			 */
 		} else {
@@ -2346,7 +2363,7 @@ static struct packet *client_widget_mouse_unset(pid_t pid, int handle, const str
 		/*
 		 * This delete callback will be removed when the instance will be destroyed.
 		 if (ret == 0) {
-		 instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_widget_consume_cb);
+			 instance_event_callback_del(inst, INSTANCE_EVENT_DESTROY, inst_del_cb, mouse_event_widget_consume_cb);
 		 }
 		 */
 	} else {
@@ -2442,6 +2459,7 @@ static struct packet *client_widget_mouse_on_scroll(pid_t pid, int handle, const
 	int y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	int source;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2450,8 +2468,8 @@ static struct packet *client_widget_mouse_on_scroll(pid_t pid, int handle, const
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y, &source);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2497,6 +2515,7 @@ static struct packet *client_widget_mouse_off_scroll(pid_t pid, int handle, cons
 	int y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	int source;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2505,8 +2524,8 @@ static struct packet *client_widget_mouse_off_scroll(pid_t pid, int handle, cons
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y, &source);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2552,6 +2571,7 @@ static struct packet *client_widget_mouse_on_hold(pid_t pid, int handle, const s
 	int y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	int source;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2560,8 +2580,8 @@ static struct packet *client_widget_mouse_on_hold(pid_t pid, int handle, const s
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &x, &y, &source);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2607,6 +2627,7 @@ static struct packet *client_widget_mouse_off_hold(pid_t pid, int handle, const 
 	int y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	int source;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2615,8 +2636,8 @@ static struct packet *client_widget_mouse_off_hold(pid_t pid, int handle, const 
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &x, &y, &source);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2662,6 +2683,7 @@ static struct packet *client_gbar_mouse_on_scroll(pid_t pid, int handle, const s
 	int y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	int source;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2670,8 +2692,8 @@ static struct packet *client_gbar_mouse_on_scroll(pid_t pid, int handle, const s
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &x, &y, &source);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2717,6 +2739,7 @@ static struct packet *client_gbar_mouse_off_scroll(pid_t pid, int handle, const 
 	int y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	int source;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2725,8 +2748,8 @@ static struct packet *client_gbar_mouse_off_scroll(pid_t pid, int handle, const 
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &x, &y, &source);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2772,6 +2795,7 @@ static struct packet *client_gbar_mouse_on_hold(pid_t pid, int handle, const str
 	int y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	int source;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2780,8 +2804,8 @@ static struct packet *client_gbar_mouse_on_hold(pid_t pid, int handle, const str
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &x, &y, &source);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2827,6 +2851,7 @@ static struct packet *client_gbar_mouse_off_hold(pid_t pid, int handle, const st
 	int y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	int source;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2835,8 +2860,8 @@ static struct packet *client_gbar_mouse_off_hold(pid_t pid, int handle, const st
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &x, &y, &source);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2963,6 +2988,7 @@ static struct packet *client_widget_mouse_enter(pid_t pid, int handle, const str
 	int y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	int source;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2971,8 +2997,8 @@ static struct packet *client_widget_mouse_enter(pid_t pid, int handle, const str
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &x, &y, &source);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -3018,6 +3044,7 @@ static struct packet *client_widget_mouse_leave(pid_t pid, int handle, const str
 	int y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	int source;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -3026,8 +3053,8 @@ static struct packet *client_widget_mouse_leave(pid_t pid, int handle, const str
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &x, &y, &source);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -3073,6 +3100,7 @@ static struct packet *client_widget_mouse_down(pid_t pid, int handle, const stru
 	int y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	int source;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -3081,8 +3109,8 @@ static struct packet *client_widget_mouse_down(pid_t pid, int handle, const stru
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &x, &y, &source);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -3128,6 +3156,7 @@ static struct packet *client_widget_mouse_up(pid_t pid, int handle, const struct
 	int y;
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
+	int source;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -3136,8 +3165,8 @@ static struct packet *client_widget_mouse_up(pid_t pid, int handle, const struct
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &x, &y);
-	if (ret != 5) {
+	ret = packet_get(packet, "ssdiii", &pkgname, &id, &timestamp, &x, &y, &source);
+	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;

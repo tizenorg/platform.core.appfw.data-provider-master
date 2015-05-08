@@ -29,6 +29,7 @@
 #include <Eina.h>
 #include <Ecore.h>
 #include <dlog.h>
+#include <widget_service_internal.h>
 #include <widget_errno.h>
 #include <widget_conf.h>
 
@@ -458,12 +459,14 @@ static inline int processing_input_event(struct input_event *event)
 	case EV_KEY:
 		DbgPrint("EV_KEY: 0x%X\n", event->value);
 		s_info.event_data.keycode = event->value;
+		s_info.event_data.source = INPUT_EVENT_SOURCE_NODE;
 		break;
 	case EV_REL:
 		DbgPrint("EV_REL: 0x%X\n", event->value);
 		break;
 	case EV_ABS:
 		processing_ev_abs(event);
+		s_info.event_data.source = INPUT_EVENT_SOURCE_NODE;
 		break;
 	case EV_MSC:
 	case EV_SW:
@@ -1096,6 +1099,7 @@ HAPI void event_set_mouse_xy(int x, int y, double timestamp)
 	s_info.event_data.x = x;
 	s_info.event_data.y = y;
 	s_info.event_data.tv = timestamp;
+	s_info.event_data.source = INPUT_EVENT_SOURCE_VIEWER;
 	/**
 	 * Don't touch the timestamp_updated variable.
 	 * if we toggle it, the input thread will not be terminated correctly. SEE LINE: 537
