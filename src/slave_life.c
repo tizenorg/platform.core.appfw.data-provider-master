@@ -30,6 +30,7 @@
 #include <aul.h> /* aul_launch_app */
 #include <dlog.h>
 #include <bundle.h>
+#include <bundle_internal.h>
 
 #include <packet.h>
 #include <widget_errno.h>
