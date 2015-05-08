@@ -78,8 +78,6 @@ struct slave_node {
 	int reactivate_instances;
 	int reactivate_slave;
 
-	int launch_async;
-
 	pid_t pid;
 
 	enum event_process {
@@ -299,7 +297,7 @@ static inline int xmonitor_resume_cb(void *data)
 	return WIDGET_ERROR_NONE;
 }
 
-static inline struct slave_node *create_slave_node(const char *name, int is_secured, const char *abi, const char *pkgname, int network, const char *hw_acceleration, int launch_async)
+static inline struct slave_node *create_slave_node(const char *name, int is_secured, const char *abi, const char *pkgname, int network, const char *hw_acceleration)
 {
 	struct slave_node *slave;
 
@@ -350,7 +348,6 @@ static inline struct slave_node *create_slave_node(const char *name, int is_secu
 	slave->state = SLAVE_TERMINATED;
 	slave->network = network;
 	slave->relaunch_count = WIDGET_CONF_SLAVE_RELAUNCH_COUNT;
-	slave->launch_async = launch_async;
 
 	xmonitor_add_event_callback(XMONITOR_PAUSED, xmonitor_pause_cb, slave);
 	xmonitor_add_event_callback(XMONITOR_RESUMED, xmonitor_resume_cb, slave);
@@ -496,7 +493,7 @@ HAPI const int const slave_refcnt(struct slave_node *slave)
 	return slave->refcnt;
 }
 
-HAPI struct slave_node *slave_create(const char *name, int is_secured, const char *abi, const char *pkgname, int network, const char *hw_acceleration, int launch_async)
+HAPI struct slave_node *slave_create(const char *name, int is_secured, const char *abi, const char *pkgname, int network, const char *hw_acceleration)
 {
 	struct slave_node *slave;
 
@@ -508,7 +505,7 @@ HAPI struct slave_node *slave_create(const char *name, int is_secured, const cha
 		return slave;
 	}
 
-	slave = create_slave_node(name, is_secured, abi, pkgname, network, hw_acceleration, launch_async);
+	slave = create_slave_node(name, is_secured, abi, pkgname, network, hw_acceleration);
 	if (!slave) {
 		return NULL;
 	}
@@ -664,13 +661,8 @@ static Eina_Bool relaunch_timer_cb(void *data)
 			bundle_add(param, WIDGET_CONF_BUNDLE_SLAVE_ABI, slave->abi);
 			bundle_add(param, WIDGET_CONF_BUNDLE_SLAVE_HW_ACCELERATION, slave->hw_acceleration);
 
-			if (slave->launch_async) {
-				ErrPrint("Launch App Async [%s]\n", slave_pkgname(slave));
-				slave->pid = (pid_t)aul_launch_app_async(slave_pkgname(slave), param);
-			} else {
-				ErrPrint("Launch App Sync [%s]\n", slave_pkgname(slave));
-				slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
-			}
+			ErrPrint("Launch App [%s]\n", slave_pkgname(slave));
+			slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
 
 			bundle_free(param);
 
@@ -770,13 +762,8 @@ HAPI int slave_activate(struct slave_node *slave)
 		bundle_add(param, WIDGET_CONF_BUNDLE_SLAVE_ABI, slave->abi);
 		bundle_add(param, WIDGET_CONF_BUNDLE_SLAVE_HW_ACCELERATION, slave->hw_acceleration);
 
-		if (slave->launch_async) {
-			ErrPrint("Launch App Async [%s]\n", slave_pkgname(slave));
-			slave->pid = (pid_t)aul_launch_app_async(slave_pkgname(slave), param);
-		} else {
-			ErrPrint("Launch App Sync [%s]\n", slave_pkgname(slave));
-			slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
-		}
+		ErrPrint("Launch App [%s]\n", slave_pkgname(slave));
+		slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
 
 		bundle_free(param);
 
