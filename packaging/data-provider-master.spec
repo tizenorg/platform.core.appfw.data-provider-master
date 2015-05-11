@@ -47,7 +47,6 @@ BuildRequires: pkgconfig(badge-service)
 BuildRequires: pkgconfig(shortcut)
 BuildRequires: pkgconfig(security-server)
 BuildRequires: pkgconfig(libsystemd-daemon)
-BuildRequires: model-build-features
 Requires(post): sys-assert
 Requires(post): dbus
 

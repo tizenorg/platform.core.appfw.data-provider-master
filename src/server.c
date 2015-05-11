@@ -72,6 +72,8 @@
 #define ACCESS_TYPE_PREV 2
 #define ACCESS_TYPE_OFF 3
 
+#define aul_terminate_pid_async(a) aul_terminate_pid(a)
+
 struct sync_ctx_item {
 	int pid;
 	int handle;

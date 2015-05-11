@@ -44,6 +44,8 @@
 #define TTL_TIMEOUT	30.0f
 #endif
 
+#define aul_terminate_pid_async(a) aul_terminate_pid(a)
+
 static struct info {
 	Eina_List *pending_list;
 	Eina_List *context_list;
@@ -218,7 +220,7 @@ static int launch_svc(struct service_context *svc_ctx)
 
 	pid = aul_launch_app(SVC_PKG, NULL);
 	switch (pid) {
-	case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
+//	case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
 	case AUL_R_ENOLAUNCHPAD:	/**< no launchpad */
 	case AUL_R_EILLACC:		/**< Illegal Access */
 	case AUL_R_EINVAL:		/**< Invalid argument */
