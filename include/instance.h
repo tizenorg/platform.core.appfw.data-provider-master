@@ -269,7 +269,6 @@ extern void instance_reload_period(struct inst_info *inst, double period);
  * For the hello_sync or prepare_hello_sync command
  */
 extern struct packet *instance_duplicate_packet_create(const struct packet *packet, struct inst_info *inst, struct pkg_info *info, int width, int height);
-extern struct packet *instance_watch_create(const struct packet *packet, const char *pkgname, int width, int height);
 
 extern void instance_set_orientation(struct inst_info *inst, int orientation);
 extern int instance_orientation(struct inst_info *inst);
