@@ -542,12 +542,12 @@ HAPI int slave_rpc_update_handle(struct slave_node *slave, int handle, int delet
 				int cmd_idx;
 
 				cmd_idx = *((int *)cmd);
-				if (cmd_idx == CMD_CREATED) {
+				if (cmd_idx == CMD_NEW) {
 					destroy_command(command);
 				} else {
 					push_command(command);
 				}
-			} else if (!strcmp(cmd, CMD_STR_CREATED)) {
+			} else if (!strcmp(cmd, CMD_STR_NEW)) {
 				destroy_command(command);
 			} else {
 				push_command(command);
