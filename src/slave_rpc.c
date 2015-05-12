@@ -504,7 +504,7 @@ HAPI int slave_rpc_request_only(struct slave_node *slave, const char *pkgname, s
 	return WIDGET_ERROR_NONE;
 }
 
-HAPI int slave_rpc_update_handle(struct slave_node *slave, int handle, int delete_pending_packet)
+HAPI int slave_rpc_update_handle(struct slave_node *slave, int handle, int delete_pended_create_packet)
 {
 	struct slave_rpc *rpc;
 	struct command *command;
@@ -534,8 +534,24 @@ HAPI int slave_rpc_update_handle(struct slave_node *slave, int handle, int delet
 	slave_activated(slave);
 
 	EINA_LIST_FREE(rpc->pending_list, command) {
-		if (delete_pending_packet) {
-			destroy_command(command);
+		if (delete_pended_create_packet) {
+			const char *cmd;
+
+			cmd = packet_command(command->packet);
+			if (cmd[0] == PACKET_CMD_INT_TAG) {
+				int cmd_idx;
+
+				cmd_idx = *((int *)cmd);
+				if (cmd_idx == CMD_CREATED) {
+					destroy_command(command);
+				} else {
+					push_command(command);
+				}
+			} else if (!strcmp(cmd, CMD_STR_CREATED)) {
+				destroy_command(command);
+			} else {
+				push_command(command);
+			}
 		} else {
 			push_command(command);
 		}
