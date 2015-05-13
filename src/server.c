@@ -8074,6 +8074,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 	ret = packet_get(packet, "dissss", &timestamp, &secured, &slavename, &slave_pkgname, &acceleration, &abi);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -8099,6 +8100,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 
 	if (aul_app_get_pkgname_bypid(pid, pkgname, sizeof(pkgname)) != AUL_R_OK) {
 		ErrPrint("pid[%d] is not authroized provider package, try to find it using its name[%s]\n", pid, slavename);
+		ret = WIDGET_ERROR_PERMISSION_DENIED;
 		goto out;
 	}
 
@@ -8122,6 +8124,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			item = calloc(1, sizeof(*item));
 			if (!item) {
 				ErrPrint("calloc: %d\n", errno);
+				ret = WIDGET_ERROR_OUT_OF_MEMORY;
 				goto out;
 			}
 
@@ -8129,6 +8132,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			if (!item->pkgname) {
 				ErrPrint("strdup: %d\n", errno);
 				DbgFree(item);
+				ret = WIDGET_ERROR_OUT_OF_MEMORY;
 				goto out;
 			}
 
@@ -8176,10 +8180,12 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			slave = debug_mode_enabled(pid, slavename, pkgname, secured, abi, acceleration);
 			if (!slave) {
 				ErrPrint("Failed to create a new slave for %s\n", slavename);
+				ret = WIDGET_ERROR_FAULT;
 				goto out;
 			}
 		} else {
 			ErrPrint("There is no valid slave instance. ignore this %s\n", slavename);
+			ret = WIDGET_ERROR_NOT_EXIST;
 			goto out;
 		}
 	} else {
@@ -8226,6 +8232,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 		if (!inst) {
 			ErrPrint("No valid instance");
 			DbgFree(widget_id);
+			ret = WIDGET_ERROR_NOT_EXIST;
 			goto out;
 		}
 
@@ -8237,6 +8244,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 					CRITICAL_LOG("Terminate %d (ret: %d)\n", pid, ret);
 				}
 				DbgFree(widget_id);
+				ret = WIDGET_ERROR_NOT_EXIST;
 				goto out;
 			}
 			CRITICAL_LOG("PID of slave(%s) is updated (%d -> %d)\n", slave_name(slave), slave_pid(slave), pid);
@@ -8288,6 +8296,13 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 	}
 
 out:
+	if (!result) {
+		DbgPrint("## ret [%d]\n", ret);
+		result = packet_create_reply(packet, "i", ret);
+		if (!result) {
+			ErrPrint("Failed to create a reply packet\n");
+		}
+	}
 	return result;
 }
 
