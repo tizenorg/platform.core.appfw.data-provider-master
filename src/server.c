@@ -4075,7 +4075,7 @@ out:
 	return NULL;
 }
 
-static struct packet *client_orientation(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_change_orientation(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
 	double timestamp;
@@ -4102,6 +4102,8 @@ static struct packet *client_orientation(pid_t pid, int handle, const struct pac
 
 	ret = 0;
 
+	client_set_orientation(client, degree);
+
 	pkg_list = (Eina_List *)package_list();
 
 	EINA_LIST_FOREACH(pkg_list, l, pkg) {
@@ -4114,7 +4116,6 @@ static struct packet *client_orientation(pid_t pid, int handle, const struct pac
 		}
 	}
 	DbgPrint("%d instances are affected (orientation: %d)\n", ret, degree);
-
 out:
 	return NULL;
 }
@@ -9417,7 +9418,7 @@ static struct method s_client_table[] = {
 	},
 	{
 		.cmd = CMD_STR_ORIENTATION,
-		.handler = client_orientation,
+		.handler = client_change_orientation,
 	},
 	{
 		.cmd = CMD_STR_CHANGE_VISIBILITY,
