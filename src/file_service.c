@@ -411,7 +411,6 @@ static int send_file(int handle, const struct request_item *item)
 		ret = read(fd, body->data, body->size); 
 		if (ret < 0) {
 			ErrPrint("read: %d\n", errno);
-			ret = -EIO;
 			break;
 		}
 
@@ -422,7 +421,6 @@ static int send_file(int handle, const struct request_item *item)
 		/* Send BODY */
 		ret = com_core_send(handle, (void *)body, pktsz, 2.0f);
 		if (ret != pktsz) {
-			ret = -EFAULT;
 			break;
 		}
 	}
