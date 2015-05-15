@@ -980,6 +980,7 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 		if (client_event_callback_add(inst->client, CLIENT_EVENT_DEACTIVATE, client_deactivated_cb, inst) < 0) {
 			ErrPrint("Failed to add client event callback: %s\n", inst->id);
 		}
+		inst->orientation = client_orientation(client);
 	}
 
 	if (fork_package(inst, pkgname) < 0) {

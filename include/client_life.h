@@ -112,4 +112,7 @@ extern int client_browse_category_list(const char *category, int (*cb)(struct cl
 extern int client_broadcast(struct inst_info *inst, struct packet *packet);
 
 extern const char *client_direct_addr(const struct client_node *client);
+
+extern int client_orientation(const struct client_node *client);
+extern void client_set_orientation(struct client_node *client, int orientation);
 /* End of a file */

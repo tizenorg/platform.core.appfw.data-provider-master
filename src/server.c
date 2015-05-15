@@ -4077,7 +4077,7 @@ out:
 	return NULL;
 }
 
-static struct packet *client_orientation(pid_t pid, int handle, const struct packet *packet)
+static struct packet *client_change_orientation(pid_t pid, int handle, const struct packet *packet)
 {
 	struct client_node *client;
 	double timestamp;
@@ -4104,6 +4104,8 @@ static struct packet *client_orientation(pid_t pid, int handle, const struct pac
 
 	ret = 0;
 
+	client_set_orientation(client, degree);
+
 	pkg_list = (Eina_List *)package_list();
 
 	EINA_LIST_FOREACH(pkg_list, l, pkg) {
@@ -4116,7 +4118,6 @@ static struct packet *client_orientation(pid_t pid, int handle, const struct pac
 		}
 	}
 	DbgPrint("%d instances are affected (orientation: %d)\n", ret, degree);
-
 out:
 	return NULL;
 }
@@ -8076,6 +8077,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 	ret = packet_get(packet, "dissss", &timestamp, &secured, &slavename, &slave_pkgname, &acceleration, &abi);
 	if (ret != 6) {
 		ErrPrint("Parameter is not matched\n");
+		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
 	}
 
@@ -8101,6 +8103,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 
 	if (aul_app_get_pkgname_bypid(pid, pkgname, sizeof(pkgname)) != AUL_R_OK) {
 		ErrPrint("pid[%d] is not authroized provider package, try to find it using its name[%s]\n", pid, slavename);
+		ret = WIDGET_ERROR_PERMISSION_DENIED;
 		goto out;
 	}
 
@@ -8124,6 +8127,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			item = calloc(1, sizeof(*item));
 			if (!item) {
 				ErrPrint("calloc: %d\n", errno);
+				ret = WIDGET_ERROR_OUT_OF_MEMORY;
 				goto out;
 			}
 
@@ -8131,6 +8135,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			if (!item->pkgname) {
 				ErrPrint("strdup: %d\n", errno);
 				DbgFree(item);
+				ret = WIDGET_ERROR_OUT_OF_MEMORY;
 				goto out;
 			}
 
@@ -8178,10 +8183,12 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			slave = debug_mode_enabled(pid, slavename, pkgname, secured, abi, acceleration);
 			if (!slave) {
 				ErrPrint("Failed to create a new slave for %s\n", slavename);
+				ret = WIDGET_ERROR_FAULT;
 				goto out;
 			}
 		} else {
 			ErrPrint("There is no valid slave instance. ignore this %s\n", slavename);
+			ret = WIDGET_ERROR_NOT_EXIST;
 			goto out;
 		}
 	} else {
@@ -8228,6 +8235,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 		if (!inst) {
 			ErrPrint("No valid instance");
 			DbgFree(widget_id);
+			ret = WIDGET_ERROR_NOT_EXIST;
 			goto out;
 		}
 
@@ -8239,6 +8247,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 					CRITICAL_LOG("Terminate %d (ret: %d)\n", pid, ret);
 				}
 				DbgFree(widget_id);
+				ret = WIDGET_ERROR_NOT_EXIST;
 				goto out;
 			}
 			CRITICAL_LOG("PID of slave(%s) is updated (%d -> %d)\n", slave_name(slave), slave_pid(slave), pid);
@@ -8290,6 +8299,13 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 	}
 
 out:
+	if (!result) {
+		DbgPrint("## ret [%d]\n", ret);
+		result = packet_create_reply(packet, "i", ret);
+		if (!result) {
+			ErrPrint("Failed to create a reply packet\n");
+		}
+	}
 	return result;
 }
 
@@ -9404,7 +9420,7 @@ static struct method s_client_table[] = {
 	},
 	{
 		.cmd = CMD_STR_ORIENTATION,
-		.handler = client_orientation,
+		.handler = client_change_orientation,
 	},
 	{
 		.cmd = CMD_STR_CHANGE_VISIBILITY,
