@@ -94,7 +94,7 @@ static inline int get_pid(Ecore_X_Window win)
 {
 	int pid;
 	Ecore_X_Atom atom;
-	unsigned char *in_pid;
+	unsigned char *in_pid = NULL;
 	int num;
 
 	atom = ecore_x_atom_get("X_CLIENT_PID");
