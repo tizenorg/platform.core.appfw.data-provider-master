@@ -1003,12 +1003,12 @@ EAPI int buffer_handler_pixmap_unref(void *buffer_ptr)
 		ErrPrint("Failed to destroy gem buffer\n");
 	}
 
-	if (destroy_pixmap(buffer) < 0) {
-		ErrPrint("Failed to destroy pixmap\n");
-	}
-
 	if (info && info->buffer == buffer) {
 		info->buffer = NULL;
+	}
+
+	if (destroy_pixmap(buffer) < 0) {
+		ErrPrint("Failed to destroy pixmap\n");
 	}
 
 	return WIDGET_ERROR_NONE;
