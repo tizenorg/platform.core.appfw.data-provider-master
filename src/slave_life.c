@@ -655,11 +655,11 @@ static Eina_Bool relaunch_timer_cb(void *data)
 
 			invoke_slave_fault_handler(slave);
 		} else {
-			bundle_add(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
-			bundle_add(param, WIDGET_CONF_BUNDLE_SLAVE_NAME, slave_name(slave));
-			bundle_add(param, WIDGET_CONF_BUNDLE_SLAVE_SECURED, ((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured) ? "true" : "false");
-			bundle_add(param, WIDGET_CONF_BUNDLE_SLAVE_ABI, slave->abi);
-			bundle_add(param, WIDGET_CONF_BUNDLE_SLAVE_HW_ACCELERATION, slave->hw_acceleration);
+			bundle_add_str(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
+			bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_NAME, slave_name(slave));
+			bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_SECURED, ((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured) ? "true" : "false");
+			bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_ABI, slave->abi);
+			bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_HW_ACCELERATION, slave->hw_acceleration);
 
 			ErrPrint("Launch App [%s]\n", slave_pkgname(slave));
 			slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
@@ -756,11 +756,11 @@ HAPI int slave_activate(struct slave_node *slave)
 			return WIDGET_ERROR_FAULT;
 		}
 
-		bundle_add(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
-		bundle_add(param, WIDGET_CONF_BUNDLE_SLAVE_NAME, slave_name(slave));
-		bundle_add(param, WIDGET_CONF_BUNDLE_SLAVE_SECURED, ((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured) ? "true" : "false");
-		bundle_add(param, WIDGET_CONF_BUNDLE_SLAVE_ABI, slave->abi);
-		bundle_add(param, WIDGET_CONF_BUNDLE_SLAVE_HW_ACCELERATION, slave->hw_acceleration);
+		bundle_add_str(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
+		bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_NAME, slave_name(slave));
+		bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_SECURED, ((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured) ? "true" : "false");
+		bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_ABI, slave->abi);
+		bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_HW_ACCELERATION, slave->hw_acceleration);
 
 		ErrPrint("Launch App [%s]\n", slave_pkgname(slave));
 		slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);

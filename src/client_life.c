@@ -109,6 +109,7 @@ struct client_node {
 
 	int faulted;
 	char *direct_addr;
+	int orientation;
 };
 
 static inline void invoke_global_destroyed_cb(struct client_node *client)
@@ -1021,6 +1022,16 @@ HAPI int client_broadcast(struct inst_info *inst, struct packet *packet)
 HAPI const char *client_direct_addr(const struct client_node *client)
 {
 	return client ? client->direct_addr : NULL;
+}
+
+HAPI void client_set_orientation(struct client_node *client, int orientation)
+{
+	client->orientation = orientation;
+}
+
+HAPI int client_orientation(const struct client_node *client)
+{
+	return client->orientation;
 }
 
 /* End of a file */
