@@ -948,18 +948,19 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 		tmp = strdup(content);
 		if (tmp) {
 			int length;
+			char *ptr = tmp;
 
-			if (sscanf(content, "%d:%s", &length, tmp) == 2) {
+			if (sscanf(content, "%d:%s", &length, ptr) == 2) {
 				extra_bundle_data = malloc(length + 1);
 				if (extra_bundle_data) {
 					strncpy(extra_bundle_data, tmp, length);
 					extra_bundle_data[length] = '\0';
-					tmp += length;
+					ptr += length;
 					DbgPrint("Extra Bundle Data extracted: [%s]\n", extra_bundle_data);
 				}
 
-				if (*tmp) {
-					inst->content = strdup(tmp);
+				if (*ptr) {
+					inst->content = strdup(ptr);
 					if (!inst->content) {
 						ErrPrint("strdup: %d\n", errno);
 					}
