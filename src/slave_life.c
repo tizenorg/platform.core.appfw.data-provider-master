@@ -752,7 +752,7 @@ HAPI int slave_activate(struct slave_node *slave)
 		slave->relaunch_count = WIDGET_CONF_SLAVE_RELAUNCH_COUNT;
 
 		if (slave->extra_bundle_data) {
-			param = bundle_decode(slave->extra_bundle_data, strlen(slave->extra_bundle_data));
+			param = bundle_decode((bundle_raw *)slave->extra_bundle_data, strlen(slave->extra_bundle_data));
 			if (!param) {
 				ErrPrint("Invalid extra_bundle_data[%s]\n", slave->extra_bundle_data);
 			}
@@ -1997,7 +1997,7 @@ HAPI void slave_set_valid(struct slave_node *slave)
 
 HAPI void slave_set_extra_bundle_data(struct slave_node *slave, const char *extra_bundle_data)
 {
-	char *tmp;
+	char *tmp = NULL;
 
 	if (!slave) {
 		return;

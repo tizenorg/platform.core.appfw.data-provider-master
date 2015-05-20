@@ -277,10 +277,10 @@ static inline void destroy_client_data(struct client_node *client)
 	xmonitor_handle_state_changes();
 }
 
-static inline struct client_node *create_client_data(pid_t pid, const char *direct_addr)
+static struct client_node *create_client_data(pid_t pid, const char *direct_addr)
 {
 	struct client_node *client;
-	char pid_pkgname[pathconf("/", _PC_PATH_MAX)];
+	char pid_pkgname[256];
 
 	client = calloc(1, sizeof(*client));
 	if (!client) {
