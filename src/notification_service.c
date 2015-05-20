@@ -465,39 +465,6 @@ static void _handler_noti_property_get(struct tcb *tcb, struct packet *packet, v
 	}
 }
 
-static void _handler_noti_update_setting(struct tcb *tcb, struct packet *packet, void *data)
-{
-	int ret = 0, ret_p = 0;
-	struct packet *packet_reply = NULL;
-	char *package_name = NULL;
-	int allow_to_notify = 0;
-	int do_not_disturb_except = 0;
-	int visivility_class = 0;
-
-	if (packet_get(packet, "siii", &package_name, &allow_to_notify, &do_not_disturb_except, &visivility_class) == 4) {
-		package_name = _string_get(package_name);
-		DbgPrint("package_name: [%s] allow_to_notify: [%d] do_not_disturb_except: [%d] visivility_class: [%d]\n", package_name, allow_to_notify, do_not_disturb_except, visivility_class);
-		/* ADD CODES HERE */
-		ret = notification_setting_db_update(package_name, allow_to_notify, do_not_disturb_except, visivility_class);
-
-		packet_reply = packet_create_reply(packet, "ii", ret, ret);
-		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0) {
-				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			}
-			packet_destroy(packet_reply);
-		} else {
-			ErrPrint("failed to create a reply packet\n");
-		}
-
-		if (ret != NOTIFICATION_ERROR_NONE) {
-			ErrPrint("failed to set noti property:%d\n", ret);
-		}
-	} else {
-		ErrPrint("Failed to get data from the packet");
-	}
-}
-
 static void _handler_service_register(struct tcb *tcb, struct packet *packet, void *data)
 {
 	int ret = 0;
@@ -711,13 +678,6 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 		{
 			.cmd = "get_noti_property",
 			.handler = _handler_noti_property_get,
-			.rule = "data-provider-master::notification.client",
-			.access = "r",
-			.handler_access_error = _permission_check_property_get,
-		},
-		{
-			.cmd = "update_noti_setting",
-			.handler = _handler_noti_update_setting,
 			.rule = "data-provider-master::notification.client",
 			.access = "r",
 			.handler_access_error = _permission_check_property_get,
