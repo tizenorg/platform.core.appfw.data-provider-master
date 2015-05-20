@@ -930,6 +930,7 @@ static inline int fork_package(struct inst_info *inst, const char *pkgname)
 HAPI struct inst_info *instance_create(struct client_node *client, double timestamp, const char *pkgname, const char *content, const char *cluster, const char *category, double period, int width, int height)
 {
 	struct inst_info *inst;
+	char *extra_bundle_data = NULL;
 
 	inst = calloc(1, sizeof(*inst));
 	if (!inst) {
@@ -941,16 +942,47 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 	inst->widget.width = width;
 	inst->widget.height = height;
 
-	inst->content = strdup(content);
-	if (!inst->content) {
-		ErrPrint("strdup: %d\n", errno);
-		DbgFree(inst);
-		return NULL;
+	if (client_is_sdk_viewer(client)) {
+		char *tmp;
+
+		tmp = strdup(content);
+		if (tmp) {
+			int length;
+
+			if (sscanf(content, "%d:%s", &length, tmp) == 2) {
+				extra_bundle_data = malloc(length + 1);
+				if (extra_bundle_data) {
+					strncpy(extra_bundle_data, tmp, length);
+					extra_bundle_data[length] = '\0';
+					tmp += length;
+					DbgPrint("Extra Bundle Data extracted: [%s]\n", extra_bundle_data);
+				}
+
+				if (*tmp) {
+					inst->content = strdup(tmp);
+					if (!inst->content) {
+						ErrPrint("strdup: %d\n", errno);
+					}
+					DbgPrint("Content Info extracted: [%d]\n", inst->content);
+				}
+			}
+
+			DbgFree(tmp);
+		}
+	} else {
+		inst->content = strdup(content);
+		if (!inst->content) {
+			ErrPrint("strdup: %d\n", errno);
+			DbgFree(extra_bundle_data);
+			DbgFree(inst);
+			return NULL;
+		}
 	}
 
 	inst->cluster = strdup(cluster);
 	if (!inst->cluster) {
 		ErrPrint("strdup: %d\n", errno);
+		DbgFree(extra_bundle_data);
 		DbgFree(inst->content);
 		DbgFree(inst);
 		return NULL;
@@ -959,6 +991,7 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 	inst->category = strdup(category);
 	if (!inst->category) {
 		ErrPrint("strdup: %d\n", errno);
+		DbgFree(extra_bundle_data);
 		DbgFree(inst->cluster);
 		DbgFree(inst->content);
 		DbgFree(inst);
@@ -968,6 +1001,7 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 	inst->title = strdup(WIDGET_CONF_DEFAULT_TITLE); /*!< Use the DEFAULT Title "" */
 	if (!inst->title) {
 		ErrPrint("strdup: %d\n", errno);
+		DbgFree(extra_bundle_data);
 		DbgFree(inst->category);
 		DbgFree(inst->cluster);
 		DbgFree(inst->content);
@@ -985,6 +1019,7 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 
 	if (fork_package(inst, pkgname) < 0) {
 		(void)client_unref(inst->client);
+		DbgFree(extra_bundle_data);
 		DbgFree(inst->title);
 		DbgFree(inst->category);
 		DbgFree(inst->cluster);
@@ -1010,6 +1045,7 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 	instance_ref(inst);
 
 	if (package_add_instance(inst->info, inst) < 0) {
+		DbgFree(extra_bundle_data);
 		DbgFree(inst->widget.extra_buffer);
 		DbgFree(inst->gbar.extra_buffer);
 		unfork_package(inst);
@@ -1023,6 +1059,8 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 	}
 
 	slave_load_instance(package_slave(inst->info));
+	slave_set_extra_bundle_data(package_slave(inst->info), extra_bundle_data);
+	DbgFree(extra_bundle_data);
 
 	/**
 	 * @note

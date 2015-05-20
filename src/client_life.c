@@ -25,11 +25,14 @@
 #include <Eina.h>
 #include <Ecore.h>
 
+#include <aul.h>
 #include <dlog.h>
+
 #include <packet.h>
 #include <widget_errno.h>
 #include <widget_service.h>
 #include <widget_service_internal.h>
+#include <widget_conf.h>
 
 #include "client_life.h"
 #include "instance.h"
@@ -90,6 +93,7 @@ struct data_item {
 };
 
 struct client_node {
+	char *appid;
 	pid_t pid;
 	int refcnt;
 
@@ -110,6 +114,7 @@ struct client_node {
 	int faulted;
 	char *direct_addr;
 	int orientation;
+	int is_sdk_viewer;
 };
 
 static inline void invoke_global_destroyed_cb(struct client_node *client)
@@ -259,6 +264,8 @@ static inline void destroy_client_data(struct client_node *client)
 		DbgFree(client->direct_addr);
 	}
 
+	DbgFree(client->appid);
+
 	s_info.client_list = eina_list_remove(s_info.client_list, client);
 	DbgFree(client);
 
@@ -273,6 +280,7 @@ static inline void destroy_client_data(struct client_node *client)
 static inline struct client_node *create_client_data(pid_t pid, const char *direct_addr)
 {
 	struct client_node *client;
+	char pid_pkgname[pathconf("/", _PC_PATH_MAX)];
 
 	client = calloc(1, sizeof(*client));
 	if (!client) {
@@ -282,6 +290,17 @@ static inline struct client_node *create_client_data(pid_t pid, const char *dire
 
 	client->pid = pid;
 	client->refcnt = 1;
+
+	if (aul_app_get_pkgname_bypid(pid, pid_pkgname, sizeof(pid_pkgname)) == AUL_R_OK) {
+		client->appid = strdup(pid_pkgname);
+		if (client->appid) {
+			if (WIDGET_CONF_SDK_VIEWER) {
+				client->is_sdk_viewer = !strcmp(client->appid, WIDGET_CONF_SDK_VIEWER);
+			}
+		} else {
+			ErrPrint("strdup: %d\n", errno);
+		}
+	}
 
 	if (direct_addr && direct_addr[0]) {
 		client->direct_addr = strdup(direct_addr);
@@ -1032,6 +1051,16 @@ HAPI void client_set_orientation(struct client_node *client, int orientation)
 HAPI int client_orientation(const struct client_node *client)
 {
 	return client->orientation;
+}
+
+HAPI const char *client_appid(const struct client_node *client)
+{
+	return client->appid;
+}
+
+HAPI int client_is_sdk_viewer(const struct client_node *client)
+{
+	return client ? client->is_sdk_viewer : 0;
 }
 
 /* End of a file */

@@ -115,4 +115,7 @@ extern const char *client_direct_addr(const struct client_node *client);
 
 extern int client_orientation(const struct client_node *client);
 extern void client_set_orientation(struct client_node *client, int orientation);
+
+extern const char *client_appid(const struct client_node *client);
+extern int client_is_sdk_viewer(const struct client_node *client);
 /* End of a file */

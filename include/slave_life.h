@@ -218,4 +218,7 @@ extern int slave_set_priority(struct slave_node *slave, int priority);
 extern int slave_valid(const struct slave_node *slave);
 extern void slave_set_valid(struct slave_node *slave);
 
+extern void slave_set_extra_bundle_data(struct slave_node *slave, const char *extra_bundle_data);
+extern const char *slave_extra_bundle_data(struct slave_node *slave);
+
 /* End of a file */

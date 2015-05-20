@@ -113,6 +113,7 @@ struct slave_node {
 
 	char *hw_acceleration;
 	int valid;
+	char *extra_bundle_data;
 };
 
 struct event {
@@ -426,6 +427,7 @@ static inline void destroy_slave_node(struct slave_node *slave)
 	DbgFree(slave->name);
 	DbgFree(slave->pkgname);
 	DbgFree(slave->hw_acceleration);
+	DbgFree(slave->extra_bundle_data);
 	DbgFree(slave);
 	return;
 }
@@ -745,14 +747,23 @@ HAPI int slave_activate(struct slave_node *slave)
 	if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
 		DbgPrint("Debug Mode enabled. name[%s] secured[%d] abi[%s]\n", slave_name(slave), slave->secured, slave->abi);
 	} else {
-		bundle *param;
+		bundle *param = NULL;
 
 		slave->relaunch_count = WIDGET_CONF_SLAVE_RELAUNCH_COUNT;
 
-		param = bundle_create();
+		if (slave->extra_bundle_data) {
+			param = bundle_decode(slave->extra_bundle_data, strlen(slave->extra_bundle_data));
+			if (!param) {
+				ErrPrint("Invalid extra_bundle_data[%s]\n", slave->extra_bundle_data);
+			}
+		}
+
 		if (!param) {
-			ErrPrint("Failed to create a bundle\n");
-			return WIDGET_ERROR_FAULT;
+			param = bundle_create();
+			if (!param) {
+				ErrPrint("Failed to create a bundle\n");
+				return WIDGET_ERROR_FAULT;
+			}
 		}
 
 		bundle_add_str(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
@@ -1982,6 +1993,31 @@ HAPI void slave_set_valid(struct slave_node *slave)
 {
     DbgPrint("slave is set valid\n");
     slave->valid = 1;
+}
+
+HAPI void slave_set_extra_bundle_data(struct slave_node *slave, const char *extra_bundle_data)
+{
+	char *tmp;
+
+	if (!slave) {
+		return;
+	}
+
+	if (extra_bundle_data) {
+		tmp = strdup(extra_bundle_data);
+		if (!tmp) {
+			ErrPrint("strdup: %d\n", errno);
+			return;
+		}
+	}
+
+	DbgFree(slave->extra_bundle_data);
+	slave->extra_bundle_data = tmp;
+}
+
+HAPI const char *slave_extra_bundle_data(struct slave_node *slave)
+{
+	return slave ? slave->extra_bundle_data : NULL;
 }
 
 /* End of a file */
