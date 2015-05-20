@@ -495,6 +495,9 @@ static void *event_thread_main(void *data)
 	int fd;
 	char event_ch;
 
+	s_info.event_data.x = -1;
+	s_info.event_data.y = -1;
+
 	while (1) {
 		FD_ZERO(&set);
 		FD_SET(s_info.handle, &set);
