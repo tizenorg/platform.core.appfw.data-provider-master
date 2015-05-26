@@ -21,18 +21,19 @@ BuildRequires: pkgconfig(bundle)
 
 %if %{with wayland}
 BuildRequires: pkgconfig(ecore-wayland)
+BuildRequires: pkgconfig(wayland-client)
 %else
 BuildRequires: pkgconfig(ecore-x)
 BuildRequires: pkgconfig(x11)
 BuildRequires: pkgconfig(libdri2)
-BuildRequires: pkgconfig(libdrm)
-BuildRequires: pkgconfig(libtbm)
 BuildRequires: pkgconfig(xfixes)
 BuildRequires: pkgconfig(dri2proto)
 BuildRequires: pkgconfig(xext)
 BuildRequires: pkgconfig(xdamage)
 %endif
 
+BuildRequires: pkgconfig(libtbm)
+BuildRequires: pkgconfig(libdrm)
 BuildRequires: pkgconfig(ecore)
 BuildRequires: pkgconfig(eina)
 BuildRequires: pkgconfig(com-core)

@@ -44,9 +44,9 @@
 #include <packet.h>
 #include <widget_errno.h>
 #include <widget_service.h>
-#include <widget_buffer.h>
 #include <widget_conf.h>
 #include <widget_util.h>
+#include <widget_buffer.h>
 
 #include "debug.h"
 #include "conf.h"

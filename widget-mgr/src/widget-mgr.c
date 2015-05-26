@@ -1629,7 +1629,7 @@ static void processing_line_buffer(const char *buffer)
 	struct package *pkginfo;
 	struct instance *instinfo;
 	struct slave *slaveinfo;
-	int i;
+	long i;
 
 	switch (s_info.cmd) {
 	case PKG_LIST:
@@ -1822,17 +1822,17 @@ static void processing_line_buffer(const char *buffer)
 		instinfo->height = height;
 		break;
 	case INST_CTRL:
-		sscanf(buffer, "%d", &i);
-		printf("%d\n", i);
-		printf("Result: %d\n", i);
+		sscanf(buffer, "%ld", &i);
+		printf("%ld\n", i);
+		printf("Result: %ld\n", i);
 		break;
 	case SLAVE_CTRL:
-		sscanf(buffer, "%d", &i);
-		printf("Result: %d\n", i);
+		sscanf(buffer, "%ld", &i);
+		printf("Result: %ld\n", i);
 		break;
 	case MASTER_CTRL:
-		sscanf(buffer, "%d", &i);
-		printf("Result: %d\n", i);
+		sscanf(buffer, "%ld", &i);
+		printf("Result: %ld\n", i);
 		break;
 	default:
 		break;

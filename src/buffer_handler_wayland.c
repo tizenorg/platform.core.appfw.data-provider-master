@@ -27,11 +27,20 @@
 #include <stdlib.h>
 
 #include <Ecore.h>
+#include <Ecore_Wayland.h> /* wayland_client.h is included by this header */
+
+#include <xf86drm.h>
+#include <xf86drmMode.h>
+#include <tbm_bufmgr.h>
 
 #include <dlog.h>
 #include <packet.h>
 #include <widget_errno.h>
 #include <widget_util.h>
+#include <widget_conf.h>
+#include <widget_buffer.h>
+#include <widget_service.h>
+#include <widget_service_internal.h>
 
 #include "debug.h"
 #include "conf.h"
@@ -43,15 +52,15 @@
 #include "buffer_handler.h"
 #include "script_handler.h" // Reverse dependency. must has to be broken
 
-struct buffer {
-	enum {
-		CREATED = 0x00beef00,
-		DESTROYED = 0x00dead00
-	} state;
-	enum buffer_type type;
+struct gem_data {
+	tbm_bo pixmap_bo;
+	int count;
+	int buf_count;
+	int w;
+	int h;
+	int depth;
+	void *data; /* Gem layer */
 	int refcnt;
-	void *info;
-	char data[];
 };
 
 struct buffer_info
@@ -60,7 +69,7 @@ struct buffer_info
 	char *id;
 	widget_lock_info_t lock_info;
 
-	enum buffer_type type;
+	enum widget_fb_type type;
 
 	int w;
 	int h;
@@ -70,6 +79,64 @@ struct buffer_info
 	struct inst_info *inst;
 	void *data;
 };
+
+static struct {
+	tbm_bufmgr slp_bufmgr;
+	int fd;
+} s_info = {
+	.slp_bufmgr = NULL,
+	.fd = -1,
+};
+
+
+static inline widget_fb_t create_pixmap(struct buffer_info *info)
+{
+	struct gem_data *gem;
+	widget_fb_t buffer;
+	struct wl_display *disp;
+	// Window parent;
+	// XGCValues gcb;
+	// GC gc;
+
+	disp = ecore_wl_display_get();
+	if (!disp) {
+		return NULL;
+	}
+
+	buffer = calloc(1, sizeof(*buffer) + sizeof(*gem));
+	if (!buffer) {
+		ErrPrint("calloc: %d\n", errno);
+		return NULL;
+	}
+
+	gem = (struct gem_data *)buffer->data;
+
+	buffer->type = WIDGET_FB_TYPE_PIXMAP;
+	buffer->refcnt = 1;
+	buffer->state = WIDGET_FB_STATE_CREATED;
+
+	gem->count = 1;
+	gem->w = info->w;
+	gem->h = info->h;
+	gem->depth = sizeof(int);
+
+	/**
+	 * @TODO
+	 * Create surface buffer
+	 * And pair it to this "buffer" object
+	 */
+
+	return buffer;
+}
+
+static inline int create_gem(widget_fb_t buffer)
+{
+	struct gem_data *gem;
+
+	gem = (struct gem_data *)buffer->data;
+	gem->pixmap_bo = tbm_bo_alloc(s_info.slp_bufmgr, gem->w * gem->h * gem->depth, TBM_BO_DEFAULT);
+	return WIDGET_ERROR_NONE;
+}
 
 static inline int load_file_buffer(struct buffer_info *info)
 {
@@ -151,7 +218,7 @@ static inline int load_shm_buffer(struct buffer_info *info)
 	buffer->type = WIDGET_FB_TYPE_SHM;
 	buffer->refcnt = id;
 	buffer->state = WIDGET_FB_STATE_CREATED; /*!< Needless */
-	buffer->info = (void *)size; /*!< Use this field to indicates the size of SHM */
+	buffer->info = (void *)((long)size); /*!< Use this field to indicates the size of SHM */
 
 	len = strlen(SCHEMA_SHM) + 30; /* strlen("shm://") + 30 */
 
@@ -181,7 +248,7 @@ static inline int load_shm_buffer(struct buffer_info *info)
 EAPI int buffer_handler_load(struct buffer_info *info)
 {
 	int ret;
-	widget_target_type_e type = TARGET_TYPE_GBAR;
+	widget_target_type_e type = WIDGET_TYPE_GBAR;
 
 	if (!info) {
 		ErrPrint("buffer handler is nil\n");
@@ -194,21 +261,21 @@ EAPI int buffer_handler_load(struct buffer_info *info)
 	}
 
 	switch (info->type) {
-	case BUFFER_TYPE_FILE:
+	case WIDGET_FB_TYPE_FILE:
 		ret = load_file_buffer(info);
 		if (script_handler_buffer_info(instance_gbar_script(info->inst)) != info && instance_gbar_buffer(info->inst) != info) {
 			type = WIDGET_TYPE_WIDGET;
 		}
 		info->lock_info = widget_service_create_lock(instance_id(info->inst), type, WIDGET_LOCK_WRITE);
 		break;
-	case BUFFER_TYPE_SHM:
+	case WIDGET_FB_TYPE_SHM:
 		ret = load_shm_buffer(info);
 		if (script_handler_buffer_info(instance_gbar_script(info->inst)) != info && instance_gbar_buffer(info->inst) != info) {
 			type = WIDGET_TYPE_WIDGET;
 		}
 		info->lock_info = widget_service_create_lock(instance_id(info->inst), type, WIDGET_LOCK_WRITE);
 		break;
-	case BUFFER_TYPE_PIXMAP:
+	case WIDGET_FB_TYPE_PIXMAP:
 		/**
 		 * TODO: load_wl_pixmap_buffer(info);
 		 */
@@ -298,17 +365,17 @@ EAPI int buffer_handler_unload(struct buffer_info *info)
 	}
 
 	switch (info->type) {
-	case BUFFER_TYPE_FILE:
+	case WIDGET_FB_TYPE_FILE:
 		widget_service_destroy_lock(info->lock_info);
 		info->lock_info = NULL;
 		ret = unload_file_buffer(info);
 		break;
-	case BUFFER_TYPE_SHM:
+	case WIDGET_FB_TYPE_SHM:
 		widget_service_destroy_lock(info->lock_info);
 		info->lock_info = NULL;
 		ret = unload_shm_buffer(info);
 		break;
-	case BUFFER_TYPE_PIXMAP:
+	case WIDGET_FB_TYPE_PIXMAP:
 		/**
 		 * @todo: unload_wl_pixmap_buffer(info)
 		 */
@@ -330,7 +397,7 @@ EAPI const char *buffer_handler_id(const struct buffer_info *info)
 	return info ? info->id : "";
 }
 
-EAPI enum buffer_type buffer_handler_type(const struct buffer_info *info)
+EAPI enum widget_fb_type buffer_handler_type(const struct buffer_info *info)
 {
 	return info ? info->type : WIDGET_FB_TYPE_ERROR;
 }
@@ -489,7 +556,7 @@ EAPI void buffer_handler_flush(struct buffer_info *info)
 		 * WL_XXX
 		 * Not supported for wayland or this should be ported correctly
 		 */
-	} else if (buffer->type == BUFFER_TYPE_FILE) {
+	} else if (buffer->type == WIDGET_FB_TYPE_FILE) {
 		fd = open(widget_util_uri_to_path(info->id), O_WRONLY | O_CREAT, 0644);
 		if (fd < 0) {
 			ErrPrint("%s open falied: %d\n", widget_util_uri_to_path(info->id), errno);
@@ -513,12 +580,16 @@ EAPI void buffer_handler_flush(struct buffer_info *info)
 
 HAPI int buffer_handler_init(void)
 {
-	/*!
-	 * \TODO
-	 * Implement this for wayland
-	 */
 	if (WIDGET_CONF_USE_SW_BACKEND) {
 		DbgPrint("Fallback to the S/W Backend\n");
+		return WIDGET_ERROR_NONE;
+	}
+
+	/**
+	 * Use the -1 for default FD handler.
+	 */
+	s_info.slp_bufmgr = tbm_bufmgr_init(-1);
+	if (!s_info.slp_bufmgr) {
 		return WIDGET_ERROR_NONE;
 	}
 
@@ -527,14 +598,19 @@ HAPI int buffer_handler_init(void)
 
 HAPI int buffer_handler_fini(void)
 {
-	/*!
-	 * \TODO
+	/**
+	 * @TODO
 	 * Implement this for wayland
 	 */
+	if (s_info.slp_bufmgr) {
+		tbm_bufmgr_deinit(s_info.slp_bufmgr);
+		s_info.slp_bufmgr = NULL;
+	}
+
 	return WIDGET_ERROR_NONE;
 }
 
-static inline struct buffer *raw_open_file(const char *filename)
+static inline widget_fb_t raw_open_file(const char *filename)
 {
 	widget_fb_t buffer;
 	int fd;
@@ -603,18 +679,18 @@ static inline struct buffer *raw_open_file(const char *filename)
 	return buffer;
 }
 
-static inline int raw_close_file(struct buffer *buffer)
+static inline int raw_close_file(widget_fb_t buffer)
 {
 	DbgFree(buffer);
 	return 0;
 }
 
-static inline struct buffer *raw_open_shm(int shm)
+static inline widget_fb_t raw_open_shm(int shm)
 {
 	widget_fb_t buffer;
 
 	buffer = (widget_fb_t)shmat(shm, NULL, SHM_RDONLY);
-	if (buffer == (struct buffer *)-1) {
+	if (buffer == (widget_fb_t )-1) {
 		ErrPrint("shmat: %d\n", errno);
 		return NULL;
 	}
@@ -634,6 +710,28 @@ static inline int raw_close_shm(widget_fb_t buffer)
 	return ret;
 }
 
+static inline widget_fb_t raw_open_pixmap(unsigned int pixmap)
+{
+	widget_fb_t buffer;
+
+	buffer = calloc(1, sizeof(*buffer) + WIDGET_CONF_DEFAULT_PIXELS);
+	if (!buffer) {
+		ErrPrint("calloc: %d\n", errno);
+		return NULL;
+	}
+
+	buffer->state = WIDGET_FB_STATE_CREATED;
+	buffer->type = WIDGET_FB_TYPE_PIXMAP;
+
+	return buffer;
+}
+
+static inline int raw_close_pixmap(widget_fb_t buffer)
+{
+	DbgFree(buffer);
+	return 0;
+}
+
 EAPI void *buffer_handler_raw_data(widget_fb_t buffer)
 {
 	if (!buffer || buffer->state != WIDGET_FB_STATE_CREATED) {
@@ -643,13 +741,13 @@ EAPI void *buffer_handler_raw_data(widget_fb_t buffer)
 	return buffer->data;
 }
 
-EAPI int buffer_handler_raw_size(struct buffer *buffer)
+EAPI int buffer_handler_raw_size(widget_fb_t buffer)
 {
 	if (!buffer || buffer->state != WIDGET_FB_STATE_CREATED) {
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
-	return (int)buffer->info;
+	return (int)((long)buffer->info);
 }
 
 EAPI widget_fb_t buffer_handler_raw_open(enum widget_fb_type widget_fb_type, void *resource)
@@ -658,16 +756,14 @@ EAPI widget_fb_t buffer_handler_raw_open(enum widget_fb_type widget_fb_type, voi
 
 	switch (widget_fb_type) {
 	case WIDGET_FB_TYPE_SHM:
-		handle = raw_open_shm((int)resource);
+		handle = raw_open_shm((int)((long)resource));
 		break;
 	case WIDGET_FB_TYPE_FILE:
 		handle = raw_open_file(resource);
 		break;
 	case WIDGET_FB_TYPE_PIXMAP:
-		/**
-		 * @TODO
-		 *  Implements me
-		 */
+		handle = raw_open_pixmap((unsigned int)((long)resource));
+		break;
 	default:
 		handle = NULL;
 		break;
@@ -676,7 +772,7 @@ EAPI widget_fb_t buffer_handler_raw_open(enum widget_fb_type widget_fb_type, voi
 	return handle;
 }
 
-EAPI int buffer_handler_raw_close(struct buffer *buffer)
+EAPI int buffer_handler_raw_close(widget_fb_t buffer)
 {
 	int ret;
 
@@ -692,6 +788,8 @@ EAPI int buffer_handler_raw_close(struct buffer *buffer)
 		ret = raw_close_file(buffer);
 		break;
 	case WIDGET_FB_TYPE_PIXMAP:
+		ret = raw_close_pixmap(buffer);
+		break;
 	default:
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		break;
@@ -710,14 +808,14 @@ EAPI int buffer_handler_lock(struct buffer_info *info)
 		return WIDGET_ERROR_NONE;
 	}
 
-	if (buffer->type == WIDGET_FB_TYPE_FILE) {
+	if (info->type == WIDGET_FB_TYPE_FILE) {
 		return WIDGET_ERROR_NONE;
 	}
 
 	return widget_service_acquire_lock(info->lock_info);
 }
 
-EAPI int buffer_handler_unlock(struct buffer_info *buffer)
+EAPI int buffer_handler_unlock(struct buffer_info *info)
 {
 	if (!info) {
 		return WIDGET_ERROR_INVALID_PARAMETER;
@@ -736,7 +834,7 @@ EAPI int buffer_handler_unlock(struct buffer_info *buffer)
 
 EAPI int buffer_handler_auto_align(void)
 {
-	return WIDGET_CONF_AUTO_ALIGN;
+	return 1;
 }
 
 EAPI int buffer_handler_stride(struct buffer_info *info)
@@ -754,6 +852,11 @@ EAPI int buffer_handler_stride(struct buffer_info *info)
 		stride = info->w * info->pixel_size;
 		break;
 	case WIDGET_FB_TYPE_PIXMAP:
+		buffer = info->buffer;
+		if (!buffer) {
+			stride = WIDGET_ERROR_INVALID_PARAMETER;
+			break;
+		}
 	default:
 		stride = WIDGET_ERROR_INVALID_PARAMETER;
 		break;
@@ -791,9 +894,6 @@ HAPI void *buffer_handler_data(struct buffer_info *buffer)
 
 HAPI int buffer_handler_destroy(struct buffer_info *info)
 {
-	Eina_List *l;
-	widget_fb_t buffer;
-
 	if (!info) {
 		DbgPrint("Buffer is not created yet. info is NIL\n");
 		return WIDGET_ERROR_NONE;
@@ -805,7 +905,7 @@ HAPI int buffer_handler_destroy(struct buffer_info *info)
 	return WIDGET_ERROR_NONE;
 }
 
-HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buffer_type type, int w, int h, int pixel_size, int auto_align)
+HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum widget_fb_type type, int w, int h, int pixel_size)
 {
 	struct buffer_info *info;
 
@@ -817,9 +917,9 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buff
 
 	switch (type) {
 	case WIDGET_FB_TYPE_SHM:
-		if (pixel_size != DEFAULT_PIXELS) {
-			DbgPrint("SHM only supportes %d bytes pixels (requested: %d)\n", DEFAULT_PIXELS, pixel_size);
-			pixel_size = DEFAULT_PIXELS;
+		if (pixel_size != WIDGET_CONF_DEFAULT_PIXELS) {
+			DbgPrint("SHM only supportes %d bytes pixels (requested: %d)\n", WIDGET_CONF_DEFAULT_PIXELS, pixel_size);
+			pixel_size = WIDGET_CONF_DEFAULT_PIXELS;
 		}
 
 		info->id = strdup(SCHEMA_SHM "-1");
@@ -829,10 +929,10 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buff
 			return NULL;
 		}
 		break;
-	case BUFFER_TYPE_FILE:
-		if (pixel_size != DEFAULT_PIXELS) {
-			DbgPrint("FILE only supportes %d bytes pixels (requested: %d)\n", DEFAULT_PIXELS, pixel_size);
-			pixel_size = DEFAULT_PIXELS;
+	case WIDGET_FB_TYPE_FILE:
+		if (pixel_size != WIDGET_CONF_DEFAULT_PIXELS) {
+			DbgPrint("FILE only supportes %d bytes pixels (requested: %d)\n", WIDGET_CONF_DEFAULT_PIXELS, pixel_size);
+			pixel_size = WIDGET_CONF_DEFAULT_PIXELS;
 		}
 
 		info->id = strdup(SCHEMA_FILE "/tmp/.live.undefined");
@@ -842,7 +942,7 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum buff
 			return NULL;
 		}
 		break;
-	case BUFFER_TYPE_PIXMAP:
+	case WIDGET_FB_TYPE_PIXMAP:
 	default:
 		ErrPrint("Invalid type\n");
 		DbgFree(info);

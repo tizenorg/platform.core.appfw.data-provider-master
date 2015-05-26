@@ -114,10 +114,10 @@ static inline struct request_item *create_request_item(struct tcb *tcb, int type
 		}
 		break;
 	case REQUEST_TYPE_PIXMAP:
-		item->data.pixmap = (unsigned int)data;
+		item->data.pixmap = (unsigned int)((long)data);
 		break;
 	case REQUEST_TYPE_SHM:
-		item->data.shm = (int)data;
+		item->data.shm = (int)((long)data);
 		break;
 	default:
 		ErrPrint("Invalid type of request\n");
@@ -162,7 +162,7 @@ static int request_file_handler(struct tcb *tcb, struct packet *packet, struct r
 
 static int request_pixmap_handler(struct tcb *tcb, struct packet *packet, struct request_item **item)
 {
-	unsigned int pixmap;
+	unsigned long pixmap;
 
 	if (packet_get(packet, "i", &pixmap) != 1) {
 		ErrPrint("Invalid packet\n");
@@ -200,7 +200,7 @@ static int request_shm_handler(struct tcb *tcb, struct packet *packet, struct re
 	 * \TODO
 	 * Attach to SHM and copy its buffer to the client
 	 */
-	*item = create_request_item(tcb, REQUEST_TYPE_SHM, (void *)shm);
+	*item = create_request_item(tcb, REQUEST_TYPE_SHM, (void *)((long)shm));
 	return *item ? WIDGET_ERROR_NONE : WIDGET_ERROR_OUT_OF_MEMORY;
 }
 
@@ -460,7 +460,7 @@ static int send_buffer(int handle, const struct request_item *item)
 		type = WIDGET_FB_TYPE_PIXMAP;
 	}
 
-	buffer = buffer_handler_raw_open(type, (void *)item->data.shm);
+	buffer = buffer_handler_raw_open(type, (void *)(long)item->data.shm);
 	if (!buffer) {
 		return -EINVAL;
 	}
@@ -604,7 +604,7 @@ static void *push_main(void *data)
 		destroy_request_item(item);
 	}
 
-	return (void *)ret;
+	return (void *)((long)ret);
 }
 
 /* MAIN THREAD */
