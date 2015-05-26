@@ -1125,14 +1125,11 @@ HAPI struct packet *instance_duplicate_packet_create(const struct packet *packet
 	DbgPrint("[TODO] Instance request_state is not touched\n");
 	inst->changing_state--;
 
-	inst->visible = WIDGET_HIDE_WITH_PAUSE;
 	inst->state = INST_ACTIVATED;
 
 	instance_create_widget_buffer(inst, WIDGET_CONF_DEFAULT_PIXELS);
 	instance_broadcast_created_event(inst);
 	instance_thaw_updator(inst);
-
-	instance_unref(inst);
 
 	return result;
 }

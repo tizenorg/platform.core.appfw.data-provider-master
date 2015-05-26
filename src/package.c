@@ -149,9 +149,16 @@ static int slave_activated_cb(struct slave_node *slave, void *data)
 	Eina_List *n;
 	int cnt;
 	int ret;
+	const char *category;
 
 	if (!slave_need_to_reactivate_instances(slave)) {
 		DbgPrint("Do not need to reactivate instances\n");
+		return 0;
+	}
+
+	category = package_category(info);
+	if (category && strcmp(CATEGORY_WATCH_CLOCK, category) == 0) {
+		DbgPrint("[%s] is a watch application, don't recover its state\n", package_name(info));
 		return 0;
 	}
 
