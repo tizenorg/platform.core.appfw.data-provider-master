@@ -1151,7 +1151,7 @@ HAPI int package_set_category(struct pkg_info *info, const char *category)
 	return WIDGET_ERROR_NONE;
 }
 
-HAPI const char *package_category(struct pkg_info *info)
+HAPI const char *package_category(const struct pkg_info *info)
 {
 	return info->category;
 }

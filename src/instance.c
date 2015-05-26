@@ -1171,6 +1171,9 @@ HAPI struct inst_info *instance_unref(struct inst_info *inst)
 static void deactivate_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	struct inst_info *inst = data;
+	const char *category;
+	int set_to_terminate;
+	struct pkg_info *pkg;
 	int ret;
 
 	/*!
@@ -1212,15 +1215,41 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 		 */
 		switch (inst->requested_state) {
 		case INST_ACTIVATED:
+			/**
+			 * @todo
+			 * How about watch? is it possible to be jumped into this case??
+			 */
 			instance_state_reset(inst);
 			instance_reactivate(inst);
 			break;
 		case INST_DESTROYED:
+			pkg = instance_package(inst);
+			category = package_category(pkg);
+			set_to_terminate = (category && !strcmp(category, CATEGORY_WATCH_CLOCK));
+
+			if (set_to_terminate) {
+				/**
+				 * @note
+				 * In case of the watch app.
+				 * It will be terminated by itself if master send the instance destroy request.
+				 * So the master should not handles provider termination as a fault.
+				 * To do that, change the state of a provider too from here.
+				 * Only in case of the slave is watch app.
+				 *
+				 * Watch App will returns DESTROYED result to the master before terminate its process.
+				 * So we can change the state of slave from here.
+				 * The master will not change the states of the slave as a faulted one.
+				 */
+				DbgPrint("Change the slave state for Watch app\n");
+				slave_set_state(package_slave(pkg), SLAVE_REQUEST_TO_TERMINATE);
+			}
+
 			if (inst->unicast_delete_event) {
 				instance_unicast_deleted_event(inst, NULL, ret);
 			} else {
 				instance_broadcast_deleted_event(inst, ret);
 			}
+
 			instance_state_reset(inst);
 			instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
 		default:
@@ -1230,29 +1259,34 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 
 		break;
 	case WIDGET_ERROR_INVALID_PARAMETER:
-		/*!
-		 * \note
+		/**
+		 * @note
 		 * Slave has no instance of this package.
 		 */
 	case WIDGET_ERROR_NOT_EXIST:
-		/*!
-		 * \note
+		/**
+		 * @note
 		 * This instance's previous state is only can be the INST_ACTIVATED.
 		 * So we should care the slave_unload_instance from here.
 		 * And we should send notification to clients, about this is deleted.
 		 */
-		/*!
-		 * \note
+		/**
+		 * @note
 		 * Slave has no instance of this.
 		 * In this case, ignore the requested_state
 		 * Because, this instance is already met a problem.
 		 */
 	default:
-		/*!
-		 * \note
+		/**
+		 * @note
 		 * Failed to unload this instance.
 		 * This is not possible, slave will always return WIDGET_ERROR_NOT_EXIST, WIDGET_ERROR_INVALID_PARAMETER, or 0.
 		 * but care this exceptional case.
+		 */
+
+		/**
+		 * @todo
+		 * How about watch? is it possible to be jumped into this case??
 		 */
 		instance_broadcast_deleted_event(inst, ret);
 		instance_state_reset(inst);
