@@ -42,6 +42,7 @@
 #include "fault_manager.h"
 #include "util.h"
 #include "conf.h"
+#include "instance.h"
 
 struct slave_rpc {
 	Ecore_Timer *pong_timer;
@@ -543,11 +544,25 @@ HAPI int slave_rpc_update_handle(struct slave_node *slave, int handle, int delet
 
 				cmd_idx = *((int *)cmd);
 				if (cmd_idx == CMD_NEW) {
+					/**
+					 * @note
+					 * CMD_NEW or CMD_STR_NEW will have instance via cbdata.
+					 * And its refcnt is increased before put request packet in to pendling list.
+					 * So, To destroy it, we should decrease its refcnt from here.
+					 */
+					if (command->cbdata) {
+						instance_unref((struct inst_info *)command->cbdata);
+						command->cbdata = NULL;
+					}
 					destroy_command(command);
 				} else {
 					push_command(command);
 				}
 			} else if (!strcmp(cmd, CMD_STR_NEW)) {
+				if (command->cbdata) {
+					instance_unref((struct inst_info *)command->cbdata);
+					command->cbdata = NULL;
+				}
 				destroy_command(command);
 			} else {
 				push_command(command);

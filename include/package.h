@@ -63,7 +63,7 @@ extern const int const package_gbar_width(const struct pkg_info *info);
 extern const int const package_gbar_height(const struct pkg_info *info);
 extern const char * const package_name(const struct pkg_info *info);
 extern const char * const package_libexec(struct pkg_info *info);
-extern const char *package_category(struct pkg_info *info);
+extern const char *package_category(const struct pkg_info *info);
 extern int package_network(struct pkg_info *info);
 extern Eina_List *package_ctx_info(struct pkg_info *pkginfo);
 
