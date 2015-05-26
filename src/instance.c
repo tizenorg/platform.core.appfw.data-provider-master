@@ -120,6 +120,10 @@ struct inst_info {
 	enum widget_visible_state visible;
 
 	struct {
+		int need_to_recover;
+	} watch;
+
+	struct {
 		int width;
 		int height;
 		double priority;
@@ -930,6 +934,7 @@ static inline int fork_package(struct inst_info *inst, const char *pkgname)
 HAPI struct inst_info *instance_create(struct client_node *client, double timestamp, const char *pkgname, const char *content, const char *cluster, const char *category, double period, int width, int height)
 {
 	struct inst_info *inst;
+	char *extra_bundle_data = NULL;
 
 	inst = calloc(1, sizeof(*inst));
 	if (!inst) {
@@ -941,16 +946,48 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 	inst->widget.width = width;
 	inst->widget.height = height;
 
-	inst->content = strdup(content);
-	if (!inst->content) {
-		ErrPrint("strdup: %d\n", errno);
-		DbgFree(inst);
-		return NULL;
+	if (client_is_sdk_viewer(client)) {
+		char *tmp;
+
+		tmp = strdup(content);
+		if (tmp) {
+			int length;
+			char *ptr = tmp;
+
+			if (sscanf(content, "%d:%s", &length, ptr) == 2) {
+				extra_bundle_data = malloc(length + 1);
+				if (extra_bundle_data) {
+					strncpy(extra_bundle_data, tmp, length);
+					extra_bundle_data[length] = '\0';
+					ptr += length;
+					DbgPrint("Extra Bundle Data extracted: [%s]\n", extra_bundle_data);
+				}
+
+				if (*ptr) {
+					inst->content = strdup(ptr);
+					if (!inst->content) {
+						ErrPrint("strdup: %d\n", errno);
+					}
+					DbgPrint("Content Info extracted: [%d]\n", inst->content);
+				}
+			}
+
+			DbgFree(tmp);
+		}
+	} else {
+		inst->content = strdup(content);
+		if (!inst->content) {
+			ErrPrint("strdup: %d\n", errno);
+			DbgFree(extra_bundle_data);
+			DbgFree(inst);
+			return NULL;
+		}
 	}
 
 	inst->cluster = strdup(cluster);
 	if (!inst->cluster) {
 		ErrPrint("strdup: %d\n", errno);
+		DbgFree(extra_bundle_data);
 		DbgFree(inst->content);
 		DbgFree(inst);
 		return NULL;
@@ -959,6 +996,7 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 	inst->category = strdup(category);
 	if (!inst->category) {
 		ErrPrint("strdup: %d\n", errno);
+		DbgFree(extra_bundle_data);
 		DbgFree(inst->cluster);
 		DbgFree(inst->content);
 		DbgFree(inst);
@@ -968,6 +1006,7 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 	inst->title = strdup(WIDGET_CONF_DEFAULT_TITLE); /*!< Use the DEFAULT Title "" */
 	if (!inst->title) {
 		ErrPrint("strdup: %d\n", errno);
+		DbgFree(extra_bundle_data);
 		DbgFree(inst->category);
 		DbgFree(inst->cluster);
 		DbgFree(inst->content);
@@ -985,6 +1024,7 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 
 	if (fork_package(inst, pkgname) < 0) {
 		(void)client_unref(inst->client);
+		DbgFree(extra_bundle_data);
 		DbgFree(inst->title);
 		DbgFree(inst->category);
 		DbgFree(inst->cluster);
@@ -1010,6 +1050,7 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 	instance_ref(inst);
 
 	if (package_add_instance(inst->info, inst) < 0) {
+		DbgFree(extra_bundle_data);
 		DbgFree(inst->widget.extra_buffer);
 		DbgFree(inst->gbar.extra_buffer);
 		unfork_package(inst);
@@ -1023,6 +1064,8 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 	}
 
 	slave_load_instance(package_slave(inst->info));
+	slave_set_extra_bundle_data(package_slave(inst->info), extra_bundle_data);
+	DbgFree(extra_bundle_data);
 
 	/**
 	 * @note
@@ -1086,14 +1129,11 @@ HAPI struct packet *instance_duplicate_packet_create(const struct packet *packet
 	DbgPrint("[TODO] Instance request_state is not touched\n");
 	inst->changing_state--;
 
-	inst->visible = WIDGET_HIDE_WITH_PAUSE;
 	inst->state = INST_ACTIVATED;
 
 	instance_create_widget_buffer(inst, WIDGET_CONF_DEFAULT_PIXELS);
 	instance_broadcast_created_event(inst);
 	instance_thaw_updator(inst);
-
-	instance_unref(inst);
 
 	return result;
 }
@@ -1131,6 +1171,9 @@ HAPI struct inst_info *instance_unref(struct inst_info *inst)
 static void deactivate_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	struct inst_info *inst = data;
+	const char *category;
+	int set_to_terminate;
+	struct pkg_info *pkg;
 	int ret;
 
 	/*!
@@ -1172,15 +1215,41 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 		 */
 		switch (inst->requested_state) {
 		case INST_ACTIVATED:
+			/**
+			 * @todo
+			 * How about watch? is it possible to be jumped into this case??
+			 */
 			instance_state_reset(inst);
 			instance_reactivate(inst);
 			break;
 		case INST_DESTROYED:
+			pkg = instance_package(inst);
+			category = package_category(pkg);
+			set_to_terminate = (category && !strcmp(category, CATEGORY_WATCH_CLOCK));
+
+			if (set_to_terminate) {
+				/**
+				 * @note
+				 * In case of the watch app.
+				 * It will be terminated by itself if master send the instance destroy request.
+				 * So the master should not handles provider termination as a fault.
+				 * To do that, change the state of a provider too from here.
+				 * Only in case of the slave is watch app.
+				 *
+				 * Watch App will returns DESTROYED result to the master before terminate its process.
+				 * So we can change the state of slave from here.
+				 * The master will not change the states of the slave as a faulted one.
+				 */
+				DbgPrint("Change the slave state for Watch app\n");
+				slave_set_state(package_slave(pkg), SLAVE_REQUEST_TO_TERMINATE);
+			}
+
 			if (inst->unicast_delete_event) {
 				instance_unicast_deleted_event(inst, NULL, ret);
 			} else {
 				instance_broadcast_deleted_event(inst, ret);
 			}
+
 			instance_state_reset(inst);
 			instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
 		default:
@@ -1190,29 +1259,34 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 
 		break;
 	case WIDGET_ERROR_INVALID_PARAMETER:
-		/*!
-		 * \note
+		/**
+		 * @note
 		 * Slave has no instance of this package.
 		 */
 	case WIDGET_ERROR_NOT_EXIST:
-		/*!
-		 * \note
+		/**
+		 * @note
 		 * This instance's previous state is only can be the INST_ACTIVATED.
 		 * So we should care the slave_unload_instance from here.
 		 * And we should send notification to clients, about this is deleted.
 		 */
-		/*!
-		 * \note
+		/**
+		 * @note
 		 * Slave has no instance of this.
 		 * In this case, ignore the requested_state
 		 * Because, this instance is already met a problem.
 		 */
 	default:
-		/*!
-		 * \note
+		/**
+		 * @note
 		 * Failed to unload this instance.
 		 * This is not possible, slave will always return WIDGET_ERROR_NOT_EXIST, WIDGET_ERROR_INVALID_PARAMETER, or 0.
 		 * but care this exceptional case.
+		 */
+
+		/**
+		 * @todo
+		 * How about watch? is it possible to be jumped into this case??
 		 */
 		instance_broadcast_deleted_event(inst, ret);
 		instance_state_reset(inst);
@@ -2575,6 +2649,33 @@ HAPI int instance_set_visible_state(struct inst_info *inst, enum widget_visible_
 	return WIDGET_ERROR_NONE;
 }
 
+/**
+ * @note
+ * Just touch the visible state again.
+ */
+HAPI int instance_watch_recover_visible_state(struct inst_info *inst)
+{
+	switch (inst->visible) {
+	case WIDGET_SHOW:
+	case WIDGET_HIDE:
+		(void)resume_widget(inst);
+		instance_thaw_updator(inst);
+		/**
+		 * @note
+		 * We don't need to send the monitor event.
+		 */
+		break;
+	case WIDGET_HIDE_WITH_PAUSE:
+		(void)pause_widget(inst);
+		instance_freeze_updator(inst);
+		break;
+	default:
+		return WIDGET_ERROR_INVALID_PARAMETER;
+	}
+
+	return WIDGET_ERROR_NONE;
+}
+
 static void resize_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	struct resize_cbdata *cbdata = data;
@@ -3811,6 +3912,16 @@ HAPI void instance_set_orientation(struct inst_info *inst, int degree)
 HAPI int instance_orientation(struct inst_info *inst)
 {
 	return inst->orientation;
+}
+
+HAPI void instance_watch_set_need_to_recover(struct inst_info *inst, int recover)
+{
+	inst->watch.need_to_recover = !!recover;
+}
+
+HAPI int instance_watch_need_to_recover(struct inst_info *inst)
+{
+	return inst->watch.need_to_recover;
 }
 
 /* End of a file */

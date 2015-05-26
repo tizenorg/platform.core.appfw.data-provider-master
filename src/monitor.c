@@ -185,9 +185,11 @@ HAPI int monitor_multicast_state_change_event(const char *widget_id, enum monito
 		if (widget_id && monitor->widget_id) {
 			if (!strcmp(widget_id, monitor->widget_id)) {
 				com_core_packet_send_only(monitor->handle, packet);
+				cnt++;
 			}
 		} else if (monitor->widget_id == NULL) {
 			com_core_packet_send_only(monitor->handle, packet);
+			cnt++;
 		}
 	}
 
