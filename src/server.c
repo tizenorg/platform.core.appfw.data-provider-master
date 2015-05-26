@@ -8293,6 +8293,23 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 
 		result = instance_duplicate_packet_create(packet, inst, info, width, height);
 
+		if (instance_watch_need_to_recover(inst)) {
+			/**
+			 * @note
+			 * Reset the state recover flag.
+			 */
+			(void)instance_watch_set_need_to_recover(inst, EINA_FALSE);
+
+			/**
+			 * @note
+			 * Re-send the visible state change request in this case.
+			 * But, this will be sent after return from this function.
+			 * Request will be sent from command comsumer which are running by timer callback.
+			 * (slave_rpc_request_only, slave_rpc_async_request, ...)
+			 */
+			(void)instance_watch_recover_visible_state(inst);
+		}
+
 		DbgFree(widget_id);
 	}
 

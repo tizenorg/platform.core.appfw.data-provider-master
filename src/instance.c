@@ -120,6 +120,10 @@ struct inst_info {
 	enum widget_visible_state visible;
 
 	struct {
+		int need_to_recover;
+	} watch;
+
+	struct {
 		int width;
 		int height;
 		double priority;
@@ -2611,6 +2615,33 @@ HAPI int instance_set_visible_state(struct inst_info *inst, enum widget_visible_
 	return WIDGET_ERROR_NONE;
 }
 
+/**
+ * @note
+ * Just touch the visible state again.
+ */
+HAPI int instance_watch_recover_visible_state(struct inst_info *inst)
+{
+	switch (inst->visible) {
+	case WIDGET_SHOW:
+	case WIDGET_HIDE:
+		(void)resume_widget(inst);
+		instance_thaw_updator(inst);
+		/**
+		 * @note
+		 * We don't need to send the monitor event.
+		 */
+		break;
+	case WIDGET_HIDE_WITH_PAUSE:
+		(void)pause_widget(inst);
+		instance_freeze_updator(inst);
+		break;
+	default:
+		return WIDGET_ERROR_INVALID_PARAMETER;
+	}
+
+	return WIDGET_ERROR_NONE;
+}
+
 static void resize_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	struct resize_cbdata *cbdata = data;
@@ -3847,6 +3878,16 @@ HAPI void instance_set_orientation(struct inst_info *inst, int degree)
 HAPI int instance_orientation(struct inst_info *inst)
 {
 	return inst->orientation;
+}
+
+HAPI void instance_watch_set_need_to_recover(struct inst_info *inst, int recover)
+{
+	inst->watch.need_to_recover = !!recover;
+}
+
+HAPI int instance_watch_need_to_recover(struct inst_info *inst)
+{
+	return inst->watch.need_to_recover;
 }
 
 /* End of a file */

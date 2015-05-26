@@ -150,6 +150,7 @@ static int slave_activated_cb(struct slave_node *slave, void *data)
 	int cnt;
 	int ret;
 	const char *category;
+	int is_watch;
 
 	if (!slave_need_to_reactivate_instances(slave)) {
 		DbgPrint("Do not need to reactivate instances\n");
@@ -157,19 +158,25 @@ static int slave_activated_cb(struct slave_node *slave, void *data)
 	}
 
 	category = package_category(info);
-	if (category && strcmp(CATEGORY_WATCH_CLOCK, category) == 0) {
-		DbgPrint("[%s] is a watch application, don't recover its state\n", package_name(info));
-		return 0;
-	}
+	is_watch = (category && strcmp(CATEGORY_WATCH_CLOCK, category) == 0);
 
 	cnt = 0;
 	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
-		ret = instance_recover_state(inst);
-		if (!ret) {
-			continue;
-		}
+		if (is_watch) {
+			/**
+			 * @note
+			 * Watch will be recovered by SLAVE_SYNC_HELLO command.
+			 * Not from here.
+			 */
+			instance_watch_set_need_to_recover(inst, EINA_TRUE);
+		} else {
+			ret = instance_recover_state(inst);
+			if (!ret) {
+				continue;
+			}
 
-		instance_thaw_updator(inst);
+			instance_thaw_updator(inst);
+		}
 		cnt++;
 	}
 
