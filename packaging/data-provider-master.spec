@@ -4,7 +4,7 @@ Name: data-provider-master
 Summary: Master service provider for widgetes
 Version: 1.1.7
 Release: 1
-Group: HomeTF/widget
+Group: Applications/Core Applications
 License: Flora License, Version 1.1
 Source0: %{name}-%{version}.tar.gz
 Source1001: %{name}.manifest
@@ -21,19 +21,17 @@ BuildRequires: pkgconfig(bundle)
 
 %if %{with wayland}
 BuildRequires: pkgconfig(ecore-wayland)
-BuildRequires: pkgconfig(wayland-client)
 %else
 BuildRequires: pkgconfig(ecore-x)
 BuildRequires: pkgconfig(x11)
-BuildRequires: pkgconfig(libdri2)
 BuildRequires: pkgconfig(xfixes)
-BuildRequires: pkgconfig(dri2proto)
 BuildRequires: pkgconfig(xext)
+BuildRequires: pkgconfig(libdri2)
 BuildRequires: pkgconfig(xdamage)
+BuildRequires: pkgconfig(dri2proto)
 %endif
 
 BuildRequires: pkgconfig(libtbm)
-BuildRequires: pkgconfig(libdrm)
 BuildRequires: pkgconfig(ecore)
 BuildRequires: pkgconfig(eina)
 BuildRequires: pkgconfig(com-core)

@@ -24,7 +24,6 @@ pkg_check_modules(pkg REQUIRED
 	pkgmgr-info
 	libsystemd-daemon
 	libtbm
-	libdrm
 )
 
 IF (LIVEBOX)
@@ -37,18 +36,17 @@ IF (X11_SUPPORT)
 pkg_check_modules(pkg_extra REQUIRED
 	ecore-x
 	x11
-	libdri2
 	xfixes
-	dri2proto
 	xext
 	xdamage
+	libdri2
+	dri2proto
 )
 ENDIF (X11_SUPPORT)
 
 IF (WAYLAND_SUPPORT)
 pkg_check_modules(pkg_extra REQUIRED
 	ecore-wayland
-	wayland-client
 )
 ENDIF (WAYLAND_SUPPORT)
 

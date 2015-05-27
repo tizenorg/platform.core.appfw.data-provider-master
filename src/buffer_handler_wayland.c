@@ -29,8 +29,6 @@
 #include <Ecore.h>
 #include <Ecore_Wayland.h> /* wayland_client.h is included by this header */
 
-#include <xf86drm.h>
-#include <xf86drmMode.h>
 #include <tbm_bufmgr.h>
 
 #include <dlog.h>
@@ -580,16 +578,23 @@ EAPI void buffer_handler_flush(struct buffer_info *info)
 
 HAPI int buffer_handler_init(void)
 {
+	int ret;
+
 	if (WIDGET_CONF_USE_SW_BACKEND) {
 		DbgPrint("Fallback to the S/W Backend\n");
 		return WIDGET_ERROR_NONE;
 	}
 
-	/**
-	 * Use the -1 for default FD handler.
-	 */
-	s_info.slp_bufmgr = tbm_bufmgr_init(-1);
+	ret = widget_util_get_drm_fd(ecore_wl_display_get(), &s_info.fd);
+	if (ret != WIDGET_ERROR_NONE || s_info.fd < 0) {
+		ErrPrint("Fallback to the S/W Backend\n");
+		return WIDGET_ERROR_NONE;
+	}
+
+	s_info.slp_bufmgr = tbm_bufmgr_init(s_info.fd);
 	if (!s_info.slp_bufmgr) {
+		widget_util_release_drm_fd(s_info.fd);
+		s_info.fd = -1;
 		return WIDGET_ERROR_NONE;
 	}
 
@@ -598,13 +603,14 @@ HAPI int buffer_handler_init(void)
 
 HAPI int buffer_handler_fini(void)
 {
-	/**
-	 * @TODO
-	 * Implement this for wayland
-	 */
 	if (s_info.slp_bufmgr) {
 		tbm_bufmgr_deinit(s_info.slp_bufmgr);
 		s_info.slp_bufmgr = NULL;
+	}
+
+	if (s_info.fd >= 0) {
+		widget_util_release_drm_fd(s_info.fd);
+		s_info.fd = -1;
 	}
 
 	return WIDGET_ERROR_NONE;
