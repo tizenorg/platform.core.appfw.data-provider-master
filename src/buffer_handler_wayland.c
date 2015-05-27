@@ -59,6 +59,7 @@ struct gem_data {
 	int depth;
 	void *data; /* Gem layer */
 	int refcnt;
+	int pixmap; /* FD in case of wayland */
 };
 
 struct buffer_info
@@ -81,9 +82,11 @@ struct buffer_info
 static struct {
 	tbm_bufmgr slp_bufmgr;
 	int fd;
+	Eina_List *pixmap_list;
 } s_info = {
 	.slp_bufmgr = NULL,
 	.fd = -1,
+	.pixmap_list = NULL,
 };
 
 
@@ -91,15 +94,6 @@ static inline widget_fb_t create_pixmap(struct buffer_info *info)
 {
 	struct gem_data *gem;
 	widget_fb_t buffer;
-	struct wl_display *disp;
-	// Window parent;
-	// XGCValues gcb;
-	// GC gc;
-
-	disp = ecore_wl_display_get();
-	if (!disp) {
-		return NULL;
-	}
 
 	buffer = calloc(1, sizeof(*buffer) + sizeof(*gem));
 	if (!buffer) {
@@ -116,15 +110,91 @@ static inline widget_fb_t create_pixmap(struct buffer_info *info)
 	gem->count = 1;
 	gem->w = info->w;
 	gem->h = info->h;
-	gem->depth = sizeof(int);
-
-	/**
-	 * @TODO
-	 * Create surface buffer
-	 * And pair it to this "buffer" object
-	 */
+	gem->depth = WIDGET_CONF_DEFAULT_PIXELS;
 
 	return buffer;
+}
+
+static inline void *acquire_gem(widget_fb_t buffer)
+{
+	struct gem_data *gem;
+
+	if (!buffer) {
+		return NULL;
+	}
+
+	gem = (struct gem_data *)buffer->data;
+	if (s_info.fd < 0) {
+		ErrPrint("GEM is not supported - Use the fake gem buffer\n");
+	} else {
+		if (!gem->pixmap_bo) {
+			ErrPrint("GEM is not created\n");
+			return NULL;
+		}
+
+		if (!gem->data) {
+			tbm_bo_handle handle;
+
+			if (gem->refcnt) {
+				ErrPrint("Already acquired. but the buffer is not valid\n");
+				return NULL;
+			}
+
+			handle = tbm_bo_map(gem->pixmap_bo, TBM_DEVICE_CPU, TBM_OPTION_READ | TBM_OPTION_WRITE);
+			gem->data = handle.ptr;
+		}
+	}
+
+	gem->refcnt++;
+	return gem->data;
+}
+
+static inline void release_gem(widget_fb_t buffer)
+{
+	struct gem_data *gem;
+
+	gem = (struct gem_data *)buffer->data;
+	if (s_info.fd >= 0 && !gem->pixmap_bo) {
+		ErrPrint("GEM is not created\n");
+		return;
+	}
+
+	if (!gem->data) {
+		if (gem->refcnt > 0) {
+			ErrPrint("Reference count is not valid %d\n", gem->refcnt);
+			gem->refcnt = 0;
+		}
+		return;
+	}
+
+	gem->refcnt--;
+	if (gem->refcnt == 0) {
+		if (s_info.fd < 0) {
+			DbgPrint("S/W Gem buffer has no reference\n");
+		} else {
+			if (gem->pixmap_bo) {
+				tbm_bo_unmap(gem->pixmap_bo);
+				gem->pixmap_bo = NULL;
+			}
+
+			gem->data = NULL;
+		}
+	} else if (gem->refcnt < 0) {
+		ErrPrint("Invalid refcnt: %d (reset)\n", gem->refcnt);
+		gem->refcnt = 0;
+	}
+}
+
+
+static inline int destroy_pixmap(widget_fb_t buffer)
+{
+	/**
+	 * @note
+	 * gem data should be destroyed first.
+	 */
+	buffer->state = WIDGET_FB_STATE_DESTROYED;
+	DbgFree(buffer);
+	return WIDGET_ERROR_NONE;
 }
 
 static inline int create_gem(widget_fb_t buffer)
@@ -132,7 +202,53 @@ static inline int create_gem(widget_fb_t buffer)
 	struct gem_data *gem;
 
 	gem = (struct gem_data *)buffer->data;
+
 	gem->pixmap_bo = tbm_bo_alloc(s_info.slp_bufmgr, gem->w * gem->h * gem->depth, TBM_BO_DEFAULT);
+	if (!gem->pixmap_bo) {
+		ErrPrint("Failed to create Buffer Object\n");
+		return WIDGET_ERROR_FAULT;
+	}
+
+	gem->pixmap = tbm_bo_export(gem->pixmap_bo);
+	if (gem->pixmap < 0) {
+		ErrPrint("Failed to export FD\n");
+		tbm_bo_unref(gem->pixmap_bo);
+		gem->pixmap_bo = NULL;
+		return WIDGET_ERROR_FAULT;
+	}
+
+	return WIDGET_ERROR_NONE;
+}
+
+static inline int destroy_gem(widget_fb_t buffer)
+{
+	struct gem_data *gem;
+
+	if (!buffer) {
+		return WIDGET_ERROR_INVALID_PARAMETER;
+	}
+
+	/*!
+	 * Forcely release the acquire_buffer.
+	 */
+	gem = (struct gem_data *)buffer->data;
+	if (!gem) {
+		return WIDGET_ERROR_FAULT;
+	}
+
+	if (s_info.fd >= 0) {
+		if (gem->pixmap_bo) {
+			DbgPrint("unref pixmap bo\n");
+			tbm_bo_unref(gem->pixmap_bo);
+			gem->pixmap_bo = NULL;
+			gem->pixmap = 0;
+		}
+	} else if (gem->data) {
+		DbgPrint("Release fake gem buffer\n");
+		DbgFree(gem->data);
+		gem->data = NULL;
+	}
+
 	return WIDGET_ERROR_NONE;
 }
 
@@ -243,6 +359,51 @@ static inline int load_shm_buffer(struct buffer_info *info)
 	return WIDGET_ERROR_NONE;
 }
 
+static inline int load_pixmap_buffer(struct buffer_info *info)
+{
+	widget_fb_t buffer;
+	struct gem_data *gem;
+	char *new_id;
+	int len;
+
+	/*!
+	 * \NOTE
+	 * Before call the buffer_handler_pixmap_ref function,
+	 * You should make sure that the is_loaded value is toggled (1)
+	 * Or the buffer_handler_pixmap_ref function will return NULL
+	 */
+	info->is_loaded = 1;
+
+	if (info->buffer) {
+		DbgPrint("Buffer is already exists, but override it with new one\n");
+	}
+
+	buffer = buffer_handler_pixmap_ref(info);
+	if (!buffer) {
+		DbgPrint("Failed to make a reference of a pixmap\n");
+		info->is_loaded = 0;
+		return WIDGET_ERROR_FAULT;
+	}
+
+	len = strlen(SCHEMA_PIXMAP) + 30; /* strlen("pixmap://") + 30 */
+	new_id = malloc(len);
+	if (!new_id) {
+		ErrPrint("malloc: %d\n", errno);
+		info->is_loaded = 0;
+		buffer_handler_pixmap_unref(buffer);
+		return WIDGET_ERROR_OUT_OF_MEMORY;
+	}
+
+	DbgFree(info->id);
+	info->id = new_id;
+
+	gem = (struct gem_data *)buffer->data;
+
+	snprintf(info->id, len, SCHEMA_PIXMAP "%d:%d", (int)gem->pixmap, info->pixel_size);
+	DbgPrint("Loaded pixmap(info->id): %s\n", info->id);
+	return WIDGET_ERROR_NONE;
+}
+
 EAPI int buffer_handler_load(struct buffer_info *info)
 {
 	int ret;
@@ -274,9 +435,8 @@ EAPI int buffer_handler_load(struct buffer_info *info)
 		info->lock_info = widget_service_create_lock(instance_id(info->inst), type, WIDGET_LOCK_WRITE);
 		break;
 	case WIDGET_FB_TYPE_PIXMAP:
-		/**
-		 * TODO: load_wl_pixmap_buffer(info);
-		 */
+		ret = load_pixmap_buffer(info);
+		break;
 	default:
 		ErrPrint("Invalid buffer\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
@@ -348,6 +508,47 @@ static inline int unload_shm_buffer(struct buffer_info *info)
 	return WIDGET_ERROR_NONE;
 }
 
+static inline int unload_pixmap_buffer(struct buffer_info *info)
+{
+	int id;
+	char *new_id;
+	int pixels;
+
+	new_id = strdup(SCHEMA_PIXMAP "0:0");
+	if (!new_id) {
+		ErrPrint("strdup: %d\n", errno);
+		return WIDGET_ERROR_OUT_OF_MEMORY;
+	}
+
+	if (sscanf(info->id, SCHEMA_PIXMAP "%d:%d", &id, &pixels) != 2) {
+		ErrPrint("Invalid ID (%s)\n", info->id);
+		DbgFree(new_id);
+		return WIDGET_ERROR_INVALID_PARAMETER;
+	}
+
+	if (id == 0) {
+		ErrPrint("(%s) Invalid id: %d\n", info->id, id);
+		DbgFree(new_id);
+		return WIDGET_ERROR_INVALID_PARAMETER;
+	}
+
+	/*!
+	 * Decrease the reference counter.
+	 */
+	buffer_handler_pixmap_unref(info->buffer);
+
+	/*!
+	 * \note
+	 * Just clear the info->buffer.
+	 * It will be reallocated again.
+	 */
+	info->buffer = NULL;
+
+	DbgFree(info->id);
+	info->id = new_id;
+	return WIDGET_ERROR_NONE;
+}
+
 EAPI int buffer_handler_unload(struct buffer_info *info)
 {
 	int ret;
@@ -374,9 +575,8 @@ EAPI int buffer_handler_unload(struct buffer_info *info)
 		ret = unload_shm_buffer(info);
 		break;
 	case WIDGET_FB_TYPE_PIXMAP:
-		/**
-		 * @todo: unload_wl_pixmap_buffer(info)
-		 */
+		ret = unload_pixmap_buffer(info);
+		break;
 	default:
 		ErrPrint("Invalid buffer\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
@@ -411,9 +611,19 @@ EAPI void *buffer_handler_fb(struct buffer_info *info)
 	buffer = info->buffer;
 
 	if (info->type == WIDGET_FB_TYPE_PIXMAP) {
-		/**
+		void *canvas;
+		int ret;
+
+		/*!
+		 * \note
+		 * For getting the buffer address of gem.
 		 */
-		return NULL;
+		canvas = buffer_handler_pixmap_acquire_buffer(info);
+		ret = buffer_handler_pixmap_release_buffer(canvas);
+		if (ret < 0) {
+			ErrPrint("Failed to release buffer: %d\n", ret);
+		}
+		return canvas;
 	}
 
 	return buffer->data;
@@ -421,17 +631,67 @@ EAPI void *buffer_handler_fb(struct buffer_info *info)
 
 EAPI int buffer_handler_pixmap(const struct buffer_info *info)
 {
-	return 0;
+	widget_fb_t buf;
+	struct gem_data *gem;
+
+	if (!info) {
+		ErrPrint("Inavlid buffer handler\n");
+		return 0;
+	}
+
+	if (info->type != WIDGET_FB_TYPE_PIXMAP) {
+		ErrPrint("Invalid buffer type\n");
+		return 0;
+	}
+
+	buf = (widget_fb_t)info->buffer;
+	if (!buf) {
+		ErrPrint("Invalid buffer data\n");
+		return 0;
+	}
+
+	gem = (struct gem_data *)buf->data;
+	return gem->pixmap;
 }
 
 EAPI void *buffer_handler_pixmap_acquire_buffer(struct buffer_info *info)
 {
-	return NULL;
+	widget_fb_t buffer;
+
+	if (!info || !info->is_loaded) {
+		ErrPrint("Buffer is not loaded\n");
+		return NULL;
+	}
+
+	buffer = buffer_handler_pixmap_ref(info);
+	if (!buffer) {
+		return NULL;
+	}
+
+	return acquire_gem(buffer);
 }
 
 EAPI void *buffer_handler_pixmap_buffer(struct buffer_info *info)
 {
-	return NULL;
+	widget_fb_t buffer;
+	struct gem_data *gem;
+
+	if (!info) {
+		return NULL;
+	}
+
+	if (!info->is_loaded) {
+		ErrPrint("Buffer is not loaded\n");
+		return NULL;
+	}
+
+	buffer = info->buffer;
+	if (!buffer) {
+		return NULL;
+	}
+
+	gem = (struct gem_data *)buffer->data;
+	return gem->data;
 }
 
 /*!
@@ -439,7 +699,79 @@ EAPI void *buffer_handler_pixmap_buffer(struct buffer_info *info)
  */
 EAPI void *buffer_handler_pixmap_ref(struct buffer_info *info)
 {
-	return NULL;
+	widget_fb_t buffer;
+
+	if (!info->is_loaded) {
+		ErrPrint("Buffer is not loaded\n");
+		return NULL;
+	}
+
+	if (info->type != WIDGET_FB_TYPE_PIXMAP) {
+		ErrPrint("Buffer type is not matched\n");
+		return NULL;
+	}
+
+	buffer = info->buffer;
+	if (!buffer) {
+		int need_gem = 1;
+
+		buffer = create_pixmap(info);
+		if (!buffer) {
+			ErrPrint("Failed to create a pixmap\n");
+			return NULL;
+		}
+
+		info->buffer = buffer;
+
+		if (info->inst) {
+			struct pkg_info *pkg;
+
+			pkg = instance_package(info->inst);
+
+			if (instance_widget_buffer(info->inst) == info) {
+				if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+					need_gem = 0;
+				}
+			} else if (instance_gbar_buffer(info->inst) == info) {
+				if (package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
+					need_gem = 0;
+				}
+			} else {
+				int idx;
+
+				for (idx = 0; idx < WIDGET_CONF_EXTRA_BUFFER_COUNT; idx++) {
+					if (instance_widget_extra_buffer(info->inst, idx) == info) {
+						if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
+							need_gem = 0;
+							break;
+						}
+					}
+
+					if (instance_gbar_extra_buffer(info->inst, idx) == info) {
+						if (package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
+							need_gem = 0;
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		if (need_gem) {
+			if (create_gem(buffer) < 0) {
+				/* okay, something goes wrong */
+			}
+		}
+	} else if (buffer->state != WIDGET_FB_STATE_CREATED || buffer->type != WIDGET_FB_TYPE_PIXMAP) {
+		ErrPrint("Invalid buffer\n");
+		return NULL;
+	} else if (buffer->refcnt > 0) {
+		buffer->refcnt++;
+		return buffer;
+	}
+
+	s_info.pixmap_list = eina_list_append(s_info.pixmap_list, buffer);
+	return buffer;
 }
 
 /*!
@@ -447,11 +779,63 @@ EAPI void *buffer_handler_pixmap_ref(struct buffer_info *info)
  */
 EAPI void *buffer_handler_pixmap_find(int pixmap)
 {
+	widget_fb_t buffer;
+	struct gem_data *gem;
+	Eina_List *l;
+	Eina_List *n;
+
+	if (pixmap < 0) {
+		return NULL;
+	}
+
+	EINA_LIST_FOREACH_SAFE(s_info.pixmap_list, l, n, buffer) {
+		if (!buffer || buffer->state != WIDGET_FB_STATE_CREATED || buffer->type != WIDGET_FB_TYPE_PIXMAP) {
+			s_info.pixmap_list = eina_list_remove(s_info.pixmap_list, buffer);
+			DbgPrint("Invalid buffer (List Removed: %p)\n", buffer);
+			continue;
+		}
+
+		gem = (struct gem_data *)buffer->data;
+		if (gem->pixmap == pixmap) {
+			return buffer;
+		}
+	}
+
 	return NULL;
 }
 
 EAPI int buffer_handler_pixmap_release_buffer(void *canvas)
 {
+	widget_fb_t buffer;
+	struct gem_data *gem;
+	Eina_List *l;
+	Eina_List *n;
+	void *_ptr;
+
+	if (!canvas) {
+		return WIDGET_ERROR_INVALID_PARAMETER;
+	}
+
+	EINA_LIST_FOREACH_SAFE(s_info.pixmap_list, l, n, buffer) {
+		if (!buffer || buffer->state != WIDGET_FB_STATE_CREATED || buffer->type != WIDGET_FB_TYPE_PIXMAP) {
+			s_info.pixmap_list = eina_list_remove(s_info.pixmap_list, buffer);
+			continue;
+		}
+
+		gem = (struct gem_data *)buffer->data;
+		_ptr = gem->data;
+
+		if (!_ptr) {
+			continue;
+		}
+
+		if (_ptr == canvas) {
+			release_gem(buffer);
+			buffer_handler_pixmap_unref(buffer);
+			return WIDGET_ERROR_NONE;
+		}
+	}
+
 	return WIDGET_ERROR_NOT_EXIST;
 }
 
@@ -463,6 +847,30 @@ EAPI int buffer_handler_pixmap_release_buffer(void *canvas)
  */
 EAPI int buffer_handler_pixmap_unref(void *buffer_ptr)
 {
+	widget_fb_t buffer = buffer_ptr;
+	struct buffer_info *info;
+
+	buffer->refcnt--;
+	if (buffer->refcnt > 0) {
+		return WIDGET_ERROR_NONE; /* Return NULL means, gem buffer still in use */
+	}
+
+	s_info.pixmap_list = eina_list_remove(s_info.pixmap_list, buffer);
+
+	info = buffer->info;
+
+	if (destroy_gem(buffer) < 0) {
+		ErrPrint("Failed to destroy gem buffer\n");
+	}
+
+	if (info && info->buffer == buffer) {
+		info->buffer = NULL;
+	}
+
+	if (destroy_pixmap(buffer) < 0) {
+		ErrPrint("Failed to destroy pixmap\n");
+	}
+
 	return WIDGET_ERROR_NONE;
 }
 
@@ -845,7 +1253,6 @@ EAPI int buffer_handler_auto_align(void)
 
 EAPI int buffer_handler_stride(struct buffer_info *info)
 {
-	widget_fb_t buffer;
 	int stride;
 
 	if (!info) {
@@ -855,14 +1262,9 @@ EAPI int buffer_handler_stride(struct buffer_info *info)
 	switch (info->type) {
 	case WIDGET_FB_TYPE_FILE:
 	case WIDGET_FB_TYPE_SHM:
+	case WIDGET_FB_TYPE_PIXMAP:
 		stride = info->w * info->pixel_size;
 		break;
-	case WIDGET_FB_TYPE_PIXMAP:
-		buffer = info->buffer;
-		if (!buffer) {
-			stride = WIDGET_ERROR_INVALID_PARAMETER;
-			break;
-		}
 	default:
 		stride = WIDGET_ERROR_INVALID_PARAMETER;
 		break;
@@ -900,9 +1302,18 @@ HAPI void *buffer_handler_data(struct buffer_info *buffer)
 
 HAPI int buffer_handler_destroy(struct buffer_info *info)
 {
+	Eina_List *l;
+	widget_fb_t buffer;
+
 	if (!info) {
 		DbgPrint("Buffer is not created yet. info is NIL\n");
 		return WIDGET_ERROR_NONE;
+	}
+
+	EINA_LIST_FOREACH(s_info.pixmap_list, l, buffer) {
+		if (buffer->info == info) {
+			buffer->info = NULL;
+		}
 	}
 
 	buffer_handler_unload(info);
@@ -949,6 +1360,13 @@ HAPI struct buffer_info *buffer_handler_create(struct inst_info *inst, enum widg
 		}
 		break;
 	case WIDGET_FB_TYPE_PIXMAP:
+		info->id = strdup(SCHEMA_PIXMAP "0:0");
+		if (!info->id) {
+			ErrPrint("strdup: %d\n", errno);
+			DbgFree(info);
+			return NULL;
+		}
+		break;
 	default:
 		ErrPrint("Invalid type\n");
 		DbgFree(info);
