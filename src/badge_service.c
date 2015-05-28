@@ -31,7 +31,6 @@
 #include <badge.h>
 #include <badge_db.h>
 #include <badge_setting_service.h>
-#include <security-server.h>
 
 #include "service_common.h"
 #include "debug.h"
@@ -65,14 +64,15 @@ struct badge_service {
  */
 static int _is_valid_permission(int fd, struct badge_service *service)
 {
-	int ret;
-
 	if (service->rule != NULL && service->access != NULL) {
+		/*
+		int ret;
 		ret = security_server_check_privilege_by_sockfd(fd, service->rule, service->access);
 		if (ret == SECURITY_SERVER_API_ERROR_ACCESS_DENIED) {
 			ErrPrint("SMACK:Access denied\n");
 			return 0;
 		}
+		*/
 	}
 
 	return 1;
@@ -80,14 +80,15 @@ static int _is_valid_permission(int fd, struct badge_service *service)
 
 static int _is_manager_permission(int fd)
 {
+	/*
 	int ret;
-
 	ret = security_server_check_privilege_by_sockfd(fd,
 			"data-provider-master::badge.manager", "w");
 	if (ret == SECURITY_SERVER_API_ERROR_ACCESS_DENIED) {
 		ErrPrint("SMACK:not a manager\n");
 		return 0;
 	}
+	*/
 
 	return 1;
 }

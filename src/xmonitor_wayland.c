@@ -29,6 +29,9 @@
 #include <gio/gio.h>
 #include <dlog.h>
 #include <widget_errno.h>
+#include <widget_service.h>
+#include <widget_conf.h>
+#include <Ecore.h>
 
 #include "conf.h"
 #include "debug.h"
@@ -108,7 +111,7 @@ HAPI void xmonitor_handle_state_changes(void)
 
 		touch_paused_file();
 
-		sqlite3_release_memory(SQLITE_FLUSH_MAX);
+		sqlite3_release_memory(WIDGET_CONF_SQLITE_FLUSH_MAX);
 		malloc_trim(0);
 	} else {
 		remove_paused_file();
@@ -123,8 +126,6 @@ HAPI void xmonitor_handle_state_changes(void)
 
 HAPI int xmonitor_update_state(int target_pid)
 {
-	struct client_node *client;
-
 	if (!WIDGET_CONF_USE_XMONITOR || target_pid < 0) {
 		return WIDGET_ERROR_NONE;
 	}

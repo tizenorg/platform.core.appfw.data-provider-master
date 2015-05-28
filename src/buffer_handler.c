@@ -36,17 +36,15 @@
 #include <X11/extensions/XShm.h>
 
 #include <dri2.h>
-#include <xf86drm.h>
-#include <xf86drmMode.h>
 #include <tbm_bufmgr.h>
 
 #include <dlog.h>
 #include <packet.h>
 #include <widget_errno.h>
 #include <widget_service.h>
-#include <widget_buffer.h>
 #include <widget_conf.h>
 #include <widget_util.h>
+#include <widget_buffer.h>
 
 #include "debug.h"
 #include "conf.h"
@@ -96,14 +94,10 @@ struct buffer_info
 
 static struct {
 	tbm_bufmgr slp_bufmgr;
-	int evt_base;
-	int err_base;
 	int fd;
 	Eina_List *pixmap_list;
 } s_info = {
 	.slp_bufmgr = NULL,
-	.evt_base = 0,
-	.err_base = 0,
 	.fd = -1,
 	.pixmap_list = NULL,
 };
@@ -470,7 +464,7 @@ static inline int load_shm_buffer(struct buffer_info *info)
 	buffer->type = WIDGET_FB_TYPE_SHM;
 	buffer->refcnt = id;
 	buffer->state = WIDGET_FB_STATE_CREATED; /*!< Needless */
-	buffer->info = (void *)size; /*!< Use this field to indicates the size of SHM */
+	buffer->info = (void *)((long)size); /*!< Use this field to indicates the size of SHM */
 
 	len = strlen(SCHEMA_SHM) + 30; /* strlen("shm://") + 30 */
 
@@ -1264,70 +1258,24 @@ EAPI void buffer_handler_flush(struct buffer_info *info)
 
 HAPI int buffer_handler_init(void)
 {
-	int dri2Major, dri2Minor;
-	char *driverName, *deviceName;
-	drm_magic_t magic;
-
-	if (!DRI2QueryExtension(ecore_x_display_get(), &s_info.evt_base, &s_info.err_base)) {
-		ErrPrint("DRI2 is not supported\n");
-		return WIDGET_ERROR_NONE;
-	}
-
-	if (!DRI2QueryVersion(ecore_x_display_get(), &dri2Major, &dri2Minor)) {
-		ErrPrint("DRI2 is not supported\n");
-		s_info.evt_base = 0;
-		s_info.err_base = 0;
-		return WIDGET_ERROR_NONE;
-	}
-
-	if (!DRI2Connect(ecore_x_display_get(), DefaultRootWindow(ecore_x_display_get()), &driverName, &deviceName)) {
-		ErrPrint("DRI2 is not supported\n");
-		s_info.evt_base = 0;
-		s_info.err_base = 0;
-		return WIDGET_ERROR_NONE;
-	}
+	int ret;
 
 	if (WIDGET_CONF_USE_SW_BACKEND) {
 		DbgPrint("Fallback to the S/W Backend\n");
-		s_info.evt_base = 0;
-		s_info.err_base = 0;
-		DbgFree(deviceName);
-		DbgFree(driverName);
 		return WIDGET_ERROR_NONE;
 	}
 
-	s_info.fd = open(deviceName, O_RDWR);
-	DbgFree(deviceName);
-	DbgFree(driverName);
-	if (s_info.fd < 0) {
-		ErrPrint("Failed to open a drm device: (%d)\n", errno);
-		s_info.evt_base = 0;
-		s_info.err_base = 0;
-		return WIDGET_ERROR_NONE;
-	}
-
-	drmGetMagic(s_info.fd, &magic);
-	DbgPrint("DRM Magic: 0x%X\n", magic);
-	if (!DRI2Authenticate(ecore_x_display_get(), DefaultRootWindow(ecore_x_display_get()), (unsigned int)magic)) {
-		ErrPrint("Failed to do authenticate for DRI2\n");
-		if (close(s_info.fd) < 0) {
-			ErrPrint("close: %d\n", errno);
-		}
-		s_info.fd = -1;
-		s_info.evt_base = 0;
-		s_info.err_base = 0;
+	ret = widget_util_get_drm_fd(ecore_x_display_get(), &s_info.fd);
+	if (ret != WIDGET_ERROR_NONE || s_info.fd < 0) {
+		ErrPrint("Fallback to the S/W Backend\n");
 		return WIDGET_ERROR_NONE;
 	}
 
 	s_info.slp_bufmgr = tbm_bufmgr_init(s_info.fd);
 	if (!s_info.slp_bufmgr) {
 		ErrPrint("Failed to init bufmgr\n");
-		if (close(s_info.fd) < 0) {
-			ErrPrint("close: %d\n", errno);
-		}
+		widget_util_release_drm_fd(s_info.fd);
 		s_info.fd = -1;
-		s_info.evt_base = 0;
-		s_info.err_base = 0;
 		return WIDGET_ERROR_NONE;
 	}
 
@@ -1336,16 +1284,14 @@ HAPI int buffer_handler_init(void)
 
 HAPI int buffer_handler_fini(void)
 {
-	if (s_info.fd >= 0) {
-		if (close(s_info.fd) < 0) {
-			ErrPrint("close: %d\n", errno);
-		}
-		s_info.fd = -1;
-	}
-
 	if (s_info.slp_bufmgr) {
 		tbm_bufmgr_deinit(s_info.slp_bufmgr);
 		s_info.slp_bufmgr = NULL;
+	}
+
+	if (s_info.fd >= 0) {
+		widget_util_release_drm_fd(s_info.fd);
+		s_info.fd = -1;
 	}
 
 	return WIDGET_ERROR_NONE;
@@ -1488,7 +1434,7 @@ EAPI int buffer_handler_raw_size(widget_fb_t buffer)
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
-	return (int)buffer->info;
+	return (int)((long)buffer->info);
 }
 
 EAPI widget_fb_t buffer_handler_raw_open(enum widget_fb_type widget_fb_type, void *resource)
@@ -1497,13 +1443,13 @@ EAPI widget_fb_t buffer_handler_raw_open(enum widget_fb_type widget_fb_type, voi
 
 	switch (widget_fb_type) {
 	case WIDGET_FB_TYPE_SHM:
-		handle = raw_open_shm((int)resource);
+		handle = raw_open_shm((int)((long)resource));
 		break;
 	case WIDGET_FB_TYPE_FILE:
 		handle = raw_open_file(resource);
 		break;
 	case WIDGET_FB_TYPE_PIXMAP:
-		handle = raw_open_pixmap((unsigned int)resource);
+		handle = raw_open_pixmap((unsigned int)((long)resource));
 		break;
 	default:
 		handle = NULL;

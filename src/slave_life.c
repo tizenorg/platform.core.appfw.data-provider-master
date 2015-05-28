@@ -30,7 +30,6 @@
 #include <aul.h> /* aul_launch_app */
 #include <dlog.h>
 #include <bundle.h>
-#include <bundle_internal.h>
 
 #include <packet.h>
 #include <widget_errno.h>
@@ -58,6 +57,8 @@
 #define BUNDLE_SLAVE_SVC_OP_TYPE "__APP_SVC_OP_TYPE__"
 #define APP_CONTROL_OPERATION_MAIN "http://tizen.org/appcontrol/operation/main"
 #define LOW_PRIORITY	10
+
+#define aul_terminate_pid_async(a) aul_terminate_pid(a)
 
 int errno;
 
@@ -669,7 +670,7 @@ static Eina_Bool relaunch_timer_cb(void *data)
 			bundle_free(param);
 
 			switch (slave->pid) {
-			case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
+//			case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
 			case AUL_R_ENOLAUNCHPAD:	/**< no launchpad */
 			case AUL_R_EILLACC:		/**< Illegal Access */
 			case AUL_R_EINVAL:		/**< Invalid argument */
@@ -689,7 +690,7 @@ static Eina_Bool relaunch_timer_cb(void *data)
 			case AUL_R_ECOMM:		/**< Comunication Error */
 			case AUL_R_ETERMINATING:	/**< application terminating */
 			case AUL_R_ECANCELED:		/**< Operation canceled */
-			case AUL_R_EREJECTED:
+//			case AUL_R_EREJECTED:
 				slave->relaunch_count--;
 
 				CRITICAL_LOG("Try relaunch again %s (%d), %d\n", slave_name(slave), slave->pid, slave->relaunch_count);
@@ -779,7 +780,7 @@ HAPI int slave_activate(struct slave_node *slave)
 		bundle_free(param);
 
 		switch (slave->pid) {
-		case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
+//		case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
 		case AUL_R_ENOLAUNCHPAD:	/**< no launchpad */
 		case AUL_R_EILLACC:		/**< Illegal Access */
 		case AUL_R_EINVAL:		/**< Invalid argument */
@@ -793,7 +794,7 @@ HAPI int slave_activate(struct slave_node *slave)
 		case AUL_R_ETERMINATING:	/**< application terminating */
 		case AUL_R_ECANCELED:		/**< Operation canceled */
 		case AUL_R_ETIMEOUT:		/**< Timeout */
-		case AUL_R_EREJECTED:
+//		case AUL_R_EREJECTED:
 			CRITICAL_LOG("Try relaunch this soon %s (%d)\n", slave_name(slave), slave->pid);
 			slave->relaunch_timer = ecore_timer_add(WIDGET_CONF_SLAVE_RELAUNCH_TIME, relaunch_timer_cb, slave);
 			if (!slave->relaunch_timer) {

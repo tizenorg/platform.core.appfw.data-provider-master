@@ -34,7 +34,7 @@
 static Eina_List *s_list;
 int errno;
 
-#if __x86__64__
+#if __x86__64__ || __aarch64__
 #define RETURN_TYPE long long
 #else
 #define RETURN_TYPE int

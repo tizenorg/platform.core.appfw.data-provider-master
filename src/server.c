@@ -72,6 +72,8 @@
 #define ACCESS_TYPE_PREV 2
 #define ACCESS_TYPE_OFF 3
 
+#define aul_terminate_pid_async(a) aul_terminate_pid(a)
+
 struct sync_ctx_item {
 	int pid;
 	int handle;
@@ -9024,7 +9026,7 @@ static Eina_Bool pkg_ctrl_rminst_cb(void *info)
 		return ECORE_CALLBACK_CANCEL;
 	}
 
-	fprintf(fp, "%d\n", (int)widget_mgr_data(info));
+	fprintf(fp, "%ld\n", (long)widget_mgr_data(info));
 	fprintf(fp, "EOD\n");
 	widget_mgr_close_fifo(info);
 	return ECORE_CALLBACK_CANCEL;
@@ -9041,7 +9043,7 @@ static Eina_Bool pkg_ctrl_faultinst_cb(void *info)
 		return ECORE_CALLBACK_CANCEL;
 	}
 
-	fprintf(fp, "%d\n", (int)widget_mgr_data(info));
+	fprintf(fp, "%ld\n", (long)widget_mgr_data(info));
 	fprintf(fp, "EOD\n");
 	widget_mgr_close_fifo(info);
 	return ECORE_CALLBACK_CANCEL;
@@ -9112,7 +9114,7 @@ static Eina_Bool master_ctrl_cb(void *info)
 		widget_mgr_close_fifo(info);
 		return ECORE_CALLBACK_CANCEL;
 	}
-	fprintf(fp, "%d\nEOD\n", (int)widget_mgr_data(info));
+	fprintf(fp, "%ld\nEOD\n", (long)widget_mgr_data(info));
 	widget_mgr_close_fifo(info);
 
 	return ECORE_CALLBACK_CANCEL;
@@ -9124,7 +9126,7 @@ static struct packet *widget_mgr_master_ctrl(pid_t pid, int handle, const struct
 	char *cmd;
 	char *var;
 	char *val;
-	int ret = WIDGET_ERROR_INVALID_PARAMETER;
+	long ret = WIDGET_ERROR_INVALID_PARAMETER;
 
 	if (packet_get(packet, "sss", &cmd, &var, &val) != 3) {
 		ErrPrint("Invalid argument\n");

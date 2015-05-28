@@ -23,6 +23,7 @@ pkg_check_modules(pkg REQUIRED
 	shortcut
 	pkgmgr-info
 	libsystemd-daemon
+	libtbm
 )
 
 IF (LIVEBOX)
@@ -35,13 +36,11 @@ IF (X11_SUPPORT)
 pkg_check_modules(pkg_extra REQUIRED
 	ecore-x
 	x11
-	libdri2
-	libdrm
-	libtbm
 	xfixes
-	dri2proto
 	xext
 	xdamage
+	libdri2
+	dri2proto
 )
 ENDIF (X11_SUPPORT)
 
@@ -175,6 +174,9 @@ ADD_DEFINITIONS(${pkg_extra_CFLAGS})
 ADD_DEFINITIONS(${pkg_extra_LDFLAGS})
 ADD_DEFINITIONS(${pkg_widget_CFLAGS})
 ADD_DEFINITIONS(${pkg_widget_LDFLAGS})
+
+STRING(REPLACE "-L-l" "-l" pkg_fixed_LDFLAGS ${pkg_LDFLAGS})
+STRING(REPLACE "-l" " -l" pkg_LDFLAGS ${pkg_fixed_LDFLAGS})
 
 ADD_EXECUTABLE(${PROJECT_NAME} ${BUILD_SOURCE})
 
