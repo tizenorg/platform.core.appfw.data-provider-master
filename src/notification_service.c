@@ -26,6 +26,7 @@
 #include <packet.h>
 
 #include <sys/smack.h>
+#include <security-server.h>
 
 #include <vconf.h>
 #include <notification.h>
@@ -620,13 +621,12 @@ static void _permission_check_property_get(struct tcb *tcb, struct packet *packe
 static int _persmission_check(int fd, struct noti_service *service)
 {
 	if (service->rule != NULL && service->access != NULL) {
-		/*
+		int ret;
 		ret = security_server_check_privilege_by_sockfd(fd, service->rule, service->access);
 		if (ret == SECURITY_SERVER_API_ERROR_ACCESS_DENIED) {
 			ErrPrint("SMACK:Access denied\n");
 			return 0;
 		}
-		*/
 	}
 
 	return 1;

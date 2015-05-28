@@ -28,6 +28,7 @@
 #include <Eina.h>
 #include <sys/smack.h>
 
+#include <security-server.h>
 #include <shortcut.h>
 
 #include "service_common.h"
@@ -93,7 +94,6 @@ static inline struct tcb *get_reply_context(double seq)
 	return tcb;
 }
 
-/*
 static void send_reply_packet(struct tcb *tcb, struct packet *packet, int ret)
 {
 	struct packet *reply_packet;
@@ -110,7 +110,6 @@ static void send_reply_packet(struct tcb *tcb, struct packet *packet, int ret)
 
 	packet_destroy(reply_packet);
 }
-*/
 
 /*!
  * SERVICE THREAD
@@ -136,7 +135,6 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 		/* Need to send reply packet */
 		DbgPrint("%p REQ: Command: [%s]\n", tcb, command);
 		if (!strcmp(command, "add_shortcut_widget") || !strcmp(command, "rm_shortcut_widget")) {
-			/*
 			int ret;
 			ret = security_server_check_privilege_by_sockfd(tcb_fd(tcb), "data-provider-master::shortcut.widget", "w");
 			if (ret == SECURITY_SERVER_API_ERROR_ACCESS_DENIED) {
@@ -144,9 +142,7 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 				send_reply_packet(tcb, packet, SHORTCUT_ERROR_PERMISSION_DENIED);
 				break;
 			}
-			*/
 		} else if (!strcmp(command, "add_shortcut") || !strcmp(command, "rm_shortcut")) {
-			/*
 			int ret;
 			ret = security_server_check_privilege_by_sockfd(tcb_fd(tcb), "data-provider-master::shortcut.shortcut", "w");
 			if (ret == SECURITY_SERVER_API_ERROR_ACCESS_DENIED) {
@@ -154,7 +150,6 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 				send_reply_packet(tcb, packet, SHORTCUT_ERROR_PERMISSION_DENIED);
 				break;
 			}
-			*/
 		}
 
 		if (service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE) < 0) {
