@@ -1847,18 +1847,32 @@ HAPI int slave_need_to_reactivate(struct slave_node *slave)
 
 		EINA_LIST_FOREACH(pkg_list, l, info) {
 			if (package_slave(info) == slave) {
-				Eina_List *inst_list;
-				Eina_List *n;
-				struct inst_info *inst;
+				const char *category;
+				int is_watch;
+				
+				category = package_category(info);
+				is_watch = (category && strcmp(CATEGORY_WATCH_CLOCK, category) == 0);
 
-				inst_list = (Eina_List *)package_instance_list(info);
-				EINA_LIST_FOREACH(inst_list, n, inst) {
-					if (instance_visible_state(inst) == WIDGET_SHOW) {
-						reactivate++;
+				if (!is_watch) {
+					struct inst_info *inst;
+					Eina_List *inst_list;
+					Eina_List *n;
+
+					inst_list = (Eina_List *)package_instance_list(info);
+					EINA_LIST_FOREACH(inst_list, n, inst) {
+						if (instance_visible_state(inst) == WIDGET_SHOW) {
+							reactivate++;
+						}
 					}
+				} else {
+					DbgPrint("Watch should be activated anyway (%s)\n", package_name(info));
+					reactivate = 1;
+					/* There is only one instance in this case, so we can break this loop */
+					break;
 				}
 			}
 		}
+
 		DbgPrint("visible instances: %d\n", reactivate);
 	} else {
 		reactivate = 1;
