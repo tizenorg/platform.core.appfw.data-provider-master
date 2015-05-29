@@ -60,4 +60,6 @@ extern int service_common_fd(struct service_context *ctx);
 extern int service_register_tcb_callback(struct service_context *svc_ctx, struct tcb *tcb, enum tcb_event_type event, void (*cb)(struct service_context *svc_ctx, struct tcb *tcb, void *data), void *data);
 extern int service_unregister_tcb_callback(struct service_context *svc_ctx, struct tcb *tcb, enum tcb_event_type event, void (*cb)(struct service_context *svc_ctx, struct tcb *tcb, void *data), void *data);
 
+extern int service_common_send_packet_to_service(struct service_context *svc_ctx, struct tcb *tcb, struct packet *packet);
+
 /* End of a file */
