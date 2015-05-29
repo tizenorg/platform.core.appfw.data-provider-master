@@ -9,7 +9,9 @@ data-provider-master::bin data-provider-master::data r-x--- ------
 data-provider-master::bin data-provider-master::share rwx--- ------
 data-provider-master::bin data-provider-master::db rw---- ------
 data-provider-master::bin data-provider-master rwx--- ------
-data-provider-master::bin pkgmgr::db rw----- ------
+data-provider-master::bin pkgmgr::info r----- ------
+data-provider-master::bin pkgmgr::db rwx---l ------
+data-provider-master::bin ail::db r-x---l ------
 data-provider-master::bin _ rw---- ------
 data-provider-master::bin security-server::api-privilege-by-pid rw---- ------
 data-provider-master::bin wrt-security-daemon r----- ------
