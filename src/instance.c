@@ -1085,7 +1085,7 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 	return inst;
 }
 
-HAPI struct packet *instance_duplicate_packet_create(const struct packet *packet, struct inst_info *inst, struct pkg_info *info, int width, int height)
+HAPI struct packet *instance_duplicate_packet_create(const struct packet *packet, struct inst_info *inst, int width, int height)
 {
 	struct packet *result;
 
@@ -1098,7 +1098,7 @@ HAPI struct packet *instance_duplicate_packet_create(const struct packet *packet
 	/**
 	 * @TODO
 	 */
-	DbgPrint("[TODO] Instance package info: %p:%s (%p:%s)\n", inst->info, package_name(inst->info), info, package_name(info));
+	DbgPrint("[TODO] Instance package info: %p:%s\n", inst->info, package_name(inst->info));
 	// inst->info = info;
 
 	inst->unicast_delete_event = 1;

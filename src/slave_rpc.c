@@ -539,17 +539,27 @@ HAPI int slave_rpc_update_handle(struct slave_node *slave, int handle, int delet
 			const char *cmd;
 
 			cmd = packet_command(command->packet);
-			if (cmd[0] == PACKET_CMD_INT_TAG) {
-				int cmd_idx;
+			if (cmd) {
+				if (cmd[0] == PACKET_CMD_INT_TAG) {
+					int cmd_idx;
 
-				cmd_idx = *((int *)cmd);
-				if (cmd_idx == CMD_NEW) {
-					/**
-					 * @note
-					 * CMD_NEW or CMD_STR_NEW will have instance via cbdata.
-					 * And its refcnt is increased before put request packet in to pendling list.
-					 * So, To destroy it, we should decrease its refcnt from here.
-					 */
+					cmd_idx = *((int *)cmd);
+					if (cmd_idx == CMD_NEW) {
+						/**
+						 * @note
+						 * CMD_NEW or CMD_STR_NEW will have instance via cbdata.
+						 * And its refcnt is increased before put request packet in to pendling list.
+						 * So, To destroy it, we should decrease its refcnt from here.
+						 */
+						if (command->cbdata) {
+							instance_unref((struct inst_info *)command->cbdata);
+							command->cbdata = NULL;
+						}
+						destroy_command(command);
+					} else {
+						push_command(command);
+					}
+				} else if (!strcmp(cmd, CMD_STR_NEW)) {
 					if (command->cbdata) {
 						instance_unref((struct inst_info *)command->cbdata);
 						command->cbdata = NULL;
@@ -558,14 +568,8 @@ HAPI int slave_rpc_update_handle(struct slave_node *slave, int handle, int delet
 				} else {
 					push_command(command);
 				}
-			} else if (!strcmp(cmd, CMD_STR_NEW)) {
-				if (command->cbdata) {
-					instance_unref((struct inst_info *)command->cbdata);
-					command->cbdata = NULL;
-				}
-				destroy_command(command);
 			} else {
-				push_command(command);
+				ErrPrint("Invalid package: cmd is nil\n");
 			}
 		} else {
 			push_command(command);

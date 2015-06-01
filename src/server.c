@@ -8224,14 +8224,13 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 		 */
 		category = package_category(info);
 		inst_list = package_instance_list(info);
-		inst = NULL;
-		EINA_LIST_FOREACH(inst_list, inst_l, inst) {
-			if (!strcmp(package_name(instance_package(inst)), widget_id)) {
-				break;
-			}
-			inst = NULL;
-		}
-
+		/**
+		 * We don't need to search the package information again from instance.
+		 * Instance will be created by its package information.
+		 * So if we know how the instance is created (From what package), then we just can use it.
+		 */
+		DbgPrint("Instance Count: %d of %s\n", eina_list_count(inst_list), package_name(info));
+		inst = eina_list_nth(inst_list, 0);
 		if (!inst) {
 			ErrPrint("No valid instance");
 			DbgFree(widget_id);
@@ -8293,7 +8292,13 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			DbgPrint("widget(%s] does not support size [2x2], [4x4]\n",pkgname);
 		}
 
-		result = instance_duplicate_packet_create(packet, inst, info, width, height);
+		if (inst->info != info) {
+			DbgPrint("Instance[%p (%s)], info[%p (%s)]\n",
+					inst->info, inst->info ? package_name(inst->info) : "unknown",
+					info, info ? package_name(info) : "unknown");
+			inst->info = info;
+		}
+		result = instance_duplicate_packet_create(packet, inst, width, height);
 
 		if (instance_watch_need_to_recover(inst)) {
 			/**
