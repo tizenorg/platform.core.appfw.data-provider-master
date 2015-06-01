@@ -8197,7 +8197,6 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 		int width, height;
 		unsigned int widget_size;
 		Eina_List *inst_list;
-		Eina_List *inst_l;
 		const char *category;
 
 		widget_id = is_valid_slave(pid, abi, pkgname);
@@ -8292,12 +8291,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			DbgPrint("widget(%s] does not support size [2x2], [4x4]\n",pkgname);
 		}
 
-		if (inst->info != info) {
-			DbgPrint("Instance[%p (%s)], info[%p (%s)]\n",
-					inst->info, inst->info ? package_name(inst->info) : "unknown",
-					info, info ? package_name(info) : "unknown");
-			inst->info = info;
-		}
+		(void)instance_watch_change_package_info(inst, info);
 		result = instance_duplicate_packet_create(packet, inst, width, height);
 
 		if (instance_watch_need_to_recover(inst)) {

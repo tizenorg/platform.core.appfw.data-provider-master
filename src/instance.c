@@ -3924,4 +3924,34 @@ HAPI int instance_watch_need_to_recover(struct inst_info *inst)
 	return inst->watch.need_to_recover;
 }
 
+HAPI int instance_watch_change_package_info(struct inst_info *inst, struct pkg_info *info)
+{
+	if (inst->info == info) {
+		DbgPrint("Package information is not touched (%s)\n", package_name(inst->info));
+		return WIDGET_ERROR_NONE;
+	}
+
+	DbgPrint("Instance[%p (%s)], info[%p (%s)]\n",
+			inst->info, inst->info ? package_name(inst->info) : "unknown",
+			info, info ? package_name(info) : "unknown");
+	/**
+	 * @todo
+	 * Handling me, if the instance has package info, it means, this instance is changed its package info...
+	 */
+	if (inst->info != info) {
+		if (inst->info) {
+			ErrPrint("[%s] is already specified for [%s]\n", package_name(inst->info), instance_id(inst));
+			/**
+			 * @note
+			 * In this case, please handling me, we have to update package info's instance list in this case.
+			 */
+		}
+
+		ErrPrint("Package info is changed to [%s]\n", package_name(info));
+	}
+
+	inst->info = info;
+	return WIDGET_ERROR_NONE;
+}
+
 /* End of a file */

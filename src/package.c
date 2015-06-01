@@ -545,7 +545,7 @@ HAPI struct pkg_info *package_create(const char *pkgid, const char *widget_id)
 		ErrPrint("Failed to load DB, fall back to conf file loader\n");
 		if (load_conf(pkginfo) < 0) {
 			ErrPrint("Failed to initiate the conf file loader\n");
-			package_unref(info);
+			package_unref(pkginfo);
 			return NULL;
 		}
 	}
