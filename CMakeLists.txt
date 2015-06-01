@@ -16,7 +16,6 @@ pkg_check_modules(pkg REQUIRED
 	com-core
 	pkgmgr
 	notification
-	notification-service
 	badge
 	badge-service
 	libsmack
