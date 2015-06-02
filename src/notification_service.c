@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 #include <stdio.h>
+#include <unistd.h>
 
 #include <Eina.h>
 
@@ -27,6 +28,8 @@
 
 #include <sys/smack.h>
 
+#include <pkgmgr-info.h>
+
 #include <vconf.h>
 #include <notification.h>
 #include <notification_internal.h>
@@ -34,6 +37,7 @@
 #include <notification_noti.h>
 #include <notification_setting_service.h>
 
+#include "pkgmgr.h"
 #include "service_common.h"
 #include "debug.h"
 #include "util.h"
@@ -566,6 +570,25 @@ static void _handler_post_toast_message(struct tcb *tcb, struct packet *packet, 
 
 }
 
+static void _handler_package_install(struct tcb *tcb, struct packet *packet, void *data)
+{
+	int ret = NOTIFICATION_ERROR_NONE;
+	char *package_name = NULL;
+
+	DbgPrint("_handler_package_install");
+	if (packet_get(packet, "s", &package_name) == 1) {
+		DbgPrint("package_name [%s]\n", package_name);
+		/* TODO : add codes to add a record to setting table */
+
+
+		if (ret != NOTIFICATION_ERROR_NONE) {
+			ErrPrint("failed to update setting[%d]\n", ret);
+		}
+	} else {
+		ErrPrint("Failed to get data from the packet");
+	}
+}
+
 /*!
  * SERVICE PERMISSION CHECK
  */
@@ -781,6 +804,23 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 		},
 	};
 
+	static struct noti_service service_req_no_ack_table[] = {
+		{
+			.cmd = "package_install",
+			.handler = _handler_package_install,
+			.rule = NULL,
+			.access = NULL,
+			.handler_access_error = NULL,
+		},
+		{
+			.cmd = NULL,
+			.handler = NULL,
+			.rule = NULL,
+			.access = NULL,
+			.handler_access_error = NULL,
+		},
+	};
+
 	if (!packet) {
 		DbgPrint("TCB: %p is terminated\n", tcb);
 		return 0;
@@ -814,6 +854,14 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 
 		break;
 	case PACKET_REQ_NOACK:
+		DbgPrint("%p PACKET_REQ_NOACK: Command: [%s]\n", tcb, command);
+		for (i = 0; service_req_no_ack_table[i].cmd; i++) {
+			if (strcmp(service_req_no_ack_table[i].cmd, command)) {
+				continue;
+			}
+			service_req_no_ack_table[i].handler(tcb, packet, data);
+			break;
+		}
 		break;
 	case PACKET_ACK:
 		break;
@@ -829,10 +877,78 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 	return 0;
 }
 
+/*!
+ * Managing setting DB
+ */
+
+static int _invoke_package_change_event(struct info *notification_service_info, enum pkgmgr_event_type event_type, const char *pkgname)
+{
+	int ret = 0;
+	struct packet *packet = NULL;
+	struct service_context *svc_ctx = notification_service_info->svc_ctx;
+
+	DbgPrint("pkgname[%s], event_type[%d]\n", pkgname, event_type);
+
+	if (event_type == PKGMGR_EVENT_INSTALL) {
+		packet = packet_create_noack("package_install", "s", pkgname);
+	}
+	else if (event_type == PKGMGR_EVENT_UNINSTALL){
+		packet = packet_create_noack("package_uninstall", "s", pkgname);
+	}
+	else {
+		/* Ignore other events */
+		goto out;
+	}
+
+	if (packet == NULL) {
+		ErrPrint("packet_create_noack failed\n");\
+		ret = -1;
+		goto out;
+	}
+
+	if ((ret = service_common_send_packet_to_service(svc_ctx, NULL, packet)) != 0) {
+		ErrPrint("service_common_send_packet_to_service failed[%d]\n", ret);
+		ret = -1;
+		goto out;
+	}
+
+out:
+	if (ret != 0 && packet)
+		packet_destroy(packet);
+
+	DbgPrint("_invoke_package_change_event returns [%d]\n", ret);
+	return ret;
+}
+
+static int _package_install_cb(const char *pkgname, enum pkgmgr_status status, double value, void *data)
+{
+	struct info *notification_service_info = (struct info *)data;
+
+	if (status != PKGMGR_STATUS_END) {
+		return 0;
+	}
+
+	_invoke_package_change_event(notification_service_info, PKGMGR_EVENT_INSTALL, pkgname);
+
+	return 0;
+}
+
+static int _package_uninstall_cb(const char *pkgname, enum pkgmgr_status status, double value, void *data)
+{
+	struct info *notification_service_info = (struct info *)data;
+
+	if (status != PKGMGR_STATUS_END) {
+		return 0;
+	}
+
+	_invoke_package_change_event(notification_service_info, PKGMGR_EVENT_UNINSTALL, pkgname);
+
+	return 0;
+}
 
 /*!
  * MAIN THREAD
- * Do not try to do anyother operation in these functions
+ * Do not try to do any other operation in these functions
  */
 HAPI int notification_service_init(void)
 {
@@ -848,6 +964,12 @@ HAPI int notification_service_init(void)
 		ErrPrint("Unable to activate service thread\n");
 		return WIDGET_ERROR_FAULT;
 	}
+
+	notification_setting_refresh_setting_table();
+
+	pkgmgr_add_event_callback(PKGMGR_EVENT_INSTALL, _package_install_cb, (void*)&s_info);
+	/* pkgmgr_add_event_callback(PKGMGR_EVENT_UPDATE, _package_install_cb, (void*)&s_info); */
+	pkgmgr_add_event_callback(PKGMGR_EVENT_UNINSTALL, _package_uninstall_cb, (void*)&s_info);
 
 	DbgPrint("Successfully initiated\n");
 	return WIDGET_ERROR_NONE;

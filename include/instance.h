@@ -268,7 +268,7 @@ extern void instance_reload_period(struct inst_info *inst, double period);
 /**
  * For the hello_sync or prepare_hello_sync command
  */
-extern struct packet *instance_duplicate_packet_create(const struct packet *packet, struct inst_info *inst, struct pkg_info *info, int width, int height);
+extern struct packet *instance_duplicate_packet_create(const struct packet *packet, struct inst_info *inst, int width, int height);
 
 extern void instance_set_orientation(struct inst_info *inst, int orientation);
 extern int instance_orientation(struct inst_info *inst);
@@ -276,5 +276,6 @@ extern int instance_orientation(struct inst_info *inst);
 extern void instance_watch_set_need_to_recover(struct inst_info *inst, int recover);
 extern int instance_watch_need_to_recover(struct inst_info *inst);
 extern int instance_watch_recover_visible_state(struct inst_info *inst);
+extern int instance_watch_change_package_info(struct inst_info *inst, struct pkg_info *info);
 
 /* End of a file */

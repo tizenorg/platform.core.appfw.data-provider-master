@@ -112,6 +112,42 @@ struct tcb { /* Thread controll block */
 	pid_t pid; /*!< Keep the PID of client, if the client is remote one, this will be -1 */
 };
 
+HAPI int service_common_send_packet_to_service(struct service_context *svc_ctx, struct tcb *tcb, struct packet *packet)
+{
+	int ret = 0;
+	struct packet_info *packet_info = NULL;
+	char evt_ch = EVT_CH;
+
+	packet_info = malloc(sizeof(*packet_info));
+	if (!packet_info) {
+		ret = -errno;
+		ErrPrint("malloc: %d\n", errno);
+		goto out;
+	}
+
+	packet_info->packet = packet;
+	packet_info->tcb = tcb;
+
+	CRITICAL_SECTION_BEGIN(&svc_ctx->packet_list_lock);
+	svc_ctx->packet_list = eina_list_append(svc_ctx->packet_list, packet_info);
+	CRITICAL_SECTION_END(&svc_ctx->packet_list_lock);
+
+	if (write(svc_ctx->evt_pipe[PIPE_WRITE], &evt_ch, sizeof(evt_ch)) != sizeof(evt_ch)) {
+		ret = -errno;
+		ErrPrint("write: %d\n", errno);
+		CRITICAL_SECTION_BEGIN(&svc_ctx->packet_list_lock);
+		svc_ctx->packet_list = eina_list_remove(svc_ctx->packet_list, packet_info);
+		CRITICAL_SECTION_END(&svc_ctx->packet_list_lock);
+		goto out;
+	}
+
+out:
+
+	DbgFree(packet_info);
+
+	return ret;
+}
+
 /*!
  * Do services for clients
  * Routing packets to destination processes.

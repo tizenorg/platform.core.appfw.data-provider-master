@@ -539,18 +539,16 @@ HAPI struct pkg_info *package_create(const char *pkgid, const char *widget_id)
 		}
 	}
 
+	package_ref(pkginfo);
+
 	if (io_load_package_db(pkginfo) < 0) {
 		ErrPrint("Failed to load DB, fall back to conf file loader\n");
 		if (load_conf(pkginfo) < 0) {
 			ErrPrint("Failed to initiate the conf file loader\n");
-			DbgFree(pkginfo->widget_id);
-			DbgFree(pkginfo->pkgid);
-			DbgFree(pkginfo);
+			package_unref(pkginfo);
 			return NULL;
 		}
 	}
-
-	package_ref(pkginfo);
 
 	s_info.pkg_list = eina_list_append(s_info.pkg_list, pkginfo);
 
