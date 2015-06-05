@@ -8,7 +8,7 @@ ADD_LIBRARY(${PROJECT_NAME} STATIC
 	src/common.c
 	src/dlist.c
 )
-TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${bin_pkgs_LDFLAGS})
+TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${bin_pkgs_LDFLAGS} "-fPIC")
 
 INSTALL(TARGETS ${PROJECT_NAME} DESTINATION "etc/package-manager/parserlib")
 
