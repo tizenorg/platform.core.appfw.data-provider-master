@@ -32,16 +32,18 @@
 
 #include <vconf.h>
 #include <notification.h>
-#include <notification_internal.h>
-#include <notification_ipc.h>
-#include <notification_noti.h>
-#include <notification_setting_service.h>
 
 #include "pkgmgr.h"
 #include "service_common.h"
 #include "debug.h"
 #include "util.h"
 #include "conf.h"
+
+#ifdef __FEATURE_TIZEN_2_4_NOTIFICATION__
+#include <notification_noti.h>
+#include <notification_internal.h>
+#include <notification_ipc.h>
+#include <notification_setting_service.h>
 
 #ifndef NOTIFICATION_DEL_PACKET_UNIT
 #define NOTIFICATION_DEL_PACKET_UNIT 10
@@ -945,13 +947,14 @@ static int _package_uninstall_cb(const char *pkgname, enum pkgmgr_status status,
 
 	return 0;
 }
-
+#endif /* __FEATURE_TIZEN_2_4_NOTIFICATION__ */
 /*!
  * MAIN THREAD
  * Do not try to do any other operation in these functions
  */
 HAPI int notification_service_init(void)
 {
+#ifdef __FEATURE_TIZEN_2_4_NOTIFICATION__
 	if (s_info.svc_ctx) {
 		ErrPrint("Already initialized\n");
 		return WIDGET_ERROR_ALREADY_STARTED;
@@ -970,19 +973,21 @@ HAPI int notification_service_init(void)
 	pkgmgr_add_event_callback(PKGMGR_EVENT_INSTALL, _package_install_cb, (void*)&s_info);
 	/* pkgmgr_add_event_callback(PKGMGR_EVENT_UPDATE, _package_install_cb, (void*)&s_info); */
 	pkgmgr_add_event_callback(PKGMGR_EVENT_UNINSTALL, _package_uninstall_cb, (void*)&s_info);
-
+#endif /* __FEATURE_TIZEN_2_4_NOTIFICATION__ */
 	DbgPrint("Successfully initiated\n");
 	return WIDGET_ERROR_NONE;
 }
 
 HAPI int notification_service_fini(void)
 {
+#ifdef __FEATURE_TIZEN_2_4_NOTIFICATION__
 	if (!s_info.svc_ctx) {
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	service_common_destroy(s_info.svc_ctx);
 	s_info.svc_ctx = NULL;
+#endif /* __FEATURE_TIZEN_2_4_NOTIFICATION__ */
 	DbgPrint("Successfully Finalized\n");
 	return WIDGET_ERROR_NONE;
 }

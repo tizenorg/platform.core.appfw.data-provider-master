@@ -439,7 +439,11 @@ static struct pkgmgr_handler {
 	{ NULL, NULL },
 };
 
+#ifdef __FEATURE_TIZEN_2_4_PKGMGR__
 static int pkgmgr_cb(int req_id, const char *type, const char *pkgname, const char *key, const char *val, const void *pmsg, void *data)
+#else /* __FEATURE_TIZEN_2_4_PKGMGR__ */
+static int pkgmgr_cb(uid_t target_uid, int req_id, const char *type, const char *pkgname, const char *key, const char *val, const void *pmsg, void *data)
+#endif /* __FEATURE_TIZEN_2_4_PKGMGR__ */
 {
 	register int i;
 	int ret;
@@ -458,6 +462,7 @@ static int pkgmgr_cb(int req_id, const char *type, const char *pkgname, const ch
 
 	return WIDGET_ERROR_NONE;
 }
+
 
 HAPI int pkgmgr_init(void)
 {
