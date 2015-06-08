@@ -111,6 +111,8 @@ struct event_listener {
 	double tv;
 	int x; /* RelX */
 	int y; /* RelY */
+	double ratio_w;
+	double ratio_h;
 };
 
 static int event_control_fini(void);
@@ -571,6 +573,8 @@ static int invoke_event_cb(struct event_listener *listener, struct event_data *i
 
 	modified_item.x -= listener->x;
 	modified_item.y -= listener->y;
+	modified_item.ratio_w = listener->ratio_w;
+	modified_item.ratio_h = listener->ratio_h;
 
 	if (!WIDGET_CONF_USE_EVENT_TIME) {
 		item->tv = current_time_get();
@@ -960,7 +964,7 @@ int event_deactivate_thread(enum event_handler_activate_type activate_type)
 /*!
  * x, y is the starting point.
  */
-HAPI int event_activate(int x, int y, int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data)
+HAPI int event_activate(int x, int y, double ratio_w, double ratio_h, int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data)
 {
 	struct event_listener *listener;
 	int ret = WIDGET_ERROR_NONE;
@@ -988,6 +992,8 @@ HAPI int event_activate(int x, int y, int (*event_cb)(enum event_state state, st
 	listener->state = EVENT_STATE_ACTIVATE;
 	listener->x = x;
 	listener->y = y;
+	listener->ratio_w = ratio_w;
+	listener->ratio_h = ratio_h;
 
 	if (s_info.event_handler_activated == EVENT_HANDLER_DEACTIVATED) {
 		/*!

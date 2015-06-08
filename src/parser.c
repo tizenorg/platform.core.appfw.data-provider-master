@@ -34,9 +34,7 @@
 static Eina_List *s_list;
 int errno;
 
-
 #define RETURN_TYPE long
-
 
 struct parser {
 	char *filename;
