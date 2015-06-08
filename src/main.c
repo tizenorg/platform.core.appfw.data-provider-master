@@ -365,6 +365,7 @@ int main(int argc, char *argv[])
 	}
 
 	widget_conf_init();
+	widget_conf_set_search_input_node(1);
 	widget_conf_load();
 	widget_abi_init();
 

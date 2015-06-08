@@ -28,6 +28,7 @@
 #include <Eina.h>
 #include <sys/smack.h>
 
+#include <security-server.h>
 #include <shortcut.h>
 
 #include "service_common.h"
@@ -93,7 +94,6 @@ static inline struct tcb *get_reply_context(double seq)
 	return tcb;
 }
 
-/*
 static void send_reply_packet(struct tcb *tcb, struct packet *packet, int ret)
 {
 	struct packet *reply_packet;
@@ -110,7 +110,6 @@ static void send_reply_packet(struct tcb *tcb, struct packet *packet, int ret)
 
 	packet_destroy(reply_packet);
 }
-*/
 
 /*!
  * SERVICE THREAD

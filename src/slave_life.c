@@ -200,7 +200,7 @@ static struct slave_node *slave_deactivate(struct slave_node *slave, int no_time
 		(void)slave_rpc_disconnect(slave);
 	} else if (slave->terminate_timer) {
 		ErrPrint("Terminate timer is already fired (%d)\n", slave->pid);
-	} else if ((!no_timer && !slave->secured) || slave_is_app(slave)) {
+	} else if (!slave->extra_bundle_data && ((!no_timer && !slave->secured) || slave_is_app(slave))) {
 		DbgPrint("Fire the terminate timer: %d (%d)\n", slave->pid, slave_is_app(slave));
 		slave->terminate_timer = ecore_timer_add(WIDGET_CONF_SLAVE_ACTIVATE_TIME, terminate_timer_cb, slave);
 		if (!slave->terminate_timer) {
@@ -645,9 +645,19 @@ static Eina_Bool relaunch_timer_cb(void *data)
 		slave->relaunch_timer = NULL;
 		invoke_slave_fault_handler(slave);
 	} else {
-		bundle *param;
+		bundle *param = NULL;
 
-		param = bundle_create();
+		if (slave->extra_bundle_data) {
+			param = bundle_decode((bundle_raw *)slave->extra_bundle_data, strlen(slave->extra_bundle_data));
+			if (!param) {
+				ErrPrint("Invalid extra_bundle_data[%s]\n", slave->extra_bundle_data);
+			}
+		}
+
+		if (!param) {
+			param = bundle_create();
+		}
+
 		if (!param) {
 			ErrPrint("Failed to create a bundle\n");
 
@@ -658,7 +668,12 @@ static Eina_Bool relaunch_timer_cb(void *data)
 
 			invoke_slave_fault_handler(slave);
 		} else {
-			bundle_add_str(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
+			if (bundle_add_str(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN) == BUNDLE_ERROR_KEY_EXISTS) {
+				if (bundle_del(param, BUNDLE_SLAVE_SVC_OP_TYPE) == BUNDLE_ERROR_NONE) {
+					DbgPrint("Main operation is deleted\n");
+				}
+				bundle_add_str(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
+			}
 			bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_NAME, slave_name(slave));
 			bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_SECURED, ((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured) ? "true" : "false");
 			bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_ABI, slave->abi);
@@ -768,7 +783,12 @@ HAPI int slave_activate(struct slave_node *slave)
 			}
 		}
 
-		bundle_add_str(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
+		if (bundle_add_str(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN) == BUNDLE_ERROR_KEY_EXISTS) {
+			if (bundle_del(param, BUNDLE_SLAVE_SVC_OP_TYPE) == BUNDLE_ERROR_NONE) {
+				DbgPrint("Main operation is deleted\n");
+			}
+			bundle_add_str(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
+		}
 		bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_NAME, slave_name(slave));
 		bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_SECURED, ((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured) ? "true" : "false");
 		bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_ABI, slave->abi);

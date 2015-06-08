@@ -463,7 +463,6 @@ static int pkgmgr_cb(uid_t target_uid, int req_id, const char *type, const char 
 	return WIDGET_ERROR_NONE;
 }
 
-
 HAPI int pkgmgr_init(void)
 {
 	if (s_info.listen_pc) {
