@@ -28,7 +28,7 @@
 #include <Eina.h>
 #include <sys/smack.h>
 
-#include <security-server.h>
+//#include <security-server.h>
 #include <shortcut.h>
 
 #include "service_common.h"
