@@ -64,6 +64,6 @@ extern int event_reset_cbdata(int (*event_cb)(enum event_state state, struct eve
 extern int event_deactivate_thread(enum event_handler_activate_type activate_type);
 extern int event_activate_thread(enum event_handler_activate_type activate_type);
 
-extern void event_set_mouse_xy(int x, int y, double timestamp);
+extern void event_set_mouse_xy(int x, int y, double ratio_w, double ratio_h, double timestamp);
 
 /* End of a file */

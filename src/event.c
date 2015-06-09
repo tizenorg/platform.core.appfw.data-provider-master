@@ -1103,10 +1103,12 @@ HAPI int event_is_activated(void)
 	return s_info.handle >= 0;
 }
 
-HAPI void event_set_mouse_xy(int x, int y, double timestamp)
+HAPI void event_set_mouse_xy(int x, int y, double ratio_w, double ratio_h, double timestamp)
 {
 	s_info.event_data.x = x;
 	s_info.event_data.y = y;
+	s_info.event_data.ratio_w = ratio_w;
+	s_info.event_data.ratio_h = ratio_h;
 	s_info.event_data.tv = timestamp;
 	s_info.event_data.source = INPUT_EVENT_SOURCE_VIEWER;
 	/**
