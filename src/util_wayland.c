@@ -26,21 +26,19 @@ int util_screen_size_get(int *width, int *height)
 	}
 
 	ecore_wl_screen_size_get(width, height);
-	return WIDGET_ERROR_NOT_SUPPORTED;
+	return WIDGET_ERROR_NONE;
 }
 
 int util_screen_init(void)
 {
 	s_info.initialized = 1;
-	ecore_wl_init(NULL);
-	return WIDGET_ERROR_NONE;
+	return ecore_wl_init(NULL);
 }
 
 int util_screen_fini(void)
 {
 	s_info.initialized = 0;
-	ecore_wl_shutdown();
-	return WIDGET_ERROR_NONE;
+	return ecore_wl_shutdown();
 }
 
 /* End of a file */
