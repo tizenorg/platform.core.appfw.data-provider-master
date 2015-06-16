@@ -2314,6 +2314,96 @@ static void update_size_info(struct widget *widget, int idx, xmlNodePtr node)
 	}
 }
 
+static void update_support_size(struct widget *widget, xmlNodePtr node)
+{
+	xmlChar *size;
+	int is_easy = 0;
+
+	size = xmlNodeGetContent(node);
+	if (!size) {
+		ErrPrint("Invalid size tag\n");
+		return;
+	}
+
+	widget->default_mouse_event = 0;
+	widget->default_touch_effect = 1;
+	widget->default_need_frame = 0;
+
+	if (xmlHasProp(node, (const xmlChar *)"mode")) {
+		xmlChar *mode;
+		mode = xmlGetProp(node, (const xmlChar *)"mode");
+		if (mode) {
+			DbgPrint("Easy mode: %s\n", mode);
+			is_easy = !xmlStrcasecmp(mode, (const xmlChar *)"easy");
+			xmlFree(mode);
+		}
+	}
+
+	if (!xmlStrcasecmp(size, (const xmlChar *)"1x1")) {
+		if (is_easy) {
+			widget->size_list |= WIDGET_SIZE_TYPE_EASY_1x1;
+			update_size_info(widget, 9, node);
+		} else {
+			widget->size_list |= WIDGET_SIZE_TYPE_1x1;
+			update_size_info(widget, 0, node);
+		}
+	} else if (!xmlStrcasecmp(size, (const xmlChar *)"3x1")) {
+		if (is_easy) {
+			widget->size_list |= WIDGET_SIZE_TYPE_EASY_3x1;
+			update_size_info(widget, 10, node);
+		} else {
+			ErrPrint("Invalid size tag (%s)\n", size);
+		}
+	} else if (!xmlStrcasecmp(size, (const xmlChar *)"3x3")) {
+		if (is_easy) {
+			widget->size_list |= WIDGET_SIZE_TYPE_EASY_3x3;
+			update_size_info(widget, 11, node);
+		} else {
+			ErrPrint("Invalid size tag (%s)\n", size);
+		}
+	} else if (!xmlStrcasecmp(size, (const xmlChar *)"2x1")) {
+		widget->size_list |= WIDGET_SIZE_TYPE_2x1;
+		update_size_info(widget, 1, node);
+	} else if (!xmlStrcasecmp(size, (const xmlChar *)"2x2")) {
+		widget->size_list |= WIDGET_SIZE_TYPE_2x2;
+		update_size_info(widget, 2, node);
+	} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x1")) {
+		widget->size_list |= WIDGET_SIZE_TYPE_4x1;
+		update_size_info(widget, 3, node);
+	} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x2")) {
+		widget->size_list |= WIDGET_SIZE_TYPE_4x2;
+		update_size_info(widget, 4, node);
+	} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x3")) {
+		widget->size_list |= WIDGET_SIZE_TYPE_4x3;
+		update_size_info(widget, 5, node);
+	} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x4")) {
+		widget->size_list |= WIDGET_SIZE_TYPE_4x4;
+		update_size_info(widget, 6, node);
+	} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x5")) {
+		widget->size_list |= WIDGET_SIZE_TYPE_4x5;
+		update_size_info(widget, 7, node);
+	} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x6")) {
+		widget->size_list |= WIDGET_SIZE_TYPE_4x6;
+		update_size_info(widget, 8, node);
+	} else if (!xmlStrcasecmp(size, (const xmlChar *)"21x21")) {
+		widget->size_list |= WIDGET_SIZE_TYPE_EASY_1x1;
+		update_size_info(widget, 9, node);
+	} else if (!xmlStrcasecmp(size, (const xmlChar *)"23x21")) {
+		widget->size_list |= WIDGET_SIZE_TYPE_EASY_3x1;
+		update_size_info(widget, 10, node);
+	} else if (!xmlStrcasecmp(size, (const xmlChar *)"23x23")) {
+		widget->size_list |= WIDGET_SIZE_TYPE_EASY_3x3;
+		update_size_info(widget, 11, node);
+	} else if (!xmlStrcasecmp(size, (const xmlChar *)"0x0")) {
+		widget->size_list |= WIDGET_SIZE_TYPE_FULL;
+		update_size_info(widget, 12, node);
+	} else {
+		ErrPrint("Invalid size tag (%s)\n", size);
+	}
+
+	xmlFree(size);
+}
+
 static void update_box(struct widget *widget, xmlNodePtr node)
 {
 	if (!xmlHasProp(node, (const xmlChar *)"type")) {
@@ -3023,12 +3113,37 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 			widget_destroy(widget);
 			return -EFAULT;
 		}
+	}
+
+	/**
+	 * @note
+	 * originally, "type" attribute is sticked with "box" tag.
+	 * But for the "widget-application" style tag, this "type" attribute is moved to "widget-application".
+	 * And there is no "box" tag.
+	 */
+	if (!xmlHasProp(node, (const xmlChar *)"type")) {
+		widget->widget_type = WIDGET_TYPE_FILE;
 	} else {
-		widget->abi = xmlStrdup((const xmlChar *)"c");
-		if (!widget->abi) {
-			ErrPrint("xmlstrdup: %d\n", errno);
-			widget_destroy(widget);
-			return -ENOMEM;
+		xmlChar *type;
+
+		type = xmlGetProp(node, (const xmlChar *)"type");
+		if (!type) {
+			ErrPrint("Type is NIL\n");
+			widget->widget_type = WIDGET_TYPE_FILE;
+		} else {
+			if (!xmlStrcasecmp(type, (const xmlChar *)"text")) {
+				widget->widget_type = WIDGET_TYPE_TEXT;
+			} else if (!xmlStrcasecmp(type, (const xmlChar *)"buffer")) {
+				widget->widget_type = WIDGET_TYPE_BUFFER;
+			} else if (!xmlStrcasecmp(type, (const xmlChar *)"script")) {
+				widget->widget_type = WIDGET_TYPE_SCRIPT;
+			} else if (!xmlStrcasecmp(type, (const xmlChar *)"elm")) {
+				widget->widget_type = WIDGET_TYPE_UIFW;
+			} else { /* Default */
+				widget->widget_type = WIDGET_TYPE_FILE;
+			}
+
+			xmlFree(type);
 		}
 	}
 
@@ -3052,27 +3167,70 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 		abspath((char *)widget->libexec, (char *)tmp_libexec);
 		xmlFree(widget->libexec);
 		widget->libexec = tmp_libexec;
-	} else if (!xmlStrcasecmp(widget->abi, (const xmlChar *)"c") || !xmlStrcasecmp(widget->abi, (const xmlChar *)"cpp")) {
-		char *filename;
-		int len;
 
-		len = strlen((char *)widget->pkgid) + strlen("/libexec/liblive-.so") + 1;
-
-		filename = malloc(len);
-		if (!filename) {
-			widget_destroy(widget);
-			return -ENOMEM;
+		if (!widget->abi) {
+			/**
+			 * @note
+			 * If there is no "abi" attribute,
+			 * Assumes it "c" in this case.
+			 * abi="c" can only has the "libexec" attribute
+			 */
+			widget->abi = xmlStrdup((const xmlChar *)"c");
+			if (!widget->abi) {
+				ErrPrint("xmlstrdup: %d\n", errno);
+				widget_destroy(widget);
+				return -ENOMEM;
+			}
+		} else if (xmlStrcasecmp(widget->abi, (const xmlChar *)"c") && xmlStrcasecmp(widget->abi, (const xmlChar *)"cpp")) {
+			ErrPrint("libexec with unrecognized abi[%s]\n", (const char *)widget->abi);
 		}
+	} else if (xmlHasProp(node, (const xmlChar *)"exec")) {
+		xmlChar *tmp_libexec;
 
-		snprintf(filename, len, "/libexec/liblive-%s.so", widget->pkgid);
-		widget->libexec = xmlStrdup((xmlChar *)filename);
-		DbgPrint("Use the default libexec: %s\n", filename);
-		free(filename);
-
+		widget->libexec = xmlGetProp(node, (const xmlChar *)"exec");
 		if (!widget->libexec) {
+			ErrPrint("libexec is NIL\n");
 			widget_destroy(widget);
-			return -ENOMEM;
+			return -EFAULT;
 		}
+
+		tmp_libexec = abspath_strdup(widget->libexec);
+		if (!tmp_libexec) {
+			ErrPrint("strdup: %d\n", errno);
+			widget_destroy(widget);
+			return -EFAULT;
+		}
+
+		abspath((char *)widget->libexec, (char *)tmp_libexec);
+		xmlFree(widget->libexec);
+		widget->libexec = tmp_libexec;
+
+		if (!widget->abi) {
+			/**
+			 * @note
+			 * If there is no "abi" attribute,
+			 * Assumes it "app" in this case.
+			 * abi="app" can only has the "exec" attribute
+			 */
+			widget->abi = xmlStrdup((const xmlChar *)"app");
+			if (!widget->abi) {
+				ErrPrint("xmlstrdup: %d\n", errno);
+				widget_destroy(widget);
+				return -ENOMEM;
+			}
+		} else if (xmlStrcasecmp(widget->abi, (const xmlChar *)"app")) {
+			ErrPrint("exec with unrecognized abi[%s]\n", (const char *)widget->abi);
+		}
+	} else {
+		/**
+		 * @note
+		 * Remove old style fallback processing.
+		 * If the element has no attribute for "libexec" or "exec", this is not valid XML
+		 * stop parsing from here.
+		 */
+		ErrPrint("Invalid XML\n");
+		widget_destroy(widget);
+		return -EINVAL;
 	}
 
 	for (node = node->children; node; node = node->next) {
@@ -3093,6 +3251,11 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"box")) {
 			update_box(widget, node);
+			continue;
+		}
+
+		if (!xmlStrcasecmp(node->name, (const xmlChar *)"support-size")) {
+			update_support_size(widget, node);
 			continue;
 		}
 

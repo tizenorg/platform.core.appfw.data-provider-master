@@ -20,8 +20,10 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/common/include)
 ADD_SUBDIRECTORY(common)
 ADD_SUBDIRECTORY(watch)
 ADD_SUBDIRECTORY(widget)
+ADD_SUBDIRECTORY(widget-application)
 
 ADD_DEPENDENCIES("watch-application" "common")
 ADD_DEPENDENCIES("widget" "common")
+ADD_DEPENDENCIES("widget-application" "common")
 
 # End of a file

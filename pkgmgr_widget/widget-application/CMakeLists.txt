@@ -1,0 +1,15 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
+PROJECT(widget-application C)
+
+ADD_DEFINITIONS("-DPREFIX=\"${PREFIX}\"")
+
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/include)
+ADD_LIBRARY(${PROJECT_NAME} MODULE
+	src/service_widget.c
+)
+
+TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${bin_pkgs_LDFLAGS} common)
+
+INSTALL(TARGETS ${PROJECT_NAME} DESTINATION "etc/package-manager/parserlib")
+
+# End of a file

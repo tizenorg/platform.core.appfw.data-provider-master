@@ -82,6 +82,6 @@
 		<filesystem path="/usr/etc/package-manager/parserlib/libwidget.so" label="_" />
 
 		<!-- Logdump script -->
-		<filesystem path="/opt/etc/dump.d/module.d/dump_widget.sh" label="_" exec_label="_" />
+		<filesystem path="/opt/etc/dump.d/module.d/dump_widget.sh" label="data-provider-master::bin" exec_label="data-provider-master::bin" />
 	</assign>
 </manifest>
