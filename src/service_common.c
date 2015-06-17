@@ -125,7 +125,7 @@ HAPI int service_common_send_packet_to_service(struct service_context *svc_ctx, 
 		goto out;
 	}
 
-	packet_info->packet = packet;
+	packet_info->packet = packet_ref(packet);
 	packet_info->tcb = tcb;
 
 	CRITICAL_SECTION_BEGIN(&svc_ctx->packet_list_lock);
@@ -138,12 +138,12 @@ HAPI int service_common_send_packet_to_service(struct service_context *svc_ctx, 
 		CRITICAL_SECTION_BEGIN(&svc_ctx->packet_list_lock);
 		svc_ctx->packet_list = eina_list_remove(svc_ctx->packet_list, packet_info);
 		CRITICAL_SECTION_END(&svc_ctx->packet_list_lock);
+		packet_unref(packet);
+		DbgFree(packet_info);
 		goto out;
 	}
 
 out:
-
-	DbgFree(packet_info);
 
 	return ret;
 }

@@ -3228,9 +3228,10 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 		 * If the element has no attribute for "libexec" or "exec", this is not valid XML
 		 * stop parsing from here.
 		 */
-		ErrPrint("Invalid XML\n");
-		widget_destroy(widget);
-		return -EINVAL;
+		widget->libexec = xmlStrdup((const xmlChar *)"empty_path");
+		if (!widget->libexec) {
+			ErrPrint("xmlStrdup: %d\n", errno);
+		}
 	}
 
 	for (node = node->children; node; node = node->next) {
