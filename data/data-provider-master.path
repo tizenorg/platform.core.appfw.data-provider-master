@@ -1,0 +1,5 @@
+[Unit]
+Description=Check the WM_READY file to launch the data-provider-master
+
+[Path]
+PathExists=/run/.wm_ready
