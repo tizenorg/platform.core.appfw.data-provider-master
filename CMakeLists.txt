@@ -23,6 +23,7 @@ pkg_check_modules(pkg REQUIRED
 	pkgmgr-info
 	libsystemd-daemon
 	libtbm
+	capi-appfw-app-manager
 )
 
 IF (LIVEBOX)
@@ -165,6 +166,11 @@ IF (X11_SUPPORT)
 	)
 ENDIF (X11_SUPPORT)
 
+STRING(REPLACE "-L-l" "-l" pkg_fixed_LDFLAGS ${pkg_LDFLAGS})
+STRING(REPLACE "-l" " -l" pkg_LDFLAGS ${pkg_fixed_LDFLAGS})
+STRING(REPLACE "-L" " -L" pkg_fixed_LDFLAGS ${pkg_LDFLAGS})
+STRING(REGEX REPLACE "^ " "" pkg_LDFLAGS ${pkg_fixed_LDFLAGS})
+
 #ADD_DEFINITIONS("-D_APPLY_SCRIPT_ASYNC_UPDATE")
 #ADD_DEFINITIONS("-DFLOG")
 ADD_DEFINITIONS(${pkg_CFLAGS})
@@ -173,9 +179,6 @@ ADD_DEFINITIONS(${pkg_extra_CFLAGS})
 ADD_DEFINITIONS(${pkg_extra_LDFLAGS})
 ADD_DEFINITIONS(${pkg_widget_CFLAGS})
 ADD_DEFINITIONS(${pkg_widget_LDFLAGS})
-
-STRING(REPLACE "-L-l" "-l" pkg_fixed_LDFLAGS ${pkg_LDFLAGS})
-STRING(REPLACE "-l" " -l" pkg_LDFLAGS ${pkg_fixed_LDFLAGS})
 
 ADD_EXECUTABLE(${PROJECT_NAME} ${BUILD_SOURCE})
 

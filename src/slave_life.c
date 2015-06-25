@@ -30,6 +30,7 @@
 #include <aul.h> /* aul_launch_app */
 #include <dlog.h>
 #include <bundle.h>
+#include <app_manager.h>
 
 #include <packet.h>
 #include <widget_errno.h>
@@ -57,6 +58,7 @@
 #define BUNDLE_SLAVE_SVC_OP_TYPE "__APP_SVC_OP_TYPE__"
 #define APP_CONTROL_OPERATION_MAIN "http://tizen.org/appcontrol/operation/main"
 #define LOW_PRIORITY	10
+#define SDK_SLAVE_ACTIVATE_TIME 5.0f
 
 #define aul_terminate_pid_async(a) aul_terminate_pid(a)
 
@@ -599,6 +601,25 @@ static Eina_Bool activate_timer_cb(void *data)
 	return ECORE_CALLBACK_CANCEL;
 }
 
+static Eina_Bool sdk_activate_timer_cb(void *data)
+{
+	struct slave_node *slave = data;
+	bool running = false;
+	int ret;
+
+	ret = app_manager_is_running(slave_pkgname(slave), &running);
+	if (ret != APP_MANAGER_ERROR_NONE) {
+		ErrPrint("Failed to get app context: %s (%d)\n", slave_pkgname(slave), ret);
+	}
+
+	if (running == true) {
+		DbgPrint("Maybe still in debug mode: %s\n", slave_pkgname(slave));
+		return ECORE_CALLBACK_RENEW;
+	}
+
+	return activate_timer_cb(slave);
+}
+
 static inline void invoke_slave_fault_handler(struct slave_node *slave)
 {
 	slave->fault_count++;
@@ -831,7 +852,12 @@ HAPI int slave_activate(struct slave_node *slave)
 			break;
 		}
 
-		slave->activate_timer = ecore_timer_add(WIDGET_CONF_SLAVE_ACTIVATE_TIME, activate_timer_cb, slave);
+		if (!slave->extra_bundle_data) {
+			slave->activate_timer = ecore_timer_add(WIDGET_CONF_SLAVE_ACTIVATE_TIME, activate_timer_cb, slave);
+		} else {
+			DbgPrint("SDK Viewer launches this. activate monitor timer (%lf)\n", SDK_SLAVE_ACTIVATE_TIME);
+			slave->activate_timer = ecore_timer_add(SDK_SLAVE_ACTIVATE_TIME, sdk_activate_timer_cb, slave);
+		}
 		if (!slave->activate_timer) {
 			ErrPrint("Failed to register an activate timer\n");
 		}

@@ -6,7 +6,6 @@
 			<label name="data-provider-master::log" />
 			<label name="data-provider-master::db" />
 			<label name="data-provider-master::data" />
-			<label name="data-provider-master::share" />
 			<label name="data-provider-master::shortcut" />
 			<label name="data-provider-master::shortcut.shortcut" />
 			<label name="data-provider-master::shortcut.widget" />
@@ -66,10 +65,10 @@
 		<filesystem path="/usr/share/data-provider-master/480x800/conf.ini" label="data-provider-master::data" />
 
 		<!-- Shared data folder -->
-		<filesystem path="/opt/usr/share/live_magazine" label="data-provider-master::share" type="transmutable" />
-		<filesystem path="/opt/usr/share/live_magazine/log" label="data-provider-master::share" type="transmutable" />
-		<filesystem path="/opt/usr/share/live_magazine/reader" label="data-provider-master::share" type="transmutable" />
-		<filesystem path="/opt/usr/share/live_magazine/always" label="data-provider-master::share" type="transmutable" />
+		<filesystem path="/opt/usr/share/live_magazine" label="*" type="transmutable" />
+		<filesystem path="/opt/usr/share/live_magazine/log" label="*" type="transmutable" />
+		<filesystem path="/opt/usr/share/live_magazine/reader" label="*" type="transmutable" />
+		<filesystem path="/opt/usr/share/live_magazine/always" label="*" type="transmutable" />
 
 		<!-- Database -->
 		<filesystem path="/opt/dbspace/.widget.db" label="data-provider-master::db" />
