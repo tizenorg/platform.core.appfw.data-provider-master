@@ -186,6 +186,7 @@ echo "Successfully installed. Please start a daemon again manually"
 %caps(cap_chown,cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_nice,cap_mac_override,cap_mac_admin+ep) %{_bindir}/%{name}
 %{_libdir}/systemd/system/multi-user.target.wants/%{name}.service
 %{_libdir}/systemd/system/%{name}.service
+%{_libdir}/systemd/system/%{name}.path
 %{_datarootdir}/license/*
 %if 0%{?tizen_build_binary_release_type_eng}
 /opt/usr/devel/usr/bin/*
