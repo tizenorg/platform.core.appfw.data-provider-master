@@ -16,17 +16,16 @@
 
 [Unit]
 Description=Data Provider daemon
-After=xorg.target
 
 [Service]
 User=system
 Group=system
 Environment=ECORE_EVAS_ENGINE=wayland_egl
-Environment=ECORE_IMF_INPUT_PANEL_ENABLED=1
-Environment=ECORE_IMF_MODULE=isf
 Environment=XDG_RUNTIME_DIR=/tmp
 Environment=BUFMGR_LOCK_TYPE="once"
 Environment=BUFMGR_MAP_CACHE="true"
+Environment=EFL_WAYLAND_USE_XDG_SHELL=defined
+Environment=WAYLAND_DISPLAY=wayland-0
 Type=notify
 ExecStart=/usr/bin/data-provider-master
 RestartSec=1
