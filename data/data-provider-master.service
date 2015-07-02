@@ -20,12 +20,9 @@ Description=Data Provider daemon
 [Service]
 User=system
 Group=system
-Environment=ECORE_EVAS_ENGINE=wayland_egl
-Environment=XDG_RUNTIME_DIR=/tmp
 Environment=BUFMGR_LOCK_TYPE="once"
 Environment=BUFMGR_MAP_CACHE="true"
-Environment=EFL_WAYLAND_USE_XDG_SHELL=defined
-Environment=WAYLAND_DISPLAY=wayland-0
+EnvironmentFile=/run/tizen-system-env
 Type=notify
 ExecStart=/usr/bin/data-provider-master
 RestartSec=1

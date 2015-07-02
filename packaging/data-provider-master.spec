@@ -199,6 +199,6 @@ echo "Successfully installed. Please start a daemon again manually"
 /opt/etc/dump.d/module.d/dump_widget.sh
 /opt/usr/share/live_magazine/*
 /opt/dbspace/.widget.db*
-%{_sysconfdir}/smack/accesses.d/%{name}
+#%{_sysconfdir}/smack/accesses.d/%{name}
 
 # End of a file
