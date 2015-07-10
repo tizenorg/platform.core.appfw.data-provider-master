@@ -455,12 +455,14 @@ HAPI void util_prepare_emergency_disk(void)
 		ErrPrint("chown: %d\n", errno);
 	}
 
-	ret = smack_setlabel(WIDGET_CONF_IMAGE_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
-	if (ret != 0) {
-		ErrPrint("Failed to set SMACK for %s (%d)\n", WIDGET_CONF_IMAGE_PATH, ret);
-	} else {
-		ret = smack_setlabel(WIDGET_CONF_IMAGE_PATH, "1", SMACK_LABEL_TRANSMUTE);
-		DbgPrint("[%s] is successfully created (t: %d)\n", WIDGET_CONF_IMAGE_PATH, ret);
+	if (!!DATA_SHARE_LABEL) {
+		ret = smack_setlabel(WIDGET_CONF_IMAGE_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
+		if (ret != 0) {
+			ErrPrint("Failed to set SMACK for %s (%d)\n", WIDGET_CONF_IMAGE_PATH, ret);
+		} else {
+			ret = smack_setlabel(WIDGET_CONF_IMAGE_PATH, "1", SMACK_LABEL_TRANSMUTE);
+			DbgPrint("[%s] is successfully created (t: %d)\n", WIDGET_CONF_IMAGE_PATH, ret);
+		}
 	}
 
 	if (mkdir(WIDGET_CONF_ALWAYS_PATH, 0755) < 0) {
@@ -474,12 +476,14 @@ HAPI void util_prepare_emergency_disk(void)
 			ErrPrint("chown: %d\n", errno);
 		}
 
-		ret = smack_setlabel(WIDGET_CONF_ALWAYS_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
-		if (ret != 0) {
-			ErrPrint("Failed to set SMACK for %s (%d)\n", WIDGET_CONF_ALWAYS_PATH, ret);
-		} else {
-			ret = smack_setlabel(WIDGET_CONF_ALWAYS_PATH, "1", SMACK_LABEL_TRANSMUTE);
-			DbgPrint("[%s] is successfully created (t: %d)\n", WIDGET_CONF_ALWAYS_PATH, ret);
+		if (!!DATA_SHARE_LABEL) {
+			ret = smack_setlabel(WIDGET_CONF_ALWAYS_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
+			if (ret != 0) {
+				ErrPrint("Failed to set SMACK for %s (%d)\n", WIDGET_CONF_ALWAYS_PATH, ret);
+			} else {
+				ret = smack_setlabel(WIDGET_CONF_ALWAYS_PATH, "1", SMACK_LABEL_TRANSMUTE);
+				DbgPrint("[%s] is successfully created (t: %d)\n", WIDGET_CONF_ALWAYS_PATH, ret);
+			}
 		}
 	}
 
@@ -494,12 +498,14 @@ HAPI void util_prepare_emergency_disk(void)
 			ErrPrint("chown: %d\n", errno);
 		}
 
-		ret = smack_setlabel(WIDGET_CONF_READER_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
-		if (ret != 0) {
-			ErrPrint("Failed to set SMACK for %s (%d)\n", WIDGET_CONF_READER_PATH, ret);
-		} else {
-			ret = smack_setlabel(WIDGET_CONF_READER_PATH, "1", SMACK_LABEL_TRANSMUTE);
-			DbgPrint("[%s] is successfully created (t: %d)\n", WIDGET_CONF_READER_PATH, ret);
+		if (!!DATA_SHARE_LABEL) {
+			ret = smack_setlabel(WIDGET_CONF_READER_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
+			if (ret != 0) {
+				ErrPrint("Failed to set SMACK for %s (%d)\n", WIDGET_CONF_READER_PATH, ret);
+			} else {
+				ret = smack_setlabel(WIDGET_CONF_READER_PATH, "1", SMACK_LABEL_TRANSMUTE);
+				DbgPrint("[%s] is successfully created (t: %d)\n", WIDGET_CONF_READER_PATH, ret);
+			}
 		}
 	}
 
@@ -532,12 +538,14 @@ HAPI void util_setup_log_disk(void)
 			ErrPrint("chown: %d\n", errno);
 		}
 
-		ret = smack_setlabel(WIDGET_CONF_LOG_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
-		if (ret != 0) {
-			ErrPrint("Failed to set SMACK for %s (%d)\n", WIDGET_CONF_LOG_PATH, ret);
-		} else {
-			ret = smack_setlabel(WIDGET_CONF_LOG_PATH, "1", SMACK_LABEL_TRANSMUTE);
-			DbgPrint("[%s] is successfully created (t: %d)\n", WIDGET_CONF_LOG_PATH, ret);
+		if (!!DATA_SHARE_LABEL) {
+			ret = smack_setlabel(WIDGET_CONF_LOG_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
+			if (ret != 0) {
+				ErrPrint("Failed to set SMACK for %s (%d)\n", WIDGET_CONF_LOG_PATH, ret);
+			} else {
+				ret = smack_setlabel(WIDGET_CONF_LOG_PATH, "1", SMACK_LABEL_TRANSMUTE);
+				DbgPrint("[%s] is successfully created (t: %d)\n", WIDGET_CONF_LOG_PATH, ret);
+			}
 		}
 	}
 }

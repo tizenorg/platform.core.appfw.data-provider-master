@@ -187,7 +187,7 @@ echo "Successfully installed. Please start a daemon again manually"
 
 %files -n %{name}
 %manifest %{name}.manifest
-%defattr(-,system,system,-)
+%defattr(-,root,root,-)
 %caps(cap_chown,cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_nice,cap_mac_override,cap_mac_admin+ep) %{_bindir}/%{name}
 %{_prefix}/lib/systemd/user/default.target.wants/%{name}.service
 %{_prefix}/lib/systemd/user/default.target.wants/%{name}.path
@@ -200,8 +200,8 @@ echo "Successfully installed. Please start a daemon again manually"
 %{_prefix}/etc/package-manager/parserlib/*
 %{_datarootdir}/%{name}/*
 /opt/etc/dump.d/module.d/dump_widget.sh
+%defattr(-,owner,users,-)
 /opt/usr/share/live_magazine/*
 /opt/dbspace/.widget.db*
-#%{_sysconfdir}/smack/accesses.d/%{name}
 
 # End of a file
