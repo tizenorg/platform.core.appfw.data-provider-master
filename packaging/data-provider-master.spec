@@ -162,6 +162,7 @@ else
 fi
 
 chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine
+
 # System tool(widget-mgr) should be able to access this folder.
 # So give the "rx" permission to the other group. (750 -> 755)
 chmod 755 /opt/usr/share/live_magazine
@@ -171,9 +172,11 @@ chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine/reader
 chmod 750 /opt/usr/share/live_magazine/reader
 chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine/always
 chmod 750 /opt/usr/share/live_magazine/always
-chown ${SYSTEM}:${APP_GID} /opt/dbspace/.widget.db
+
+# SYSTEM_UID?
+chown ${APP_UID}:${APP_GID} /opt/dbspace/.widget.db
 chmod 640 /opt/dbspace/.widget.db
-chown ${SYSTEM}:${APP_GID} /opt/dbspace/.widget.db-journal
+chown ${APP_UID}:${APP_GID} /opt/dbspace/.widget.db-journal
 chmod 640 /opt/dbspace/.widget.db-journal
 
 vconftool set -t bool "memory/%{name}/started" 0 -i -u ${APP_UID} -f -s system::vconf_system

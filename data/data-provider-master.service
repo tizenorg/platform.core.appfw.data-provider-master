@@ -18,8 +18,6 @@
 Description=Data Provider daemon
 
 [Service]
-User=system
-Group=system
 Environment=BUFMGR_LOCK_TYPE="once"
 Environment=BUFMGR_MAP_CACHE="true"
 EnvironmentFile=/run/tizen-system-env
