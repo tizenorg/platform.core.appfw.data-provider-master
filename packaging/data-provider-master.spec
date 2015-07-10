@@ -109,9 +109,9 @@ CFLAGS="${CFLAGS} -Wall -Winline -Werror" LDFLAGS="${LDFLAGS}" make %{?jobs:-j%j
 rm -rf %{buildroot}
 %make_install
 mkdir -p %{buildroot}/%{_datarootdir}/license
-mkdir -p %{buildroot}%{_prefix}/lib/systemd/system/multi-user.target.wants
-ln -sf ../%{name}.service %{buildroot}%{_prefix}/lib/systemd/system/multi-user.target.wants/%{name}.service
-ln -sf ../%{name}.path %{buildroot}%{_prefix}/lib/systemd/system/multi-user.target.wants/%{name}.path
+mkdir -p %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants
+ln -sf ../%{name}.service %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}.service
+ln -sf ../%{name}.path %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}.path
 mkdir -p %{buildroot}/opt/usr/share/live_magazine
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/log
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/reader
@@ -186,10 +186,10 @@ echo "Successfully installed. Please start a daemon again manually"
 %manifest %{name}.manifest
 %defattr(-,system,system,-)
 %caps(cap_chown,cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_nice,cap_mac_override,cap_mac_admin+ep) %{_bindir}/%{name}
-%{_prefix}/lib/systemd/system/multi-user.target.wants/%{name}.service
-%{_prefix}/lib/systemd/system/multi-user.target.wants/%{name}.path
-%{_prefix}/lib/systemd/system/%{name}.service
-%{_prefix}/lib/systemd/system/%{name}.path
+%{_prefix}/lib/systemd/user/default.target.wants/%{name}.service
+%{_prefix}/lib/systemd/user/default.target.wants/%{name}.path
+%{_prefix}/lib/systemd/user/%{name}.service
+%{_prefix}/lib/systemd/user/%{name}.path
 %{_datarootdir}/license/*
 %if 0%{?tizen_build_binary_release_type_eng}
 /opt/usr/devel/usr/bin/*
