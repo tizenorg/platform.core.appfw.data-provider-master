@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+#if defined(_FILE_OFFSET_BITS)
+#undef _FILE_OFFSET_BITS
+#endif
+
 #include <stdio.h>
 #include <unistd.h> /* access */
 #include <sys/mman.h>
@@ -1345,7 +1349,7 @@ static inline widget_fb_t raw_open_file(const char *filename)
 	buffer->state = WIDGET_FB_STATE_CREATED;
 	buffer->type = WIDGET_FB_TYPE_FILE;
 	buffer->refcnt = 0;
-	buffer->info = (void *)off;
+	buffer->info = ((void *)off);
 
 	ret = read(fd, buffer->data, off);
 	if (ret < 0) {

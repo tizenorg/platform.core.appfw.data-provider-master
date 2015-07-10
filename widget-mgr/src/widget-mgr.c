@@ -1490,7 +1490,8 @@ static Eina_Bool input_cb(void *data, Ecore_Fd_Handler *fd_handler)
 					cmd_buffer[0] = '\0';
 					prompt(NULL);
 				} else {
-					strcpy(cmd_buffer, tmp);
+					strncpy(cmd_buffer, tmp, CMD_BUFFER_SIZE - 1);
+					cmd_buffer[CMD_BUFFER_SIZE - 1]  = '\0';
 					idx = strlen(cmd_buffer);
 					prompt(cmd_buffer);
 				}

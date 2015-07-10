@@ -221,4 +221,10 @@ extern void slave_set_valid(struct slave_node *slave);
 extern void slave_set_extra_bundle_data(struct slave_node *slave, const char *extra_bundle_data);
 extern const char *slave_extra_bundle_data(struct slave_node *slave);
 
+extern int slave_is_watch(struct slave_node *slave);
+extern void slave_set_is_watch(struct slave_node *slave, int flag);
+
+extern int slave_set_resource_limit(struct slave_node *slave, unsigned int soft, unsigned int hard);
+extern int slave_get_resource_limit(struct slave_node *slave, unsigned int *soft, unsigned int *hard);
+
 /* End of a file */

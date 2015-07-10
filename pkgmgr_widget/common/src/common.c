@@ -2194,6 +2194,36 @@ static int update_category(struct widget *widget, xmlNodePtr node)
 	return 0;
 }
 
+static inline xmlChar *pkgmgr_get_mainapp(char *pkgid)
+{
+	pkgmgrinfo_pkginfo_h handle;
+	xmlChar *ret;
+	char *tmp;
+
+	if (pkgmgrinfo_pkginfo_get_pkginfo(pkgid, &handle) != PMINFO_R_OK) {
+		ErrPrint("Unable to get mainapp: %s\n", pkgid);
+		return NULL;
+	}
+
+	tmp = NULL;
+	ret = NULL;
+	if (pkgmgrinfo_pkginfo_get_mainappid(handle, &tmp) == PMINFO_R_OK) {
+		if (tmp) {
+			ret = xmlStrdup((xmlChar *)tmp);
+			if (!ret) {
+				ErrPrint("xmlStrdup: %d\n", errno);
+			}
+		} else {
+			ErrPrint("mainappid is NULL (%s)\n", pkgid);
+		}
+	} else {
+		ErrPrint("Failed to get mainappid (%s)\n", pkgid);
+	}
+
+	pkgmgrinfo_pkginfo_destroy_pkginfo(handle);
+	return ret;
+}
+
 static void update_ui_appid(struct widget *widget, xmlNodePtr node)
 {
 	xmlChar *uiapp;
@@ -3042,8 +3072,18 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 		xmlFree(tmp);
 	}
 
+	/**
+	 * @note
+	 * "primary" == "main"
+	 */
 	if (xmlHasProp(node, (const xmlChar *)"primary")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"primary");
+		widget->primary = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
+		xmlFree(tmp);
+	}
+
+	if (xmlHasProp(node, (const xmlChar *)"main")) {
+		tmp = xmlGetProp(node, (const xmlChar *)"main");
 		widget->primary = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
 		xmlFree(tmp);
 	}
@@ -3067,8 +3107,19 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 		xmlFree(tmp);
 	}
 
+	/**
+	 * @note
+	 * "period" == "update-period"
+	 */
 	if (xmlHasProp(node, (const xmlChar *)"period")) {
 		widget->period = xmlGetProp(node, (const xmlChar *)"period");
+		if (!widget->period) {
+			ErrPrint("Period is NIL\n");
+		}
+	}
+
+	if (xmlHasProp(node, (const xmlChar *)"update-period")) {
+		widget->period = xmlGetProp(node, (const xmlChar *)"update-period");
 		if (!widget->period) {
 			ErrPrint("Period is NIL\n");
 		}
@@ -3122,7 +3173,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 	 * And there is no "box" tag.
 	 */
 	if (!xmlHasProp(node, (const xmlChar *)"type")) {
-		widget->widget_type = WIDGET_TYPE_FILE;
+		widget->widget_type = WIDGET_TYPE_BUFFER;
 	} else {
 		xmlChar *type;
 
@@ -3140,7 +3191,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 			} else if (!xmlStrcasecmp(type, (const xmlChar *)"elm")) {
 				widget->widget_type = WIDGET_TYPE_UIFW;
 			} else { /* Default */
-				widget->widget_type = WIDGET_TYPE_FILE;
+				widget->widget_type = WIDGET_TYPE_BUFFER;
 			}
 
 			xmlFree(type);
@@ -3298,6 +3349,16 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 
 			continue;
 		}
+	}
+
+	if (widget->uiapp) {
+		/**
+		 * @note
+		 * If there is no speicifed UI-App related with this widget,
+		 * Set default to Main UI App.
+		 */
+		widget->uiapp = pkgmgr_get_mainapp((char *)appid);
+		DbgPrint("Default MAIN UI-APP: [%s]\n", (char *)widget->uiapp);
 	}
 
 	return db_insert_widget(widget, appid);

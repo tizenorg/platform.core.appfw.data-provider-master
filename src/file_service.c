@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <pthread.h>
 #include <sys/time.h>
@@ -378,7 +377,8 @@ static int send_file(int handle, const struct request_item *item)
 		body = malloc(sizeof(*body));
 		if (!body) {
 			ErrPrint("malloc: %d\n", errno);
-			return -ENOMEM;
+			ret = -ENOMEM;
+			goto errout;
 		}
 
 		body->size = -1;

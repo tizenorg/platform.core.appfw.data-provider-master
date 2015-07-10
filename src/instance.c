@@ -163,6 +163,7 @@ struct inst_info {
 	int refcnt;
 
 	Ecore_Timer *update_timer; /*!< Only used for secured widget */
+	int update_timer_freezed; /*!< Tizen 2.3 doesn't support ecore_timer_freeze_get API. it is introduced in Tizen 2.4. For the compatibility, master uses this */
 
 	enum event_process {
 		INST_EVENT_PROCESS_IDLE = 0x00,
@@ -207,7 +208,13 @@ static inline void timer_thaw(struct inst_info *inst)
 	double delay;
 	double sleep_time;
 
+	if (!inst->update_timer_freezed) {
+		return;
+	}
+
 	ecore_timer_thaw(inst->update_timer);
+	inst->update_timer_freezed = 0;
+
 	period = ecore_timer_interval_get(inst->update_timer);
 	pending = ecore_timer_pending_get(inst->update_timer);
 	delay = util_time_delay_for_compensation(period) - pending;
@@ -227,7 +234,12 @@ static inline void timer_thaw(struct inst_info *inst)
 
 static inline void timer_freeze(struct inst_info *inst)
 {
+	if (inst->update_timer_freezed) {
+		return;
+	}
+
 	ecore_timer_freeze(inst->update_timer);
+	inst->update_timer_freezed = 1;
 
 	if (ecore_timer_interval_get(inst->update_timer) <= 1.0f) {
 		return;
@@ -323,8 +335,8 @@ static inline int instance_recover_visible_state(struct inst_info *inst)
 		break;
 	case WIDGET_HIDE_WITH_PAUSE:
 		ret = pause_widget(inst);
+		(void)instance_freeze_updator(inst);
 
-		instance_freeze_updator(inst);
 		break;
 	default:
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
@@ -918,11 +930,7 @@ static inline int fork_package(struct inst_info *inst, const char *pkgname)
 	if (package_secured(info) || (WIDGET_IS_INHOUSE(package_abi(info)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL)) {
 		if (inst->widget.period > 0.0f) {
 			inst->update_timer = util_timer_add(inst->widget.period, update_timer_cb, inst);
-			if (!inst->update_timer) {
-				ErrPrint("Failed to add an update timer for instance %s\n", inst->id);
-			} else {
-				timer_freeze(inst); /* Freeze the update timer as default */
-			}
+			(void)instance_freeze_updator(inst);
 		} else {
 			inst->update_timer = NULL;
 		}
@@ -1171,9 +1179,6 @@ HAPI struct inst_info *instance_unref(struct inst_info *inst)
 static void deactivate_cb(struct slave_node *slave, const struct packet *packet, void *data)
 {
 	struct inst_info *inst = data;
-	const char *category;
-	int set_to_terminate;
-	struct pkg_info *pkg;
 	int ret;
 
 	/*!
@@ -1223,11 +1228,7 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 			instance_reactivate(inst);
 			break;
 		case INST_DESTROYED:
-			pkg = instance_package(inst);
-			category = package_category(pkg);
-			set_to_terminate = (category && !strcmp(category, CATEGORY_WATCH_CLOCK));
-
-			if (set_to_terminate) {
+			if (slave_is_watch(slave)) {
 				/**
 				 * @note
 				 * In case of the watch app.
@@ -1241,7 +1242,7 @@ static void deactivate_cb(struct slave_node *slave, const struct packet *packet,
 				 * The master will not change the states of the slave as a faulted one.
 				 */
 				DbgPrint("Change the slave state for Watch app\n");
-				slave_set_state(package_slave(pkg), SLAVE_REQUEST_TO_TERMINATE);
+				slave_set_state(slave, SLAVE_REQUEST_TO_TERMINATE);
 			}
 
 			if (inst->unicast_delete_event) {
@@ -2581,6 +2582,10 @@ HAPI int instance_set_pinup(struct inst_info *inst, int pinup)
 
 HAPI int instance_freeze_updator(struct inst_info *inst)
 {
+	if (WIDGET_CONF_UPDATE_ON_PAUSE) {
+		return WIDGET_ERROR_DISABLED;
+	}
+
 	if (!inst->update_timer) {
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
@@ -2638,7 +2643,7 @@ HAPI int instance_set_visible_state(struct inst_info *inst, enum widget_visible_
 			inst->visible = WIDGET_HIDE_WITH_PAUSE;
 		}
 
-		instance_freeze_updator(inst);
+		(void)instance_freeze_updator(inst);
 		monitor_multicast_state_change_event(package_name(inst->info), MONITOR_EVENT_PAUSED, instance_id(inst), instance_content(inst));
 		break;
 
@@ -2667,7 +2672,7 @@ HAPI int instance_watch_recover_visible_state(struct inst_info *inst)
 		break;
 	case WIDGET_HIDE_WITH_PAUSE:
 		(void)pause_widget(inst);
-		instance_freeze_updator(inst);
+		(void)instance_freeze_updator(inst);
 		break;
 	default:
 		return WIDGET_ERROR_INVALID_PARAMETER;
@@ -2843,11 +2848,7 @@ static Eina_Bool timer_updator_cb(void *data)
 		}
 	} else if (inst->widget.period > 0.0f) {
 		inst->update_timer = util_timer_add(inst->widget.period, update_timer_cb, inst);
-		if (!inst->update_timer) {
-			ErrPrint("Failed to add an update timer for instance %s\n", inst->id);
-		} else {
-			timer_freeze(inst); /* Freeze the update timer as default */
-		}
+		(void)instance_freeze_updator(inst);
 	}
 
 	result = packet_create_noack((const char *)&cmd, "idss", 0, inst->widget.period, package_name(inst->info), inst->id);

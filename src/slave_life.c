@@ -118,6 +118,15 @@ struct slave_node {
 	char *hw_acceleration;
 	int valid;
 	char *extra_bundle_data;
+
+	int is_watch;	/*!< Specialized field. Only for the WATCH */
+
+	struct _resource {
+		struct _memory {
+			unsigned int soft;
+			unsigned int hard;
+		} memory;
+	} resources;
 };
 
 struct event {
@@ -141,14 +150,36 @@ static struct {
 	.deactivate_all_refcnt = 0,
 };
 
+static inline int apply_resource_limit(struct slave_node *slave)
+{
+	struct rlimit limit;
+	struct rlimit old_limit;
+
+	if (slave_pid(slave) <= 0 || (slave->resources.memory.soft == 0 && slave->resources.memory.hard == 0)) {
+		return WIDGET_ERROR_INVALID_PARAMETER;
+	}
+
+	limit.rlim_cur = slave->resources.memory.soft;
+	limit.rlim_max = slave->resources.memory.hard;
+
+	if (prlimit(slave->pid, RLIMIT_AS, &limit, &old_limit) < 0) {
+		ErrPrint("prlimit: %d\n", errno);
+		return WIDGET_ERROR_FAULT;
+	}
+
+	DbgPrint("Old: %lu - %lu / %lu - %lu\n", limit.rlim_cur, limit.rlim_max, old_limit.rlim_cur, old_limit.rlim_max);
+
+	return WIDGET_ERROR_NONE;
+}
+
 static Eina_Bool terminate_timer_cb(void *data)
 {
 	struct slave_node *slave = data;
 	int ret;
 
-	/*!
-	 * \todo
-	 * check the return value of the aul_terminate_pid
+	/**
+	 * @todo
+	 * Check the return value of the aul_terminate_pid
 	 */
 	slave->state = SLAVE_REQUEST_TO_TERMINATE;
 	slave->terminate_timer = NULL;
@@ -202,9 +233,9 @@ static struct slave_node *slave_deactivate(struct slave_node *slave, int no_time
 		(void)slave_rpc_disconnect(slave);
 	} else if (slave->terminate_timer) {
 		ErrPrint("Terminate timer is already fired (%d)\n", slave->pid);
-	} else if (!slave->extra_bundle_data && ((!no_timer && !slave->secured) || slave_is_app(slave))) {
+	} else if (!slave->extra_bundle_data && ((!no_timer && !slave->secured) || slave_is_app(slave)) && WIDGET_CONF_SLAVE_TERMINATE_TIME > 0.0f) {
 		DbgPrint("Fire the terminate timer: %d (%d)\n", slave->pid, slave_is_app(slave));
-		slave->terminate_timer = ecore_timer_add(WIDGET_CONF_SLAVE_ACTIVATE_TIME, terminate_timer_cb, slave);
+		slave->terminate_timer = ecore_timer_add(WIDGET_CONF_SLAVE_TERMINATE_TIME, terminate_timer_cb, slave);
 		if (!slave->terminate_timer) {
 			/*!
 			 * \note
@@ -246,30 +277,40 @@ static struct slave_node *slave_deactivate(struct slave_node *slave, int no_time
 
 static Eina_Bool slave_ttl_cb(void *data)
 {
-	struct pkg_info *info;
 	struct slave_node *slave = (struct slave_node *)data;
-	Eina_List *l;
-	Eina_List *pkg_list;
 
-	pkg_list = (Eina_List *)package_list();
-	EINA_LIST_FOREACH(pkg_list, l, info) {
-		if (package_slave(info) == slave) {
-			struct inst_info *inst;
-			Eina_List *inst_list;
-			Eina_List *n;
+	if (slave_state(slave) != SLAVE_REQUEST_TO_PAUSE && slave_state(slave) != SLAVE_PAUSED) {
+		Eina_List *l;
+		Eina_List *pkg_list;
+		struct pkg_info *info;
 
-			inst_list = (Eina_List *)package_instance_list(info);
-			EINA_LIST_FOREACH(inst_list, n, inst) {
-				if (instance_visible_state(inst) == WIDGET_SHOW) {
-					DbgPrint("Instance is in show, give more ttl to %d for %s\n", slave_pid(slave), instance_id(inst));
-					return ECORE_CALLBACK_RENEW;
+		/**
+		 * @note
+		 * If the slave is not paused,
+		 * Should check all instances in this slave.
+		 */
+		pkg_list = (Eina_List *)package_list();
+		EINA_LIST_FOREACH(pkg_list, l, info) {
+			if (package_slave(info) == slave) {
+				struct inst_info *inst;
+				Eina_List *inst_list;
+				Eina_List *n;
+
+				inst_list = (Eina_List *)package_instance_list(info);
+				EINA_LIST_FOREACH(inst_list, n, inst) {
+					if (instance_visible_state(inst) == WIDGET_SHOW) {
+						DbgPrint("Instance is in show, give more ttl to %d for %s\n", slave_pid(slave), instance_id(inst));
+						return ECORE_CALLBACK_RENEW;
+					}
 				}
 			}
-		}
+		} // EINA_LIST_FOREACH
+	} else {
+		DbgPrint("Slave is paused, Terminate it now\n");
 	}
 
-	/*!
-	 * \note
+	/**
+	 * @note
 	 * ttl_timer must has to be set to NULL before deactivate the slave
 	 * It will be used for making decision of the expired TTL timer or the fault of a widget.
 	 */
@@ -456,7 +497,10 @@ HAPI int slave_expired_ttl(struct slave_node *slave)
 		return 0;
 	}
 
-	if (!slave_is_app(slave) && !slave->secured && !(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL)) {
+	if (!slave_is_app(slave)
+		&& !slave->secured
+		&& !(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL))
+	{
 		return 0;
 	}
 
@@ -508,6 +552,11 @@ HAPI struct slave_node *slave_create(const char *name, int is_secured, const cha
 			ErrPrint("Exists slave and creating slave's security flag is not matched\n");
 		}
 		return slave;
+	}
+
+	if (!pkgname) {
+		ErrPrint("Slave pkgname is not valid[%s]\n", pkgname);
+		return NULL;
 	}
 
 	slave = create_slave_node(name, is_secured, abi, pkgname, network, hw_acceleration);
@@ -878,8 +927,15 @@ HAPI int slave_give_more_ttl(struct slave_node *slave)
 {
 	double delay;
 
-	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) && ((!slave_is_app(slave) && !slave->secured) || !slave->ttl_timer)) {
+	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL)
+		&& ((!slave_is_app(slave) && !slave->secured) || !slave->ttl_timer))
+	{
 		return WIDGET_ERROR_INVALID_PARAMETER;
+	}
+
+	if (WIDGET_CONF_FORCE_TO_TERMINATE) {
+		DbgPrint("Force to terminate is enabled: %s\n", slave_pkgname(slave));
+		return WIDGET_ERROR_DISABLED;
 	}
 
 	delay = WIDGET_CONF_SLAVE_TTL - ecore_timer_pending_get(slave->ttl_timer);
@@ -889,7 +945,9 @@ HAPI int slave_give_more_ttl(struct slave_node *slave)
 
 HAPI int slave_freeze_ttl(struct slave_node *slave)
 {
-	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) && ((!slave_is_app(slave) && !slave->secured) || !slave->ttl_timer)) {
+	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL)
+		&& ((!slave_is_app(slave) && !slave->secured) || !slave->ttl_timer))
+	{
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
@@ -901,7 +959,9 @@ HAPI int slave_thaw_ttl(struct slave_node *slave)
 {
 	double delay;
 
-	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) && ((!slave_is_app(slave) && !slave->secured) || !slave->ttl_timer)) {
+	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL)
+		&& ((!slave_is_app(slave) && !slave->secured) || !slave->ttl_timer))
+	{
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
@@ -931,7 +991,11 @@ HAPI int slave_activated(struct slave_node *slave)
 	 * 2. Service provider is "secured" and SLAVE_TTL is greater than 0.0f
 	 * 3. If a slave is launched for sdk_viewer (widget debugging), Do not activate TTL
 	 */
-	if (!slave->extra_bundle_data && ((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured == 1 || slave_is_app(slave)) && WIDGET_CONF_SLAVE_TTL > 0.0f) {
+	if (!slave->extra_bundle_data /* Launched by SDK Viewer */
+		&& !slave_is_watch(slave) /* Not a watch */
+		&& ((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured == 1 || slave_is_app(slave))
+		&& WIDGET_CONF_SLAVE_TTL > 0.0f)
+	{
 		DbgPrint("Slave deactivation timer is added (%s - %lf)\n", slave_name(slave), WIDGET_CONF_SLAVE_TTL);
 		slave->ttl_timer = ecore_timer_add(WIDGET_CONF_SLAVE_TTL, slave_ttl_cb, slave);
 		if (!slave->ttl_timer) {
@@ -965,6 +1029,7 @@ HAPI int slave_activated(struct slave_node *slave)
 	}
 
 	slave_set_priority(slave, LOW_PRIORITY);
+	(void)apply_resource_limit(slave);
 	return WIDGET_ERROR_NONE;
 }
 
@@ -1506,6 +1571,10 @@ HAPI struct slave_node *slave_find_by_pkgname(const char *pkgname)
 	Eina_List *l;
 	struct slave_node *slave;
 
+	if (!pkgname) {
+		return NULL;
+	}
+
 	EINA_LIST_FOREACH(s_info.slave_list, l, slave) {
 		if (!strcmp(slave_pkgname(slave), pkgname)) {
 			if (slave_pid(slave) == (pid_t)-1 || slave_pid(slave) == (pid_t)0) {
@@ -1686,7 +1755,7 @@ static void resume_cb(struct slave_node *slave, const struct packet *packet, voi
 
 	if (ret == 0) {
 		slave->state = SLAVE_RESUMED;
-		slave_rpc_ping_thaw(slave);
+		(void)slave_rpc_ping_thaw(slave);
 		invoke_resumed_cb(slave);
 	}
 }
@@ -1729,7 +1798,7 @@ static void pause_cb(struct slave_node *slave, const struct packet *packet, void
 
 	if (ret == 0) {
 		slave->state = SLAVE_PAUSED;
-		slave_rpc_ping_freeze(slave);
+		(void)slave_rpc_ping_freeze(slave);
 		invoke_paused_cb(slave);
 	}
 }
@@ -1880,27 +1949,28 @@ HAPI int slave_need_to_reactivate(struct slave_node *slave)
 	int reactivate;
 
 	if (!WIDGET_CONF_REACTIVATE_ON_PAUSE) {
-		Eina_List *pkg_list;
-		Eina_List *l;
-		struct pkg_info *info;
+		if (slave_is_watch(slave)) {
+			/**
+			 * @note
+			 * If this slave serves WATCH-App, it must has to be reactivated.
+			 */
+			DbgPrint("Watch should be activated anyway (%s)\n", slave_pkgname(slave));
+			reactivate = 1;
+		} else {
+			Eina_List *pkg_list;
+			Eina_List *l;
+			struct pkg_info *info;
 
-		/**
-		 * @TODO
-		 * Check all instances on this slave, whether they are all paused or not.
-		 */
-		pkg_list = (Eina_List *)package_list();
+			/**
+			 * @TODO
+			 * Check all instances on this slave, whether they are all paused or not.
+			 */
+			pkg_list = (Eina_List *)package_list();
 
-		reactivate = 0;
+			reactivate = 0;
 
-		EINA_LIST_FOREACH(pkg_list, l, info) {
-			if (package_slave(info) == slave) {
-				const char *category;
-				int is_watch;
-				
-				category = package_category(info);
-				is_watch = (category && strcmp(CATEGORY_WATCH_CLOCK, category) == 0);
-
-				if (!is_watch) {
+			EINA_LIST_FOREACH(pkg_list, l, info) {
+				if (package_slave(info) == slave) {
 					struct inst_info *inst;
 					Eina_List *inst_list;
 					Eina_List *n;
@@ -1911,11 +1981,6 @@ HAPI int slave_need_to_reactivate(struct slave_node *slave)
 							reactivate++;
 						}
 					}
-				} else {
-					DbgPrint("Watch should be activated anyway (%s)\n", package_name(info));
-					reactivate = 1;
-					/* There is only one instance in this case, so we can break this loop */
-					break;
 				}
 			}
 		}
@@ -2081,6 +2146,54 @@ HAPI void slave_set_extra_bundle_data(struct slave_node *slave, const char *extr
 HAPI const char *slave_extra_bundle_data(struct slave_node *slave)
 {
 	return slave ? slave->extra_bundle_data : NULL;
+}
+
+HAPI int slave_is_watch(struct slave_node *slave)
+{
+	return slave ? slave->is_watch : 0;
+}
+
+HAPI void slave_set_is_watch(struct slave_node *slave, int flag)
+{
+	if (!slave) {
+		return;
+	}
+
+	slave->is_watch = flag;
+}
+
+HAPI int slave_set_resource_limit(struct slave_node *slave, unsigned int soft, unsigned int hard)
+{
+	if (!slave) {
+		return WIDGET_ERROR_INVALID_PARAMETER;
+	}
+
+	if (soft > hard) {
+		return WIDGET_ERROR_INVALID_PARAMETER;
+	}
+
+	slave->resources.memory.soft = soft;
+	slave->resources.memory.hard = hard;
+
+	(void)apply_resource_limit(slave);
+	return WIDGET_ERROR_NONE;
+}
+
+HAPI int slave_get_resource_limit(struct slave_node *slave, unsigned int *soft, unsigned int *hard)
+{
+	if (!slave) {
+		return WIDGET_ERROR_INVALID_PARAMETER;
+	}
+
+	if (soft) {
+		*soft = slave->resources.memory.soft;
+	}
+
+	if (hard) {
+		*hard = slave->resources.memory.hard;
+	}
+
+	return WIDGET_ERROR_NONE;
 }
 
 /* End of a file */

@@ -2,10 +2,10 @@
 
 Name: data-provider-master
 Summary: Master service provider for widgetes
-Version: 1.1.7
+Version: 1.1.8
 Release: 1
 Group: Applications/Core Applications
-License: Flora License, Version 1.1
+License: Flora-1.1
 Source0: %{name}-%{version}.tar.gz
 Source1001: %{name}.manifest
 BuildRequires: cmake, gettext-tools, smack, coreutils

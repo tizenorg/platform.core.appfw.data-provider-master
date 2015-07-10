@@ -149,35 +149,34 @@ static int slave_activated_cb(struct slave_node *slave, void *data)
 	Eina_List *n;
 	int cnt;
 	int ret;
-	const char *category;
-	int is_watch;
 
 	if (!slave_need_to_reactivate_instances(slave)) {
 		DbgPrint("Do not need to reactivate instances\n");
 		return 0;
 	}
 
-	category = package_category(info);
-	is_watch = (category && strcmp(CATEGORY_WATCH_CLOCK, category) == 0);
-
 	cnt = 0;
-	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
-		if (is_watch) {
+	if (slave_is_watch(slave)) {
+		EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
 			/**
 			 * @note
 			 * Watch will be recovered by SLAVE_SYNC_HELLO command.
 			 * Not from here.
 			 */
 			instance_watch_set_need_to_recover(inst, EINA_TRUE);
-		} else {
+			cnt++;
+		}
+		DbgPrint("Watch instance: %d\n", cnt);
+	} else {
+		EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
 			ret = instance_recover_state(inst);
 			if (!ret) {
 				continue;
 			}
 
 			instance_thaw_updator(inst);
+			cnt++;
 		}
-		cnt++;
 	}
 
 	DbgPrint("Recover state for %d instances of %s\n", cnt, package_name(info));
@@ -249,7 +248,7 @@ static int xmonitor_paused_cb(void *data)
 	}
 
 	EINA_LIST_FOREACH(info->inst_list, l, inst) {
-		instance_freeze_updator(inst);
+		(void)instance_freeze_updator(inst);
 	}
 
 	return 0;
@@ -279,7 +278,7 @@ static int slave_paused_cb(struct slave_node *slave, void *data)
 	Eina_List *l;
 
 	EINA_LIST_FOREACH(info->inst_list, l, inst) {
-		instance_freeze_updator(inst);
+		(void)instance_freeze_updator(inst);
 	}
 
 	return 0;
@@ -1162,6 +1161,7 @@ HAPI const char *package_category(const struct pkg_info *info)
 static inline int assign_new_slave(const char *slave_pkgname, struct pkg_info *info)
 {
 	char *s_name;
+	const char *category;
 
 	s_name = util_slavename();
 	if (!s_name) {
@@ -1171,9 +1171,7 @@ static inline int assign_new_slave(const char *slave_pkgname, struct pkg_info *i
 
 	DbgPrint("New slave[%s] is assigned for %s (using %s / abi[%s] / accel[%s]\n", s_name, info->widget_id, slave_pkgname, info->abi, info->hw_acceleration);
 	info->slave = slave_create(s_name, info->secured, info->abi, slave_pkgname, info->network, info->hw_acceleration);
-
 	DbgFree(s_name);
-
 	if (!info->slave) {
 		/*!
 		 * \note
@@ -1184,6 +1182,16 @@ static inline int assign_new_slave(const char *slave_pkgname, struct pkg_info *i
 		 */
 		return WIDGET_ERROR_FAULT;
 	}
+
+	slave_set_resource_limit(info->slave, 0u, 0u);
+
+	/**
+	 * @note
+	 * At the first time, the slave is created, "is_watch" will be initialized.
+	 */
+	category = package_category(info);
+	slave_set_is_watch(info->slave, (category && strcmp(CATEGORY_WATCH_CLOCK, category) == 0));
+
 	/*!
 	 * \note
 	 * Slave is not activated yet.
@@ -1749,33 +1757,6 @@ HAPI char *package_get_pkgid(const char *appid)
 	pkgmgrinfo_appinfo_destroy_appinfo(handle);
 
 	return pkgid;
-}
-
-HAPI int package_del_instance_by_category(const char *category, const char *except_widget_id)
-{
-	Eina_List *l;
-	Eina_List *n;
-	Eina_List *m;
-	struct inst_info *inst;
-	struct pkg_info *info;
-	int ret;
-
-	EINA_LIST_FOREACH(s_info.pkg_list, m, info) {
-		ErrPrint("pkgid[%s] category [%s]\n", info->pkgid, info->category);
-		if (info->category && !strcmp(category, info->category)) {
-			if (except_widget_id && !strcmp(package_name(info), except_widget_id)){
-				ErrPrint("package_name[%s] widget_id[%s]\n", package_name(info), except_widget_id);
-				continue;
-			}
-
-			EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
-				ret = instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
-				ErrPrint("instance_destroy return [%d]\n", ret);
-			}
-		}
-	}
-
-	return WIDGET_ERROR_NONE;
 }
 
 /* End of a file */

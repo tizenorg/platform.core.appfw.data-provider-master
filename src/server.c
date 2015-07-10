@@ -72,6 +72,8 @@
 #define ACCESS_TYPE_PREV 2
 #define ACCESS_TYPE_OFF 3
 
+#define PAGE_SIZE 4096
+
 #define aul_terminate_pid_async(a) aul_terminate_pid(a)
 
 struct sync_ctx_item {
@@ -171,8 +173,19 @@ static char *is_valid_slave(pid_t pid, const char *abi, const char *provider_pkg
 	int verified;
 
 	if (aul_app_get_pkgname_bypid(pid, pid_pkgname, sizeof(pid_pkgname)) != AUL_R_OK) {
-		ErrPrint("pid[%d] is not authroized provider package\n", pid);
-		return NULL;
+		if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
+			DbgPrint("Debug mode is enabled: [%s] [%s]\n", abi, provider_pkgname);
+			if (provider_pkgname) {
+				strncpy(pid_pkgname, provider_pkgname, sizeof(pid_pkgname));
+				DbgPrint("[%d]_pkgname is updated to [%s]\n", pid, pid_pkgname);
+			} else {
+				DbgPrint("There is no way to get the pkgname of %d even though we are in the debug mode\n", pid);
+				return NULL;
+			}
+		} else {
+			ErrPrint("pid[%d] is not authroized provider package\n", pid);
+			return NULL;
+		}
 	}
 
 	abi_pkgname = widget_abi_get_pkgname_by_abi(abi);
@@ -187,6 +200,9 @@ static char *is_valid_slave(pid_t pid, const char *abi, const char *provider_pkg
 		 * In this case, we should believe its request.
 		 */
 		return strdup(provider_pkgname);
+	} else if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
+		DbgPrint("Debug mode is enabled, use the %s as a widget_id\n", provider_pkgname);
+		return provider_pkgname ? strdup(provider_pkgname) : NULL;
 	}
 
 	/*!
@@ -1396,6 +1412,7 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 		goto out;
 	}
 	DbgFree(mainappid);
+	mainappid = NULL;
 
 	info = package_find(widget_id);
 	if (!info) {
@@ -5210,7 +5227,7 @@ static struct packet *client_widget_acquire_xpixmap(pid_t pid, int handle, const
 	buf_ptr = buffer_handler_pixmap_ref(buffer);
 	if (!buf_ptr) {
 		ErrPrint("Failed to ref pixmap\n");
-		ret = WIDGET_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_FAULT;
 		goto out;
 	}
 
@@ -5389,7 +5406,7 @@ static struct packet *client_gbar_acquire_xpixmap(pid_t pid, int handle, const s
 
 	buffer = instance_gbar_extra_buffer(inst, idx);
 	if (!buffer) {
-		ret = WIDGET_ERROR_NOT_EXIST;
+		ret = WIDGET_ERROR_FAULT;
 		goto out;
 	}
 
@@ -6652,20 +6669,26 @@ out:
 	return NULL;
 }
 
-static inline __attribute__((always_inline)) struct slave_node *debug_mode_enabled(int pid, const char *slavename, const char *pkgname, int secured, const char *abi, const char *acceleration)
+static inline __attribute__((always_inline)) struct slave_node *debug_mode_enabled(struct slave_node *slave, int pid, const char *slavename, const char *pkgname, int secured, const char *abi, const char *acceleration)
 {
-	struct slave_node *slave;
-
-	slave = slave_find_by_pkgname(pkgname);
 	if (!slave) {
-		slave = slave_create(slavename, secured, abi, pkgname, 0, acceleration);
-		if (!slave) {
-			return NULL;
+		if (pkgname) {
+			slave = slave_find_by_pkgname(pkgname);
 		}
 
-		DbgPrint("New slave is created net(%d) abi(%s) secured(%d) accel(%s)\n", 0, abi, secured, acceleration);
-	} else {
-		DbgPrint("Registered slave is replaced with this new one\n");
+		if (!slave) {
+			slave = slave_find_by_pid(pid);
+			if (!slave) {
+				slave = slave_create(slavename, secured, abi, pkgname, 0, acceleration);
+				if (!slave) {
+					return NULL;
+				}
+			}
+
+			DbgPrint("New slave is created net(%d) abi(%s) secured(%d) accel(%s)\n", 0, abi, secured, acceleration);
+		} else {
+			DbgPrint("Registered slave is replaced with this new one\n");
+		}
 	}
 
 	slave_set_pid(slave, pid);
@@ -6677,7 +6700,8 @@ static inline __attribute__((always_inline)) struct slave_node *debug_mode_enabl
 
 static struct packet *slave_hello(pid_t pid, int handle, const struct packet *packet) /* slave_name, ret */
 {
-	char pkgname[pathconf("/", _PC_PATH_MAX)];
+	char _pkgname[pathconf("/", _PC_PATH_MAX)];
+	const char *pkgname = NULL;
 	struct slave_node *slave;
 	const char *acceleration;
 	const char *slavename;
@@ -6702,19 +6726,41 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 		slave = slave_find_by_pid(pid);
 	}
 
-	if (aul_app_get_pkgname_bypid(pid, pkgname, sizeof(pkgname)) != AUL_R_OK) {
-		ErrPrint("pid[%d] is not authroized provider package, try to find it using its name[%s]\n", pid, slavename);
-		goto out;
+	if (aul_app_get_pkgname_bypid(pid, _pkgname, sizeof(_pkgname)) != AUL_R_OK) {
+		if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
+			DbgPrint("Debug mode is enabled. could not determine the pkgname for %d\n", pid);
+		} else {
+			ErrPrint("pid[%d] is not authroized provider package, try to find it using its name[%s]\n", pid, slavename);
+			goto out;
+		}
+	} else {
+		pkgname = (const char *)_pkgname;
 	}
 
 	if (!slave) {
 		if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
-			slave = debug_mode_enabled(pid, slavename, pkgname, secured, abi, acceleration);
+			/**
+			 * @note
+			 * In case of debugging mode,
+			 * Slave can be launched first even there are no instances.
+			 * If there is no slave object, the debug_mode_enabled function will create a slave object first.
+			 * So it can waiting service request of master.
+			 *
+			 * But if the slave is launched via valgrind or gdb,
+			 * the slave object cannot be created because the aul_app_get_pkgname_bypid will fails to get pkgname of given process.
+			 * "gdb" or "valgrind" pid is not exists in the package DB.
+			 */
+			slave = debug_mode_enabled(slave, pid, slavename, pkgname, secured, abi, acceleration);
 			if (!slave) {
 				ErrPrint("Failed to create a new slave for %s\n", slavename);
 				goto out;
 			}
 		} else {
+			/**
+			 * @note
+			 * If the master is not in the debug mode,
+			 * terminate slave process if it sends connection request which is not authorized.
+			 */
 			ErrPrint("Request comes from unknown: %d\n", pid);
 			ret = aul_terminate_pid_async(pid);
 			DbgPrint("Terminate %d (%d)\n", pid, ret);
@@ -6722,7 +6768,7 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 		}
 	} else {
 		if (slave_pid(slave) != pid) {
-			if (slave_pid(slave) > 0 && !slave_extra_bundle_data(slave)) {
+			if (slave_pid(slave) > 0 && !slave_extra_bundle_data(slave) && !(WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode)) {
 				ErrPrint("Slave(%s) is already assigned to %d\n", slave_name(slave), slave_pid(slave));
 				if (pid > 0) {
 					ret = aul_terminate_pid_async(pid);
@@ -6742,8 +6788,13 @@ static struct packet *slave_hello(pid_t pid, int handle, const struct packet *pa
 				slave_set_valid(slave);
 				DbgFree(widget_id);
 			} else {
-				ErrPrint("slave is not valid (%s)\n", pkgname);
-				goto out;
+				if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
+					DbgPrint("Forcely set to valid slave for debugging mode\n");
+					slave_set_valid(slave);
+				} else {
+					ErrPrint("slave is not valid (%s)\n", pkgname);
+					goto out;
+				}
 			}
 		}
 	}
@@ -6798,7 +6849,7 @@ static struct packet *slave_ping(pid_t pid, int handle, const struct packet *pac
 	if (ret != 1) {
 		ErrPrint("Parameter is not matched\n");
 	} else {
-		slave_rpc_ping(slave);
+		(void)slave_rpc_ping(slave);
 	}
 
 out:
@@ -7267,6 +7318,11 @@ static struct packet *slave_updated(pid_t pid, int handle, const struct packet *
 			break;
 		}
 
+		/**
+		 * @todo
+		 * If the slave has direct connection with viewer,
+		 * How could master detects its update and how could it be expanded?
+		 */
 		slave_give_more_ttl(slave);
 	}
 
@@ -8005,7 +8061,8 @@ static void delete_ctx_cb(int handle, void *data)
 
 static struct packet *slave_hello_sync_prepare(pid_t pid, int handle, const struct packet *packet) /* slave_name, ret */
 {
-	char pkgname[pathconf("/", _PC_PATH_MAX)];
+	char _pkgname[pathconf("/", _PC_PATH_MAX)];
+	const char *pkgname = NULL;
 	int ret;
 	struct sync_ctx_item *ctx;
 	double timestamp;
@@ -8018,17 +8075,27 @@ static struct packet *slave_hello_sync_prepare(pid_t pid, int handle, const stru
 		goto out;
 	}
 
-	if (aul_app_get_pkgname_bypid(pid, pkgname, sizeof(pkgname)) != AUL_R_OK) {
-		ErrPrint("pid[%d] is not authroized provider package, try to find it using its name\n", pid);
-		goto out;
+	if (aul_app_get_pkgname_bypid(pid, _pkgname, sizeof(_pkgname)) != AUL_R_OK) {
+		if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
+			DbgPrint("Failed to get pkgname of %d\n", pid);
+		} else {
+			ErrPrint("pid[%d] is not authroized provider package, try to find it using its name\n", pid);
+			goto out;
+		}
+	} else {
+		pkgname = (const char *)_pkgname;
 	}
 
 	ctx = NULL;
 	EINA_LIST_FOREACH_SAFE(s_info.hello_sync_ctx_list, l, n, ctx) {
 		if (ctx->timestamp == timestamp) {
-			if (strcmp(pkgname, ctx->pkgname)) {
-				ErrPrint("timestamp is valid, but pkgname is not matched: %s <> %s\n", pkgname, ctx->pkgname);
-				/* Go ahead */
+			if (pkgname && ctx->pkgname) {
+				if (strcmp(pkgname, ctx->pkgname)) {
+					ErrPrint("timestamp is valid, but pkgname is not matched: %s <> %s\n", pkgname, ctx->pkgname);
+					/* Go ahead */
+				}
+			} else {
+				DbgPrint("Skip to pkgname comparison (%s <> %s)\n", pkgname, ctx->pkgname);
 			}
 
 			break;
@@ -8067,17 +8134,19 @@ static struct packet *slave_hello_sync_prepare(pid_t pid, int handle, const stru
 
 		ctx->timestamp = timestamp;
 
-		ctx->pkgname = strdup(pkgname);
-		if (!ctx->pkgname) {
-			ErrPrint("strdup: %d\n", errno);
-			DbgFree(ctx);
-			goto out;
+		if (pkgname) {
+			ctx->pkgname = strdup(pkgname);
+			if (!ctx->pkgname) {
+				ErrPrint("strdup: %d\n", errno);
+				DbgFree(ctx);
+				goto out;
+			}
 		}
 
 		ctx->pid = pid;
 		ctx->handle = handle;
 
-		DbgPrint("Sync context created: %s\n", pkgname);
+		DbgPrint("Sync context created: %s (%d)\n", pkgname, pid);
 		s_info.hello_sync_ctx_list = eina_list_append(s_info.hello_sync_ctx_list, ctx);
 
 		if (dead_callback_add(handle, delete_ctx_cb, ctx) < 0) {
@@ -8119,8 +8188,9 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 	char *widget_id;
 	int secured;
 	int ret;
-	char pkgname[pathconf("/", _PC_PATH_MAX)];
+	char _pkgname[pathconf("/", _PC_PATH_MAX)];
 	double timestamp;
+	const char *pkgname = NULL;
 
 	ret = packet_get(packet, "dissss", &timestamp, &secured, &slavename, &slave_pkgname, &acceleration, &abi);
 	if (ret != 6) {
@@ -8149,13 +8219,20 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 		}
 	}
 
-	if (aul_app_get_pkgname_bypid(pid, pkgname, sizeof(pkgname)) != AUL_R_OK) {
-		ErrPrint("pid[%d] is not authroized provider package, try to find it using its name[%s]\n", pid, slavename);
-		ret = WIDGET_ERROR_PERMISSION_DENIED;
-		goto out;
+	if (aul_app_get_pkgname_bypid(pid, _pkgname, sizeof(_pkgname)) != AUL_R_OK) {
+		if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
+			pkgname = slave_pkgname;
+			DbgPrint("Debug mode is enabled. could not determine the pkgname for %d use the slave_pkgname[%s]\n", pid, pkgname);
+		} else {
+			ErrPrint("pid[%d] is not authroized provider package, try to find it using its name[%s]\n", pid, slavename);
+			ret = WIDGET_ERROR_PERMISSION_DENIED;
+			goto out;
+		}
+	} else {
+		pkgname = (const char *)_pkgname;
 	}
 
-	if (slave || !(WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode)) {
+	if (slave) {
 		struct sync_ctx_item *item;
 		Eina_List *l;
 		Eina_List *n;
@@ -8191,11 +8268,15 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			item->pid = pid;
 			item->timestamp = timestamp;
 
-			/**
-			 * @note
-			 * If the prepare sync doesn't come in ACTIVATE_TIME * 2.0f, there is a problem. we have to cancel it
-			 */
-			item->prepare_sync_wait_timer = ecore_timer_add(WIDGET_CONF_SLAVE_ACTIVATE_TIME * 2.0f, prepare_sync_wait_cb, item);
+			if (!(WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode)) {
+				/**
+				 * @note
+				 * If the prepare sync doesn't come in ACTIVATE_TIME * 2.0f, there is a problem. we have to cancel it
+				 */
+				item->prepare_sync_wait_timer = ecore_timer_add(WIDGET_CONF_SLAVE_ACTIVATE_TIME * 2.0f, prepare_sync_wait_cb, item);
+			} else {
+				DbgPrint("prepare sync wait timer is disabled for debugging\n");
+			}
 
 			/**
 			 * @note
@@ -8209,8 +8290,12 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			 */
 			handle = -1;
 		} else {
-			if (strcmp(item->pkgname, pkgname)) {
-				ErrPrint("HELLO_SYNC is comes from different package: %s <> %s\n", item->pkgname, pkgname);
+			if (item->pkgname) {
+				if (strcmp(item->pkgname, pkgname)) {
+					ErrPrint("HELLO_SYNC is comes from different package: %s <> %s\n", item->pkgname, pkgname);
+				}
+			} else {
+				DbgPrint("item->pkgname[%s]\n", item->pkgname);
 			}
 
 			handle = item->handle;
@@ -8228,7 +8313,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 
 	if (!slave) {
 		if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
-			slave = debug_mode_enabled(pid, slavename, pkgname, secured, abi, acceleration);
+			slave = debug_mode_enabled(slave, pid, slavename, pkgname, secured, abi, acceleration);
 			if (!slave) {
 				ErrPrint("Failed to create a new slave for %s\n", slavename);
 				ret = WIDGET_ERROR_FAULT;
@@ -8245,10 +8330,15 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 		int width, height;
 		unsigned int widget_size;
 		Eina_List *inst_list;
-		const char *category;
 
 		widget_id = is_valid_slave(pid, abi, pkgname);
 		if (!widget_id) {
+			goto out;
+		}
+
+		if (!slave_is_watch(slave)) {
+			ErrPrint("Slave is not watch(only watch can use hello_sync) [%s]\n", widget_id);
+			DbgFree(widget_id);
 			goto out;
 		}
 
@@ -8262,31 +8352,28 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 				goto out;
 			}
 
+			DbgPrint("Package information is not exists, create it for [%s]\n", widget_id);
 			info = package_create(pkgid, widget_id);
 			DbgFree(pkgid);
-		}
 
-		/**
-		 * Finding a created instance information
-		 */
-		category = package_category(info);
-		inst_list = package_instance_list(info);
-		/**
-		 * We don't need to search the package information again from instance.
-		 * Instance will be created by its package information.
-		 * So if we know how the instance is created (From what package), then we just can use it.
-		 */
-		DbgPrint("Instance Count: %d of %s\n", eina_list_count(inst_list), package_name(info));
-		inst = eina_list_nth(inst_list, 0);
-		if (!inst) {
-			ErrPrint("No valid instance");
 			DbgFree(widget_id);
-			ret = WIDGET_ERROR_NOT_EXIST;
+			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
 
+		inst_list = package_instance_list(info);
+		inst = eina_list_nth(inst_list, 0);
+		if (!inst) {
+			ErrPrint("Instance is not available for [%s]\n", widget_id);
+			DbgFree(widget_id);
+			ret = WIDGET_ERROR_FAULT;
+			goto out;
+		}
+
+		DbgPrint("[%s] Instance Count: %d\n", widget_id, eina_list_count(inst_list));
+
 		if (slave_pid(slave) != pid) {
-			if (slave_pid(slave) > 0) {
+			if (slave_pid(slave) > 0 && !slave_extra_bundle_data(slave) && !(WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode)) {
 				CRITICAL_LOG("Slave(%s) is already assigned to %d\n", slave_name(slave), slave_pid(slave));
 				if (pid > 0) {
 					ret = aul_terminate_pid_async(pid);
@@ -8296,24 +8383,11 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 				ret = WIDGET_ERROR_NOT_EXIST;
 				goto out;
 			}
-			CRITICAL_LOG("PID of slave(%s) is updated (%d -> %d)\n", slave_name(slave), slave_pid(slave), pid);
+			DbgPrint("PID of slave(%s) is updated (%d -> %d)\n", slave_name(slave), slave_pid(slave), pid);
 			slave_set_pid(slave, pid);
 		}
 
 		slave_set_valid(slave);
-
-		/**
-		 * @TODO
-		 * This should able to be configurable by .conf file.
-		 * Watch instance can be created only ONE in this system.
-		 */
-		if (strcmp(CATEGORY_WATCH_CLOCK, category) == 0) {
-			/**
-			 * @note
-			 * If a new provider is watch app, destroy the old watch app instance
-			 */
-			package_del_instance_by_category(CATEGORY_WATCH_CLOCK, widget_id);
-		}
 
 		if (handle >= 0) {
 			slave_rpc_update_handle(slave, handle, 1);
@@ -8497,6 +8571,11 @@ static struct packet *service_get_inst_list(pid_t pid, int handle, const struct 
 			int len;
 			int cnt = 0;
 
+			if (size < 0) {
+				ErrPrint("sysconf: %d\n", errno);
+				size = PAGE_SIZE;
+			}
+
 			id_buffer = malloc(size);
 			if (!id_buffer) {
 				result = packet_create_reply(packet, "iis", WIDGET_ERROR_OUT_OF_MEMORY, 0, NULL);
@@ -8509,7 +8588,13 @@ static struct packet *service_get_inst_list(pid_t pid, int handle, const struct 
 				if (offset + len > size) {
 					/* Expanding the ID_BUFFER */
 					char *resized_buffer;
-					size += sysconf(_SC_PAGESIZE);
+					int more_size;
+					more_size = sysconf(_SC_PAGESIZE);
+					if (more_size < 0) {
+						ErrPrint("sysconf: %d\n", errno);
+						more_size = PAGE_SIZE;
+					}
+					size += more_size;
 
 					DbgPrint("Expanding heap to %d\n", size);
 

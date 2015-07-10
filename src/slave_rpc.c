@@ -521,9 +521,14 @@ HAPI int slave_rpc_update_handle(struct slave_node *slave, int handle, int delet
 		ecore_timer_del(rpc->pong_timer);
 	}
 
-	rpc->pong_timer = ecore_timer_add(WIDGET_CONF_DEFAULT_PING_TIME, ping_timeout_cb, slave);
-	if (!rpc->pong_timer) {
-		ErrPrint("Failed to add ping timer\n");
+	if (slave_extra_bundle_data(slave)) {
+		ErrPrint("Disable WATCHDOG for debugging\n");
+		rpc->pong_timer = NULL;
+	} else {
+		rpc->pong_timer = ecore_timer_add(WIDGET_CONF_DEFAULT_PING_TIME, ping_timeout_cb, slave);
+		if (!rpc->pong_timer) {
+			ErrPrint("Failed to add ping timer\n");
+		}
 	}
 
 	/*!
@@ -639,6 +644,11 @@ HAPI int slave_rpc_ping(struct slave_node *slave)
 		return WIDGET_ERROR_FAULT;
 	}
 
+	if (!rpc->pong_timer) {
+		ErrPrint("Watchdog is not enabled\n");
+		return WIDGET_ERROR_INVALID_PARAMETER;
+	}
+
 	rpc->ping_count++;
 	if (rpc->ping_count != rpc->next_ping_count) {
 		ErrPrint("Ping count is not correct\n");
@@ -665,6 +675,11 @@ HAPI int slave_rpc_ping_freeze(struct slave_node *slave)
 		return WIDGET_ERROR_FAULT;
 	}
 
+	if (!rpc->pong_timer) {
+		ErrPrint("Watchdog is not enabled\n");
+		return WIDGET_ERROR_INVALID_PARAMETER;
+	}
+
 	ecore_timer_freeze(rpc->pong_timer);
 	return WIDGET_ERROR_NONE;
 }
@@ -682,6 +697,11 @@ HAPI int slave_rpc_ping_thaw(struct slave_node *slave)
 	if (!slave_is_activated(slave)) {
 		ErrPrint("Slave is not activated\n");
 		return WIDGET_ERROR_FAULT;
+	}
+
+	if (!rpc->pong_timer) {
+		ErrPrint("Watchdog is not enabled\n");
+		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
 	ecore_timer_thaw(rpc->pong_timer);
