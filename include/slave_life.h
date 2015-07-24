@@ -34,39 +34,40 @@ enum slave_event {
 };
 
 enum slave_state {
-	/*!
+	/**
+	 * @note
 	 * Launch the slave but not yet receives "hello" packet
 	 */
 	SLAVE_REQUEST_TO_LAUNCH,
 
-	/*!
-	 * \note
+	/**
+	 * @note
 	 * Terminate the slave but not yet receives dead signal
 	 */
 	SLAVE_REQUEST_TO_TERMINATE,
 
-	/*!
-	 * \note
+	/**
+	 * @note
 	 * No slave process exists, just slave object created
 	 */
 	SLAVE_TERMINATED,
 
-	/*!
-	 * \note
+	/**
+	 * @note
 	 * State change request is sent,
 	 */
 	SLAVE_REQUEST_TO_PAUSE,
 	SLAVE_REQUEST_TO_RESUME,
 
-	/*!
-	 * \note
+	/**
+	 * @note
 	 * Request an action for disconnecting to master from the provider side.
 	 * This flag should be treated as an activated state.
 	 */
 	SLAVE_REQUEST_TO_DISCONNECT,
 
-	/*!
-	 * \note
+	/**
+	 * @note
 	 * SLAVE_ACTIVATED = { SLAVE_PAUSED, SLAVE_RESUMED }
 	 */
 	SLAVE_PAUSED,
@@ -226,5 +227,8 @@ extern void slave_set_is_watch(struct slave_node *slave, int flag);
 
 extern int slave_set_resource_limit(struct slave_node *slave, unsigned int soft, unsigned int hard);
 extern int slave_get_resource_limit(struct slave_node *slave, unsigned int *soft, unsigned int *hard);
+
+extern void slave_set_wait_deactivation(struct slave_node *slave, int wait);
+extern int slave_wait_deactivation(struct slave_node *slave);
 
 /* End of a file */

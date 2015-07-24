@@ -16,6 +16,7 @@
 
 #include <libxml/parser.h>
 #include <libxml/tree.h>
+#include <widget_abi.h>
 
 #include "common.h"
 
@@ -41,6 +42,7 @@ static inline int remove_all_widgets(const char *appid)
 
 EAPI int PKGMGR_PARSER_PLUGIN_PRE_INSTALL(const char *appid)
 {
+	widget_abi_init();
     if (!db_check()) {
 		if (db_init() < 0) {
 			ErrPrintWithConsole("Failed to init DB\n");
@@ -57,6 +59,7 @@ EAPI int PKGMGR_PARSER_PLUGIN_POST_INSTALL(const char *appid)
 {
     ErrPrintWithConsole("[%s]\n", appid);
     db_fini();
+	widget_abi_fini();
     return 0;
 }
 
@@ -93,6 +96,7 @@ EAPI int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *appid)
 
 EAPI int PKGMGR_PARSER_PLUGIN_PRE_UPGRADE(const char *appid)
 {
+	widget_abi_init();
     if (!db_check()) {
 		if (db_init() < 0) {
 			ErrPrintWithConsole("Failed to init DB\n");
@@ -109,6 +113,7 @@ EAPI int PKGMGR_PARSER_PLUGIN_POST_UPGRADE(const char *appid)
 {
     ErrPrintWithConsole("[%s]\n", appid);
     db_fini();
+	widget_abi_fini();
     return 0;
 }
 
@@ -144,6 +149,7 @@ EAPI int PKGMGR_PARSER_PLUGIN_UPGRADE(xmlDocPtr docPtr, const char *appid)
 
 EAPI int PKGMGR_PARSER_PLUGIN_PRE_UNINSTALL(const char *appid)
 {
+	widget_abi_init();
     ErrPrintWithConsole("[%s]\n", appid);
 
     if (!db_check()) {
@@ -165,6 +171,7 @@ EAPI int PKGMGR_PARSER_PLUGIN_POST_UNINSTALL(const char *appid)
 	ret = remove_all_widgets(appid);
 
     db_fini();
+	widget_abi_fini();
     return ret;
 }
 

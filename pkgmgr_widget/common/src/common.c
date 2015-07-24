@@ -31,6 +31,7 @@
 
 #include <widget_service.h>
 #include <widget_service_internal.h>
+#include <widget_abi.h>
 
 #include "dlist.h"
 #include "common.h"
@@ -880,6 +881,7 @@ out:
 	sqlite3_finalize(stmt);
 	return ret;
 }
+
 static int db_insert_provider(struct widget *widget)
 {
 	static const char *dml;
@@ -2356,7 +2358,7 @@ static void update_support_size(struct widget *widget, xmlNodePtr node)
 	}
 
 	widget->default_mouse_event = 0;
-	widget->default_touch_effect = 1;
+	widget->default_touch_effect = 0;
 	widget->default_need_frame = 0;
 
 	if (xmlHasProp(node, (const xmlChar *)"mode")) {
@@ -2478,14 +2480,14 @@ static void update_box(struct widget *widget, xmlNodePtr node)
 	}
 
 	if (!xmlHasProp(node, (const xmlChar *)"touch_effect")) {
-		widget->default_touch_effect = 1;
+		widget->default_touch_effect = 0;
 	} else {
 		xmlChar *touch_effect;
 
 		touch_effect = xmlGetProp(node, (const xmlChar *)"touch_effect");
 		if (!touch_effect) {
 			ErrPrint("default touch_effect is NIL\n");
-			widget->default_touch_effect = 1;
+			widget->default_touch_effect = 0;
 		} else {
 			widget->default_touch_effect = !xmlStrcasecmp(touch_effect, (const xmlChar *)"true");
 			xmlFree(touch_effect);
@@ -3035,6 +3037,34 @@ errout:
 	return ret;
 }
 
+static int has_meta_tag(const char *appid, const char *meta_tag)
+{
+	int ret;
+	char *value = NULL;
+	pkgmgrinfo_appinfo_h handle;
+
+	if (!meta_tag) {
+		ErrPrint("meta ABI is not valid (%s)\n", appid);
+		return 0;
+	}
+
+	ret = pkgmgrinfo_appinfo_get_appinfo(appid, &handle);
+	if (ret != PMINFO_R_OK) {
+		return 0;
+	}
+
+	ret = pkgmgrinfo_appinfo_get_metadata_value(handle, meta_tag, &value);
+	if (ret != PMINFO_R_OK) {
+		pkgmgrinfo_appinfo_destroy_appinfo(handle);
+		return 0;
+	}
+
+	ret = value && value[0] != '\0';
+
+	pkgmgrinfo_appinfo_destroy_appinfo(handle);
+	return ret;
+}
+
 int db_install_widget(xmlNodePtr node, const char *appid)
 {
 	struct widget *widget;
@@ -3359,6 +3389,20 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 		 */
 		widget->uiapp = pkgmgr_get_mainapp((char *)appid);
 		DbgPrint("Default MAIN UI-APP: [%s]\n", (char *)widget->uiapp);
+	}
+
+	/**
+	 * Check the "meta" tag of this widget.
+	 * If it has speicific meta tag, replace "abi" with "meta".
+	 */
+	if (has_meta_tag((const char *)widget->pkgid, widget_abi_get_pkgname_by_abi("meta"))) {
+		DbgPrint("Meta tag is overrided: %s -> meta\n", (char *)widget->abi);
+
+		if (widget->abi) {
+			xmlFree(widget->abi);
+		}
+
+		widget->abi = xmlStrdup((xmlChar *)"meta");
 	}
 
 	return db_insert_widget(widget, appid);

@@ -121,4 +121,6 @@ extern int package_faulted(struct pkg_info *info, int broadcast);
 extern char *package_get_pkgid(const char *appid);
 
 extern int package_instance_count(struct pkg_info *info);
+extern char *package_meta_tag(const char *appid, const char *meta_tag);
+
 /* End of a file */

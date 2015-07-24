@@ -15,6 +15,7 @@
  */
 
 #include "common.h"
+#include <widget_abi.h>
 
 #define WATCH_APP_TAG	"watch-application"
 #define EAPI __attribute__((visibility("default")))
@@ -36,6 +37,7 @@ static inline int remove_all_watch(const char *appid)
 
 EAPI int PKGMGR_PARSER_PLUGIN_PRE_INSTALL(const char *appid)
 {
+	widget_abi_init();
     ErrPrintWithConsole("%s\n", appid);
 
     if (!db_check()) {
@@ -54,6 +56,7 @@ EAPI int PKGMGR_PARSER_PLUGIN_POST_INSTALL(const char *appid)
 {
     ErrPrintWithConsole("[%s]\n", appid);
     db_fini();
+	widget_abi_fini();
     return 0;
 }
 
@@ -90,6 +93,7 @@ EAPI int PKGMGR_PARSER_PLUGIN_INSTALL(xmlDocPtr docPtr, const char *appid)
 
 EAPI int PKGMGR_PARSER_PLUGIN_PRE_UPGRADE(const char *appid)
 {
+	widget_abi_init();
     ErrPrintWithConsole("[%s]\n", appid);
 
     if (!db_check()) {
@@ -108,6 +112,7 @@ EAPI int PKGMGR_PARSER_PLUGIN_POST_UPGRADE(const char *appid)
 {
     ErrPrintWithConsole("[%s]\n", appid);
     db_fini();
+	widget_abi_fini();
     return 0;
 }
 
@@ -143,6 +148,7 @@ EAPI int PKGMGR_PARSER_PLUGIN_UPGRADE(xmlDocPtr docPtr, const char *appid)
 
 EAPI int PKGMGR_PARSER_PLUGIN_PRE_UNINSTALL(const char *appid)
 {
+	widget_abi_init();
     ErrPrintWithConsole("[%s]\n", appid);
 
     if (!db_check()) {
@@ -167,6 +173,7 @@ EAPI int PKGMGR_PARSER_PLUGIN_POST_UNINSTALL(const char *appid)
 	remove_all_watch(appid);
 
     db_fini();
+	widget_abi_fini();
     return 0;
 }
 

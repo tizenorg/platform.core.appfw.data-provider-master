@@ -2,7 +2,7 @@
 
 Name: data-provider-master
 Summary: Master service provider for widgetes
-Version: 1.1.8
+Version: 1.1.10
 Release: 1
 Group: Applications/Core Applications
 License: Flora-1.1
@@ -112,6 +112,16 @@ mkdir -p %{buildroot}/%{_datarootdir}/license
 mkdir -p %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants
 ln -sf ../%{name}.service %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}.service
 ln -sf ../%{name}.path %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}.path
+ln -sf ../%{name}.target %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}.target
+ln -sf ../%{name}-client.socket %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}-client.socket
+ln -sf ../%{name}-provider.socket %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}-provider.socket
+ln -sf ../%{name}-service.socket %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}-service.socket
+ln -sf ../%{name}-badge.socket %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}-badge.socket
+ln -sf ../%{name}-notification.socket %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}-notification.socket
+ln -sf ../%{name}-shortcut.socket %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}-shortcut.socket
+ln -sf ../%{name}-utility.socket %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}-utility.socket
+ln -sf ../%{name}-fd.socket %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}-fd.socket
+
 mkdir -p %{buildroot}/opt/usr/share/live_magazine
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/log
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/reader
@@ -162,7 +172,6 @@ else
 fi
 
 chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine
-
 # System tool(widget-mgr) should be able to access this folder.
 # So give the "rx" permission to the other group. (750 -> 755)
 chmod 755 /opt/usr/share/live_magazine
@@ -189,10 +198,28 @@ echo "Successfully installed. Please start a daemon again manually"
 %manifest %{name}.manifest
 %defattr(-,root,root,-)
 %caps(cap_chown,cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_nice,cap_mac_override,cap_mac_admin+ep) %{_bindir}/%{name}
-%{_prefix}/lib/systemd/user/default.target.wants/%{name}.service
-%{_prefix}/lib/systemd/user/default.target.wants/%{name}.path
+%{_prefix}/lib/systemd/user/%{name}.target
+%{_prefix}/lib/systemd/user/%{name}-client.socket
+%{_prefix}/lib/systemd/user/%{name}-provider.socket
+%{_prefix}/lib/systemd/user/%{name}-service.socket
+%{_prefix}/lib/systemd/user/%{name}-badge.socket
+%{_prefix}/lib/systemd/user/%{name}-notification.socket
+%{_prefix}/lib/systemd/user/%{name}-shortcut.socket
+%{_prefix}/lib/systemd/user/%{name}-utility.socket
+%{_prefix}/lib/systemd/user/%{name}-fd.socket
 %{_prefix}/lib/systemd/user/%{name}.service
 %{_prefix}/lib/systemd/user/%{name}.path
+%{_prefix}/lib/systemd/user/default.target.wants/%{name}.target
+%{_prefix}/lib/systemd/user/default.target.wants/%{name}-client.socket
+%{_prefix}/lib/systemd/user/default.target.wants/%{name}-provider.socket
+%{_prefix}/lib/systemd/user/default.target.wants/%{name}-service.socket
+%{_prefix}/lib/systemd/user/default.target.wants/%{name}-badge.socket
+%{_prefix}/lib/systemd/user/default.target.wants/%{name}-notification.socket
+%{_prefix}/lib/systemd/user/default.target.wants/%{name}-shortcut.socket
+%{_prefix}/lib/systemd/user/default.target.wants/%{name}-utility.socket
+%{_prefix}/lib/systemd/user/default.target.wants/%{name}-fd.socket
+%{_prefix}/lib/systemd/user/default.target.wants/%{name}.service
+%{_prefix}/lib/systemd/user/default.target.wants/%{name}.path
 %{_datarootdir}/license/*
 %if 0%{?tizen_build_binary_release_type_eng}
 /opt/usr/devel/usr/bin/*

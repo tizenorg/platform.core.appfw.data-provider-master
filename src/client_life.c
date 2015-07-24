@@ -112,9 +112,12 @@ struct client_node {
 	Eina_List *category_subscribe_list;
 
 	int faulted;
-	char *direct_addr;
 	int orientation;
 	int is_sdk_viewer;
+	struct _direct {
+		char *addr;
+		int fd;
+	} direct;
 };
 
 static inline void invoke_global_destroyed_cb(struct client_node *client)
@@ -259,9 +262,15 @@ static inline void destroy_client_data(struct client_node *client)
 		s_info.nr_of_paused_clients--;
 	}
 
-	if (client->direct_addr) {
-		(void)unlink(client->direct_addr);
-		DbgFree(client->direct_addr);
+	if (client->direct.addr) {
+		(void)unlink(client->direct.addr);
+		DbgFree(client->direct.addr);
+	}
+
+	if (client->direct.fd >= 0) {
+		if (close(client->direct.fd) < 0) {
+			ErrPrint("Client FD: %d\n", errno);
+		}
 	}
 
 	DbgFree(client->appid);
@@ -290,6 +299,7 @@ static struct client_node *create_client_data(pid_t pid, const char *direct_addr
 
 	client->pid = pid;
 	client->refcnt = 1;
+	client->direct.fd = -1;
 
 	if (aul_app_get_pkgname_bypid(pid, pid_pkgname, sizeof(pid_pkgname)) == AUL_R_OK) {
 		client->appid = strdup(pid_pkgname);
@@ -303,8 +313,8 @@ static struct client_node *create_client_data(pid_t pid, const char *direct_addr
 	}
 
 	if (direct_addr && direct_addr[0]) {
-		client->direct_addr = strdup(direct_addr);
-		if (!client->direct_addr) {
+		client->direct.addr = strdup(direct_addr);
+		if (!client->direct.addr) {
 			ErrPrint("Failed to allocate direct_addr (%s)\n", direct_addr);
 		}
 	}
@@ -1040,7 +1050,7 @@ HAPI int client_broadcast(struct inst_info *inst, struct packet *packet)
 
 HAPI const char *client_direct_addr(const struct client_node *client)
 {
-	return client ? client->direct_addr : NULL;
+	return client ? client->direct.addr : NULL;
 }
 
 HAPI void client_set_orientation(struct client_node *client, int orientation)
@@ -1061,6 +1071,34 @@ HAPI const char *client_appid(const struct client_node *client)
 HAPI int client_is_sdk_viewer(const struct client_node *client)
 {
 	return client ? client->is_sdk_viewer : 0;
+}
+
+HAPI struct client_node *client_find_by_direct_addr(const char *direct_addr)
+{
+	Eina_List *l;
+	struct client_node *client;
+
+	if (!direct_addr) {
+		return NULL;
+	}
+
+	EINA_LIST_FOREACH(s_info.client_list, l, client) {
+		if (client->direct.addr && !strcmp(client->direct.addr, direct_addr)) {
+			return client;
+		}
+	}
+
+	return NULL;
+}
+
+HAPI void client_set_direct_fd(struct client_node *client, int fd)
+{
+	client->direct.fd = fd;
+}
+
+HAPI int client_direct_fd(struct client_node *client)
+{
+	return client->direct.fd;
 }
 
 /* End of a file */

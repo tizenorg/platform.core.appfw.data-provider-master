@@ -26,9 +26,6 @@ extern void *util_timer_add(double interval, Eina_Bool (*cb)(void *data), void *
 extern void util_timer_interval_set(void *timer, double interval);
 extern double util_time_delay_for_compensation(double period);
 extern void util_setup_log_disk(void);
-extern void util_remove_emergency_disk(void);
-extern void util_prepare_emergency_disk(void);
-extern int util_emergency_disk_is_mounted(void);
 extern int util_service_is_enabled(const char *tag);
 extern int util_string_is_in_list(const char *str, const char *haystack);
 

@@ -89,7 +89,6 @@ static struct info {
 	int client_fd;
 	int service_fd;
 	int slave_fd;
-	int remote_client_fd;
 
 	Eina_List *hello_sync_ctx_list;
 } s_info = {
@@ -97,7 +96,6 @@ static struct info {
 	.client_fd = -1,
 	.service_fd = -1,
 	.slave_fd = -1,
-	.remote_client_fd = -1,
 	.hello_sync_ctx_list = NULL,
 };
 
@@ -192,6 +190,18 @@ static char *is_valid_slave(pid_t pid, const char *abi, const char *provider_pkg
 	if (!abi_pkgname) {
 		ErrPrint("ABI has no valid entry[%s]\n", abi);
 		return NULL;
+	}
+
+	if (!strcmp(abi, "meta")) {
+		converted_provider_pkgname = package_meta_tag(provider_pkgname, abi_pkgname);
+		if (!converted_provider_pkgname || strcmp(converted_provider_pkgname, pid_pkgname)) {
+			DbgPrint("Meta tag is not matched: %s <> %s (%s)\n", converted_provider_pkgname, pid_pkgname, abi_pkgname);
+			DbgFree(converted_provider_pkgname);
+			return NULL;
+		}
+
+		DbgPrint("Meta package detected: %s\n", converted_provider_pkgname);
+		return converted_provider_pkgname;
 	}
 
 	if (!strcmp(abi_pkgname, pid_pkgname)) {
@@ -8192,8 +8202,8 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 	double timestamp;
 	const char *pkgname = NULL;
 
-	ret = packet_get(packet, "dissss", &timestamp, &secured, &slavename, &slave_pkgname, &acceleration, &abi);
-	if (ret != 6) {
+	ret = packet_get(packet, "disssss", &timestamp, &secured, &slavename, &slave_pkgname, &acceleration, &abi, &widget_id);
+	if (ret != 7) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -8330,15 +8340,21 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 		int width, height;
 		unsigned int widget_size;
 		Eina_List *inst_list;
+		char *tmp_widget_id;
 
-		widget_id = is_valid_slave(pid, abi, pkgname);
-		if (!widget_id) {
+		tmp_widget_id = is_valid_slave(pid, abi, pkgname);
+		if (!tmp_widget_id) {
 			goto out;
 		}
 
+		if (strcmp(widget_id, tmp_widget_id)) {
+			DbgPrint("[%s] <> [%s]\n", widget_id, tmp_widget_id);
+		}
+
+		DbgFree(tmp_widget_id);
+
 		if (!slave_is_watch(slave)) {
 			ErrPrint("Slave is not watch(only watch can use hello_sync) [%s]\n", widget_id);
-			DbgFree(widget_id);
 			goto out;
 		}
 
@@ -8348,7 +8364,6 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 
 			pkgid = widget_service_get_package_id(widget_id);
 			if (!pkgid) {
-				DbgFree(widget_id);
 				goto out;
 			}
 
@@ -8356,7 +8371,6 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			info = package_create(pkgid, widget_id);
 			DbgFree(pkgid);
 
-			DbgFree(widget_id);
 			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
@@ -8365,7 +8379,6 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 		inst = eina_list_nth(inst_list, 0);
 		if (!inst) {
 			ErrPrint("Instance is not available for [%s]\n", widget_id);
-			DbgFree(widget_id);
 			ret = WIDGET_ERROR_FAULT;
 			goto out;
 		}
@@ -8379,7 +8392,6 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 					ret = aul_terminate_pid_async(pid);
 					CRITICAL_LOG("Terminate %d (ret: %d)\n", pid, ret);
 				}
-				DbgFree(widget_id);
 				ret = WIDGET_ERROR_NOT_EXIST;
 				goto out;
 			}
@@ -8432,8 +8444,6 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 			 */
 			(void)instance_watch_recover_visible_state(inst);
 		}
-
-		DbgFree(widget_id);
 	}
 
 out:
@@ -9858,62 +9868,28 @@ HAPI int server_init(void)
 		ErrPrint("unlink info: %d\n", errno);
 	}
 
-	if (unlink(SLAVE_SOCKET) < 0) {
-		ErrPrint("unlink slave: %d\n", errno);
-	}
-
-	if (unlink(CLIENT_SOCKET) < 0) {
-		ErrPrint("unlink client: %d\n", errno);
-	}
-
-	if (unlink(SERVICE_SOCKET) < 0) {
-		ErrPrint("unlink service: %d\n", errno);
-	}
-
 	s_info.info_fd = com_core_packet_server_init(INFO_SOCKET, s_info_table);
 	if (s_info.info_fd < 0) {
 		ErrPrint("Failed to create a info socket\n");
 	}
 
-	s_info.slave_fd = com_core_packet_server_init_with_permission(SLAVE_SOCKET, s_slave_table, "data-provider-master::provider");
+	s_info.slave_fd = com_core_packet_server_init_with_permission("sdlocal://"SLAVE_SOCKET, s_slave_table, NULL);
 	if (s_info.slave_fd < 0) {
 		ErrPrint("Failed to create a slave socket\n");
 	}
 
-	s_info.client_fd = com_core_packet_server_init_with_permission(CLIENT_SOCKET, s_client_table, "data-provider-master::client");
+	s_info.client_fd = com_core_packet_server_init_with_permission("sdlocal://"CLIENT_SOCKET, s_client_table, NULL);
 	if (s_info.client_fd < 0) {
 		ErrPrint("Failed to create a client socket\n");
 	}
 
-	/*!
-	 * \note
-	 * remote://:8208
-	 * Skip address to use the NULL.
-	 */
-	s_info.remote_client_fd = com_core_packet_server_init_with_permission("remote://:"CLIENT_PORT, s_client_table, "data-provider-master::client");
-	if (s_info.client_fd < 0) {
-		ErrPrint("Failed to create a remote client socket\n");
-	}
-
-	s_info.service_fd = com_core_packet_server_init_with_permission(SERVICE_SOCKET, s_service_table, "data-provider-master");
+	s_info.service_fd = com_core_packet_server_init_with_permission("sdlocal://"SERVICE_SOCKET, s_service_table, NULL);
 	if (s_info.service_fd < 0) {
 		ErrPrint("Faild to create a service socket\n");
 	}
 
 	if (chmod(INFO_SOCKET, 0600) < 0) {
 		ErrPrint("chmod info: %d\n", errno);
-	}
-
-	if (chmod(SLAVE_SOCKET, 0666) < 0) {
-		ErrPrint("chmod slave: %d\n", errno);
-	}
-
-	if (chmod(CLIENT_SOCKET, 0666) < 0) {
-		ErrPrint("chmod client: %d\n", errno);
-	}
-
-	if (chmod(SERVICE_SOCKET, 0666) < 0) {
-		ErrPrint("chmod service: %d\n", errno);
 	}
 
 	return 0;
@@ -9934,11 +9910,6 @@ HAPI int server_fini(void)
 	if (s_info.client_fd > 0) {
 		com_core_packet_server_fini(s_info.client_fd);
 		s_info.client_fd = -1;
-	}
-
-	if (s_info.remote_client_fd > 0) {
-		com_core_packet_server_fini(s_info.remote_client_fd);
-		s_info.remote_client_fd = -1;
 	}
 
 	if (s_info.service_fd > 0) {

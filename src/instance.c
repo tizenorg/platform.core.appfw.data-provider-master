@@ -1700,6 +1700,48 @@ HAPI int instance_destroy(struct inst_info *inst, widget_destroy_type_e type)
 		inst->requested_state = INST_DESTROYED;
 		return WIDGET_ERROR_NONE;
 	default:
+		if (type == WIDGET_DESTROY_TYPE_UNINSTALL || type == WIDGET_DESTROY_TYPE_UPGRADE) {
+			struct pkg_info *pkg;
+
+			/**
+			 * @note
+			 * In this case, we cannot re-activate the slave.
+			 * Because it is already uninstalled so there is no widget application anymore.
+			 * So just clear the instances from the homescreen
+			 */
+			pkg = instance_package(inst);
+			if (pkg) {
+				struct slave_node *slave;
+
+				slave = package_slave(pkg);
+				if (slave) {
+					/**
+					 * @note
+					 * If a slave is not activated, (already deactivated)
+					 * We don't need to try to destroy an instance.
+					 * Just delete an instance from here.
+					 */
+					if (!slave_is_activated(slave)) {
+						/**
+						 * @note
+						 * Notify deleted instance information to the viewer.
+						 */
+						if (inst->unicast_delete_event) {
+							instance_unicast_deleted_event(inst, NULL, WIDGET_ERROR_NONE);
+						} else {
+							instance_broadcast_deleted_event(inst, WIDGET_ERROR_NONE);
+						}
+
+						DbgPrint("Slave is deactivated, delete an instance\n");
+						inst->state = INST_DESTROYED;
+						inst->requested_state = INST_DESTROYED;
+						(void)instance_unref(inst);
+						return WIDGET_ERROR_NONE;
+					}
+				}
+			}
+		}
+
 		break;
 	}
 
@@ -1744,6 +1786,33 @@ HAPI int instance_reload(struct inst_info *inst, widget_destroy_type_e type)
 		DbgPrint("Instance is destroying now\n");
 		return WIDGET_ERROR_NONE;
 	default:
+		if (type == WIDGET_DESTROY_TYPE_UNINSTALL || type == WIDGET_DESTROY_TYPE_UPGRADE) {
+			struct pkg_info *pkg;
+
+			pkg = instance_package(inst);
+			if (pkg) {
+				struct slave_node *slave;
+
+				slave = package_slave(pkg);
+				if (slave) {
+					/**
+					 * @note
+					 * If a slave is not activated, (already deactivated)
+					 * We don't need to try to destroy an instance.
+					 * Just re-activate an instance from here.
+					 */
+					if (!slave_is_activated(slave)) {
+						inst->state = INST_INIT;
+						DbgPrint("Slave is deactivated, just activate an instasnce\n");
+						ret = instance_activate(inst);
+						if (ret < 0) {
+							ErrPrint("Failed to activate instance: %d (%s)\n", ret, instance_id(inst));
+						}
+						return WIDGET_ERROR_NONE;
+					}
+				}
+			}
+		}
 		break;
 	}
 

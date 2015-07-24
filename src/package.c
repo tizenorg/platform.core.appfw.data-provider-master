@@ -1401,13 +1401,20 @@ static inline void reload_package_info(struct pkg_info *info)
 	EINA_LIST_FOREACH_SAFE(info->inst_list, l, n, inst) {
 		width = instance_widget_width(inst);
 		height = instance_widget_height(inst);
-		widget_service_get_size_type(width, height, &size_type);
-		if (info->widget.size_list & size_type) {
-			if (instance_period(inst) == old_period) {
-				instance_reload_period(inst, package_period(info));
+		DbgPrint("%dx%d\n", width, height);
+		if (widget_service_get_size_type(width, height, &size_type) == WIDGET_ERROR_NONE) {
+			if ((info->widget.size_list & size_type) == size_type) {
+				DbgPrint("Supported size type: %x\n", size_type);
+				if (instance_period(inst) == old_period) {
+					instance_reload_period(inst, package_period(info));
+				}
+				instance_reload(inst, WIDGET_DESTROY_TYPE_UPGRADE);
+			} else {
+				DbgPrint("Unsupported size type: %x\n", size_type);
+				instance_destroy(inst, WIDGET_DESTROY_TYPE_UNINSTALL);
 			}
-			instance_reload(inst, WIDGET_DESTROY_TYPE_UPGRADE);
 		} else {
+			DbgPrint("Invalid size\n");
 			instance_destroy(inst, WIDGET_DESTROY_TYPE_UNINSTALL);
 		}
 	}
@@ -1437,17 +1444,40 @@ static int io_install_cb(const char *pkgid, const char *widget_id, int prime, vo
 
 static int uninstall_cb(const char *pkgname, enum pkgmgr_status status, double value, void *data)
 {
-	Eina_List *l;
-	Eina_List *n;
-	struct pkg_info *info;
+	if (status == PKGMGR_STATUS_START) {
+		Eina_List *l;
+		Eina_List *n;
+		struct pkg_info *info;
 
-	if (status != PKGMGR_STATUS_END) {
-		return 0;
-	}
+		EINA_LIST_FOREACH_SAFE(s_info.pkg_list, l, n, info) {
+			if (!strcmp(info->pkgid, pkgname)) {
+				struct slave_node *slave;
+				/**
+				 * @note
+				 * While updating packages, the slave can be terminated,
+				 * Even if a slave is terminated, do not handles it as a faulted one.
+				 */
+				slave = package_slave(info);
+				DbgPrint("Update slave state : %p\n", slave);
+				if (slave) {
+					slave_set_wait_deactivation(slave, 1);
+				}
+			}
+		}
+	} else if (status == PKGMGR_STATUS_END) {
+		Eina_List *l;
+		Eina_List *n;
+		struct pkg_info *info;
 
-	EINA_LIST_FOREACH_SAFE(s_info.pkg_list, l, n, info) {
-		if (!strcmp(info->pkgid, pkgname)) {
-			io_uninstall_cb(pkgname, info->widget_id, -1, NULL);
+		EINA_LIST_FOREACH_SAFE(s_info.pkg_list, l, n, info) {
+			if (!strcmp(info->pkgid, pkgname)) {
+				struct slave_node *slave;
+				slave = package_slave(info);
+				if (slave) {
+					slave_set_wait_deactivation(slave, 0);
+				}
+				io_uninstall_cb(pkgname, info->widget_id, -1, NULL);
+			}
 		}
 	}
 
@@ -1456,26 +1486,52 @@ static int uninstall_cb(const char *pkgname, enum pkgmgr_status status, double v
 
 static int update_cb(const char *pkgname, enum pkgmgr_status status, double value, void *data)
 {
-	Eina_List *l;
-	Eina_List *n;
-	struct pkg_info *info;
+	if (status == PKGMGR_STATUS_START) {
+		Eina_List *l;
+		Eina_List *n;
+		struct pkg_info *info;
 
-	if (status != PKGMGR_STATUS_END) {
-		return 0;
-	}
-
-	EINA_LIST_FOREACH_SAFE(s_info.pkg_list, l, n, info) {
-		if (!strcmp(info->pkgid, pkgname)) {
-			DbgPrint("Update widget_id: %s\n", info->widget_id);
-			if (io_is_exists(info->widget_id) == 1) {
-				reload_package_info(info);
-			} else {
-				io_uninstall_cb(pkgname, info->widget_id, -1, NULL);
+		EINA_LIST_FOREACH_SAFE(s_info.pkg_list, l, n, info) {
+			if (!strcmp(info->pkgid, pkgname)) {
+				struct slave_node *slave;
+				/**
+				 * @note
+				 * While updating packages, the slave can be terminated,
+				 * Even if a slave is terminated, do not handles it as a faulted one.
+				 */
+				slave = package_slave(info);
+				DbgPrint("Update slave state : %p\n", slave);
+				if (slave) {
+					slave_set_wait_deactivation(slave, 1);
+				}
 			}
 		}
+	} else if (status == PKGMGR_STATUS_END) {
+		Eina_List *l;
+		Eina_List *n;
+		struct pkg_info *info;
+
+		EINA_LIST_FOREACH_SAFE(s_info.pkg_list, l, n, info) {
+			if (!strcmp(info->pkgid, pkgname)) {
+				struct slave_node *slave;
+
+				slave = package_slave(info);
+				if (slave) {
+					slave_set_wait_deactivation(slave, 0);
+				}
+
+				DbgPrint("Update widget_id: %s\n", info->widget_id);
+				if (io_is_exists(info->widget_id) == 1) {
+					reload_package_info(info);
+				} else {
+					io_uninstall_cb(pkgname, info->widget_id, -1, NULL);
+				}
+			}
+		}
+
+		(void)io_update_widget_package(pkgname, io_install_cb, NULL);
 	}
 
-	(void)io_update_widget_package(pkgname, io_install_cb, NULL);
 	return 0;
 }
 
@@ -1698,6 +1754,37 @@ HAPI int package_is_enabled(const char *appid)
 
 	pkgmgrinfo_appinfo_destroy_appinfo(handle);
 	return enabled == true;
+}
+
+HAPI char *package_meta_tag(const char *appid, const char *meta_tag)
+{
+	char *ret = NULL;
+	char *value = NULL;
+	int status;
+	pkgmgrinfo_appinfo_h handle;
+
+	if (!meta_tag || !appid) {
+		ErrPrint("meta(%s) is not valid (%s)\n", meta_tag, appid);
+		return NULL;
+	}
+
+	status = pkgmgrinfo_appinfo_get_appinfo(appid, &handle);
+	if (status != PMINFO_R_OK) {
+		return NULL;
+	}
+
+	status = pkgmgrinfo_appinfo_get_metadata_value(handle, meta_tag, &value);
+	if (status != PMINFO_R_OK) {
+		pkgmgrinfo_appinfo_destroy_appinfo(handle);
+		return NULL;
+	}
+
+	if (value && value[0] != '\0') {
+		ret = strdup(value);
+	}
+
+	pkgmgrinfo_appinfo_destroy_appinfo(handle);
+	return ret;
 }
 
 HAPI int package_faulted(struct pkg_info *pkg, int broadcast)

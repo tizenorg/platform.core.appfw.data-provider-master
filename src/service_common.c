@@ -89,6 +89,8 @@ struct service_context {
 
 	Eina_List *tcb_create_cb_list;
 	Eina_List *tcb_destroy_cb_list;
+
+	int processing_service_handler;
 };
 
 struct packet_info {
@@ -543,6 +545,22 @@ static inline void tcb_teminate_all(struct service_context *svc_ctx)
 	}
 }
 
+HAPI int service_common_destroy_tcb(struct service_context *svc_ctx, struct tcb *tcb)
+{
+	if (!svc_ctx || !tcb) {
+		return WIDGET_ERROR_INVALID_PARAMETER;
+	}
+	/**
+	 * @note
+	 * In this case, we just need to push terminate event to pipe.
+	 */
+	if (write(svc_ctx->tcb_pipe[PIPE_WRITE], &tcb, sizeof(tcb)) != sizeof(tcb)) {
+		ErrPrint("write: %d\n", errno);
+	}
+
+	return WIDGET_ERROR_NONE;
+}
+
 /*!
  * \note
  * SERVER THREAD
@@ -754,7 +772,9 @@ static void *server_main(void *data)
 				 * What happens if the client thread is terminated, so the packet_info->tcb is deleted
 				 * while processing svc_ctx->service_thread_main?
 				 */
+				svc_ctx->processing_service_handler = 1;
 				ret = svc_ctx->service_thread_main(packet_info->tcb, packet_info->packet, svc_ctx->service_thread_data);
+				svc_ctx->processing_service_handler = 0;
 				if (ret < 0) {
 					ErrPrint("Service thread returns: %d\n", ret);
 				}
@@ -805,7 +825,9 @@ static void *server_main(void *data)
 			EINA_LIST_FREE(lockfree_packet_list, packet_info) {
 				ret = read(svc_ctx->evt_pipe[PIPE_READ], &evt_ch, sizeof(evt_ch));
 				DbgPrint("Flushing filtered pipe: %d (%c)\n", ret, evt_ch);
+				svc_ctx->processing_service_handler = 1;
 				ret = svc_ctx->service_thread_main(packet_info->tcb, packet_info->packet, svc_ctx->service_thread_data);
+				svc_ctx->processing_service_handler = 0;
 				if (ret < 0) {
 					ErrPrint("Service thread returns: %d\n", ret);
 				}
@@ -817,7 +839,9 @@ static void *server_main(void *data)
 			 * \note
 			 * Invoke the service thread main, to notify the termination of a TCB
 			 */
+			svc_ctx->processing_service_handler = 1;
 			ret = svc_ctx->service_thread_main(tcb, NULL, svc_ctx->service_thread_data);
+			svc_ctx->processing_service_handler = 0;
 
 			/*!
 			 * at this time, the client thread can access this tcb.
@@ -843,7 +867,9 @@ static void *server_main(void *data)
 	EINA_LIST_FREE(svc_ctx->packet_list, packet_info) {
 		ret = read(svc_ctx->evt_pipe[PIPE_READ], &evt_ch, sizeof(evt_ch));
 		DbgPrint("Flushing pipe: %d (%c)\n", ret, evt_ch);
+		svc_ctx->processing_service_handler = 1;
 		ret = svc_ctx->service_thread_main(packet_info->tcb, packet_info->packet, svc_ctx->service_thread_data);
+		svc_ctx->processing_service_handler = 0;
 		if (ret < 0) {
 			ErrPrint("Service thread returns: %d\n", ret);
 		}
@@ -870,9 +896,18 @@ HAPI struct service_context *service_common_create(const char *addr, const char 
 		return NULL;
 	}
 
-	if (strncmp(addr, COM_CORE_REMOTE_SCHEME, strlen(COM_CORE_REMOTE_SCHEME))) {
-		int offset = 0;
+	/**
+	 * @note
+	 * Do not try to delete a URI file if it is created for a remote service or by the systemd service.
+	 */
+	if (strncmp(addr, COM_CORE_REMOTE_SCHEME, strlen(COM_CORE_REMOTE_SCHEME)) && strncmp(addr, COM_CORE_SD_LOCAL_SCHEME, strlen(COM_CORE_SD_LOCAL_SCHEME))) {
+		int offset;
 
+		/**
+		 * @note
+		 * If the address is not for the REMOTE or SD_LOCAL, we can assume it just a local(unix) domain socket file.
+		 * So, find the scheme length first and then "unlink" it.
+		 */
 		offset = strlen(COM_CORE_LOCAL_SCHEME);
 		if (strncmp(addr, COM_CORE_LOCAL_SCHEME, offset)) {
 			offset = 0;

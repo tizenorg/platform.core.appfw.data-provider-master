@@ -127,6 +127,8 @@ struct slave_node {
 			unsigned int hard;
 		} memory;
 	} resources;
+
+	int wait_deactivation;
 };
 
 struct event {
@@ -1119,8 +1121,8 @@ HAPI struct slave_node *slave_deactivated(struct slave_node *slave)
 	}
 
 	if ((slave->ctrl_option & PROVIDER_CTRL_MANUAL_REACTIVATION) == PROVIDER_CTRL_MANUAL_REACTIVATION) {
-		/*!
-		 * \note
+		/**
+		 * @note
 		 * In this case, the provider(Slave) should be reactivated by itself or user.
 		 * The master will not reactivate it automatically.
 		 */
@@ -1134,8 +1136,8 @@ HAPI struct slave_node *slave_deactivated(struct slave_node *slave)
 			ErrPrint("Failed to reactivate a slave\n");
 		}
 	} else if (slave_loaded_instance(slave) == 0) {
-		/*!
-		 * \note
+		/**
+		 * @note
 		 * If a slave has no more instances,
 		 * Destroy it
 		 */
@@ -1617,13 +1619,21 @@ HAPI char *slave_package_name(const char *abi, const char *lbid)
 		return NULL;
 	}
 
-	s_pkgname = widget_util_replace_string(tmp, WIDGET_CONF_REPLACE_TAG_APPID, lbid);
-	if (!s_pkgname) {
-		DbgPrint("Failed to get replaced string\n");
-		s_pkgname = strdup(tmp);
+	if (!strcasecmp(abi, "meta")) {
+		s_pkgname = package_meta_tag(lbid, tmp);
 		if (!s_pkgname) {
-			ErrPrint("strdup: %d\n", errno);
-			return NULL;
+			s_pkgname = strdup(lbid);
+			ErrPrint("Meta tag is not valid[%s] - [%s], use [%s]\n", lbid, tmp, s_pkgname);
+		}
+	} else {
+		s_pkgname = widget_util_replace_string(tmp, WIDGET_CONF_REPLACE_TAG_APPID, lbid);
+		if (!s_pkgname) {
+			DbgPrint("Failed to get replaced string\n");
+			s_pkgname = strdup(tmp);
+			if (!s_pkgname) {
+				ErrPrint("strdup: %d\n", errno);
+				return NULL;
+			}
 		}
 	}
 
@@ -2194,6 +2204,16 @@ HAPI int slave_get_resource_limit(struct slave_node *slave, unsigned int *soft, 
 	}
 
 	return WIDGET_ERROR_NONE;
+}
+
+HAPI void slave_set_wait_deactivation(struct slave_node *slave, int wait)
+{
+	slave->wait_deactivation = !!wait;
+}
+
+HAPI int slave_wait_deactivation(struct slave_node *slave)
+{
+	return slave->wait_deactivation;
 }
 
 /* End of a file */

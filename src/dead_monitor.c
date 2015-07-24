@@ -74,7 +74,22 @@ static int evt_cb(int handle, void *data)
 				slave = slave_deactivated(slave);
 				break;
 			default:
-				slave = slave_deactivated_by_fault(slave);
+				if (slave_wait_deactivation(slave)) {
+					/**
+					 * @note
+					 * Slave is waiting the termination,
+					 * in this case, it should be dealt as a normal termination.
+					 */
+
+					DbgPrint("Slave is waiting deactivation, Do not re-activate automatically in this case\n");
+					slave_set_wait_deactivation(slave, 0);
+					slave_set_reactivation(slave, 0);
+					slave_set_reactivate_instances(slave, 1);
+
+					slave = slave_deactivated(slave);
+				} else {
+					slave = slave_deactivated_by_fault(slave);
+				}
 				break;
 			}
 		}

@@ -409,7 +409,7 @@ int utility_service_init(void)
 		return WIDGET_ERROR_ALREADY_STARTED;
 	}
 
-	s_info.svc_ctx = service_common_create(UTILITY_SOCKET, UTILITY_SMACK_LABEL, service_thread_main, NULL);
+	s_info.svc_ctx = service_common_create("sdlocal://"UTILITY_SOCKET, UTILITY_SMACK_LABEL, service_thread_main, NULL);
 	if (!s_info.svc_ctx) {
 		ErrPrint("Unable to activate service thread\n");
 		return WIDGET_ERROR_FAULT;

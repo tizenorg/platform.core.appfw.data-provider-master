@@ -67,6 +67,7 @@
 #include "shortcut_service.h"
 #include "notification_service.h"
 #include "badge_service.h"
+#include "shared_fd_service.h"
 
 #if defined(FLOG)
 #define TMP_LOG_FILE "/tmp/live.log"
@@ -137,6 +138,11 @@ static inline int app_create(void)
 	ret = buffer_handler_init();
 	if (ret < 0) {
 		DbgPrint("Buffer handler init is done: %d\n", ret);
+	}
+
+	ret = shared_fd_service_init();
+	if (ret < 0) {
+		DbgPrint("Shared FD service init is done: %d\n", ret);
 	}
 
 	/*!
@@ -213,6 +219,11 @@ static inline int app_terminate(void)
 	ret = server_fini();
 	if (ret < 0) {
 		DbgPrint("Finalize server: %d\n", ret);
+	}
+
+	ret = shared_fd_service_fini();
+	if (ret < 0) {
+		DbgPrint("Finalize shared service: %d\n", ret);
 	}
 
 	ret = dead_fini();
@@ -369,6 +380,19 @@ int main(int argc, char *argv[])
 	widget_conf_load();
 	widget_abi_init();
 
+	if (vconf_get_int(VCONFKEY_MASTER_RESTART_COUNT, &restart_count) < 0 || restart_count == 0) {
+		/*!
+		 * \note
+		 * Clear old contents files before start the master provider.
+		 */
+		(void)util_unlink_files(WIDGET_CONF_ALWAYS_PATH);
+		(void)util_unlink_files(WIDGET_CONF_READER_PATH);
+		(void)util_unlink_files(WIDGET_CONF_IMAGE_PATH);
+		(void)util_unlink_files(WIDGET_CONF_LOG_PATH);
+	}
+
+	util_setup_log_disk();
+
 	/*!
 	 * How could we care this return values?
 	 * Is there any way to print something on the screen?
@@ -377,22 +401,6 @@ int main(int argc, char *argv[])
 	if (ret < 0) {
 		ErrPrint("Failed to init the critical log\n");
 	}
-
-	/*!
-	 * \note
-	 * Clear old contents files before start the master provider.
-	 */
-	(void)util_unlink_files(WIDGET_CONF_ALWAYS_PATH);
-	(void)util_unlink_files(WIDGET_CONF_READER_PATH);
-	(void)util_unlink_files(WIDGET_CONF_IMAGE_PATH);
-	(void)util_unlink_files(WIDGET_CONF_LOG_PATH);
-
-	if (util_free_space(WIDGET_CONF_IMAGE_PATH) < WIDGET_CONF_MINIMUM_SPACE) {
-		util_remove_emergency_disk();
-		util_prepare_emergency_disk();
-	}
-
-	util_setup_log_disk();
 
 	sigemptyset(&mask);
 
@@ -427,7 +435,6 @@ int main(int argc, char *argv[])
 	app_create();
 	sd_notify(0, "READY=1");
 
-	vconf_get_int(VCONFKEY_MASTER_RESTART_COUNT, &restart_count);
 	restart_count++;
 	vconf_set_int(VCONFKEY_MASTER_RESTART_COUNT, restart_count);
 

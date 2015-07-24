@@ -1,0 +1,16 @@
+[Socket]
+SocketUser=system
+SocketGroup=system
+ListenStream=/tmp/.data-provider-master-slave.socket
+SocketMode=0666
+SmackLabelIPIn=data-provider-master::provider
+SmackLabelIPOut=@
+
+Service=data-provider-master.service
+
+[Unit]
+Wants=data-provider-master.target
+Before=data-provider-master.target
+
+[Install]
+WantedBy=sockets.target

@@ -64,9 +64,11 @@ ADD_DEFINITIONS("-D_GNU_SOURCE")
 ADD_DEFINITIONS("-D_FILE_OFFSET_BITS=64")
 
 ADD_DEFINITIONS("-DINFO_SOCKET=\"/opt/usr/share/live_magazine/.live.socket\"")
-ADD_DEFINITIONS("-DCLIENT_SOCKET=\"/opt/usr/share/live_magazine/.client.socket\"")
-ADD_DEFINITIONS("-DSLAVE_SOCKET=\"/opt/usr/share/live_magazine/.slave.socket\"")
-ADD_DEFINITIONS("-DSERVICE_SOCKET=\"/opt/usr/share/live_magazine/.service.socket\"")
+ADD_DEFINITIONS("-DCLIENT_SOCKET=\"/tmp/.data-provider-master-client.socket\"")
+ADD_DEFINITIONS("-DSLAVE_SOCKET=\"/tmp/.data-provider-master-slave.socket\"")
+ADD_DEFINITIONS("-DSERVICE_SOCKET=\"/tmp/.data-provider-master-service.socket\"")
+ADD_DEFINITIONS("-DSHARED_SOCKET=\"/tmp/.data-provider-master-fd.socket\"")
+
 ADD_DEFINITIONS("-DCATEGORY_WATCH_CLOCK=\"http://tizen.org/category/wearable_clock\"")
 
 ADD_DEFINITIONS("-DCLIENT_PORT=\"8208\"")
@@ -130,11 +132,12 @@ IF (LIVEBOX)
 		src/file_service.c
 		src/conf.c
 		src/monitor.c
+		src/shared_fd_service.c
 	)
 
 	IF (WAYLAND_SUPPORT)
 		ADD_DEFINITIONS("-DHAVE_WAYLAND")
-		SET(BUILD_SOURCE 
+		SET(BUILD_SOURCE
 			${BUILD_SOURCE}
 			src/xmonitor_wayland.c
 			src/buffer_handler_wayland.c
@@ -144,7 +147,7 @@ IF (LIVEBOX)
 
 	IF (X11_SUPPORT)
 		ADD_DEFINITIONS("-DHAVE_X11")
-		SET(BUILD_SOURCE 
+		SET(BUILD_SOURCE
 			${BUILD_SOURCE}
 			src/xmonitor.c
 			src/buffer_handler.c
@@ -155,7 +158,7 @@ ENDIF (LIVEBOX)
 
 IF (WAYLAND_SUPPORT)
 	ADD_DEFINITIONS("-DHAVE_WAYLAND")
-	SET(BUILD_SOURCE 
+	SET(BUILD_SOURCE
 		${BUILD_SOURCE}
 		src/util_wayland.c
 	)
@@ -163,7 +166,7 @@ ENDIF (WAYLAND_SUPPORT)
 
 IF (X11_SUPPORT)
 	ADD_DEFINITIONS("-DHAVE_X11")
-	SET(BUILD_SOURCE 
+	SET(BUILD_SOURCE
 		${BUILD_SOURCE}
 		src/util_x11.c
 	)
