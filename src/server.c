@@ -8376,7 +8376,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 		}
 
 		inst_list = package_instance_list(info);
-		inst = eina_list_nth(inst_list, 0);
+		inst = eina_list_data_get(eina_list_last(inst_list));
 		if (!inst) {
 			ErrPrint("Instance is not available for [%s]\n", widget_id);
 			ret = WIDGET_ERROR_FAULT;
