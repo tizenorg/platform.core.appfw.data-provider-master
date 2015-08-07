@@ -551,7 +551,7 @@ HAPI int badge_service_init(void)
 		return WIDGET_ERROR_ALREADY_STARTED;
 	}
 
-	s_info.svc_ctx = service_common_create(BADGE_SOCKET, BADGE_SMACK_LABEL, service_thread_main, NULL);
+	s_info.svc_ctx = service_common_create("sdlocal://"BADGE_SOCKET, BADGE_SMACK_LABEL, service_thread_main, NULL);
 	if (!s_info.svc_ctx) {
 		ErrPrint("Unable to activate service thread\n");
 		return WIDGET_ERROR_FAULT;
