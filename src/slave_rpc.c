@@ -600,7 +600,7 @@ HAPI int slave_rpc_init(struct slave_node *slave)
 	}
 
 	if (slave_event_callback_add(slave, SLAVE_EVENT_DEACTIVATE, slave_deactivate_cb, NULL) < 0) {
-		ErrPrint("Failed to add event callback\n");
+		ErrPrint("Failed to add deactivate event callback\n");
 	}
 
 	rpc->ping_count = 0;

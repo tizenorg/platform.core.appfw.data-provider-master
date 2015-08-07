@@ -9862,8 +9862,6 @@ static struct method s_slave_table[] = {
 
 HAPI int server_init(void)
 {
-	com_core_packet_use_thread(WIDGET_CONF_COM_CORE_THREAD);
-
 	if (unlink(INFO_SOCKET) < 0) {
 		ErrPrint("unlink info: %d\n", errno);
 	}

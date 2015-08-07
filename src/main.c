@@ -42,6 +42,8 @@
 #include <widget_conf.h>
 #include <widget_abi.h>
 
+#include <com-core_packet.h>
+
 #include "slave_life.h"
 #include "slave_rpc.h"
 #include "client_life.h"
@@ -139,6 +141,12 @@ static inline int app_create(void)
 	if (ret < 0) {
 		DbgPrint("Buffer handler init is done: %d\n", ret);
 	}
+
+	/**
+	 * @note
+	 * Use thread mode must has to be initialized before server or client initialization.
+	 */
+	com_core_packet_use_thread(WIDGET_CONF_COM_CORE_THREAD);
 
 	ret = shared_fd_service_init();
 	if (ret < 0) {

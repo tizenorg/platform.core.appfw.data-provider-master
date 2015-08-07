@@ -671,6 +671,11 @@ static Eina_Bool sdk_activate_timer_cb(void *data)
 	return activate_timer_cb(slave);
 }
 
+/**
+ * @note
+ * This callback is called only if the slave is not launched (or it doesn't send hello message to master)
+ * If the slave is launched so it has valid PID, however it doesn't send hello message in time (activate time in conf file).
+ */
 static inline void invoke_slave_fault_handler(struct slave_node *slave)
 {
 	slave->fault_count++;
@@ -683,6 +688,10 @@ static inline void invoke_slave_fault_handler(struct slave_node *slave)
 	slave_set_reactivate_instances(slave, 0);
 
 	if (slave_pid(slave) > 0) {
+		/**
+		 * @note
+		 * Slave is launched but there is no connection (hello message).
+		 */
 		if ((slave->ctrl_option & PROVIDER_CTRL_MANUAL_TERMINATION) == PROVIDER_CTRL_MANUAL_TERMINATION) {
 			DbgPrint("Manual termination is turned on\n");
 			(void)slave_rpc_disconnect(slave);
@@ -694,9 +703,18 @@ static inline void invoke_slave_fault_handler(struct slave_node *slave)
 				ErrPrint("Terminate failed, pid %d (reason: %d)\n", slave_pid(slave), ret);
 			}
 		}
+	} else {
+		/**
+		 * @note
+		 * Slave is not launched yet.
+		 */
+		DbgPrint("Slave is not launched before (%s)\n", slave_name(slave));
 	}
 
-	slave->state = SLAVE_TERMINATED;
+	if (slave->state != SLAVE_TERMINATED) {
+		slave = slave_deactivated(slave);
+		DbgPrint("Slave deactivated: %p\n", slave);
+	}
 }
 
 static Eina_Bool relaunch_timer_cb(void *data)
