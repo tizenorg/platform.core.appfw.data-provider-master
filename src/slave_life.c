@@ -626,6 +626,7 @@ static Eina_Bool activate_timer_cb(void *data)
 		ecore_timer_del(slave->relaunch_timer);
 		slave->relaunch_timer = NULL;
 	}
+	slave->activate_timer = NULL;
 
 	slave->fault_count++;
 
@@ -637,7 +638,6 @@ static Eina_Bool activate_timer_cb(void *data)
 	slave_set_reactivation(slave, 0);
 	slave_set_reactivate_instances(slave, 0);
 
-	slave->activate_timer = NULL;
 	if (slave_pid(slave) > 0) {
 		int ret;
 		DbgPrint("Try to terminate PID: %d\n", slave_pid(slave));
@@ -717,6 +717,39 @@ static inline void invoke_slave_fault_handler(struct slave_node *slave)
 	}
 }
 
+static bundle *create_slave_param(struct slave_node *slave)
+{
+	bundle *param = NULL;
+
+	if (slave->extra_bundle_data) {
+		param = bundle_decode((bundle_raw *)slave->extra_bundle_data, strlen(slave->extra_bundle_data));
+		if (!param) {
+			ErrPrint("Invalid extra_bundle_data[%s]\n", slave->extra_bundle_data);
+		}
+	}
+
+	if (!param) {
+		param = bundle_create();
+	}
+
+	if (param) {
+		if (bundle_add_str(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN) == BUNDLE_ERROR_KEY_EXISTS) {
+			if (bundle_del(param, BUNDLE_SLAVE_SVC_OP_TYPE) == BUNDLE_ERROR_NONE) {
+				DbgPrint("Main operation is deleted\n");
+			}
+			bundle_add_str(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
+		}
+		bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_NAME, slave_name(slave));
+		bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_SECURED, ((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave_is_secured(slave)) ? "true" : "false");
+		bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_ABI, slave_abi(slave));
+		bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_HW_ACCELERATION, slave->hw_acceleration);
+	} else {
+		ErrPrint("Failed to create a bundle\n");
+	}
+
+	return param;
+}
+
 static Eina_Bool relaunch_timer_cb(void *data)
 {
 	struct slave_node *slave = data;
@@ -735,19 +768,9 @@ static Eina_Bool relaunch_timer_cb(void *data)
 		slave->relaunch_timer = NULL;
 		invoke_slave_fault_handler(slave);
 	} else {
-		bundle *param = NULL;
+		bundle *param;
 
-		if (slave->extra_bundle_data) {
-			param = bundle_decode((bundle_raw *)slave->extra_bundle_data, strlen(slave->extra_bundle_data));
-			if (!param) {
-				ErrPrint("Invalid extra_bundle_data[%s]\n", slave->extra_bundle_data);
-			}
-		}
-
-		if (!param) {
-			param = bundle_create();
-		}
-
+		param = create_slave_param(slave);
 		if (!param) {
 			ErrPrint("Failed to create a bundle\n");
 
@@ -758,20 +781,8 @@ static Eina_Bool relaunch_timer_cb(void *data)
 
 			invoke_slave_fault_handler(slave);
 		} else {
-			if (bundle_add_str(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN) == BUNDLE_ERROR_KEY_EXISTS) {
-				if (bundle_del(param, BUNDLE_SLAVE_SVC_OP_TYPE) == BUNDLE_ERROR_NONE) {
-					DbgPrint("Main operation is deleted\n");
-				}
-				bundle_add_str(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
-			}
-			bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_NAME, slave_name(slave));
-			bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_SECURED, ((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured) ? "true" : "false");
-			bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_ABI, slave->abi);
-			bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_HW_ACCELERATION, slave->hw_acceleration);
-
 			ErrPrint("Launch App [%s]\n", slave_pkgname(slave));
 			slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
-
 			bundle_free(param);
 
 			switch (slave->pid) {
@@ -813,7 +824,6 @@ static Eina_Bool relaunch_timer_cb(void *data)
 				break;
 			}
 		}
-
 	}
 
 	return ret;
@@ -851,38 +861,33 @@ HAPI int slave_activate(struct slave_node *slave)
 		return WIDGET_ERROR_ALREADY_STARTED;
 	}
 
+	/**
+	 * @note
+	 * Slave state can be changed even though it is not activated, By calling the "slave_pause" or "slave_resume"
+	 * In that case, this part of codes can be executed.
+	 *
+	 * We have to check the activate_timer or relaunch_timer.
+	 * If one of them or all of them are exist, it means, the slave is not activated yet.
+	 * But the activate request is sent.
+	 * Then just return from here. with ALREADY_STARTED error code.
+	 */
+	if (slave->activate_timer || slave->relaunch_timer) {
+		DbgPrint("Slave State[0x%X] is changed by pause/resume even though it is not activated yet\n", slave_state(slave));
+		return WIDGET_ERROR_ALREADY_STARTED;
+	}
+
 	if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
 		DbgPrint("Debug Mode enabled. name[%s] secured[%d] abi[%s]\n", slave_name(slave), slave->secured, slave->abi);
 	} else {
-		bundle *param = NULL;
+		bundle *param;
+
+		param = create_slave_param(slave);
+		if (!param) {
+			ErrPrint("Failed to create a bundle\n");
+			return WIDGET_ERROR_FAULT;
+		}
 
 		slave->relaunch_count = WIDGET_CONF_SLAVE_RELAUNCH_COUNT;
-
-		if (slave->extra_bundle_data) {
-			param = bundle_decode((bundle_raw *)slave->extra_bundle_data, strlen(slave->extra_bundle_data));
-			if (!param) {
-				ErrPrint("Invalid extra_bundle_data[%s]\n", slave->extra_bundle_data);
-			}
-		}
-
-		if (!param) {
-			param = bundle_create();
-			if (!param) {
-				ErrPrint("Failed to create a bundle\n");
-				return WIDGET_ERROR_FAULT;
-			}
-		}
-
-		if (bundle_add_str(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN) == BUNDLE_ERROR_KEY_EXISTS) {
-			if (bundle_del(param, BUNDLE_SLAVE_SVC_OP_TYPE) == BUNDLE_ERROR_NONE) {
-				DbgPrint("Main operation is deleted\n");
-			}
-			bundle_add_str(param, BUNDLE_SLAVE_SVC_OP_TYPE, APP_CONTROL_OPERATION_MAIN);
-		}
-		bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_NAME, slave_name(slave));
-		bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_SECURED, ((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured) ? "true" : "false");
-		bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_ABI, slave->abi);
-		bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_HW_ACCELERATION, slave->hw_acceleration);
 
 		ErrPrint("Launch App [%s]\n", slave_pkgname(slave));
 		slave->pid = (pid_t)aul_launch_app(slave_pkgname(slave), param);
