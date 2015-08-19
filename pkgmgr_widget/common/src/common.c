@@ -219,7 +219,7 @@ static struct {
 	const char *dbfile;
 	sqlite3 *handle;
 } s_info = {
-	.dbfile = "/opt/dbspace/.widget.db",
+	.dbfile = "/usr/dbspace/.widget.db",
 	.handle = NULL,
 };
 

@@ -127,10 +127,10 @@ mkdir -p %{buildroot}/opt/usr/share/live_magazine/log
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/reader
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/always
 mkdir -p %{buildroot}/opt/usr/devel/usr/bin
-mkdir -p %{buildroot}/opt/dbspace
+mkdir -p %{buildroot}/usr/dbspace
 
 echo "widget DB file is not exists, initiate it"
-sqlite3 %{buildroot}/opt/dbspace/.widget.db-new <<EOF
+sqlite3 %{buildroot}/usr/dbspace/.widget.db-new <<EOF
 CREATE TABLE version ( version INTEGER );
 CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, preview TEXT, touch_effect INTEGER, need_frame INTEGER, mouse_event INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
 CREATE TABLE client (pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch TEXT, gbar_size TEXT, content TEXT, nodisplay INTEGER, setup TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
@@ -157,18 +157,18 @@ SYSTEM_UID=1000
 APP_UID=5000
 APP_GID=5000
 
-if [ ! -s /opt/dbspace/.widget.db ]; then
+if [ ! -s /usr/dbspace/.widget.db ]; then
 	echo "DB is not exists"
-	mv /opt/dbspace/.widget.db-new /opt/dbspace/.widget.db
-	mv /opt/dbspace/.widget.db-new-journal /opt/dbspace/.widget.db-journal
+	mv /usr/dbspace/.widget.db-new /usr/dbspace/.widget.db
+	mv /usr/dbspace/.widget.db-new-journal /usr/dbspace/.widget.db-journal
 else
-	VERSION=`sqlite3 /opt/dbspace/.widget.db "SELECT * FROM version"`
+	VERSION=`sqlite3 /usr/dbspace/.widget.db "SELECT * FROM version"`
 	echo "DB is already exists (Version: $VERSION)"
 	echo "==============================================="
-	sqlite3 /opt/dbspace/.widget.db "SELECT * FROM pkgmap"
+	sqlite3 /usr/dbspace/.widget.db "SELECT * FROM pkgmap"
 	echo "==============================================="
-	rm -rf /opt/dbspace/.widget.db-new
-	rm -rf /opt/dbspace/.widget.db-new-journal
+	rm -rf /usr/dbspace/.widget.db-new
+	rm -rf /usr/dbspace/.widget.db-new-journal
 fi
 
 chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine
@@ -183,10 +183,10 @@ chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine/always
 chmod 750 /opt/usr/share/live_magazine/always
 
 # SYSTEM_UID?
-chown ${APP_UID}:${APP_GID} /opt/dbspace/.widget.db
-chmod 640 /opt/dbspace/.widget.db
-chown ${APP_UID}:${APP_GID} /opt/dbspace/.widget.db-journal
-chmod 640 /opt/dbspace/.widget.db-journal
+chown ${APP_UID}:${APP_GID} /usr/dbspace/.widget.db
+chmod 640 /usr/dbspace/.widget.db
+chown ${APP_UID}:${APP_GID} /usr/dbspace/.widget.db-journal
+chmod 640 /usr/dbspace/.widget.db-journal
 
 vconftool set -t bool "memory/%{name}/started" 0 -i -u ${APP_UID} -f -s system::vconf_system
 vconftool set -t int "memory/private/%{name}/restart_count" 0 -i -u ${APP_UID} -f -s %{name}
@@ -229,6 +229,6 @@ echo "Successfully installed. Please start a daemon again manually"
 /opt/etc/dump.d/module.d/dump_widget.sh
 %defattr(-,owner,users,-)
 /opt/usr/share/live_magazine/*
-/opt/dbspace/.widget.db*
+/usr/dbspace/.widget.db*
 
 # End of a file
