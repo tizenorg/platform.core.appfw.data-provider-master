@@ -132,9 +132,9 @@ HAPI int shared_fd_service_init(void)
 	 * 4. Send accepted FD to provider via result packet.
 	 * 5. Provider will send a packet to the viewer via that FD.
 	 */
-	s_info.fd = com_core_packet_server_init("sdlocal://"SHARED_SOCKET, s_table);
+	s_info.fd = com_core_packet_server_init(SHARED_SOCKET, s_table);
 	if (s_info.fd < 0) {
-		ErrPrint("Failed to make a server for %s\n", "sdlocal://"SHARED_SOCKET);
+		ErrPrint("Failed to make a server for %s\n", SHARED_SOCKET);
 	}
 
 	return WIDGET_ERROR_NONE;

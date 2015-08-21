@@ -960,7 +960,7 @@ HAPI int notification_service_init(void)
 
 	_notification_init();
 
-	s_info.svc_ctx = service_common_create("sdlocal://"NOTIFICATION_SOCKET, NOTIFICATION_SMACK_LABEL, service_thread_main, NULL);
+	s_info.svc_ctx = service_common_create(NOTIFICATION_SOCKET, NOTIFICATION_SMACK_LABEL, service_thread_main, NULL);
 	if (!s_info.svc_ctx) {
 		ErrPrint("Unable to activate service thread\n");
 		return WIDGET_ERROR_FAULT;
