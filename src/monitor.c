@@ -111,7 +111,7 @@ HAPI int monitor_destroy_client(struct monitor_client *monitor)
 	}
 
 	if (cnt == 0) {
-		dead_callback_del(handle, monitor_disconnected_cb);
+		dead_callback_del(handle, monitor_disconnected_cb, NULL);
 		ErrPrint("Registered monitor object is not valid\n");
 	}
 

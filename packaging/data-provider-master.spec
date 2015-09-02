@@ -2,7 +2,7 @@
 
 Name: data-provider-master
 Summary: Master service provider for widgetes
-Version: 1.1.10
+Version: 1.2.0
 Release: 1
 Group: Applications/Core Applications
 License: Flora-1.1
@@ -109,23 +109,13 @@ CFLAGS="${CFLAGS} -Wall -Winline -Werror" LDFLAGS="${LDFLAGS}" make %{?jobs:-j%j
 rm -rf %{buildroot}
 %make_install
 mkdir -p %{buildroot}/%{_datarootdir}/license
-mkdir -p %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants
-ln -sf ../%{name}.service %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}.service
-ln -sf ../%{name}.path %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}.path
-ln -sf ../%{name}.target %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}.target
-ln -sf ../%{name}-client.socket %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}-client.socket
-ln -sf ../%{name}-provider.socket %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}-provider.socket
-ln -sf ../%{name}-service.socket %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}-service.socket
-ln -sf ../%{name}-badge.socket %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}-badge.socket
-ln -sf ../%{name}-notification.socket %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}-notification.socket
-ln -sf ../%{name}-shortcut.socket %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}-shortcut.socket
-ln -sf ../%{name}-utility.socket %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}-utility.socket
-ln -sf ../%{name}-fd.socket %{buildroot}%{_prefix}/lib/systemd/user/default.target.wants/%{name}-fd.socket
-
+mkdir -p %{buildroot}%{_prefix}/lib/systemd/system/multi-user.target.wants
+ln -sf ../%{name}.service %{buildroot}%{_prefix}/lib/systemd/system/multi-user.target.wants/%{name}.service
 mkdir -p %{buildroot}/opt/usr/share/live_magazine
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/log
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/reader
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/always
+mkdir -p %{buildroot}/opt/usr/share/live_magazine/widget.lck
 mkdir -p %{buildroot}/opt/usr/devel/usr/bin
 mkdir -p %{buildroot}/usr/dbspace
 
@@ -175,12 +165,24 @@ chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine
 # System tool(widget-mgr) should be able to access this folder.
 # So give the "rx" permission to the other group. (750 -> 755)
 chmod 755 /opt/usr/share/live_magazine
+
 chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine/log
 chmod 750 /opt/usr/share/live_magazine/log
+
 chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine/reader
 chmod 750 /opt/usr/share/live_magazine/reader
+
 chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine/always
 chmod 750 /opt/usr/share/live_magazine/always
+
+chown ${SYSTEM}:${APP_GID} /opt/usr/share/live_magazine/widget.lck
+chmod 770 /opt/usr/share/live_magazine/widget.lck
+mv /opt/usr/share/live_magazine/widget.lck /opt/usr/share/live_magazine/.widget.lck
+
+chown ${SYSTEM}:${APP_GID} %{_prefix}/dbspace/.widget.db
+chmod 644 %{_prefix}/dbspace/.widget.db
+chown ${SYSTEM}:${APP_GID} /opt/dbspace/.widget.db-journal
+chmod 644 %{_prefix}/dbspace/.widget.db-journal
 
 # SYSTEM_UID?
 chown ${APP_UID}:${APP_GID} /usr/dbspace/.widget.db
@@ -188,38 +190,24 @@ chmod 640 /usr/dbspace/.widget.db
 chown ${APP_UID}:${APP_GID} /usr/dbspace/.widget.db-journal
 chmod 640 /usr/dbspace/.widget.db-journal
 
-vconftool set -t bool "memory/%{name}/started" 0 -i -u ${APP_UID} -f -s system::vconf_system
-vconftool set -t int "memory/private/%{name}/restart_count" 0 -i -u ${APP_UID} -f -s %{name}
-vconftool set -t string "db/%{name}/serveraddr" "/opt/usr/share/live_magazine/.client.socket" -i -u ${APP_UID} -f -s system::vconf_system
-
 echo "Successfully installed. Please start a daemon again manually"
 
 %files -n %{name}
 %manifest %{name}.manifest
-%defattr(-,root,root,-)
-%caps(cap_chown,cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_nice,cap_mac_override,cap_mac_admin+ep) %{_bindir}/%{name}
-%{_prefix}/lib/systemd/user/%{name}.target
-%{_prefix}/lib/systemd/user/%{name}-client.socket
-%{_prefix}/lib/systemd/user/%{name}-provider.socket
-%{_prefix}/lib/systemd/user/%{name}-service.socket
-%{_prefix}/lib/systemd/user/%{name}-badge.socket
-%{_prefix}/lib/systemd/user/%{name}-notification.socket
-%{_prefix}/lib/systemd/user/%{name}-shortcut.socket
-%{_prefix}/lib/systemd/user/%{name}-utility.socket
-%{_prefix}/lib/systemd/user/%{name}-fd.socket
-%{_prefix}/lib/systemd/user/%{name}.service
-%{_prefix}/lib/systemd/user/%{name}.path
-%{_prefix}/lib/systemd/user/default.target.wants/%{name}.target
-%{_prefix}/lib/systemd/user/default.target.wants/%{name}-client.socket
-%{_prefix}/lib/systemd/user/default.target.wants/%{name}-provider.socket
-%{_prefix}/lib/systemd/user/default.target.wants/%{name}-service.socket
-%{_prefix}/lib/systemd/user/default.target.wants/%{name}-badge.socket
-%{_prefix}/lib/systemd/user/default.target.wants/%{name}-notification.socket
-%{_prefix}/lib/systemd/user/default.target.wants/%{name}-shortcut.socket
-%{_prefix}/lib/systemd/user/default.target.wants/%{name}-utility.socket
-%{_prefix}/lib/systemd/user/default.target.wants/%{name}-fd.socket
-%{_prefix}/lib/systemd/user/default.target.wants/%{name}.service
-%{_prefix}/lib/systemd/user/default.target.wants/%{name}.path
+%defattr(-,system,system,-)
+#%caps(cap_chown,cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_nice+ep) %{_prefix}/bin/%{name}
+%{_prefix}/lib/systemd/system/multi-user.target.wants/%{name}.service
+%{_prefix}/lib/systemd/system/%{name}.service
+%{_prefix}/lib/systemd/system/%{name}.target
+%{_prefix}/bin
+#%{_libdir}/systemd/system/%{name}-client.socket
+#%{_libdir}/systemd/system/%{name}-provider.socket
+#%{_libdir}/systemd/system/%{name}-service.socket
+#%{_libdir}/systemd/system/%{name}-badge.socket
+#%{_libdir}/systemd/system/%{name}-notification.socket
+#%{_libdir}/systemd/system/%{name}-shortcut.socket
+#%{_libdir}/systemd/system/%{name}-utility.socket
+#%{_libdir}/systemd/system/%{name}-fd.socket
 %{_datarootdir}/license/*
 %if 0%{?tizen_build_binary_release_type_eng}
 /opt/usr/devel/usr/bin/*
@@ -227,8 +215,8 @@ echo "Successfully installed. Please start a daemon again manually"
 %{_prefix}/etc/package-manager/parserlib/*
 %{_datarootdir}/%{name}/*
 /opt/etc/dump.d/module.d/dump_widget.sh
-%defattr(-,owner,users,-)
+#%defattr(-,owner,users,-)
 /opt/usr/share/live_magazine/*
-/usr/dbspace/.widget.db*
+%{_prefix}/dbspace/.widget.db*
 
 # End of a file

@@ -75,6 +75,7 @@ struct gem_data {
 	Pixmap pixmap;
 	void *data; /* Gem layer */
 	int refcnt;
+	widget_resource_lock_t resource_lock;
 
 	void *compensate_data; /* Check the pitch value, copy this to data */
 };
@@ -165,6 +166,13 @@ static inline widget_fb_t create_pixmap(struct buffer_info *info)
 	} else {
 		XSync(disp, False);
 		ErrPrint("Unable to clear the pixmap\n");
+	}
+
+	if (WIDGET_CONF_ENABLE_RESOURCE_LOCK) {
+		gem->resource_lock = widget_service_create_resource_lock(gem->pixmap, WIDGET_LOCK_WRITE);
+		if (!gem->resource_lock) {
+			ErrPrint("Failed to create a resource lock: %u\n", gem->pixmap);
+		}
 	}
 
 	return buffer;
@@ -342,6 +350,15 @@ static inline int destroy_pixmap(widget_fb_t buffer)
 
 		DbgPrint("pixmap %lu\n", gem->pixmap);
 		XFreePixmap(disp, gem->pixmap);
+
+		if (WIDGET_CONF_ENABLE_RESOURCE_LOCK) {
+			if (gem->resource_lock) {
+				if (widget_service_destroy_resource_lock(gem->resource_lock, 1) != WIDGET_ERROR_NONE) {
+					ErrPrint("Failed to destroy resource lock\n");
+				}
+				gem->resource_lock = NULL;
+			}
+		}
 	}
 
 	buffer->state = WIDGET_FB_STATE_DESTROYED;
@@ -352,10 +369,6 @@ static inline int destroy_pixmap(widget_fb_t buffer)
 static inline int destroy_gem(widget_fb_t buffer)
 {
 	struct gem_data *gem;
-
-	if (!buffer) {
-		return WIDGET_ERROR_INVALID_PARAMETER;
-	}
 
 	/*!
 	 * Forcely release the acquire_buffer.
@@ -703,12 +716,12 @@ EAPI int buffer_handler_unload(struct buffer_info *info)
 
 	switch (info->type) {
 	case WIDGET_FB_TYPE_FILE:
-		widget_service_destroy_lock(info->lock_info);
+		widget_service_destroy_lock(info->lock_info, 1);
 		info->lock_info = NULL;
 		ret = unload_file_buffer(info);
 		break;
 	case WIDGET_FB_TYPE_SHM:
-		widget_service_destroy_lock(info->lock_info);
+		widget_service_destroy_lock(info->lock_info, 1);
 		info->lock_info = NULL;
 		ret = unload_shm_buffer(info);
 		break;

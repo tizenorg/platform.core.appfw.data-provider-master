@@ -30,6 +30,7 @@
 #if defined(HAVE_LIVEBOX)
 #include <widget_errno.h>
 #include <widget_conf.h>
+#include <widget_util.h>
 #else
 #include "lite-errno.h"
 #endif
@@ -101,7 +102,7 @@ HAPI int critical_log(const char *func, int line, const char *fmt, ...)
 
 	CRITICAL_SECTION_BEGIN(&s_info.cri_lock);
 
-	fprintf(s_info.fp, "%lf [%s:%d] ", util_timestamp(), util_basename((char *)func), line);
+	fprintf(s_info.fp, "%lf [%s:%d] ", util_timestamp(), widget_util_basename((char *)func), line);
 
 	va_start(ap, fmt);
 	ret = vfprintf(s_info.fp, fmt, ap);

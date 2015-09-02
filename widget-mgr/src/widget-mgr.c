@@ -1136,6 +1136,63 @@ static void do_get_list(const char *cmd)
 	}
 }
 
+static int do_frame_dump(const char *cmd)
+{
+	struct instance *info;
+	struct packet *packet;
+	struct node *parent;
+	char widget_id[256];
+	int value;
+	int ret;
+
+	cmd = trim_cmd(cmd + strlen("frame_dump"));
+	if (!*cmd) {
+		return -EINVAL;
+	}
+
+	if (s_info.cmd != NOP) {
+		printf("Waiting the server response\n");
+		return -EBUSY;
+	}
+
+	if (sscanf(cmd, "%[^ ] %d", widget_id, &value) != 2) {
+		printf("Error[%s]\n", cmd);
+		return -EINVAL;
+	}
+
+	s_info.targetdir = update_target_dir(widget_id);
+	if (!s_info.targetdir) {
+		printf("%s is not exists\n", cmd);
+		return -ENOENT;
+	}
+
+	if (!(node_mode(s_info.targetdir) & NODE_WRITE)) {
+		printf("Access denied %s\n", cmd);
+		return -EACCES;
+	}
+
+	parent = node_parent(s_info.targetdir);
+	if (!parent) {
+		printf("Invalid folder: %s\n", cmd);
+		return -EFAULT;
+	}
+
+	info = node_data(s_info.targetdir);
+	printf("WidgetId: %s\n", info->id);
+	packet = packet_create_noack("slave_ctrl", "ssii", node_name(parent), info->id, WIDGET_CTRL_MODE_DUMP_FRAME, !!value);
+	ret = com_core_packet_send_only(s_info.fd, packet);
+	packet_destroy(packet);
+	if (ret < 0) {
+		printf("Failed to send a packet: %d\n", ret);
+		return ret;
+	}
+
+	printf("Dump frame %s (%s)\n", cmd, node_name(parent));
+	s_info.age++;
+
+	return 0;
+}
+
 static void do_get_content(const char *cmd)
 {
 	char widget_id[256];
@@ -1438,6 +1495,8 @@ static void do_command(const char *cmd)
 			do_get_content(cmd);
 		} else if (!strncasecmp(cmd, "get_list", strlen("get_list"))) {
 			do_get_list(cmd);
+		} else if (!strncasecmp(cmd, "frame_dump", strlen("frame_dump"))) {
+			do_frame_dump(cmd);
 		} else {
 			help();
 		}

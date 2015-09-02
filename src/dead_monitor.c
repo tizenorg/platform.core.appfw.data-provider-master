@@ -38,6 +38,7 @@
 
 struct cb_item {
 	int handle;
+	int disconnected;
 	void (*dead_cb)(int handle, void *data);
 	void *data;
 };
@@ -58,9 +59,17 @@ static int evt_cb(int handle, void *data)
 	Eina_List *n;
 
 	EINA_LIST_FOREACH_SAFE(s_info.cb_list, l, n, dead_item) {
+		/**
+		 * If the callback is called already,
+		 * Do not call it again.
+		 * Using "disconnected" varaible, prevent from duplicated callback call.
+		 */
 		if (dead_item->handle == handle) {
-			dead_item->dead_cb(dead_item->handle, dead_item->data);
-			break;
+			if (dead_item->disconnected == 0) {
+				dead_item->dead_cb(dead_item->handle, dead_item->data);
+				dead_item->disconnected = 1;
+				break;
+			}
 		}
 	}
 
@@ -148,7 +157,7 @@ HAPI int dead_callback_add(int handle, void (*dead_cb)(int handle, void *data), 
 	Eina_List *l;
 
 	EINA_LIST_FOREACH(s_info.cb_list, l, item) {
-		if (item->handle == handle) {
+		if (item->handle == handle && item->disconnected == 0) {
 			return WIDGET_ERROR_ALREADY_EXIST;
 		}
 	}
@@ -161,19 +170,26 @@ HAPI int dead_callback_add(int handle, void (*dead_cb)(int handle, void *data), 
 	item->handle = handle;
 	item->dead_cb = dead_cb;
 	item->data = data;
+	/**
+	 * Handle can be reallocated if the first connection is disconnected,
+	 * The kernel can resue the last handle (index) for newly comming connection.
+	 * So we have to check the callback data using disconnected field.
+	 * If the connection is disconnected first, we have to toggle this to true.
+	 */
+	item->disconnected = 0;
 
 	s_info.cb_list = eina_list_append(s_info.cb_list, item);
 	return 0;
 }
 
-HAPI void *dead_callback_del(int handle, void (*dead_cb)(int handle, void *data))
+HAPI void *dead_callback_del(int handle, void (*dead_cb)(int handle, void *data), void *data)
 {
 	struct cb_item *item;
 	Eina_List *l;
 	Eina_List *n;
 
 	EINA_LIST_FOREACH_SAFE(s_info.cb_list, l, n, item) {
-		if (item->handle == handle && item->dead_cb == dead_cb) {
+		if (item->handle == handle && item->dead_cb == dead_cb && item->data == data) {
 			void *cbdata;
 
 			s_info.cb_list = eina_list_remove(s_info.cb_list, item);
