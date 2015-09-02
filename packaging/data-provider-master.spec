@@ -109,18 +109,18 @@ CFLAGS="${CFLAGS} -Wall -Winline -Werror" LDFLAGS="${LDFLAGS}" make %{?jobs:-j%j
 rm -rf %{buildroot}
 %make_install
 mkdir -p %{buildroot}/%{_datarootdir}/license
-mkdir -p %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants
-ln -sf ../%{name}.service %{buildroot}%{_libdir}/systemd/system/multi-user.target.wants/%{name}.service
+mkdir -p %{buildroot}%{_prefix}/lib/systemd/system/multi-user.target.wants
+ln -sf ../%{name}.service %{buildroot}%{_prefix}/lib/systemd/system/multi-user.target.wants/%{name}.service
 mkdir -p %{buildroot}/opt/usr/share/live_magazine
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/log
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/reader
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/always
 mkdir -p %{buildroot}/opt/usr/share/live_magazine/widget.lck
 mkdir -p %{buildroot}/opt/usr/devel/usr/bin
-mkdir -p %{buildroot}/opt/dbspace
+mkdir -p %{buildroot}/usr/dbspace
 
 echo "widget DB file is not exists, initiate it"
-sqlite3 %{buildroot}/opt/dbspace/.widget.db-new <<EOF
+sqlite3 %{buildroot}/usr/dbspace/.widget.db-new <<EOF
 CREATE TABLE version ( version INTEGER );
 CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, preview TEXT, touch_effect INTEGER, need_frame INTEGER, mouse_event INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
 CREATE TABLE client (pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch TEXT, gbar_size TEXT, content TEXT, nodisplay INTEGER, setup TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
@@ -147,51 +147,59 @@ SYSTEM_UID=1000
 APP_UID=5000
 APP_GID=5000
 
-if [ ! -s /opt/dbspace/.widget.db ]; then
+if [ ! -s /usr/dbspace/.widget.db ]; then
 	echo "DB is not exists"
-	mv /opt/dbspace/.widget.db-new /opt/dbspace/.widget.db
-	mv /opt/dbspace/.widget.db-new-journal /opt/dbspace/.widget.db-journal
+	mv /usr/dbspace/.widget.db-new /usr/dbspace/.widget.db
+	mv /usr/dbspace/.widget.db-new-journal /usr/dbspace/.widget.db-journal
 else
-	VERSION=`sqlite3 /opt/dbspace/.widget.db "SELECT * FROM version"`
+	VERSION=`sqlite3 /usr/dbspace/.widget.db "SELECT * FROM version"`
 	echo "DB is already exists (Version: $VERSION)"
 	echo "==============================================="
-	sqlite3 /opt/dbspace/.widget.db "SELECT * FROM pkgmap"
+	sqlite3 /usr/dbspace/.widget.db "SELECT * FROM pkgmap"
 	echo "==============================================="
-	rm -rf /opt/dbspace/.widget.db-new
-	rm -rf /opt/dbspace/.widget.db-new-journal
+	rm -rf /usr/dbspace/.widget.db-new
+	rm -rf /usr/dbspace/.widget.db-new-journal
 fi
 
 chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine
 # System tool(widget-mgr) should be able to access this folder.
 # So give the "rx" permission to the other group. (750 -> 755)
 chmod 755 /opt/usr/share/live_magazine
+
 chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine/log
 chmod 750 /opt/usr/share/live_magazine/log
+
 chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine/reader
 chmod 750 /opt/usr/share/live_magazine/reader
+
 chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine/always
 chmod 750 /opt/usr/share/live_magazine/always
+
 chown ${SYSTEM}:${APP_GID} /opt/usr/share/live_magazine/widget.lck
 chmod 770 /opt/usr/share/live_magazine/widget.lck
-chown ${SYSTEM}:${APP_GID} /opt/dbspace/.widget.db
-chmod 644 /opt/dbspace/.widget.db
-chown ${SYSTEM}:${APP_GID} /opt/dbspace/.widget.db-journal
-chmod 644 /opt/dbspace/.widget.db-journal
 mv /opt/usr/share/live_magazine/widget.lck /opt/usr/share/live_magazine/.widget.lck
 
+chown ${SYSTEM}:${APP_GID} %{_prefix}/dbspace/.widget.db
+chmod 644 %{_prefix}/dbspace/.widget.db
+chown ${SYSTEM}:${APP_GID} /opt/dbspace/.widget.db-journal
+chmod 644 %{_prefix}/dbspace/.widget.db-journal
 
-
-
+# SYSTEM_UID?
+chown ${APP_UID}:${APP_GID} /usr/dbspace/.widget.db
+chmod 640 /usr/dbspace/.widget.db
+chown ${APP_UID}:${APP_GID} /usr/dbspace/.widget.db-journal
+chmod 640 /usr/dbspace/.widget.db-journal
 
 echo "Successfully installed. Please start a daemon again manually"
 
 %files -n %{name}
 %manifest %{name}.manifest
 %defattr(-,system,system,-)
-#%caps(cap_chown,cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_nice+ep) %{_bindir}/%{name}
+#%caps(cap_chown,cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_nice+ep) %{_prefix}/bin/%{name}
 %{_prefix}/lib/systemd/system/multi-user.target.wants/%{name}.service
 %{_prefix}/lib/systemd/system/%{name}.service
 %{_prefix}/lib/systemd/system/%{name}.target
+%{_prefix}/bin
 #%{_libdir}/systemd/system/%{name}-client.socket
 #%{_libdir}/systemd/system/%{name}-provider.socket
 #%{_libdir}/systemd/system/%{name}-service.socket
@@ -209,6 +217,6 @@ echo "Successfully installed. Please start a daemon again manually"
 /opt/etc/dump.d/module.d/dump_widget.sh
 #%defattr(-,owner,users,-)
 /opt/usr/share/live_magazine/*
-/opt/dbspace/.widget.db*
+%{_prefix}/dbspace/.widget.db*
 
 # End of a file
