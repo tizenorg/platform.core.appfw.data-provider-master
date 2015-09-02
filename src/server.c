@@ -204,15 +204,21 @@ static char *is_valid_slave(pid_t pid, const char *abi, const char *provider_pkg
 		return converted_provider_pkgname;
 	}
 
+	if (!provider_pkgname) {
+		DbgPrint("provider_pkgname is NULL (%s)\n", pid_pkgname);
+		return NULL;
+	}
+
 	if (!strcmp(abi_pkgname, pid_pkgname)) {
 		/*!
 		 * This request is comes from predefined service provider.
 		 * In this case, we should believe its request.
 		 */
+		DbgPrint("Provider pkgname[%s]\n", provider_pkgname);
 		return strdup(provider_pkgname);
 	} else if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
 		DbgPrint("Debug mode is enabled, use the %s as a widget_id\n", provider_pkgname);
-		return provider_pkgname ? strdup(provider_pkgname) : NULL;
+		return strdup(provider_pkgname);
 	}
 
 	/*!
@@ -627,7 +633,7 @@ static int key_event_widget_route_cb(enum event_state state, struct event_data *
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
-	packet = packet_create_noack((const char *)&cmd, "ssdi", package_name(pkg), instance_id(inst), event_info->tv, event_info->keycode);
+	packet = packet_create_noack((const char *)&cmd, "ssdii", package_name(pkg), instance_id(inst), event_info->tv, event_info->keycode, event_info->slot);
 	if (!packet) {
 		return WIDGET_ERROR_FAULT;
 	}
@@ -672,7 +678,7 @@ static int mouse_event_widget_route_cb(enum event_state state, struct event_data
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
-	packet = packet_create_noack((const char *)&cmd, "ssdiiidd", package_name(pkg), instance_id(inst), event_info->tv, event_info->x, event_info->y, (int)event_info->source, event_info->ratio_w, event_info->ratio_h);
+	packet = packet_create_noack((const char *)&cmd, "ssdiiiddi", package_name(pkg), instance_id(inst), event_info->tv, event_info->x, event_info->y, (int)event_info->source, event_info->ratio_w, event_info->ratio_h, event_info->slot);
 	if (!packet) {
 		return WIDGET_ERROR_FAULT;
 	}
@@ -746,15 +752,15 @@ static int mouse_event_widget_consume_cb(enum event_state state, struct event_da
 	 */
 	switch (state) {
 	case EVENT_STATE_ACTIVATE:
-		script_handler_update_pointer(script, event_info->x * event_info->ratio_w, event_info->y * event_info->ratio_h, 1);
+		script_handler_update_pointer(script, event_info->slot, event_info->x * event_info->ratio_w, event_info->y * event_info->ratio_h, 1);
 		(void)script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_DOWN, timestamp);
 		break;
 	case EVENT_STATE_ACTIVATED:
-		script_handler_update_pointer(script, event_info->x * event_info->ratio_w, event_info->y * event_info->ratio_h, -1);
+		script_handler_update_pointer(script, event_info->slot, event_info->x * event_info->ratio_w, event_info->y * event_info->ratio_h, -1);
 		(void)script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_MOVE, timestamp);
 		break;
 	case EVENT_STATE_DEACTIVATE:
-		script_handler_update_pointer(script, event_info->x * event_info->ratio_w, event_info->y * event_info->ratio_h, 0);
+		script_handler_update_pointer(script, event_info->slot, event_info->x * event_info->ratio_w, event_info->y * event_info->ratio_h, 0);
 		(void)script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_UP, timestamp);
 		break;
 	default:
@@ -846,7 +852,7 @@ static int mouse_event_gbar_route_cb(enum event_state state, struct event_data *
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
-	packet = packet_create_noack((const char *)&cmd, "ssdiiidd", package_name(pkg), instance_id(inst), event_info->tv, event_info->x, event_info->y, (int)event_info->source, event_info->ratio_w, event_info->ratio_h);
+	packet = packet_create_noack((const char *)&cmd, "ssdiiiddi", package_name(pkg), instance_id(inst), event_info->tv, event_info->x, event_info->y, (int)event_info->source, event_info->ratio_w, event_info->ratio_h, event_info->slot);
 	if (!packet) {
 		return WIDGET_ERROR_FAULT;
 	}
@@ -921,15 +927,15 @@ static int mouse_event_gbar_consume_cb(enum event_state state, struct event_data
 
 	switch (state) {
 	case EVENT_STATE_ACTIVATE:
-		script_handler_update_pointer(script, event_info->x * event_info->ratio_w, event_info->y * event_info->ratio_h, 1);
+		script_handler_update_pointer(script, event_info->slot, event_info->x * event_info->ratio_w, event_info->y * event_info->ratio_h, 1);
 		(void)script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_DOWN, timestamp);
 		break;
 	case EVENT_STATE_ACTIVATED:
-		script_handler_update_pointer(script, event_info->x * event_info->ratio_w, event_info->y * event_info->ratio_h, -1);
+		script_handler_update_pointer(script, event_info->slot, event_info->x * event_info->ratio_w, event_info->y * event_info->ratio_h, -1);
 		(void)script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_MOVE, timestamp);
 		break;
 	case EVENT_STATE_DEACTIVATE:
-		script_handler_update_pointer(script, event_info->x * event_info->ratio_w, event_info->y * event_info->ratio_h, 0);
+		script_handler_update_pointer(script, event_info->slot, event_info->x * event_info->ratio_w, event_info->y * event_info->ratio_h, 0);
 		(void)script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_UP, timestamp);
 		break;
 	default:
@@ -1642,6 +1648,7 @@ static struct packet *client_gbar_mouse_enter(pid_t pid, int handle, const struc
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -1650,8 +1657,8 @@ static struct packet *client_gbar_mouse_enter(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Invalid parameter\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -1673,7 +1680,7 @@ static struct packet *client_gbar_mouse_enter(pid_t pid, int handle, const struc
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x * ratio_w, y * ratio_h, -1);
+		script_handler_update_pointer(script, device, x * ratio_w, y * ratio_h, -1);
 		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_IN, timestamp);
 		ret = 0;
 	} else {
@@ -1700,6 +1707,7 @@ static struct packet *client_gbar_mouse_leave(pid_t pid, int handle, const struc
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -1708,8 +1716,8 @@ static struct packet *client_gbar_mouse_leave(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -1731,7 +1739,7 @@ static struct packet *client_gbar_mouse_leave(pid_t pid, int handle, const struc
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x * ratio_w, y * ratio_h, -1);
+		script_handler_update_pointer(script, device, x * ratio_w, y * ratio_h, -1);
 		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_OUT, timestamp);
 		ret = 0;
 	} else {
@@ -1758,6 +1766,7 @@ static struct packet *client_gbar_mouse_down(pid_t pid, int handle, const struct
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -1766,8 +1775,8 @@ static struct packet *client_gbar_mouse_down(pid_t pid, int handle, const struct
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -1789,7 +1798,7 @@ static struct packet *client_gbar_mouse_down(pid_t pid, int handle, const struct
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x * ratio_w, y * ratio_h, 1);
+		script_handler_update_pointer(script, device, x * ratio_w, y * ratio_h, 1);
 		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_DOWN, timestamp);
 		ret = 0;
 	} else {
@@ -1816,6 +1825,7 @@ static struct packet *client_gbar_mouse_up(pid_t pid, int handle, const struct p
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -1824,8 +1834,8 @@ static struct packet *client_gbar_mouse_up(pid_t pid, int handle, const struct p
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -1847,7 +1857,7 @@ static struct packet *client_gbar_mouse_up(pid_t pid, int handle, const struct p
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x * ratio_w, y * ratio_h, 0);
+		script_handler_update_pointer(script, device, x * ratio_w, y * ratio_h, 0);
 		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_UP, timestamp);
 		ret = 0;
 	} else {
@@ -1874,6 +1884,7 @@ static struct packet *client_gbar_mouse_move(pid_t pid, int handle, const struct
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -1882,8 +1893,8 @@ static struct packet *client_gbar_mouse_move(pid_t pid, int handle, const struct
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -1905,7 +1916,7 @@ static struct packet *client_gbar_mouse_move(pid_t pid, int handle, const struct
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x * ratio_w, y * ratio_h, -1);
+		script_handler_update_pointer(script, device, x * ratio_w, y * ratio_h, -1);
 		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_MOVE, timestamp);
 		ret = 0;
 	} else {
@@ -1932,6 +1943,7 @@ static struct packet *client_widget_mouse_move(pid_t pid, int handle, const stru
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -1940,8 +1952,8 @@ static struct packet *client_widget_mouse_move(pid_t pid, int handle, const stru
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -1963,7 +1975,7 @@ static struct packet *client_widget_mouse_move(pid_t pid, int handle, const stru
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x * ratio_w, y * ratio_h, -1);
+		script_handler_update_pointer(script, device, x * ratio_w, y * ratio_h, -1);
 		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_MOVE, timestamp);
 		ret = 0;
 	} else {
@@ -1985,7 +1997,7 @@ static int inst_del_cb(struct inst_info *inst, void *data)
 	 * It will calls event callbacks.
 	 * And the event callbacks will try to access the "inst"
 	 */
-	(void)event_deactivate(data, inst);
+	(void)event_deactivate(-1, data, inst);
 
 	/* Reset callback data to prevent accessing inst from event callback */
 	ret = event_reset_cbdata(data, inst, NULL);
@@ -2009,6 +2021,7 @@ static struct packet *client_gbar_key_set(pid_t pid, int handle, const struct pa
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
 	struct packet *result;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2017,8 +2030,8 @@ static struct packet *client_gbar_key_set(pid_t pid, int handle, const struct pa
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
-	if (ret != 4) {
+	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &keycode, &device);
+	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2030,7 +2043,7 @@ static struct packet *client_gbar_key_set(pid_t pid, int handle, const struct pa
 	}
 
 	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
-		ret = event_activate(0, 0, 1.0f, 1.0f, key_event_gbar_route_cb, inst);
+		ret = event_activate(device, 0, 0, 1.0f, 1.0f, key_event_gbar_route_cb, inst);
 		if (ret == WIDGET_ERROR_NONE) {
 			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
@@ -2040,7 +2053,7 @@ static struct packet *client_gbar_key_set(pid_t pid, int handle, const struct pa
 			}
 		}
 	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
-		ret = event_activate(0, 0, 1.0f, 1.0f, key_event_gbar_consume_cb, inst);
+		ret = event_activate(device, 0, 0, 1.0f, 1.0f, key_event_gbar_consume_cb, inst);
 		if (ret == WIDGET_ERROR_NONE) {
 			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
@@ -2074,6 +2087,7 @@ static struct packet *client_gbar_key_unset(pid_t pid, int handle, const struct 
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
 	struct packet *result;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2082,8 +2096,8 @@ static struct packet *client_gbar_key_unset(pid_t pid, int handle, const struct 
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
-	if (ret != 4) {
+	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &keycode, &device);
+	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2095,7 +2109,7 @@ static struct packet *client_gbar_key_unset(pid_t pid, int handle, const struct 
 	}
 
 	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
-		ret = event_deactivate(key_event_gbar_route_cb, inst);
+		ret = event_deactivate(device, key_event_gbar_route_cb, inst);
 		if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 			(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
 		}
@@ -2106,7 +2120,7 @@ static struct packet *client_gbar_key_unset(pid_t pid, int handle, const struct 
 		 }
 		 */
 	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
-		ret = event_deactivate(key_event_gbar_consume_cb, inst);
+		ret = event_deactivate(device, key_event_gbar_consume_cb, inst);
 		if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 			(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
 		}
@@ -2141,6 +2155,7 @@ static struct packet *client_widget_key_set(pid_t pid, int handle, const struct 
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
 	struct packet *result;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2149,8 +2164,8 @@ static struct packet *client_widget_key_set(pid_t pid, int handle, const struct 
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
-	if (ret != 4) {
+	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &keycode, &device);
+	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2162,7 +2177,7 @@ static struct packet *client_widget_key_set(pid_t pid, int handle, const struct 
 	}
 
 	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
-		ret = event_activate(0, 0, 1.0f, 1.0f, key_event_widget_route_cb, inst);
+		ret = event_activate(device, 0, 0, 1.0f, 1.0f, key_event_widget_route_cb, inst);
 		if (ret == WIDGET_ERROR_NONE) {
 			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
@@ -2172,7 +2187,7 @@ static struct packet *client_widget_key_set(pid_t pid, int handle, const struct 
 			}
 		}
 	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
-		ret = event_activate(0, 0, 1.0f, 1.0f, key_event_widget_consume_cb, inst);
+		ret = event_activate(device, 0, 0, 1.0f, 1.0f, key_event_widget_consume_cb, inst);
 		if (ret == WIDGET_ERROR_NONE) {
 			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
@@ -2206,6 +2221,7 @@ static struct packet *client_widget_key_unset(pid_t pid, int handle, const struc
 	struct inst_info *inst;
 	const struct pkg_info *pkg;
 	struct packet *result;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2214,8 +2230,8 @@ static struct packet *client_widget_key_unset(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdi", &pkgname, &id, &timestamp, &keycode);
-	if (ret != 4) {
+	ret = packet_get(packet, "ssdii", &pkgname, &id, &timestamp, &keycode, &device);
+	if (ret != 5) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2227,7 +2243,7 @@ static struct packet *client_widget_key_unset(pid_t pid, int handle, const struc
 	}
 
 	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
-		ret = event_deactivate(key_event_widget_route_cb, inst);
+		ret = event_deactivate(device, key_event_widget_route_cb, inst);
 		if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 			(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
 		}
@@ -2238,7 +2254,7 @@ static struct packet *client_widget_key_unset(pid_t pid, int handle, const struc
 		 }
 		 */
 	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
-		ret = event_deactivate(key_event_widget_consume_cb, inst);
+		ret = event_deactivate(device, key_event_widget_consume_cb, inst);
 		if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 			(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
 		}
@@ -2276,6 +2292,7 @@ static struct packet *client_widget_mouse_set(pid_t pid, int handle, const struc
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2284,8 +2301,8 @@ static struct packet *client_widget_mouse_set(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2298,7 +2315,7 @@ static struct packet *client_widget_mouse_set(pid_t pid, int handle, const struc
 
 	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
 		if (package_direct_input(pkg) == 0 || packet_set_fd((struct packet *)packet, event_input_fd()) < 0) {
-			ret = event_activate(x, y, ratio_w, ratio_h, mouse_event_widget_route_cb, inst);
+			ret = event_activate(device, x, y, ratio_w, ratio_h, mouse_event_widget_route_cb, inst);
 			if (ret == WIDGET_ERROR_NONE) {
 				if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 					(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
@@ -2321,7 +2338,7 @@ static struct packet *client_widget_mouse_set(pid_t pid, int handle, const struc
 			}
 		}
 	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
-		ret = event_activate(x, y, ratio_w, ratio_h, mouse_event_widget_consume_cb, inst);
+		ret = event_activate(device, x, y, ratio_w, ratio_h, mouse_event_widget_consume_cb, inst);
 		if (ret == WIDGET_ERROR_NONE) {
 			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
@@ -2352,6 +2369,7 @@ static struct packet *client_widget_mouse_unset(pid_t pid, int handle, const str
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2360,8 +2378,8 @@ static struct packet *client_widget_mouse_unset(pid_t pid, int handle, const str
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2375,9 +2393,9 @@ static struct packet *client_widget_mouse_unset(pid_t pid, int handle, const str
 	if (package_widget_type(pkg) == WIDGET_TYPE_BUFFER) {
 		if (package_direct_input(pkg) == 0) {
 			/* Forcely update the X,Y position using viewer's */
-			event_set_mouse_xy(x, y, ratio_w, ratio_h, timestamp);
+			event_set_mouse_xy(device, x, y, ratio_w, ratio_h, timestamp);
 
-			ret = event_deactivate(mouse_event_widget_route_cb, inst);
+			ret = event_deactivate(device, mouse_event_widget_route_cb, inst);
 			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
 			}
@@ -2402,9 +2420,9 @@ static struct packet *client_widget_mouse_unset(pid_t pid, int handle, const str
 		}
 	} else if (package_widget_type(pkg) == WIDGET_TYPE_SCRIPT) {
 		/* Forcely update the X,Y position using viewer's */
-		event_set_mouse_xy(x, y, ratio_w, ratio_h, timestamp);
+		event_set_mouse_xy(device, x, y, ratio_w, ratio_h, timestamp);
 
-		ret = event_deactivate(mouse_event_widget_consume_cb, inst);
+		ret = event_deactivate(device, mouse_event_widget_consume_cb, inst);
 		if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 			(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
 		}
@@ -2436,6 +2454,7 @@ static struct packet *client_gbar_mouse_set(pid_t pid, int handle, const struct 
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2444,8 +2463,8 @@ static struct packet *client_gbar_mouse_set(pid_t pid, int handle, const struct 
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2458,7 +2477,7 @@ static struct packet *client_gbar_mouse_set(pid_t pid, int handle, const struct 
 
 	if (package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
 		if (package_direct_input(pkg) == 0 || packet_set_fd((struct packet *)packet, event_input_fd()) < 0) {
-			ret = event_activate(x, y, ratio_w, ratio_h, mouse_event_gbar_route_cb, inst);
+			ret = event_activate(device, x, y, ratio_w, ratio_h, mouse_event_gbar_route_cb, inst);
 			if (ret == WIDGET_ERROR_NONE) {
 				if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 					(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
@@ -2481,7 +2500,7 @@ static struct packet *client_gbar_mouse_set(pid_t pid, int handle, const struct 
 			}
 		}
 	} else if (package_gbar_type(pkg) == GBAR_TYPE_SCRIPT) {
-		ret = event_activate(x, y, ratio_w, ratio_h, mouse_event_gbar_consume_cb, inst);
+		ret = event_activate(device, x, y, ratio_w, ratio_h, mouse_event_gbar_consume_cb, inst);
 		if (ret == WIDGET_ERROR_NONE) {
 			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_ON);
@@ -2513,6 +2532,7 @@ static struct packet *client_widget_mouse_on_scroll(pid_t pid, int handle, const
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2521,8 +2541,8 @@ static struct packet *client_widget_mouse_on_scroll(pid_t pid, int handle, const
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2544,7 +2564,7 @@ static struct packet *client_widget_mouse_on_scroll(pid_t pid, int handle, const
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x * ratio_w, y * ratio_h, -1);
+		script_handler_update_pointer(script, device, x * ratio_w, y * ratio_h, -1);
 		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_ON_SCROLL, timestamp);
 		ret = 0;
 	} else {
@@ -2571,6 +2591,7 @@ static struct packet *client_widget_mouse_off_scroll(pid_t pid, int handle, cons
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2579,8 +2600,8 @@ static struct packet *client_widget_mouse_off_scroll(pid_t pid, int handle, cons
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2602,7 +2623,7 @@ static struct packet *client_widget_mouse_off_scroll(pid_t pid, int handle, cons
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x * ratio_w, y * ratio_h, -1);
+		script_handler_update_pointer(script, device, x * ratio_w, y * ratio_h, -1);
 		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_OFF_SCROLL, timestamp);
 		ret = 0;
 	} else {
@@ -2629,6 +2650,7 @@ static struct packet *client_widget_mouse_on_hold(pid_t pid, int handle, const s
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2637,8 +2659,8 @@ static struct packet *client_widget_mouse_on_hold(pid_t pid, int handle, const s
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2660,7 +2682,7 @@ static struct packet *client_widget_mouse_on_hold(pid_t pid, int handle, const s
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x * ratio_w, y * ratio_h, -1);
+		script_handler_update_pointer(script, device, x * ratio_w, y * ratio_h, -1);
 		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_ON_HOLD, timestamp);
 		ret = 0;
 	} else {
@@ -2687,6 +2709,7 @@ static struct packet *client_widget_mouse_off_hold(pid_t pid, int handle, const 
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2695,8 +2718,8 @@ static struct packet *client_widget_mouse_off_hold(pid_t pid, int handle, const 
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2718,7 +2741,7 @@ static struct packet *client_widget_mouse_off_hold(pid_t pid, int handle, const 
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x * ratio_w, y * ratio_h, -1);
+		script_handler_update_pointer(script, device, x * ratio_w, y * ratio_h, -1);
 		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_OFF_HOLD, timestamp);
 		ret = 0;
 	} else {
@@ -2745,6 +2768,7 @@ static struct packet *client_gbar_mouse_on_scroll(pid_t pid, int handle, const s
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2753,8 +2777,8 @@ static struct packet *client_gbar_mouse_on_scroll(pid_t pid, int handle, const s
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2776,7 +2800,7 @@ static struct packet *client_gbar_mouse_on_scroll(pid_t pid, int handle, const s
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x * ratio_w, y * ratio_h, -1);
+		script_handler_update_pointer(script, device, x * ratio_w, y * ratio_h, -1);
 		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_ON_SCROLL, timestamp);
 		ret = 0;
 	} else {
@@ -2803,6 +2827,7 @@ static struct packet *client_gbar_mouse_off_scroll(pid_t pid, int handle, const 
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2811,8 +2836,8 @@ static struct packet *client_gbar_mouse_off_scroll(pid_t pid, int handle, const 
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2834,7 +2859,7 @@ static struct packet *client_gbar_mouse_off_scroll(pid_t pid, int handle, const 
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x * ratio_w, y * ratio_h, -1);
+		script_handler_update_pointer(script, device, x * ratio_w, y * ratio_h, -1);
 		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_OFF_SCROLL, timestamp);
 		ret = 0;
 	} else {
@@ -2861,6 +2886,7 @@ static struct packet *client_gbar_mouse_on_hold(pid_t pid, int handle, const str
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2869,8 +2895,8 @@ static struct packet *client_gbar_mouse_on_hold(pid_t pid, int handle, const str
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2892,7 +2918,7 @@ static struct packet *client_gbar_mouse_on_hold(pid_t pid, int handle, const str
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x * ratio_w, y * ratio_h, -1);
+		script_handler_update_pointer(script, device, x * ratio_w, y * ratio_h, -1);
 		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_ON_HOLD, timestamp);
 		ret = 0;
 	} else {
@@ -2919,6 +2945,7 @@ static struct packet *client_gbar_mouse_off_hold(pid_t pid, int handle, const st
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2927,8 +2954,8 @@ static struct packet *client_gbar_mouse_off_hold(pid_t pid, int handle, const st
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -2950,7 +2977,7 @@ static struct packet *client_gbar_mouse_off_hold(pid_t pid, int handle, const st
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x * ratio_w, y * ratio_h, -1);
+		script_handler_update_pointer(script, device, x * ratio_w, y * ratio_h, -1);
 		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_OFF_HOLD, timestamp);
 		ret = 0;
 	} else {
@@ -2977,6 +3004,7 @@ static struct packet *client_gbar_mouse_unset(pid_t pid, int handle, const struc
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -2985,8 +3013,8 @@ static struct packet *client_gbar_mouse_unset(pid_t pid, int handle, const struc
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -3000,9 +3028,9 @@ static struct packet *client_gbar_mouse_unset(pid_t pid, int handle, const struc
 	if (package_gbar_type(pkg) == GBAR_TYPE_BUFFER) {
 		if (package_direct_input(pkg) == 0) {
 			/* Forcely update the X,Y position using viewer's */
-			event_set_mouse_xy(x, y, ratio_w, ratio_h, timestamp);
+			event_set_mouse_xy(device, x, y, ratio_w, ratio_h, timestamp);
 
-			ret = event_deactivate(mouse_event_gbar_route_cb, inst);
+			ret = event_deactivate(device, mouse_event_gbar_route_cb, inst);
 			if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 				(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
 			}
@@ -3027,9 +3055,9 @@ static struct packet *client_gbar_mouse_unset(pid_t pid, int handle, const struc
 		}
 	} else if (package_gbar_type(pkg) == GBAR_TYPE_SCRIPT) {
 		/* Forcely update the X,Y position using viewer's */
-		event_set_mouse_xy(x, y, ratio_w, ratio_h, timestamp);
+		event_set_mouse_xy(device, x, y, ratio_w, ratio_h, timestamp);
 
-		ret = event_deactivate(mouse_event_gbar_consume_cb, inst);
+		ret = event_deactivate(device, mouse_event_gbar_consume_cb, inst);
 		if (WIDGET_CONF_SLAVE_EVENT_BOOST_OFF != WIDGET_CONF_SLAVE_EVENT_BOOST_ON) {
 			(void)slave_set_priority(package_slave(pkg), WIDGET_CONF_SLAVE_EVENT_BOOST_OFF);
 		}
@@ -3061,6 +3089,7 @@ static struct packet *client_widget_mouse_enter(pid_t pid, int handle, const str
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -3069,8 +3098,8 @@ static struct packet *client_widget_mouse_enter(pid_t pid, int handle, const str
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -3092,7 +3121,7 @@ static struct packet *client_widget_mouse_enter(pid_t pid, int handle, const str
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x * ratio_w, y * ratio_h, -1);
+		script_handler_update_pointer(script, device, x * ratio_w, y * ratio_h, -1);
 		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_IN, timestamp);
 		ret = 0;
 	} else {
@@ -3119,6 +3148,7 @@ static struct packet *client_widget_mouse_leave(pid_t pid, int handle, const str
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -3127,8 +3157,8 @@ static struct packet *client_widget_mouse_leave(pid_t pid, int handle, const str
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -3150,7 +3180,7 @@ static struct packet *client_widget_mouse_leave(pid_t pid, int handle, const str
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x * ratio_w, y * ratio_h, -1);
+		script_handler_update_pointer(script, device, x * ratio_w, y * ratio_h, -1);
 		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_OUT, timestamp);
 		ret = 0;
 	} else {
@@ -3177,6 +3207,7 @@ static struct packet *client_widget_mouse_down(pid_t pid, int handle, const stru
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -3185,8 +3216,8 @@ static struct packet *client_widget_mouse_down(pid_t pid, int handle, const stru
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -3208,7 +3239,7 @@ static struct packet *client_widget_mouse_down(pid_t pid, int handle, const stru
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x * ratio_w, y * ratio_h, 1);
+		script_handler_update_pointer(script, device, x * ratio_w, y * ratio_h, 1);
 		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_DOWN, timestamp);
 		ret = 0;
 	} else {
@@ -3235,6 +3266,7 @@ static struct packet *client_widget_mouse_up(pid_t pid, int handle, const struct
 	int source;
 	double ratio_w;
 	double ratio_h;
+	int device;
 
 	client = client_find_by_rpc_handle(handle);
 	if (!client) {
@@ -3243,8 +3275,8 @@ static struct packet *client_widget_mouse_up(pid_t pid, int handle, const struct
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h);
-	if (ret != 8) {
+	ret = packet_get(packet, "ssdiiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
 		goto out;
@@ -3266,7 +3298,7 @@ static struct packet *client_widget_mouse_up(pid_t pid, int handle, const struct
 			goto out;
 		}
 
-		script_handler_update_pointer(script, x * ratio_w, y * ratio_h, 0);
+		script_handler_update_pointer(script, device, x * ratio_w, y * ratio_h, 0);
 		script_handler_feed_event(script, WIDGET_SCRIPT_MOUSE_UP, timestamp);
 		ret = 0;
 	} else {
@@ -3321,7 +3353,7 @@ static struct packet *client_gbar_access_action(pid_t pid, int handle, const str
 			goto out;
 		}
 
-		script_handler_update_pointer(script, event.x, event.y, event.type);
+		script_handler_update_pointer(script, 0, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_ACTION, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
@@ -3382,7 +3414,7 @@ static struct packet *client_gbar_access_scroll(pid_t pid, int handle, const str
 			goto out;
 		}
 
-		script_handler_update_pointer(script, event.x, event.y, event.type);
+		script_handler_update_pointer(script, 0, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_SCROLL, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
@@ -3443,7 +3475,7 @@ static struct packet *client_gbar_access_value_change(pid_t pid, int handle, con
 			goto out;
 		}
 
-		script_handler_update_pointer(script, event.x, event.y, event.type);
+		script_handler_update_pointer(script, 0, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_VALUE_CHANGE, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
@@ -3504,7 +3536,7 @@ static struct packet *client_gbar_access_mouse(pid_t pid, int handle, const stru
 			goto out;
 		}
 
-		script_handler_update_pointer(script, event.x, event.y, event.type);
+		script_handler_update_pointer(script, 0, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_MOUSE, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
@@ -3565,7 +3597,7 @@ static struct packet *client_gbar_access_back(pid_t pid, int handle, const struc
 			goto out;
 		}
 
-		script_handler_update_pointer(script, event.x, event.y, event.type);
+		script_handler_update_pointer(script, 0, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_BACK, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
@@ -3626,7 +3658,7 @@ static struct packet *client_gbar_access_over(pid_t pid, int handle, const struc
 			goto out;
 		}
 
-		script_handler_update_pointer(script, event.x, event.y, event.type);
+		script_handler_update_pointer(script, 0, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_OVER, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
@@ -3687,7 +3719,7 @@ static struct packet *client_gbar_access_read(pid_t pid, int handle, const struc
 			goto out;
 		}
 
-		script_handler_update_pointer(script, event.x, event.y, event.type);
+		script_handler_update_pointer(script, 0, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_READ, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
@@ -3751,7 +3783,7 @@ static struct packet *client_gbar_access_enable(pid_t pid, int handle, const str
 
 		type = (event.type == 0) ? WIDGET_SCRIPT_ACCESS_DISABLE : WIDGET_SCRIPT_ACCESS_ENABLE;
 
-		script_handler_update_pointer(script, event.x, event.y, event.type);
+		script_handler_update_pointer(script, 0, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, type, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
@@ -3831,7 +3863,7 @@ static struct packet *client_gbar_access_hl(pid_t pid, int handle, const struct 
 			goto out;
 		}
 
-		script_handler_update_pointer(script, event.x, event.y, event.type);
+		script_handler_update_pointer(script, 0, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, type, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
@@ -3892,7 +3924,7 @@ static struct packet *client_gbar_access_activate(pid_t pid, int handle, const s
 			goto out;
 		}
 
-		script_handler_update_pointer(script, event.x, event.y, event.type);
+		script_handler_update_pointer(script, 0, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_ACTIVATE, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
@@ -4319,7 +4351,7 @@ static struct packet *client_widget_access_hl(pid_t pid, int handle, const struc
 			goto out;
 		}
 
-		script_handler_update_pointer(script, event.x, event.y, event.type);
+		script_handler_update_pointer(script, 0, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, type, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
@@ -4386,7 +4418,7 @@ static struct packet *client_widget_access_action(pid_t pid, int handle, const s
 			goto out;
 		}
 
-		script_handler_update_pointer(script, event.x, event.y, event.type);
+		script_handler_update_pointer(script, 0, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_ACTION, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
@@ -4453,7 +4485,7 @@ static struct packet *client_widget_access_scroll(pid_t pid, int handle, const s
 			goto out;
 		}
 
-		script_handler_update_pointer(script, event.x, event.y, event.type);
+		script_handler_update_pointer(script, 0, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_SCROLL, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
@@ -4520,7 +4552,7 @@ static struct packet *client_widget_access_value_change(pid_t pid, int handle, c
 			goto out;
 		}
 
-		script_handler_update_pointer(script, event.x, event.y, event.type);
+		script_handler_update_pointer(script, 0, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_VALUE_CHANGE, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
@@ -4587,7 +4619,7 @@ static struct packet *client_widget_access_mouse(pid_t pid, int handle, const st
 			goto out;
 		}
 
-		script_handler_update_pointer(script, event.x, event.y, event.type);
+		script_handler_update_pointer(script, 0, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_MOUSE, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
@@ -4654,7 +4686,7 @@ static struct packet *client_widget_access_back(pid_t pid, int handle, const str
 			goto out;
 		}
 
-		script_handler_update_pointer(script, event.x, event.y, event.type);
+		script_handler_update_pointer(script, 0, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_BACK, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
@@ -4721,7 +4753,7 @@ static struct packet *client_widget_access_over(pid_t pid, int handle, const str
 			goto out;
 		}
 
-		script_handler_update_pointer(script, event.x, event.y, event.type);
+		script_handler_update_pointer(script, 0, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_OVER, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
@@ -4788,7 +4820,7 @@ static struct packet *client_widget_access_read(pid_t pid, int handle, const str
 			goto out;
 		}
 
-		script_handler_update_pointer(script, event.x, event.y, event.type);
+		script_handler_update_pointer(script, 0, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_READ, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
@@ -4858,7 +4890,7 @@ static struct packet *client_widget_access_enable(pid_t pid, int handle, const s
 
 		type = (event.type == 0) ? WIDGET_SCRIPT_ACCESS_DISABLE : WIDGET_SCRIPT_ACCESS_ENABLE;
 
-		script_handler_update_pointer(script, event.x, event.y, event.type);
+		script_handler_update_pointer(script, 0, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, type, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
@@ -4920,7 +4952,7 @@ static struct packet *client_widget_access_activate(pid_t pid, int handle, const
 			goto out;
 		}
 
-		script_handler_update_pointer(script, event.x, event.y, event.type);
+		script_handler_update_pointer(script, 0, event.x, event.y, event.type);
 		ret = script_handler_feed_event(script, WIDGET_SCRIPT_ACCESS_ACTIVATE, timestamp);
 		if (ret >= 0) {
 			ret = send_delayed_access_status(inst, ret);
@@ -5719,7 +5751,7 @@ static struct packet *client_gbar_move(pid_t pid, int handle, const struct packe
 		instance_slave_set_gbar_pos(inst, x, y);
 		ix = x * instance_gbar_width(inst);
 		iy = y * instance_gbar_height(inst);
-		script_handler_update_pointer(instance_gbar_script(inst), ix, iy, 0);
+		script_handler_update_pointer(instance_gbar_script(inst), 0, ix, iy, 0);
 		ret = instance_signal_emit(inst, "pd,move", instance_id(inst), 0.0, 0.0, 0.0, 0.0, x, y, 0);
 	} else {
 		ErrPrint("Invalid GBAR type\n");
@@ -5930,7 +5962,7 @@ static struct packet *client_create_gbar(pid_t pid, int handle, const struct pac
 		ix = x * instance_gbar_width(inst);
 		iy = y * instance_gbar_height(inst);
 
-		script_handler_update_pointer(instance_gbar_script(inst), ix, iy, 0);
+		script_handler_update_pointer(instance_gbar_script(inst), 0, ix, iy, 0);
 
 		ret = instance_slave_open_gbar(inst, client);
 		if (ret == (int)WIDGET_ERROR_NONE) {
@@ -8310,7 +8342,7 @@ static struct packet *slave_hello_sync(pid_t pid, int handle, const struct packe
 
 			handle = item->handle;
 
-			if (dead_callback_del(handle, delete_ctx_cb) != item) {
+			if (dead_callback_del(handle, delete_ctx_cb, item) != item) {
 				ErrPrint("Dead callback is not valid\n");
 			}
 
@@ -8528,9 +8560,10 @@ static struct packet *service_get_content(pid_t pid, int handle, const struct pa
 		return NULL;
 	}
 
-	if (is_valid_service_requestor(pid, widget_id)) {
+	if (is_valid_service_requestor(pid, widget_id) == 0) {
 		ErrPrint("Invalid service requestor: %d %s\n", pid, widget_id);
-		return NULL;
+		result = packet_create_reply(packet, "is", WIDGET_ERROR_PERMISSION_DENIED, "?");
+		return result;
 	}
 
 	inst = package_find_instance_by_id(widget_id, inst_id);
@@ -8560,7 +8593,8 @@ static struct packet *service_get_inst_list(pid_t pid, int handle, const struct 
 
 	if (is_valid_service_requestor(pid, widget_id) == 0) {
 		ErrPrint("Invalid requestor: %d %s\n", pid, widget_id);
-		return NULL;
+		result = packet_create_reply(packet, "iis", WIDGET_ERROR_PERMISSION_DENIED, 0, NULL);
+		return result;
 	}
 
 	pkg = package_find(widget_id);
@@ -9138,6 +9172,57 @@ out:
 
 static struct packet *widget_mgr_slave_ctrl(pid_t pid, int handle, const struct packet *packet)
 {
+	char *pkgname;
+	char *id;
+	int cmd;
+	int value;
+	int packet_cmd;
+	struct widget_mgr *mgr;
+	struct inst_info *inst;
+	struct pkg_info *info;
+	struct packet *ctrl_packet;
+
+	if (packet_get(packet, "ssii", &pkgname, &id, &cmd, &value) != 4) {
+		ErrPrint("Invalid argument\n");
+		goto out;
+	}
+
+	mgr = widget_mgr_find_by_pid(pid);
+	if (!mgr) {
+		ErrPrint("Invalid request\n");
+		goto out;
+	}
+
+	switch (cmd) {
+	case WIDGET_CTRL_MODE_DUMP_FRAME:
+		inst = package_find_instance_by_id(pkgname, id);
+		if (!inst) {
+			ErrPrint("Instance not found: %s\n", id);
+			goto out;
+		}
+
+		info = instance_package(inst);
+		if (!info) {
+			ErrPrint("Unable to get pkginfo\n");
+			goto out;
+		}
+
+		packet_cmd = CMD_CTRL_MODE;
+		ctrl_packet = packet_create_noack((const char *)&packet_cmd, "ssii", pkgname, id, cmd, value);
+		if (ctrl_packet) {
+			if (slave_rpc_request_only(package_slave(info), package_name(info), ctrl_packet, 0) < 0) {
+				ErrPrint("Failed to send request\n");
+			}
+		}
+
+		DbgPrint("Dump frames: %d\n", value);
+		break;
+	default:
+		ErrPrint("Unknown command\n");
+		break;
+	}
+
+out:
 	return NULL;
 }
 

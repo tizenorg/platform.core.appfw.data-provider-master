@@ -83,7 +83,7 @@ static struct info {
 		.x = -1,
 		.y = -1,
 		.device = -1,
-		.slot = -1,
+		.slot = 0,
 		.keycode = 0,
 	},
 
@@ -91,7 +91,7 @@ static struct info {
 		.x = -1,
 		.y = -1,
 		.device = -1,
-		.slot = -1,
+		.slot = 0,
 		.keycode = 0,
 	},
 
@@ -112,6 +112,9 @@ struct event_listener {
 	int y; /* RelY */
 	double ratio_w;
 	double ratio_h;
+	int slot;
+
+	int unset_done;
 };
 
 static int event_control_fini(void);
@@ -177,6 +180,20 @@ static int push_event_item(void)
 	}
 
 	return WIDGET_ERROR_NONE;
+}
+
+static struct event_data *pop_event_item(void)
+{
+	struct event_data *item;
+
+	CRITICAL_SECTION_BEGIN(&s_info.event_list_lock);
+	item = eina_list_nth(s_info.event_list, 0);
+	if (item) {
+		s_info.event_list = eina_list_remove(s_info.event_list, item);
+	}
+	CRITICAL_SECTION_END(&s_info.event_list_lock);
+
+	return item;
 }
 
 static double current_time_get(void)
@@ -498,6 +515,7 @@ static void *event_thread_main(void *data)
 
 	s_info.event_data.x = -1;
 	s_info.event_data.y = -1;
+	s_info.event_data.slot = 0;
 
 	while (1) {
 		FD_ZERO(&set);
@@ -590,12 +608,70 @@ static int invoke_event_cb(struct event_listener *listener, struct event_data *i
 	return 0;
 }
 
-static inline void clear_all_listener_list(void)
+static inline void clear_listener(struct event_listener *listener)
 {
-	struct event_listener *listener;
 	enum event_state next_state;
 	struct event_data event_data;
 	struct event_data *p_event_data;
+
+	/**
+	 * @note
+	 * terminate this listener. with keep its event state (DOWN -> MOVE -> UP)
+	 */
+	while (listener) {
+		DbgPrint("listener[%p] prev[%x] state[%x]\n", listener, listener->prev_state, listener->state);
+
+		switch (listener->state) {
+		case EVENT_STATE_ACTIVATE:
+			p_event_data = &s_info.event_data;
+			next_state = EVENT_STATE_ACTIVATED;
+			break;
+		case EVENT_STATE_ACTIVATED:
+			p_event_data = &s_info.event_data;
+			next_state = EVENT_STATE_DEACTIVATE;
+			break;
+		case EVENT_STATE_DEACTIVATE:
+			memcpy(&event_data, &s_info.event_data, sizeof(event_data));
+			p_event_data = &event_data;
+
+			if (listener->prev_state == EVENT_STATE_ACTIVATE) {
+				/* There is no move event. we have to emulate it */
+				DbgPrint ("Let's emulate move event (%dx%d)\n", p_event_data->x, p_event_data->y);
+				listener->state = EVENT_STATE_ACTIVATE;
+				next_state = EVENT_STATE_ACTIVATED;
+			} else {
+				next_state = EVENT_STATE_DEACTIVATED;
+			}
+			break;
+		case EVENT_STATE_DEACTIVATED:
+		default:
+			s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
+			DbgFree(listener);
+			listener = NULL;
+			continue;
+		}
+
+		p_event_data->slot = listener->slot;
+		if (invoke_event_cb(listener, p_event_data)) {
+			/**
+			 * @note
+			 * listener is deleted.
+			 */
+			listener = NULL;
+			continue;
+		}
+
+		/*!
+		 * Changing state of listener will affect to the event collecting thread.
+		 */
+		listener->prev_state = listener->state;
+		listener->state = next_state;
+	}
+}
+
+static inline void clear_all_listener_list(void)
+{
+	struct event_listener *listener;
 	Eina_List *l;
 	Eina_List *n;
 
@@ -606,50 +682,8 @@ static inline void clear_all_listener_list(void)
 		DbgPrint("Use skipped event: %dx%d\n", s_info.skipped_event_data.x, s_info.skipped_event_data.y);
 	}
 
-	while (s_info.event_listener_list) {
-		EINA_LIST_FOREACH_SAFE(s_info.event_listener_list, l, n, listener) {
-
-			DbgPrint("listener[%p] prev[%x] state[%x]\n", listener, listener->prev_state, listener->state);
-
-			switch (listener->state) {
-			case EVENT_STATE_ACTIVATE:
-				p_event_data = &s_info.event_data;
-				next_state = EVENT_STATE_ACTIVATED;
-				break;
-			case EVENT_STATE_ACTIVATED:
-				p_event_data = &s_info.event_data;
-				next_state = EVENT_STATE_DEACTIVATE;
-				break;
-			case EVENT_STATE_DEACTIVATE:
-				memcpy(&event_data, &s_info.event_data, sizeof(event_data));
-				p_event_data = &event_data;
-
-				if (listener->prev_state == EVENT_STATE_ACTIVATE) {
-					/* There is no move event. we have to emulate it */
-					DbgPrint ("Let's emulate move event (%dx%d)\n", p_event_data->x, p_event_data->y);
-					listener->state = EVENT_STATE_ACTIVATE;
-					next_state = EVENT_STATE_ACTIVATED;
-				} else {
-					next_state = EVENT_STATE_DEACTIVATED;
-				}
-				break;
-			case EVENT_STATE_DEACTIVATED:
-			default:
-				s_info.event_listener_list = eina_list_remove(s_info.event_listener_list, listener);
-				DbgFree(listener);
-				continue;
-			}
-
-			if (invoke_event_cb(listener, p_event_data)) {
-				continue;
-			}
-
-			/*!
-			 * Changing state of listener will affect to the event collecting thread.
-			 */
-			listener->prev_state = listener->state;
-			listener->state = next_state;
-		}
+	EINA_LIST_FOREACH_SAFE(s_info.event_listener_list, l, n, listener) {
+		clear_listener(listener);
 	}
 }
 
@@ -719,19 +753,21 @@ static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 		}
 	}
 
-	CRITICAL_SECTION_BEGIN(&s_info.event_list_lock);
-	item = eina_list_nth(s_info.event_list, 0);
-	if (item) {
-		s_info.event_list = eina_list_remove(s_info.event_list, item);
-	}
-	CRITICAL_SECTION_END(&s_info.event_list_lock);
-
+	item = pop_event_item();
 	if (!item) {
 		ErrPrint("There is no remained event\n");
 		return ECORE_CALLBACK_RENEW;
 	}
 
 	EINA_LIST_FOREACH_SAFE(s_info.event_listener_list, l, n, listener) {
+		if (item->slot != listener->slot) {
+			continue;
+		}
+
+		if (item->device == -1) {
+			DbgPrint("Touch released (%d) listener state(%x)\n", item->slot, listener->state);
+		}
+
 		switch (listener->state) {
 		case EVENT_STATE_ACTIVATE:
 			if (compare_timestamp(listener, item) > 0) {
@@ -743,6 +779,23 @@ static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 			break;
 		case EVENT_STATE_DEACTIVATE:
 			if (compare_timestamp(listener, item) < 0) {
+				if (listener->unset_done == 1) {
+					/**
+					 * @note
+					 * in case of the multi=touch,
+					 * The thread will not be terminated soon.
+					 * in this case, we should send UP event and destroy listener properly.
+					 */
+					clear_listener(listener);
+					/**
+					 * @note
+					 * Listener will be deleted.
+					 * But event_item which is related with this listener can be remained.
+					 * And it will be deleted soon.
+					 */
+					continue;
+				}
+
 				/* Consuming all events occurred while activating this listener */
 				state = listener->prev_state;
 				listener->prev_state = listener->state;
@@ -759,12 +812,16 @@ static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 				}
 
 				if (invoke_event_cb(listener, item) == 1) {
-					/* listener is deleted */
+					/**
+					 * @note
+					 * listener is deleted
+					 */
 					continue;
 				}
 
 				if (listener->state == EVENT_STATE_ACTIVATE) {
 					/**
+					 * @note
 					 * We are already jumped into the DEACTIVATE state
 					 * But the state is ACTIVATE, it means, we forcely chnaged it from LINE 747
 					 * We successfully sent the DOWN event.
@@ -782,7 +839,10 @@ static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 				memcpy(&s_info.skipped_event_data, item, sizeof(s_info.skipped_event_data));
 			}
 
-			/* Do not terminate this listener, until this mets EVENT_EXIT */
+			/**
+			 * @note
+			 * Do not terminate this listener, until this mets EVENT_EXIT
+			 */
 			continue;
 		case EVENT_STATE_ACTIVATED:
 			if (compare_timestamp(listener, item) > 0) {
@@ -805,6 +865,10 @@ static Eina_Bool event_read_cb(void *data, Ecore_Fd_Handler *handler)
 		}
 
 		if (invoke_event_cb(listener, item) == 1) {
+			/**
+			 * @note
+			 * listener is deleted.
+			 */
 			continue;
 		}
 
@@ -963,14 +1027,14 @@ int event_deactivate_thread(enum event_handler_activate_type activate_type)
 /*!
  * x, y is the starting point.
  */
-HAPI int event_activate(int x, int y, double ratio_w, double ratio_h, int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data)
+HAPI int event_activate(int slot, int x, int y, double ratio_w, double ratio_h, int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data)
 {
 	struct event_listener *listener;
 	int ret = WIDGET_ERROR_NONE;
 	Eina_List *l;
 
 	EINA_LIST_FOREACH(s_info.event_listener_list, l, listener) {
-		if (listener->event_cb == event_cb && listener->cbdata == data) {
+		if (listener->event_cb == event_cb && listener->cbdata == data && listener->slot == slot) {
 			ErrPrint("Already registered\n");
 			return WIDGET_ERROR_ALREADY_EXIST;
 		}
@@ -993,6 +1057,8 @@ HAPI int event_activate(int x, int y, double ratio_w, double ratio_h, int (*even
 	listener->y = y;
 	listener->ratio_w = ratio_w;
 	listener->ratio_h = ratio_h;
+	listener->slot = slot;
+	listener->unset_done = 0;
 
 	if (s_info.event_handler_activated == EVENT_HANDLER_DEACTIVATED) {
 		/*!
@@ -1027,7 +1093,7 @@ HAPI int event_input_fd(void)
 	return s_info.handle;
 }
 
-HAPI int event_deactivate(int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data)
+HAPI int event_deactivate(int slot, int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data)
 {
 	struct event_listener *listener = NULL;
 	struct event_listener *item;
@@ -1035,7 +1101,7 @@ HAPI int event_deactivate(int (*event_cb)(enum event_state state, struct event_d
 	int keep_thread = 0;
 
 	EINA_LIST_FOREACH(s_info.event_listener_list, l, item) {
-		if (item->event_cb == event_cb && item->cbdata == data) {
+		if (item->event_cb == event_cb && item->cbdata == data && (slot < 0 || item->slot == slot)) {
 			switch (item->state) {
 			case EVENT_STATE_ACTIVATE:
 			case EVENT_STATE_ACTIVATED:
@@ -1066,6 +1132,14 @@ HAPI int event_deactivate(int (*event_cb)(enum event_state state, struct event_d
 
 	if (keep_thread) {
 		DbgPrint("Keep thread\n");
+		listener->unset_done = 1;
+
+		/**
+		 * @note
+		 * This will invoke the event_read_cb callback with fake event data.
+		 * At that time we should terminate this listener.
+		 */
+		push_event_item();
 		return WIDGET_ERROR_NONE;
 	}
 
@@ -1102,7 +1176,7 @@ HAPI int event_is_activated(void)
 	return s_info.handle >= 0;
 }
 
-HAPI void event_set_mouse_xy(int x, int y, double ratio_w, double ratio_h, double timestamp)
+HAPI void event_set_mouse_xy(int slot, int x, int y, double ratio_w, double ratio_h, double timestamp)
 {
 	s_info.event_data.x = x;
 	s_info.event_data.y = y;
@@ -1110,6 +1184,7 @@ HAPI void event_set_mouse_xy(int x, int y, double ratio_w, double ratio_h, doubl
 	s_info.event_data.ratio_h = ratio_h;
 	s_info.event_data.tv = timestamp;
 	s_info.event_data.source = INPUT_EVENT_SOURCE_VIEWER;
+	s_info.event_data.slot = slot;
 	/**
 	 * Don't touch the timestamp_updated variable.
 	 * if we toggle it, the input thread will not be terminated correctly. SEE LINE: 537

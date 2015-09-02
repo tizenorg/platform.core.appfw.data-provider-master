@@ -1773,15 +1773,16 @@ HAPI char *package_meta_tag(const char *appid, const char *meta_tag)
 		return NULL;
 	}
 
-/**
- * This is not supported from Tizen 3.0 yet.
- *
+	/**
+	 * @TODO
+	 * Need to find replacement of this API
+	 *
 	status = pkgmgrinfo_appinfo_get_metadata_value(handle, meta_tag, &value);
 	if (status != PMINFO_R_OK) {
 		pkgmgrinfo_appinfo_destroy_appinfo(handle);
 		return NULL;
 	}
-*/
+	*/
 
 	if (value && value[0] != '\0') {
 		ret = strdup(value);

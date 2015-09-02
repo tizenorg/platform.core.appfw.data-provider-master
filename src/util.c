@@ -133,19 +133,6 @@ HAPI char *util_slavename(void)
 	return strdup(slavename);
 }
 
-HAPI const char *util_basename(const char *name)
-{
-	int length;
-	length = name ? strlen(name) : 0;
-	if (!length) {
-		return ".";
-	}
-
-	while (--length > 0 && name[length] != '/');
-
-	return length <= 0 ? name : (name + length + (name[length] == '/'));
-}
-
 /*!
  * Return size of stroage in Bytes unit.
  */
@@ -316,14 +303,12 @@ HAPI void util_setup_log_disk(void)
 			ErrPrint("chown: %d\n", errno);
 		}
 
-		if (!!DATA_SHARE_LABEL) {
-			ret = smack_setlabel(WIDGET_CONF_LOG_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
-			if (ret != 0) {
-				ErrPrint("Failed to set SMACK for %s (%d)\n", WIDGET_CONF_LOG_PATH, ret);
-			} else {
-				ret = smack_setlabel(WIDGET_CONF_LOG_PATH, "1", SMACK_LABEL_TRANSMUTE);
-				DbgPrint("[%s] is successfully created (t: %d)\n", WIDGET_CONF_LOG_PATH, ret);
-			}
+		ret = smack_setlabel(WIDGET_CONF_LOG_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
+		if (ret != 0) {
+			ErrPrint("Failed to set SMACK for %s (%d)\n", WIDGET_CONF_LOG_PATH, ret);
+		} else {
+			ret = smack_setlabel(WIDGET_CONF_LOG_PATH, "1", SMACK_LABEL_TRANSMUTE);
+			DbgPrint("[%s] is successfully created (t: %d)\n", WIDGET_CONF_LOG_PATH, ret);
 		}
 	}
 }

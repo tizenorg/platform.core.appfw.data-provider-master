@@ -44,6 +44,9 @@
 
 #define CUR_VER 5
 #define DEFAULT_CATEGORY	"http://tizen.org/category/default"
+#define SCHEME_HTTP	"http://"
+#define SCHEME_HTTPS	"https://"
+#define SCHEME_FILE	"file://"
 
 #if !defined(WIDGET_COUNT_OF_SIZE_TYPE)
 #define WIDGET_COUNT_OF_SIZE_TYPE 13
@@ -222,6 +225,23 @@ static struct {
 	.dbfile = "/opt/dbspace/.widget.db",
 	.handle = NULL,
 };
+
+static int is_scheme(const char *path)
+{
+	if (!strncasecmp(path, SCHEME_HTTP, strlen(SCHEME_HTTP))) {
+		return 1;
+	}
+
+	if (!strncasecmp(path, SCHEME_HTTPS, strlen(SCHEME_HTTPS))) {
+		return 1;
+	}
+
+	if (!strncasecmp(path, SCHEME_FILE, strlen(SCHEME_FILE))) {
+		return 1;
+	}
+
+	return 0;
+}
 
 static inline int next_state(int from, char ch)
 {
@@ -2617,7 +2637,9 @@ static void update_box(struct widget *widget, xmlNodePtr node)
 			if (!src) {
 				ErrPrint("strdup: %d\n", errno);
 			} else {
-				abspath((char *)widget->widget_src, (char *)src);
+				if (!is_scheme((char *)widget->widget_src)) {
+					abspath((char *)widget->widget_src, (char *)src);
+				}
 				xmlFree(widget->widget_src);
 				widget->widget_src = src;
 			}
@@ -2835,7 +2857,9 @@ static void update_glance_bar(struct widget *widget, xmlNodePtr node)
 			if (!src) {
 				ErrPrint("strdup: %d\n", errno);
 			} else {
-				abspath((char *)widget->gbar_src, (char *)src);
+				if (!is_scheme((char *)widget->widget_src)) {
+					abspath((char *)widget->gbar_src, (char *)src);
+				}
 				xmlFree(widget->gbar_src);
 				widget->gbar_src = src;
 			}
@@ -3053,15 +3077,16 @@ static int has_meta_tag(const char *appid, const char *meta_tag)
 		return 0;
 	}
 
-/**
- * Not supported from tizen 3.0 yet
- *
+	/**
+	 * @todo
+	 * Need to find a replacement of this API
+	 *
 	ret = pkgmgrinfo_appinfo_get_metadata_value(handle, meta_tag, &value);
 	if (ret != PMINFO_R_OK) {
 		pkgmgrinfo_appinfo_destroy_appinfo(handle);
 		return 0;
 	}
-*/
+	*/
 
 	ret = value && value[0] != '\0';
 
@@ -3178,8 +3203,8 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 		xmlFree(tmp);
 	}
 
-	if (xmlHasProp(node, (const xmlChar *)"direct_input")) {
-		tmp = xmlGetProp(node, (const xmlChar *)"direct_input");
+	if (xmlHasProp(node, (const xmlChar *)"direct-input")) {
+		tmp = xmlGetProp(node, (const xmlChar *)"direct-input");
 		widget->direct_input = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
 		xmlFree(tmp);
 	}
@@ -3452,6 +3477,13 @@ int db_install_watchapp(xmlNodePtr node, const char *appid)
 	widget->default_touch_effect = 0;
 	widget->default_need_frame = 0;
 	widget->size_list = WIDGET_SIZE_TYPE_2x2;
+
+	/**
+	 * @note
+	 * In case of the watch,
+	 * It only can be created one instance at a time.
+	 */
+	widget->count = 1;
 
 	if (xmlHasProp(node, (const xmlChar *)"exec")) {
 		widget->libexec = xmlGetProp(node, (const xmlChar *)"exec");

@@ -565,12 +565,12 @@ EAPI int buffer_handler_unload(struct buffer_info *info)
 
 	switch (info->type) {
 	case WIDGET_FB_TYPE_FILE:
-		widget_service_destroy_lock(info->lock_info);
+		widget_service_destroy_lock(info->lock_info, 1);
 		info->lock_info = NULL;
 		ret = unload_file_buffer(info);
 		break;
 	case WIDGET_FB_TYPE_SHM:
-		widget_service_destroy_lock(info->lock_info);
+		widget_service_destroy_lock(info->lock_info, 1);
 		info->lock_info = NULL;
 		ret = unload_shm_buffer(info);
 		break;
@@ -1072,7 +1072,7 @@ static inline widget_fb_t raw_open_file(const char *filename)
 	buffer->state = WIDGET_FB_STATE_CREATED;
 	buffer->type = WIDGET_FB_TYPE_FILE;
 	buffer->refcnt = 0;
-	buffer->info = (void *)((unsigned long)off);
+	buffer->info = (void *)off;
 
 	ret = read(fd, buffer->data, off);
 	if (ret < 0) {
