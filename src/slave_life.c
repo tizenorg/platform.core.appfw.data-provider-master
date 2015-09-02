@@ -235,7 +235,7 @@ static struct slave_node *slave_deactivate(struct slave_node *slave, int no_time
 		(void)slave_rpc_disconnect(slave);
 	} else if (slave->terminate_timer) {
 		ErrPrint("Terminate timer is already fired (%d)\n", slave->pid);
-	} else if (!slave->extra_bundle_data && ((!no_timer && !slave->secured) || slave_is_app(slave)) && WIDGET_CONF_SLAVE_TERMINATE_TIME > 0.0f) {
+	} else if (!slave->extra_bundle_data && ((!no_timer && !slave->secured) || slave_is_app(slave)) && (!slave_is_watch(slave) && WIDGET_CONF_SLAVE_TERMINATE_TIME > 0.0f)) {
 		DbgPrint("Fire the terminate timer: %d (%d)\n", slave->pid, slave_is_app(slave));
 		slave->terminate_timer = ecore_timer_add(WIDGET_CONF_SLAVE_TERMINATE_TIME, terminate_timer_cb, slave);
 		if (!slave->terminate_timer) {
@@ -260,9 +260,14 @@ static struct slave_node *slave_deactivate(struct slave_node *slave, int no_time
 			}
 		}
 	} else {
-		/*!
-		 * \todo
+		/**
+		 * @todo
 		 * check the return value of the aul_terminate_pid
+		 *
+		 * @note
+		 * In case of the watch,
+		 * There is no waiting timer for termination.
+		 * Because the watch application cannot be re-used for new instance.
 		 */
 		slave->state = SLAVE_REQUEST_TO_TERMINATE;
 
@@ -786,7 +791,7 @@ static Eina_Bool relaunch_timer_cb(void *data)
 			bundle_free(param);
 
 			switch (slave->pid) {
-//			case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
+			case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
 			case AUL_R_ENOLAUNCHPAD:	/**< no launchpad */
 			case AUL_R_EILLACC:		/**< Illegal Access */
 			case AUL_R_EINVAL:		/**< Invalid argument */
@@ -806,7 +811,7 @@ static Eina_Bool relaunch_timer_cb(void *data)
 			case AUL_R_ECOMM:		/**< Comunication Error */
 			case AUL_R_ETERMINATING:	/**< application terminating */
 			case AUL_R_ECANCELED:		/**< Operation canceled */
-//			case AUL_R_EREJECTED:
+			case AUL_R_EREJECTED:
 				slave->relaunch_count--;
 
 				CRITICAL_LOG("Try relaunch again %s (%d), %d\n", slave_name(slave), slave->pid, slave->relaunch_count);
@@ -895,7 +900,7 @@ HAPI int slave_activate(struct slave_node *slave)
 		bundle_free(param);
 
 		switch (slave->pid) {
-//		case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
+		case AUL_R_EHIDDENFORGUEST:	/**< App hidden for guest mode */
 		case AUL_R_ENOLAUNCHPAD:	/**< no launchpad */
 		case AUL_R_EILLACC:		/**< Illegal Access */
 		case AUL_R_EINVAL:		/**< Invalid argument */
@@ -909,7 +914,7 @@ HAPI int slave_activate(struct slave_node *slave)
 		case AUL_R_ETERMINATING:	/**< application terminating */
 		case AUL_R_ECANCELED:		/**< Operation canceled */
 		case AUL_R_ETIMEOUT:		/**< Timeout */
-//		case AUL_R_EREJECTED:
+		case AUL_R_EREJECTED:
 			CRITICAL_LOG("Try relaunch this soon %s (%d)\n", slave_name(slave), slave->pid);
 			slave->relaunch_timer = ecore_timer_add(WIDGET_CONF_SLAVE_RELAUNCH_TIME, relaunch_timer_cb, slave);
 			if (!slave->relaunch_timer) {

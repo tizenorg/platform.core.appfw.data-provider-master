@@ -158,6 +158,7 @@ struct script_info {
 	int x;
 	int y;
 	int down;
+	int device;
 
 	unsigned int keycode;
 
@@ -1058,7 +1059,7 @@ HAPI int script_fini(void)
 	return 0;
 }
 
-HAPI int script_handler_update_pointer(struct script_info *info, int x, int y, int down)
+HAPI int script_handler_update_pointer(struct script_info *info, int device, int x, int y, int down)
 {
 	if (!info) {
 		return WIDGET_ERROR_NONE;
@@ -1066,6 +1067,7 @@ HAPI int script_handler_update_pointer(struct script_info *info, int x, int y, i
 
 	info->x = x;
 	info->y = y;
+	info->device = device;
 
 	if (down == 0) {
 		info->down = 0;
@@ -1096,6 +1098,10 @@ HAPI int script_handler_feed_event(struct script_info *info, int event, double t
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
 
+	/**
+	 * @todo
+	 * Feeds device info to the script loader.
+	 */
 	ret = info->port->feed_event(info->port_data, event, info->x, info->y, info->down, info->keycode, timestamp);
 	return ret;
 }

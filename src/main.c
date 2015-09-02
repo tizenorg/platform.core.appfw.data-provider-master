@@ -40,6 +40,7 @@
 #include <widget_service.h>
 #include <widget_service_internal.h>
 #include <widget_conf.h>
+#include <widget_util.h>
 #include <widget_abi.h>
 
 #include <com-core_packet.h>
@@ -75,6 +76,8 @@
 #define TMP_LOG_FILE "/tmp/live.log"
 FILE *__file_log_fp;
 #endif
+
+#define WIDGET_STATIC_LOCK_PATH "/opt/usr/share/live_magazine/.widget.lck"
 
 static inline int app_create(void)
 {
@@ -397,6 +400,7 @@ int main(int argc, char *argv[])
 		(void)util_unlink_files(WIDGET_CONF_READER_PATH);
 		(void)util_unlink_files(WIDGET_CONF_IMAGE_PATH);
 		(void)util_unlink_files(WIDGET_CONF_LOG_PATH);
+		(void)util_unlink_files(WIDGET_STATIC_LOCK_PATH);
 	}
 
 	util_setup_log_disk();
@@ -405,7 +409,7 @@ int main(int argc, char *argv[])
 	 * How could we care this return values?
 	 * Is there any way to print something on the screen?
 	 */
-	ret = critical_log_init(util_basename(argv[0]));
+	ret = critical_log_init(widget_util_basename(argv[0]));
 	if (ret < 0) {
 		ErrPrint("Failed to init the critical log\n");
 	}

@@ -56,14 +56,14 @@ enum event_handler_activate_type {
 extern int event_init(void);
 extern int event_fini(void);
 extern int event_input_fd(void);
-extern int event_activate(int x, int y, double ratio_w, double ratio_h, int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data);
-extern int event_deactivate(int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data);
+extern int event_activate(int device, int x, int y, double ratio_w, double ratio_h, int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data);
+extern int event_deactivate(int device, int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data);
 extern int event_is_activated(void);
 extern int event_reset_cbdata(int (*event_cb)(enum event_state state, struct event_data *event, void *data), void *data, void *new_data);
 
 extern int event_deactivate_thread(enum event_handler_activate_type activate_type);
 extern int event_activate_thread(enum event_handler_activate_type activate_type);
 
-extern void event_set_mouse_xy(int x, int y, double ratio_w, double ratio_h, double timestamp);
+extern void event_set_mouse_xy(int device, int x, int y, double ratio_w, double ratio_h, double timestamp);
 
 /* End of a file */
