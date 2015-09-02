@@ -63,4 +63,6 @@ extern int service_unregister_tcb_callback(struct service_context *svc_ctx, stru
 
 extern int service_common_send_packet_to_service(struct service_context *svc_ctx, struct tcb *tcb, struct packet *packet);
 
+extern int service_check_privilege_by_socket_fd(struct service_context *svc_ctx, int socket_fd, char *privilege);
+
 /* End of a file */

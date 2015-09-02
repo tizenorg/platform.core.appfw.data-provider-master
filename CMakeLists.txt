@@ -24,6 +24,8 @@ pkg_check_modules(pkg REQUIRED
 	libsystemd-daemon
 	libtbm
 	capi-appfw-app-manager
+	cynara-client
+	cynara-creds-socket
 )
 
 IF (LIVEBOX)

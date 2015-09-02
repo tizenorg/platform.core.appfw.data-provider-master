@@ -27,6 +27,9 @@
 
 #include <dlog.h>
 #include <Eina.h>
+#include <cynara-client.h>
+#include <cynara-creds-socket.h>
+
 #include <com-core.h>
 #if defined(HAVE_LIVEBOX)
 #include <widget_errno.h>
@@ -91,6 +94,8 @@ struct service_context {
 	Eina_List *tcb_destroy_cb_list;
 
 	int processing_service_handler;
+
+	cynara *cynara_handle;
 };
 
 struct packet_info {
@@ -112,6 +117,27 @@ struct tcb { /* Thread controll block */
 	int ctrl_pipe[PIPE_MAX];
 	pid_t pid; /*!< Keep the PID of client, if the client is remote one, this will be -1 */
 };
+
+static void _initialize_privilege_checker(struct service_context *svc_ctx)
+{
+	int ret;
+
+	/* Cynara structure init */
+	ret = cynara_initialize(&(svc_ctx->cynara_handle), NULL);
+	if (ret != CYNARA_API_SUCCESS) {
+		ErrPrint("cynara_initialize failed[%d]\n", ret);
+	}
+}
+
+static void _finish_privilege_checker(struct service_context *svc_ctx)
+{
+	int ret;
+
+	ret = cynara_finish(svc_ctx->cynara_handle);
+	if (ret != CYNARA_API_SUCCESS) {
+		ErrPrint("cynara_initialize failed[%d]\n", ret);
+	}
+}
 
 HAPI int service_common_send_packet_to_service(struct service_context *svc_ctx, struct tcb *tcb, struct packet *packet)
 {
@@ -956,6 +982,8 @@ HAPI struct service_context *service_common_create(const char *addr, const char 
 		return NULL;
 	}
 
+	_initialize_privilege_checker(svc_ctx);
+
 	status = pthread_mutex_init(&svc_ctx->packet_list_lock, NULL);
 	if (status != 0) {
 		ErrPrint("Unable to create a mutex: %d\n", status);
@@ -1017,6 +1045,8 @@ HAPI int service_common_destroy(struct service_context *svc_ctx)
 	} else {
 		DbgPrint("Thread returns: %p\n", ret);
 	}
+
+	_finish_privilege_checker(svc_ctx);
 
 	secure_socket_destroy_handle(svc_ctx->fd);
 
@@ -1258,6 +1288,55 @@ HAPI int service_common_del_timer(struct service_context *svc_ctx, struct servic
 HAPI int service_common_fd(struct service_context *ctx)
 {
 	return ctx->fd;
+}
+
+
+HAPI int service_check_privilege_by_socket_fd(struct service_context *svc_ctx, int socket_fd, char *privilege)
+{
+	int ret = 0;
+	int result = 0;
+	char *uid = NULL;
+	char *client_smack = NULL;
+
+	if (privilege != NULL) {
+
+		ret =  cynara_creds_socket_get_client(socket_fd, CLIENT_METHOD_SMACK, &client_smack);
+
+		if (ret != CYNARA_API_SUCCESS) {
+			ErrPrint("cynara_creds_socket_get_client failed [%d]", ret);
+			goto out;
+		}
+
+		ret =  cynara_creds_socket_get_user(socket_fd, USER_METHOD_UID, &uid);
+
+		if (ret != CYNARA_API_SUCCESS) {
+			ErrPrint("cynara_creds_socket_get_user failed [%d]", ret);
+			goto out;
+		}
+
+		ret = cynara_check(svc_ctx->cynara_handle, client_smack, "", uid, privilege);
+
+		if (ret == CYNARA_API_ACCESS_ALLOWED) {
+			DbgPrint("[%s] Access allowed.", privilege);
+			result = 1;
+		}
+		else {
+			DbgPrint("[%s] Access denied.[%d]", privilege, ret);
+			result = 0;
+		}
+
+	}
+
+out:
+	if (client_smack) {
+		free(client_smack);
+	}
+
+	if (uid) {
+		free(uid);
+	}
+
+	return result;
 }
 
 /* End of a file */

@@ -96,7 +96,6 @@ static inline struct tcb *get_reply_context(double seq)
 	return tcb;
 }
 
-#if defined(HAVE_SECURITY_SERVER)
 static void send_reply_packet(struct tcb *tcb, struct packet *packet, int ret)
 {
 	struct packet *reply_packet;
@@ -113,7 +112,6 @@ static void send_reply_packet(struct tcb *tcb, struct packet *packet, int ret)
 
 	packet_destroy(reply_packet);
 }
-#endif
 
 /*!
  * SERVICE THREAD
@@ -139,25 +137,22 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 		/* Need to send reply packet */
 		DbgPrint("%p REQ: Command: [%s]\n", tcb, command);
 		if (!strcmp(command, "add_shortcut_widget") || !strcmp(command, "rm_shortcut_widget")) {
-#if defined(HAVE_SECURITY_SERVER)
 			int ret;
-			ret = security_server_check_privilege_by_sockfd(tcb_fd(tcb), "data-provider-master::shortcut.widget", "w");
-			if (ret == SECURITY_SERVER_API_ERROR_ACCESS_DENIED) {
+			ret = service_check_privilege_by_socket_fd(tcb_svc_ctx(tcb), tcb_fd(tcb), "http://tizen.org/privilege/shortcut");
+			if (ret == 0) {
 				ErrPrint("SMACK:Access denied\n");
 				send_reply_packet(tcb, packet, SHORTCUT_ERROR_PERMISSION_DENIED);
 				break;
 			}
-#endif
+
 		} else if (!strcmp(command, "add_shortcut") || !strcmp(command, "rm_shortcut")) {
-#if defined(HAVE_SECURITY_SERVER)
 			int ret;
-			ret = security_server_check_privilege_by_sockfd(tcb_fd(tcb), "data-provider-master::shortcut.shortcut", "w");
-			if (ret == SECURITY_SERVER_API_ERROR_ACCESS_DENIED) {
+			ret = service_check_privilege_by_socket_fd(tcb_svc_ctx(tcb), tcb_fd(tcb), "http://tizen.org/privilege/shortcut");
+			if (ret == 0) {
 				ErrPrint("SMACK:Access denied\n");
 				send_reply_packet(tcb, packet, SHORTCUT_ERROR_PERMISSION_DENIED);
 				break;
 			}
-#endif
 		}
 
 		if (service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE) < 0) {

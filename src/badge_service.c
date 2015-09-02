@@ -60,40 +60,6 @@ struct badge_service {
 };
 
 /*!
- * FUNCTIONS to check smack permission
- */
-static int _is_valid_permission(int fd, struct badge_service *service)
-{
-	if (service->rule != NULL && service->access != NULL) {
-		/*
-		int ret;
-		ret = security_server_check_privilege_by_sockfd(fd, service->rule, service->access);
-		if (ret == SECURITY_SERVER_API_ERROR_ACCESS_DENIED) {
-			ErrPrint("SMACK:Access denied\n");
-			return 0;
-		}
-		*/
-	}
-
-	return 1;
-}
-
-static int _is_manager_permission(int fd)
-{
-	/*
-	int ret;
-	ret = security_server_check_privilege_by_sockfd(fd,
-			"data-provider-master::badge.manager", "w");
-	if (ret == SECURITY_SERVER_API_ERROR_ACCESS_DENIED) {
-		ErrPrint("SMACK:not a manager\n");
-		return 0;
-	}
-	*/
-
-	return 1;
-}
-
-/*!
  * FUNCTIONS to handle badge
  */
 static inline char *get_string(char *string)
@@ -172,7 +138,7 @@ static void _handler_delete_badge(struct tcb *tcb, struct packet *packet, void *
 		caller = get_string(caller);
 
 		if (pkgname != NULL && caller != NULL) {
-			if (_is_manager_permission(tcb_fd(tcb)) == 1) {
+			if (service_check_privilege_by_socket_fd(tcb_svc_ctx(tcb), tcb_fd(tcb), "http://tizen.org/privilege/notification") == 1) {
 				ret = badge_db_delete(pkgname, pkgname);
 			} else {
 				ret = badge_db_delete(pkgname, caller);
@@ -510,13 +476,13 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 			}
 
 #if ENABLE_BS_ACCESS_CONTROL
-			if (_is_valid_permission(tcb_fd(tcb), &(service_req_table[i])) == 1) {
+			if (service_check_privilege_by_socket_fd(tcb_svc_ctx(tcb), tcb_fd(tcb), "http://tizen.org/privilege/notification") == 1) {
 				service_req_table[i].handler(tcb, packet, data);
 			} else {
 				_handler_access_control_error(tcb, packet);
 			}
 #else
-			_is_valid_permission(tcb_fd(tcb), &(service_req_table[i]));
+			service_check_privilege_by_socket_fd(tcb_svc_ctx(tcb), tcb_fd(tcb), "http://tizen.org/privilege/notification");
 			service_req_table[i].handler(tcb, packet, data);
 #endif
 			break;

@@ -641,21 +641,6 @@ static void _permission_check_property_get(struct tcb *tcb, struct packet *packe
 	}
 }
 
-static int _persmission_check(int fd, struct noti_service *service)
-{
-	if (service->rule != NULL && service->access != NULL) {
-		/*
-		ret = security_server_check_privilege_by_sockfd(fd, service->rule, service->access);
-		if (ret == SECURITY_SERVER_API_ERROR_ACCESS_DENIED) {
-			ErrPrint("SMACK:Access denied\n");
-			return 0;
-		}
-		*/
-	}
-
-	return 1;
-}
-
 /*!
  * NOTIFICATION SERVICE INITIALIZATION
  */
@@ -843,7 +828,7 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 				continue;
 			}
 
-			if (_persmission_check(tcb_fd(tcb), &(service_req_table[i])) == 1) {
+			if (service_check_privilege_by_socket_fd(tcb_svc_ctx(tcb), tcb_fd(tcb), "http://tizen.org/privilege/notification") == 1) {
 				service_req_table[i].handler(tcb, packet, data);
 			} else {
 				if (service_req_table[i].handler_access_error != NULL) {
