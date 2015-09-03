@@ -202,15 +202,15 @@ echo "Successfully installed. Please start a daemon again manually"
 %{_prefix}/lib/systemd/system/multi-user.target.wants/%{name}.service
 %{_prefix}/lib/systemd/system/%{name}.service
 %{_prefix}/lib/systemd/system/%{name}.target
-%{_prefix}/bin
-#%{_libdir}/systemd/system/%{name}-client.socket
-#%{_libdir}/systemd/system/%{name}-provider.socket
-#%{_libdir}/systemd/system/%{name}-service.socket
-#%{_libdir}/systemd/system/%{name}-badge.socket
-#%{_libdir}/systemd/system/%{name}-notification.socket
-#%{_libdir}/systemd/system/%{name}-shortcut.socket
-#%{_libdir}/systemd/system/%{name}-utility.socket
-#%{_libdir}/systemd/system/%{name}-fd.socket
+%{_prefix}/bin/data-provider-master
+%{_prefix}/lib/systemd/system/%{name}-client.socket
+%{_prefix}/lib/systemd/system/%{name}-provider.socket
+%{_prefix}/lib/systemd/system/%{name}-service.socket
+%{_prefix}/lib/systemd/system/%{name}-badge.socket
+%{_prefix}/lib/systemd/system/%{name}-notification.socket
+%{_prefix}/lib/systemd/system/%{name}-shortcut.socket
+%{_prefix}/lib/systemd/system/%{name}-utility.socket
+%{_prefix}/lib/systemd/system/%{name}-fd.socket
 %{_datarootdir}/license/*
 %if 0%{?tizen_build_binary_release_type_eng}
 /opt/usr/devel/usr/bin/*
