@@ -3,8 +3,6 @@ SocketUser=system
 SocketGroup=system
 ListenStream=/tmp/.notification.service
 SocketMode=0666
-SmackLabelIPIn=data-provider-master::notification
-SmackLabelIPOut=@
 
 Service=data-provider-master.service
 

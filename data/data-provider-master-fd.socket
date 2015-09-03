@@ -3,8 +3,6 @@ SocketUser=system
 SocketGroup=system
 ListenStream=/tmp/.data-provider-master-fd.socket
 SocketMode=0666
-SmackLabelIPIn=data-provider-master::fd
-SmackLabelIPOut=@
 
 Service=data-provider-master.service
 
