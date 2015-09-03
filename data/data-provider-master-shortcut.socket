@@ -3,8 +3,6 @@ SocketUser=system
 SocketGroup=system
 ListenStream=/tmp/.shortcut.service
 SocketMode=0666
-SmackLabelIPIn=data-provider-master::shortcut
-SmackLabelIPOut=@
 
 Service=data-provider-master.service
 

@@ -147,8 +147,8 @@ fi
 # This SYSTEM_UID should be updated properly.
 # In the SPIN, system user id is 1000
 SYSTEM_UID=1000
-APP_UID=5000
-APP_GID=5000
+APP_UID=380
+APP_GID=0
 
 if [ ! -s /usr/dbspace/.widget.db ]; then
 	echo "DB is not exists"
@@ -178,20 +178,14 @@ chmod 750 /opt/usr/share/live_magazine/reader
 chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine/always
 chmod 750 /opt/usr/share/live_magazine/always
 
-chown ${SYSTEM}:${APP_GID} /opt/usr/share/live_magazine/widget.lck
+chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine/widget.lck
 chmod 770 /opt/usr/share/live_magazine/widget.lck
 mv /opt/usr/share/live_magazine/widget.lck /opt/usr/share/live_magazine/.widget.lck
 
-chown ${SYSTEM}:${APP_GID} %{_prefix}/dbspace/.widget.db
+chown ${APP_UID}:${APP_GID} %{_prefix}/dbspace/.widget.db
 chmod 644 %{_prefix}/dbspace/.widget.db
-chown ${SYSTEM}:${APP_GID} /opt/dbspace/.widget.db-journal
+chown ${APP_UID}:${APP_GID} /opt/dbspace/.widget.db-journal
 chmod 644 %{_prefix}/dbspace/.widget.db-journal
-
-# SYSTEM_UID?
-chown ${APP_UID}:${APP_GID} /usr/dbspace/.widget.db
-chmod 640 /usr/dbspace/.widget.db
-chown ${APP_UID}:${APP_GID} /usr/dbspace/.widget.db-journal
-chmod 640 /usr/dbspace/.widget.db-journal
 
 echo "Successfully installed. Please start a daemon again manually"
 
@@ -202,15 +196,15 @@ echo "Successfully installed. Please start a daemon again manually"
 %{_prefix}/lib/systemd/system/multi-user.target.wants/%{name}.service
 %{_prefix}/lib/systemd/system/%{name}.service
 %{_prefix}/lib/systemd/system/%{name}.target
-%{_prefix}/bin
-#%{_libdir}/systemd/system/%{name}-client.socket
-#%{_libdir}/systemd/system/%{name}-provider.socket
-#%{_libdir}/systemd/system/%{name}-service.socket
-#%{_libdir}/systemd/system/%{name}-badge.socket
-#%{_libdir}/systemd/system/%{name}-notification.socket
-#%{_libdir}/systemd/system/%{name}-shortcut.socket
-#%{_libdir}/systemd/system/%{name}-utility.socket
-#%{_libdir}/systemd/system/%{name}-fd.socket
+%{_prefix}/bin/%{name}
+%{_prefix}/lib/systemd/system/%{name}-client.socket
+%{_prefix}/lib/systemd/system/%{name}-provider.socket
+%{_prefix}/lib/systemd/system/%{name}-service.socket
+%{_prefix}/lib/systemd/system/%{name}-badge.socket
+%{_prefix}/lib/systemd/system/%{name}-notification.socket
+%{_prefix}/lib/systemd/system/%{name}-shortcut.socket
+%{_prefix}/lib/systemd/system/%{name}-utility.socket
+%{_prefix}/lib/systemd/system/%{name}-fd.socket
 %{_datarootdir}/license/*
 %if 0%{?tizen_build_binary_release_type_eng}
 /opt/usr/devel/usr/bin/*

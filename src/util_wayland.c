@@ -20,9 +20,20 @@ static struct info {
 
 int util_screen_size_get(int *width, int *height)
 {
+	int _width;
+	int _height;
+
 	if (!s_info.initialized) {
 		ErrPrint("Not initialized\n");
 		return WIDGET_ERROR_FAULT;
+	}
+
+	if (!width) {
+		width = &_width;
+	}
+
+	if (!height) {
+		height = &_height;
 	}
 
 	ecore_wl_screen_size_get(width, height);
