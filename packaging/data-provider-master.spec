@@ -47,6 +47,7 @@ BuildRequires: pkgconfig(shortcut)
 BuildRequires: pkgconfig(security-server)
 BuildRequires: pkgconfig(libsystemd-daemon)
 BuildRequires: pkgconfig(cynara-client)
+BuildRequires: pkgconfig(cynara-session)
 BuildRequires: pkgconfig(cynara-creds-socket)
 
 Requires(post): sys-assert

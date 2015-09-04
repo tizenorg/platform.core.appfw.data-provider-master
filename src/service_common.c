@@ -28,6 +28,7 @@
 #include <dlog.h>
 #include <Eina.h>
 #include <cynara-client.h>
+#include <cynara-session.h>
 #include <cynara-creds-socket.h>
 
 #include <com-core.h>
@@ -1296,25 +1297,41 @@ HAPI int service_check_privilege_by_socket_fd(struct service_context *svc_ctx, i
 	int ret = 0;
 	int result = 0;
 	char *uid = NULL;
+	pid_t pid;
 	char *client_smack = NULL;
+	char *session = NULL;
 
 	if (privilege != NULL) {
 
-		ret =  cynara_creds_socket_get_client(socket_fd, CLIENT_METHOD_SMACK, &client_smack);
+		ret = cynara_creds_socket_get_client(socket_fd, CLIENT_METHOD_SMACK, &client_smack);
 
 		if (ret != CYNARA_API_SUCCESS) {
 			ErrPrint("cynara_creds_socket_get_client failed [%d]", ret);
 			goto out;
 		}
 
-		ret =  cynara_creds_socket_get_user(socket_fd, USER_METHOD_UID, &uid);
+		ret = cynara_creds_socket_get_user(socket_fd, USER_METHOD_UID, &uid);
 
 		if (ret != CYNARA_API_SUCCESS) {
 			ErrPrint("cynara_creds_socket_get_user failed [%d]", ret);
 			goto out;
 		}
 
-		ret = cynara_check(svc_ctx->cynara_handle, client_smack, "", uid, privilege);
+		ret = cynara_creds_socket_get_pid(socket_fd, &pid);
+
+		if (ret != CYNARA_API_SUCCESS) {
+			ErrPrint("cynara_creds_socket_get_pid failed [%d]", ret);
+			goto out;
+		}
+
+		session = cynara_session_from_pid(pid);
+
+		if (session == NULL) {
+			ErrPrint("cynara_session_from_pid failed");
+			goto out;
+		}
+
+		ret = cynara_check(svc_ctx->cynara_handle, client_smack, session, uid, privilege);
 
 		if (ret == CYNARA_API_ACCESS_ALLOWED) {
 			DbgPrint("[%s] Access allowed.", privilege);
@@ -1330,6 +1347,10 @@ HAPI int service_check_privilege_by_socket_fd(struct service_context *svc_ctx, i
 out:
 	if (client_smack) {
 		free(client_smack);
+	}
+
+	if (session) {
+		free(session);
 	}
 
 	if (uid) {

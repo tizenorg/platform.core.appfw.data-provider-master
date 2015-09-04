@@ -25,6 +25,7 @@ pkg_check_modules(pkg REQUIRED
 	libtbm
 	capi-appfw-app-manager
 	cynara-client
+	cynara-session
 	cynara-creds-socket
 )
 
