@@ -100,7 +100,7 @@ static inline int build_client_info(struct pkg_info *info)
 
 static inline int build_provider_info(struct pkg_info *info)
 {
-	static const char *dml = "SELECT provider.network, provider.abi, provider.secured, provider.box_type, provider.box_src, provider.box_group, provider.gbar_type, provider.gbar_src, provider.gbar_group, provider.libexec, provider.timeout, provider.period, provider.script, provider.pinup, pkgmap.appid, provider.direct_input, provider.hw_acceleration, pkgmap.category FROM provider, pkgmap WHERE pkgmap.pkgid = ? AND provider.pkgid = ?";
+	static const char *dml = "SELECT provider.network, provider.abi, provider.secured, provider.box_type, provider.box_src, provider.box_group, provider.gbar_type, provider.gbar_src, provider.gbar_group, provider.libexec, provider.timeout, provider.period, provider.script, provider.pinup, pkgmap.appid, provider.direct_input, provider.hw_acceleration, pkgmap.category, provider.auto_align FROM provider, pkgmap WHERE pkgmap.pkgid = ? AND provider.pkgid = ?";
 	sqlite3_stmt *stmt;
 	int ret;
 	const char *tmp;
@@ -192,6 +192,7 @@ static inline int build_provider_info(struct pkg_info *info)
 	package_set_direct_input(info, sqlite3_column_int(stmt, 15));
 	package_set_hw_acceleration(info, (const char *)sqlite3_column_text(stmt, 16));
 	package_set_category(info, (const char *)sqlite3_column_text(stmt, 17));
+	package_set_auto_align(info, sqlite3_column_int(stmt, 18));
 
 	sqlite3_reset(stmt);
 	sqlite3_clear_bindings(stmt);

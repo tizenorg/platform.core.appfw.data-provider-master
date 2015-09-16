@@ -42,8 +42,6 @@
 #define ErrPrintWithConsole(format, arg...)	do { fprintf(stderr, "[%s/%s:%d] " format, basename(__FILE__), __func__, __LINE__, ##arg); SECURE_LOGE("[[32m%s/%s[0m:%d] " format, basename(__FILE__), __func__, __LINE__, ##arg); } while (0)
 #endif
 
-#define CUR_VER 5
-#define DEFAULT_CATEGORY	"http://tizen.org/category/default"
 #define SCHEME_HTTP	"http://"
 #define SCHEME_HTTPS	"https://"
 #define SCHEME_FILE	"file://"
@@ -75,12 +73,12 @@
  *
  *
  * provider
- * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+---------+---------+--------+--------+-------+-----------------------+
- * | pkgid | network | abi | secured | box_type | box_src | box_group | gbar_type | gbar_src | gbar_group | libexec | timeout | period | script | pinup | count(from ver 4) | direct_input | hw_acceleration |
- * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+---------+---------+--------+--------+-------+-----------------------+-------|---------------|
- * |   -   |    -    |  -  |    -    |     -    |    -    |     -     |    -    |    -   |     -    |     -   |    -    |    -   |    -   |   -   |           -           |   -   |       -       |
- * +-------+---------+-----+---------+----------+---------+-----------+---------+--------+----------+---------+---------+--------+--------+-------+-----------------------+-------|---------------|
- * CREATE TABLE provider ( pkgid TEXT PRIMARY KEY NOT NULL, network INTEGER, abi TEXT, secured INTEGER, box_type INTEGER, box_src TEXT, box_group TEXT, gbar_type TEXT, gbar_src TEXT, gbar_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, count INTEGER, direct_input INTEGER DEFAULT 0, hw_acceleration TEXT DEFAULT 'none', FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid))
+ * +-------+---------+-----+---------+----------+---------+-----------+-----------+----------+------------+---------+---------+--------+--------+-------+-------------------+--------------+-----------------+------------+
+ * | pkgid | network | abi | secured | box_type | box_src | box_group | gbar_type | gbar_src | gbar_group | libexec | timeout | period | script | pinup | count(from ver 4) | direct_input | hw_acceleration | auto_align |
+ * +-------+---------+-----+---------+----------+---------+-----------+-----------+----------+------------+---------+---------+--------+--------+-------+-------------------+--------------|-----------------+------------+
+ * |   -   |    -    |  -  |    -    |     -    |    -    |     -     |     -     |     -    |      -     |     -   |    -    |    -   |    -   |   -   |         -         |       -      |        -        |      -     |
+ * +-------+---------+-----+---------+----------+---------+-----------+-----------+----------+------------+---------+---------+--------+--------+-------+-------------------+--------------|-----------------+------------+
+ * CREATE TABLE provider ( pkgid TEXT PRIMARY KEY NOT NULL, network INTEGER, abi TEXT, secured INTEGER, box_type INTEGER, box_src TEXT, box_group TEXT, gbar_type TEXT, gbar_src TEXT, gbar_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, count INTEGER, direct_input INTEGER DEFAULT 0, hw_acceleration TEXT DEFAULT 'none', auto_align INTEGER DEFAULT 0, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid))
  *
  * = box_type = { text | buffer | script | image }
  * = gbar_type = { text | buffer | script }
@@ -201,6 +199,7 @@ struct widget {
 	xmlChar *gbar_group;
 	xmlChar *gbar_size; /* Default PD size */
 	xmlChar *hw_acceleration;
+	int auto_align;
 
 	struct dlist *i18n_list;
 	struct dlist *group_list;
@@ -222,7 +221,7 @@ static struct {
 	const char *dbfile;
 	sqlite3 *handle;
 } s_info = {
-	.dbfile = "/usr/dbspace/.widget.db",
+	.dbfile = "/opt/dbspace/.widget.db",
 	.handle = NULL,
 };
 
@@ -323,7 +322,7 @@ static inline void abspath(const char* pBuffer, char* pRet)
 
 static inline xmlChar *abspath_strdup(xmlChar *src)
 {
-	return xmlMalloc(xmlStrlen(src) + 2);
+	return xmlMalloc(xmlStrlen(src) + 3);
 }
 
 int begin_transaction(void)
@@ -560,6 +559,32 @@ static void upgrade_to_version_5(void)
 	}
 }
 
+/**
+ * From version 5 to 6
+ * "provider" table should have "auto_align" column.
+ * "auto_align" will be used for selecting engine for rendering of widget window.
+ * If it is "true", the widget will creates auto-alignment enabled window buffer.
+ */
+static void upgrade_to_version_6(void)
+{
+	char *err;
+	static const char *ddl;
+
+	/**
+	 * Step 1
+	 * Create a new column "auto_align" for provider table
+	 */
+	ddl = "ALTER TABLE provider ADD COLUMN auto_align INTEGER DEFAULT 0";
+	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
+		ErrPrint("Failed to execute the DDL (%s)\n", err);
+		return;
+	}
+
+	if (sqlite3_changes(s_info.handle) == 0) {
+		ErrPrint("No chages to DB\n");
+	}
+}
+
 /*!
  * \note
  * From version 3 to 4
@@ -721,6 +746,8 @@ void db_upgrade_db_schema(void)
 		upgrade_to_version_4();
 	case 4:
 		upgrade_to_version_5();
+	case 5:
+		upgrade_to_version_6();
 	default:
 		/* Need to update version */
 		DbgPrint("Old version: %d\n", version);
@@ -854,7 +881,7 @@ static inline int db_create_provider(void)
 		   "abi TEXT, secured INTEGER, box_type INTEGER, " \
 		   "box_src TEXT, box_group TEXT, gbar_type INTEGER, " \
 		   "gbar_src TEXT, gbar_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, "\
-		   "count INTEGER, direct_input INTEGER DEFAULT 0, hw_acceleration TEXT DEFAULT 'none', "\
+		   "count INTEGER, direct_input INTEGER DEFAULT 0, hw_acceleration TEXT DEFAULT 'none', auto_align INTEGER DEFAULT 0, "\
 		   "FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE)";
 
 	if (sqlite3_exec(s_info.handle, ddl, NULL, NULL, &err) != SQLITE_OK) {
@@ -917,6 +944,7 @@ static int db_insert_provider(struct widget *widget)
 	char *period = (char *)widget->period;
 	char *script = (char *)widget->script;
 	char *hw_acceleration = (char *)widget->hw_acceleration;
+	int auto_align = widget->auto_align;
 
 	if (!abi) {
 		abi = "c";
@@ -938,7 +966,7 @@ static int db_insert_provider(struct widget *widget)
 		hw_acceleration = "none";
 	}
 
-	dml = "INSERT INTO provider ( pkgid, network, abi, secured, box_type, box_src, box_group, gbar_type, gbar_src, gbar_group, libexec, timeout, period, script, pinup, count, direct_input, hw_acceleration) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	dml = "INSERT INTO provider ( pkgid, network, abi, secured, box_type, box_src, box_group, gbar_type, gbar_src, gbar_group, libexec, timeout, period, script, pinup, count, direct_input, hw_acceleration, auto_align) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 	ret = sqlite3_prepare_v2(s_info.handle, dml, -1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
@@ -1064,6 +1092,13 @@ static int db_insert_provider(struct widget *widget)
 	}
 
 	ret = sqlite3_bind_text(stmt, 18, hw_acceleration, -1, SQLITE_TRANSIENT);
+	if (ret != SQLITE_OK) {
+		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
+		ret = -EIO;
+		goto out;
+	}
+
+	ret = sqlite3_bind_int(stmt, 19, auto_align);
 	if (ret != SQLITE_OK) {
 		ErrPrintWithConsole("Error: %s\n", sqlite3_errmsg(s_info.handle));
 		ret = -EIO;
@@ -2323,7 +2358,17 @@ static void update_size_info(struct widget *widget, int idx, xmlNodePtr node)
 		}
 	}
 
-	if (xmlHasProp(node, (const xmlChar *)"need_frame")) {
+	if (xmlHasProp(node, (const xmlChar *)"need-frame")) {
+		xmlChar *need_frame;
+
+		need_frame = xmlGetProp(node, (const xmlChar *)"need-frame");
+		if (need_frame) {
+			widget->need_frame[idx] = !xmlStrcasecmp(need_frame, (const xmlChar *)"true");
+			xmlFree(need_frame);
+		} else {
+			widget->need_frame[idx] = widget->default_need_frame;
+		}
+	} else if (xmlHasProp(node, (const xmlChar *)"need_frame")) {
 		xmlChar *need_frame;
 
 		need_frame = xmlGetProp(node, (const xmlChar *)"need_frame");
@@ -2337,7 +2382,18 @@ static void update_size_info(struct widget *widget, int idx, xmlNodePtr node)
 		widget->need_frame[idx] = widget->default_need_frame;
 	}
 
-	if (xmlHasProp(node, (const xmlChar *)"touch_effect")) {
+
+	if (xmlHasProp(node, (const xmlChar *)"touch-effect")) {
+		xmlChar *touch_effect;
+
+		touch_effect = xmlGetProp(node, (const xmlChar *)"touch-effect");
+		if (touch_effect) {
+			widget->touch_effect[idx] = !xmlStrcasecmp(touch_effect, (const xmlChar *)"true");
+			xmlFree(touch_effect);
+		} else {
+			widget->touch_effect[idx] = widget->default_touch_effect;
+		}
+	} else if (xmlHasProp(node, (const xmlChar *)"touch_effect")) {
 		xmlChar *touch_effect;
 
 		touch_effect = xmlGetProp(node, (const xmlChar *)"touch_effect");
@@ -2351,7 +2407,17 @@ static void update_size_info(struct widget *widget, int idx, xmlNodePtr node)
 		widget->touch_effect[idx] = widget->default_touch_effect;
 	}
 
-	if (xmlHasProp(node, (const xmlChar *)"mouse_event")) {
+	if (xmlHasProp(node, (const xmlChar *)"mouse-event")) {
+		xmlChar *mouse_event;
+
+		mouse_event = xmlGetProp(node, (const xmlChar *)"mouse-event");
+		if (mouse_event) {
+			widget->mouse_event[idx] = !xmlStrcasecmp(mouse_event, (const xmlChar *)"true");
+			xmlFree(mouse_event);
+		} else {
+			widget->mouse_event[idx] = widget->default_mouse_event;
+		}
+	} else if (xmlHasProp(node, (const xmlChar *)"mouse_event")) {
 		xmlChar *mouse_event;
 
 		mouse_event = xmlGetProp(node, (const xmlChar *)"mouse_event");
@@ -2484,9 +2550,25 @@ static void update_box(struct widget *widget, xmlNodePtr node)
 		}
 	}
 
-	if (!xmlHasProp(node, (const xmlChar *)"mouse_event")) {
-		widget->default_mouse_event = 0;
-	} else {
+	/**
+	 * @note
+	 * mouse_event is internal style name of attribute.
+	 * It should be replaced with "mouse-event" for public one.
+	 * But we should keep the old style also.
+	 * Try to find "mouse_event" first and if it fails, try to find "mouse-event"
+	 */
+	if (xmlHasProp(node, (const xmlChar *)"mouse-event")) {
+		xmlChar *mouse_event;
+
+		mouse_event = xmlGetProp(node, (const xmlChar *)"mouse-event");
+		if (!mouse_event) {
+			ErrPrint("mouse_event is NIL\n");
+			widget->default_mouse_event = 0;
+		} else {
+			widget->default_mouse_event = !xmlStrcasecmp(mouse_event, (const xmlChar *)"true");
+			xmlFree(mouse_event);
+		}
+	} else if (xmlHasProp(node, (const xmlChar *)"mouse_event")) {
 		xmlChar *mouse_event;
 
 		mouse_event = xmlGetProp(node, (const xmlChar *)"mouse_event");
@@ -2497,11 +2579,22 @@ static void update_box(struct widget *widget, xmlNodePtr node)
 			widget->default_mouse_event = !xmlStrcasecmp(mouse_event, (const xmlChar *)"true");
 			xmlFree(mouse_event);
 		}
+	} else {
+		widget->default_mouse_event = 0;
 	}
 
-	if (!xmlHasProp(node, (const xmlChar *)"touch_effect")) {
-		widget->default_touch_effect = 0;
-	} else {
+	if (xmlHasProp(node, (const xmlChar *)"touch-effect")) {
+		xmlChar *touch_effect;
+
+		touch_effect = xmlGetProp(node, (const xmlChar *)"touch-effect");
+		if (!touch_effect) {
+			ErrPrint("default touch_effect is NIL\n");
+			widget->default_touch_effect = 0;
+		} else {
+			widget->default_touch_effect = !xmlStrcasecmp(touch_effect, (const xmlChar *)"true");
+			xmlFree(touch_effect);
+		}
+	} else if (xmlHasProp(node, (const xmlChar *)"touch_effect")) {
 		xmlChar *touch_effect;
 
 		touch_effect = xmlGetProp(node, (const xmlChar *)"touch_effect");
@@ -2512,11 +2605,22 @@ static void update_box(struct widget *widget, xmlNodePtr node)
 			widget->default_touch_effect = !xmlStrcasecmp(touch_effect, (const xmlChar *)"true");
 			xmlFree(touch_effect);
 		}
+	} else {
+		widget->default_touch_effect = 0;
 	}
 
-	if (!xmlHasProp(node, (const xmlChar *)"need_frame")) {
-		widget->default_need_frame = 0;
-	} else {
+	if (xmlHasProp(node, (const xmlChar *)"need-frame")) {
+		xmlChar *need_frame;
+
+		need_frame = xmlGetProp(node, (const xmlChar *)"need-frame");
+		if (!need_frame) {
+			ErrPrint("default need_frame is NIL\n");
+			widget->default_need_frame = 0;
+		} else {
+			widget->default_need_frame = !xmlStrcasecmp(need_frame, (const xmlChar *)"true");
+			xmlFree(need_frame);
+		}
+	} else if (xmlHasProp(node, (const xmlChar *)"need_frame")) {
 		xmlChar *need_frame;
 
 		need_frame = xmlGetProp(node, (const xmlChar *)"need_frame");
@@ -2527,6 +2631,8 @@ static void update_box(struct widget *widget, xmlNodePtr node)
 			widget->default_need_frame = !xmlStrcasecmp(need_frame, (const xmlChar *)"true");
 			xmlFree(need_frame);
 		}
+	} else {
+		widget->default_need_frame = 0;
 	}
 
 	for (node = node->children; node; node = node->next) {
@@ -3077,16 +3183,11 @@ static int has_meta_tag(const char *appid, const char *meta_tag)
 		return 0;
 	}
 
-	/**
-	 * @todo
-	 * Need to find a replacement of this API
-	 *
 	ret = pkgmgrinfo_appinfo_get_metadata_value(handle, meta_tag, &value);
 	if (ret != PMINFO_R_OK) {
 		pkgmgrinfo_appinfo_destroy_appinfo(handle);
 		return 0;
 	}
-	*/
 
 	ret = value && value[0] != '\0';
 
@@ -3214,6 +3315,12 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 		if (!widget->hw_acceleration) {
 			ErrPrint("hw-acceleration is NIL\n");
 		}
+	}
+
+	if (xmlHasProp(node, (const xmlChar *)"auto-align")) {
+		tmp = xmlGetProp(node, (const xmlChar *)"auto-align");
+		widget->auto_align = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
+		xmlFree(tmp);
 	}
 
 	if (xmlHasProp(node, (const xmlChar *)"abi")) {
@@ -3477,6 +3584,7 @@ int db_install_watchapp(xmlNodePtr node, const char *appid)
 	widget->default_touch_effect = 0;
 	widget->default_need_frame = 0;
 	widget->size_list = WIDGET_SIZE_TYPE_2x2;
+	widget->auto_align = 0;
 
 	/**
 	 * @note

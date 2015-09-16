@@ -38,7 +38,7 @@
 #define ErrPrintWithConsole(format, arg...)	do { fprintf(stderr, "[%s/%s:%d] " format, basename(__FILE__), __func__, __LINE__, ##arg); SECURE_LOGE("[[32m%s/%s[0m:%d] " format, basename(__FILE__), __func__, __LINE__, ##arg); } while (0)
 #endif
 
-#define CUR_VER 5
+#define CUR_VER 6
 #define DEFAULT_CATEGORY	"http://tizen.org/category/default"
 
 extern int begin_transaction(void);

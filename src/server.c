@@ -1458,8 +1458,8 @@ static struct packet *client_new(pid_t pid, int handle, const struct packet *pac
 	} else if (util_free_space(WIDGET_CONF_IMAGE_PATH) <= WIDGET_CONF_MINIMUM_SPACE) {
 		ErrPrint("Not enough space\n");
 		ret = WIDGET_ERROR_FILE_NO_SPACE_ON_DEVICE;
-	} else if (max_count && max_count <= package_instance_count(info)) {
-		ErrPrint("Reached to the max count of widgets %d, %d\n", max_count, package_instance_count(info));
+	} else if (max_count && max_count <= package_instance_count(info, 1)) {
+		ErrPrint("Reached to the max count of widgets %d, %d\n", max_count, package_instance_count(info, 1));
 		ret = WIDGET_ERROR_CANCELED;
 	} else {
 		struct inst_info *inst;
@@ -9956,17 +9956,17 @@ HAPI int server_init(void)
 		ErrPrint("Failed to create a info socket\n");
 	}
 
-	s_info.slave_fd = com_core_packet_server_init_with_permission(SLAVE_SOCKET, s_slave_table, NULL);
+	s_info.slave_fd = com_core_packet_server_init_with_permission("sdlocal://"SLAVE_SOCKET, s_slave_table, NULL);
 	if (s_info.slave_fd < 0) {
 		ErrPrint("Failed to create a slave socket\n");
 	}
 
-	s_info.client_fd = com_core_packet_server_init_with_permission(CLIENT_SOCKET, s_client_table, NULL);
+	s_info.client_fd = com_core_packet_server_init_with_permission("sdlocal://"CLIENT_SOCKET, s_client_table, NULL);
 	if (s_info.client_fd < 0) {
 		ErrPrint("Failed to create a client socket\n");
 	}
 
-	s_info.service_fd = com_core_packet_server_init_with_permission(SERVICE_SOCKET, s_service_table, NULL);
+	s_info.service_fd = com_core_packet_server_init_with_permission("sdlocal://"SERVICE_SOCKET, s_service_table, NULL);
 	if (s_info.service_fd < 0) {
 		ErrPrint("Faild to create a service socket\n");
 	}

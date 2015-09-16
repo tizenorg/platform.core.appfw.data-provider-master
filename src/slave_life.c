@@ -68,18 +68,29 @@ struct slave_node {
 	char *name;
 	char *abi;
 	char *pkgname;
-	int secured;	/* Only A package(widget) is loaded for security requirements */
 	int refcnt;
 	int fault_count;
 	int critical_fault_count;
 	enum slave_state state;
-	int network;
 
 	int loaded_instance;
 	int loaded_package;
 
-	int reactivate_instances;
-	int reactivate_slave;
+	union _slave_flags {
+		struct _slave_fields {
+			unsigned int reactivate_instances: 1;
+			unsigned int reactivate_slave: 1;
+			unsigned int secured: 1;	/* Only A package(widget) is loaded for security requirements */
+			unsigned int network: 1;
+			unsigned int auto_align: 1;
+			unsigned int valid: 1;
+			unsigned int is_watch: 1;	/*!< Specialized field. Only for the WATCH */
+			unsigned int wait_deactivation: 1;
+
+			unsigned int reserved: 24;
+		} field;
+		unsigned int mask;
+	} flags;
 
 	pid_t pid;
 
@@ -116,10 +127,7 @@ struct slave_node {
 #endif
 
 	char *hw_acceleration;
-	int valid;
 	char *extra_bundle_data;
-
-	int is_watch;	/*!< Specialized field. Only for the WATCH */
 
 	struct _resource {
 		struct _memory {
@@ -127,8 +135,6 @@ struct slave_node {
 			unsigned int hard;
 		} memory;
 	} resources;
-
-	int wait_deactivation;
 };
 
 struct event {
@@ -235,7 +241,7 @@ static struct slave_node *slave_deactivate(struct slave_node *slave, int no_time
 		(void)slave_rpc_disconnect(slave);
 	} else if (slave->terminate_timer) {
 		ErrPrint("Terminate timer is already fired (%d)\n", slave->pid);
-	} else if (!slave->extra_bundle_data && ((!no_timer && !slave->secured) || slave_is_app(slave)) && (!slave_is_watch(slave) && WIDGET_CONF_SLAVE_TERMINATE_TIME > 0.0f)) {
+	} else if (!slave->extra_bundle_data && ((!no_timer && !slave->flags.field.secured) || slave_is_app(slave)) && (!slave_is_watch(slave) && WIDGET_CONF_SLAVE_TERMINATE_TIME > 0.0f)) {
 		DbgPrint("Fire the terminate timer: %d (%d)\n", slave->pid, slave_is_app(slave));
 		slave->terminate_timer = ecore_timer_add(WIDGET_CONF_SLAVE_TERMINATE_TIME, terminate_timer_cb, slave);
 		if (!slave->terminate_timer) {
@@ -395,10 +401,10 @@ static inline struct slave_node *create_slave_node(const char *name, int is_secu
 		}
 	}
 
-	slave->secured = is_secured;
+	slave->flags.field.secured = is_secured;
 	slave->pid = (pid_t)-1;
 	slave->state = SLAVE_TERMINATED;
-	slave->network = network;
+	slave->flags.field.network = network;
 	slave->relaunch_count = WIDGET_CONF_SLAVE_RELAUNCH_COUNT;
 
 	xmonitor_add_event_callback(XMONITOR_PAUSED, xmonitor_pause_cb, slave);
@@ -505,7 +511,7 @@ HAPI int slave_expired_ttl(struct slave_node *slave)
 	}
 
 	if (!slave_is_app(slave)
-		&& !slave->secured
+		&& !slave->flags.field.secured
 		&& !(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL))
 	{
 		return 0;
@@ -555,7 +561,7 @@ HAPI struct slave_node *slave_create(const char *name, int is_secured, const cha
 
 	slave = find_slave(name);
 	if (slave) {
-		if (slave->secured != is_secured) {
+		if (slave->flags.field.secured != is_secured) {
 			ErrPrint("Exists slave and creating slave's security flag is not matched\n");
 		}
 		return slave;
@@ -748,6 +754,7 @@ static bundle *create_slave_param(struct slave_node *slave)
 		bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_SECURED, ((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave_is_secured(slave)) ? "true" : "false");
 		bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_ABI, slave_abi(slave));
 		bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_HW_ACCELERATION, slave->hw_acceleration);
+		bundle_add_str(param, WIDGET_CONF_BUNDLE_SLAVE_AUTO_ALIGN, slave->flags.field.auto_align ? "true" : "false");
 	} else {
 		ErrPrint("Failed to create a bundle\n");
 	}
@@ -882,7 +889,7 @@ HAPI int slave_activate(struct slave_node *slave)
 	}
 
 	if (WIDGET_CONF_DEBUG_MODE || g_conf.debug_mode) {
-		DbgPrint("Debug Mode enabled. name[%s] secured[%d] abi[%s]\n", slave_name(slave), slave->secured, slave->abi);
+		DbgPrint("Debug Mode enabled. name[%s] secured[%d] abi[%s]\n", slave_name(slave), slave->flags.field.secured, slave->abi);
 	} else {
 		bundle *param;
 
@@ -958,7 +965,7 @@ HAPI int slave_give_more_ttl(struct slave_node *slave)
 	double delay;
 
 	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL)
-		&& ((!slave_is_app(slave) && !slave->secured) || !slave->ttl_timer))
+		&& ((!slave_is_app(slave) && !slave->flags.field.secured) || !slave->ttl_timer))
 	{
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
@@ -976,7 +983,7 @@ HAPI int slave_give_more_ttl(struct slave_node *slave)
 HAPI int slave_freeze_ttl(struct slave_node *slave)
 {
 	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL)
-		&& ((!slave_is_app(slave) && !slave->secured) || !slave->ttl_timer))
+		&& ((!slave_is_app(slave) && !slave->flags.field.secured) || !slave->ttl_timer))
 	{
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
@@ -990,7 +997,7 @@ HAPI int slave_thaw_ttl(struct slave_node *slave)
 	double delay;
 
 	if (!(WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL)
-		&& ((!slave_is_app(slave) && !slave->secured) || !slave->ttl_timer))
+		&& ((!slave_is_app(slave) && !slave->flags.field.secured) || !slave->ttl_timer))
 	{
 		return WIDGET_ERROR_INVALID_PARAMETER;
 	}
@@ -1023,7 +1030,7 @@ HAPI int slave_activated(struct slave_node *slave)
 	 */
 	if (!slave->extra_bundle_data /* Launched by SDK Viewer */
 		&& !slave_is_watch(slave) /* Not a watch */
-		&& ((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave->secured == 1 || slave_is_app(slave))
+		&& ((WIDGET_IS_INHOUSE(slave_abi(slave)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL) || slave->flags.field.secured == 1 || slave_is_app(slave))
 		&& WIDGET_CONF_SLAVE_TTL > 0.0f)
 	{
 		DbgPrint("Slave deactivation timer is added (%s - %lf)\n", slave_name(slave), WIDGET_CONF_SLAVE_TTL);
@@ -1532,13 +1539,13 @@ HAPI struct slave_node *slave_find_by_name(const char *name)
 	return NULL;
 }
 
-HAPI struct slave_node *slave_find_available(const char *slave_pkgname, const char *abi, int secured, int network, const char *hw_acceleration)
+HAPI struct slave_node *slave_find_available(const char *slave_pkgname, const char *abi, int secured, int network, const char *hw_acceleration, int auto_align)
 {
 	Eina_List *l;
 	struct slave_node *slave;
 
 	EINA_LIST_FOREACH(s_info.slave_list, l, slave) {
-		if (slave->secured != secured) {
+		if (slave->flags.field.secured != secured) {
 			continue;
 		}
 
@@ -1569,13 +1576,17 @@ HAPI struct slave_node *slave_find_available(const char *slave_pkgname, const ch
 			}
 		}
 
-		if (slave->secured) {
+		if (slave->flags.field.auto_align != auto_align) {
+			continue;
+		}
+
+		if (slave->flags.field.secured) {
 			if (slave->loaded_package == 0) {
 				DbgPrint("Found secured slave - has no instances (%s)\n", slave_name(slave));
 				return slave;
 			}
-		} else if (slave->network == network) {
-			DbgPrint("slave[%s] loaded_package[%d] net: [%d]\n", slave_name(slave), slave->loaded_package, slave->network);
+		} else if (slave->flags.field.network == network) {
+			DbgPrint("slave[%s] loaded_package[%d] net: [%d]\n", slave_name(slave), slave->loaded_package, slave->flags.field.network);
 			if (!strcasecmp(abi, WIDGET_CONF_DEFAULT_ABI)) {
 				int max_load;
 				if (g_conf.slave_max_load < 0) {
@@ -1720,7 +1731,7 @@ HAPI struct slave_node *slave_unload_instance(struct slave_node *slave)
 
 HAPI const int const slave_is_secured(const struct slave_node *slave)
 {
-	return slave->secured;
+	return slave->flags.field.secured;
 }
 
 HAPI const int const slave_is_app(const struct slave_node *slave)
@@ -1969,17 +1980,17 @@ HAPI double const slave_ttl(const struct slave_node *slave)
 
 HAPI void slave_set_reactivate_instances(struct slave_node *slave, int reactivate)
 {
-	slave->reactivate_instances = reactivate;
+	slave->flags.field.reactivate_instances = !!reactivate;
 }
 
 HAPI int slave_need_to_reactivate_instances(struct slave_node *slave)
 {
-	return slave->reactivate_instances;
+	return slave->flags.field.reactivate_instances;
 }
 
 HAPI void slave_set_reactivation(struct slave_node *slave, int flag)
 {
-	slave->reactivate_slave = flag;
+	slave->flags.field.reactivate_slave = flag;
 }
 
 HAPI int slave_need_to_reactivate(struct slave_node *slave)
@@ -2028,17 +2039,17 @@ HAPI int slave_need_to_reactivate(struct slave_node *slave)
 		reactivate = 1;
 	}
 
-	return reactivate && slave->reactivate_slave;
+	return reactivate && slave->flags.field.reactivate_slave;
 }
 
 HAPI int slave_network(const struct slave_node *slave)
 {
-	return slave->network;
+	return slave->flags.field.network;
 }
 
 HAPI void slave_set_network(struct slave_node *slave, int network)
 {
-	slave->network = network;
+	slave->flags.field.network = network;
 }
 
 HAPI int slave_deactivate_all(int reactivate, int reactivate_instances, int no_timer)
@@ -2148,17 +2159,17 @@ HAPI int slave_priority(struct slave_node *slave)
 
 HAPI int slave_valid(const struct slave_node *slave)
 {
-    if (!slave->valid) {
+    if (!slave->flags.field.valid) {
         DbgPrint("slave is invalid");
     }
 
-    return slave->valid;
+    return slave->flags.field.valid;
 }
 
 HAPI void slave_set_valid(struct slave_node *slave)
 {
     DbgPrint("slave is set valid\n");
-    slave->valid = 1;
+    slave->flags.field.valid = 1;
 }
 
 HAPI void slave_set_extra_bundle_data(struct slave_node *slave, const char *extra_bundle_data)
@@ -2188,7 +2199,7 @@ HAPI const char *slave_extra_bundle_data(struct slave_node *slave)
 
 HAPI int slave_is_watch(struct slave_node *slave)
 {
-	return slave ? slave->is_watch : 0;
+	return slave ? slave->flags.field.is_watch : 0;
 }
 
 HAPI void slave_set_is_watch(struct slave_node *slave, int flag)
@@ -2197,7 +2208,7 @@ HAPI void slave_set_is_watch(struct slave_node *slave, int flag)
 		return;
 	}
 
-	slave->is_watch = flag;
+	slave->flags.field.is_watch = flag;
 }
 
 HAPI int slave_set_resource_limit(struct slave_node *slave, unsigned int soft, unsigned int hard)
@@ -2236,12 +2247,12 @@ HAPI int slave_get_resource_limit(struct slave_node *slave, unsigned int *soft, 
 
 HAPI void slave_set_wait_deactivation(struct slave_node *slave, int wait)
 {
-	slave->wait_deactivation = !!wait;
+	slave->flags.field.wait_deactivation = !!wait;
 }
 
 HAPI int slave_wait_deactivation(struct slave_node *slave)
 {
-	return slave->wait_deactivation;
+	return slave->flags.field.wait_deactivation;
 }
 
 /* End of a file */

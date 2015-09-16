@@ -89,6 +89,8 @@ extern void package_add_ctx_info(struct pkg_info *pkginfo, struct context_info *
 extern void package_del_ctx_info(struct pkg_info *pkginfo, struct context_info *info);
 extern void package_set_direct_input(struct pkg_info *info, int direct_input);
 extern int package_direct_input(const struct pkg_info *info);
+extern void package_set_auto_align(struct pkg_info *info, int auto_align);
+extern int package_auto_align(const struct pkg_info *info);
 extern const char *package_hw_acceleration(struct pkg_info *info);
 extern int package_set_hw_acceleration(struct pkg_info *info, const char *hw_acceleration);
 
@@ -120,7 +122,7 @@ extern int package_is_enabled(const char *appid);
 extern int package_faulted(struct pkg_info *info, int broadcast);
 extern char *package_get_pkgid(const char *appid);
 
-extern int package_instance_count(struct pkg_info *info);
+extern int package_instance_count(struct pkg_info *info, int include_deleting);
 extern char *package_meta_tag(const char *appid, const char *meta_tag);
 
 /* End of a file */

@@ -1139,6 +1139,14 @@ HAPI struct packet *instance_duplicate_packet_create(const struct packet *packet
 
 	inst->state = INST_ACTIVATED;
 
+	if (inst->requested_state == INST_DESTROYED) {
+		/**
+		 * In this case, we should destroy the instance.
+		 */
+		DbgPrint("Destroy Instance\n");
+		instance_destroy(inst, WIDGET_DESTROY_TYPE_DEFAULT);
+	}
+
 	instance_create_widget_buffer(inst, WIDGET_CONF_DEFAULT_PIXELS);
 	instance_broadcast_created_event(inst);
 	instance_thaw_updator(inst);

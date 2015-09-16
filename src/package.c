@@ -114,9 +114,6 @@ struct pkg_info {
 		unsigned int height;
 	} gbar;
 
-	int network;
-	int secured;
-	int direct_input;
 	char *script; /* script type: edje, ... */
 	char *abi;
 	char *hw_acceleration;
@@ -132,7 +129,18 @@ struct pkg_info {
 	Eina_List *inst_list;
 	Eina_List *ctx_list;
 
-	int is_uninstalled;
+	union _pkg_flags {
+		struct _pkg_field {
+			unsigned int network: 1;
+			unsigned int secured: 1;
+			unsigned int direct_input: 1;
+			unsigned int auto_align: 1;
+			unsigned int is_uninstalled: 1;
+
+			unsigned int reserved: 27;
+		} field;
+		unsigned int mask;
+	} flags;
 };
 
 static struct {
@@ -464,7 +472,7 @@ static inline int load_conf(struct pkg_info *info)
 	}
 
 	info->widget.timeout = parser_timeout(parser);
-	info->network = parser_network(parser);
+	info->flags.field.network = parser_network(parser);
 
 	info->widget.period = parser_period(parser);
 	if (info->widget.period < 0.0f) {
@@ -495,7 +503,7 @@ static inline int load_conf(struct pkg_info *info)
 		return WIDGET_ERROR_OUT_OF_MEMORY;
 	}
 
-	info->secured = parser_secured(parser);
+	info->flags.field.secured = parser_secured(parser);
 	info->widget.pinup = parser_pinup(parser);
 
 	parser_get_gbar_size(parser, &info->gbar.width, &info->gbar.height);
@@ -801,12 +809,12 @@ HAPI void package_set_period(struct pkg_info *info, double period)
 
 HAPI const int const package_secured(const struct pkg_info *info)
 {
-	return info->secured;
+	return info->flags.field.secured;
 }
 
 HAPI void package_set_secured(struct pkg_info *info, int secured)
 {
-	info->secured = secured;
+	info->flags.field.secured = secured;
 }
 
 HAPI const char * const package_script(const struct pkg_info *info)
@@ -1077,22 +1085,32 @@ HAPI int package_set_libexec(struct pkg_info *info, const char *libexec)
 
 HAPI int package_network(struct pkg_info *info)
 {
-	return info->network;
+	return info->flags.field.network;
 }
 
 HAPI void package_set_network(struct pkg_info *info, int network)
 {
-	info->network = network;
+	info->flags.field.network = network;
 }
 
 HAPI void package_set_direct_input(struct pkg_info *info, int direct_input)
 {
-	info->direct_input = direct_input;
+	info->flags.field.direct_input = direct_input;
 }
 
 HAPI int package_direct_input(const struct pkg_info *info)
 {
-	return info->direct_input;
+	return info->flags.field.direct_input;
+}
+
+HAPI void package_set_auto_align(struct pkg_info *info, int auto_align)
+{
+	info->flags.field.auto_align = auto_align;
+}
+
+HAPI int package_auto_align(const struct pkg_info *info)
+{
+	return info->flags.field.auto_align;
 }
 
 HAPI const enum widget_gbar_type const package_gbar_type(const struct pkg_info *info)
@@ -1170,7 +1188,7 @@ static inline int assign_new_slave(const char *slave_pkgname, struct pkg_info *i
 	}
 
 	DbgPrint("New slave[%s] is assigned for %s (using %s / abi[%s] / accel[%s]\n", s_name, info->widget_id, slave_pkgname, info->abi, info->hw_acceleration);
-	info->slave = slave_create(s_name, info->secured, info->abi, slave_pkgname, info->network, info->hw_acceleration);
+	info->slave = slave_create(s_name, info->flags.field.secured, info->abi, slave_pkgname, info->flags.field.network, info->hw_acceleration);
 	DbgFree(s_name);
 	if (!info->slave) {
 		/*!
@@ -1209,7 +1227,7 @@ HAPI int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 			return WIDGET_ERROR_OUT_OF_MEMORY;
 		}
 
-		info->slave = slave_find_available(slave_pkgname, info->abi, info->secured, info->network, info->hw_acceleration);
+		info->slave = slave_find_available(slave_pkgname, info->abi, info->flags.field.secured, info->flags.field.network, info->hw_acceleration, info->flags.field.auto_align);
 		if (!info->slave) {
 			int ret;
 
@@ -1229,7 +1247,7 @@ HAPI int package_add_instance(struct pkg_info *info, struct inst_info *inst)
 		(void)slave_event_callback_add(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
 		(void)slave_event_callback_add(info->slave, SLAVE_EVENT_FAULT, slave_fault_cb, info);
 
-		if (info->secured || (WIDGET_IS_INHOUSE(package_abi(info)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL)) {
+		if (info->flags.field.secured || (WIDGET_IS_INHOUSE(package_abi(info)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL)) {
 			(void)slave_event_callback_add(info->slave, SLAVE_EVENT_PAUSE, slave_paused_cb, info);
 			(void)slave_event_callback_add(info->slave, SLAVE_EVENT_RESUME, slave_resumed_cb, info);
 
@@ -1265,7 +1283,7 @@ HAPI int package_del_instance(struct pkg_info *info, struct inst_info *inst)
 		slave_event_callback_del(info->slave, SLAVE_EVENT_DEACTIVATE, slave_deactivated_cb, info);
 		slave_event_callback_del(info->slave, SLAVE_EVENT_ACTIVATE, slave_activated_cb, info);
 
-		if (info->secured || (WIDGET_IS_INHOUSE(package_abi(info)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL)) {
+		if (info->flags.field.secured || (WIDGET_IS_INHOUSE(package_abi(info)) && WIDGET_CONF_SLAVE_LIMIT_TO_TTL)) {
 			slave_event_callback_del(info->slave, SLAVE_EVENT_PAUSE, slave_paused_cb, info);
 			slave_event_callback_del(info->slave, SLAVE_EVENT_RESUME, slave_resumed_cb, info);
 
@@ -1277,7 +1295,7 @@ HAPI int package_del_instance(struct pkg_info *info, struct inst_info *inst)
 		info->slave = NULL;
 	}
 
-	if (info->is_uninstalled) {
+	if (info->flags.field.is_uninstalled) {
 		package_destroy(info);
 	}
 
@@ -1352,7 +1370,7 @@ static int io_uninstall_cb(const char *pkgid, const char *widget_id, int prime, 
 		return 0;
 	}
 
-	info->is_uninstalled = 1;
+	info->flags.field.is_uninstalled = 1;
 
 	/*!
 	 * \NOTE
@@ -1710,7 +1728,7 @@ HAPI int const package_fault_count(struct pkg_info *info)
 	return info ? info->fault_count : 0;
 }
 
-HAPI int package_instance_count(struct pkg_info *info)
+HAPI int package_instance_count(struct pkg_info *info, int include_deleting)
 {
 	Eina_List *l;
 	struct inst_info *inst;
@@ -1726,6 +1744,7 @@ HAPI int package_instance_count(struct pkg_info *info)
 			break;
 		case INST_DESTROYED:
 		case INST_REQUEST_TO_DESTROY:
+			count += !!include_deleting;
 		default:
 			break;
 		}
