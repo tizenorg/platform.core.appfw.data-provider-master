@@ -21,6 +21,7 @@ Description=Data Provider daemon
 Environment=BUFMGR_LOCK_TYPE="once"
 Environment=BUFMGR_MAP_CACHE="true"
 EnvironmentFile=/run/tizen-system-env
+EnvironmentFile=/run/xdg-root-env
 Type=notify
 ExecStart=/usr/bin/data-provider-master
 RestartSec=1
