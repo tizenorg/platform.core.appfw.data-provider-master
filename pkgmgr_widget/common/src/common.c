@@ -3183,11 +3183,14 @@ static int has_meta_tag(const char *appid, const char *meta_tag)
 		return 0;
 	}
 
+	/*
+	 * @note, not supported by 3.0 yet
 	ret = pkgmgrinfo_appinfo_get_metadata_value(handle, meta_tag, &value);
 	if (ret != PMINFO_R_OK) {
 		pkgmgrinfo_appinfo_destroy_appinfo(handle);
 		return 0;
 	}
+	*/
 
 	ret = value && value[0] != '\0';
 
