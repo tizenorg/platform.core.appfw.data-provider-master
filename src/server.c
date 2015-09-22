@@ -7601,7 +7601,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 			}
 		}
 
-		ret = buffer_handler_resize(info, w, h);
+		ret = buffer_handler_resize(info, w, h, pixel_size);
 		ret = buffer_handler_load(info);
 		if (ret == 0) {
 			instance_set_widget_size(inst, w, h);
@@ -7659,7 +7659,7 @@ static struct packet *slave_acquire_buffer(pid_t pid, int handle, const struct p
 			}
 		}
 
-		ret = buffer_handler_resize(info, w, h);
+		ret = buffer_handler_resize(info, w, h, pixel_size);
 		ret = buffer_handler_load(info);
 		if (ret == 0) {
 			instance_set_gbar_size(inst, w, h);
@@ -7752,7 +7752,7 @@ static struct packet *slave_acquire_extra_buffer(pid_t pid, int handle, const st
 			}
 		}
 
-		ret = buffer_handler_resize(info, w, h);
+		ret = buffer_handler_resize(info, w, h, pixel_size);
 		ret = buffer_handler_load(info);
 		if (ret == 0) {
 			/**
@@ -7788,7 +7788,7 @@ static struct packet *slave_acquire_extra_buffer(pid_t pid, int handle, const st
 			}
 		}
 
-		ret = buffer_handler_resize(info, w, h);
+		ret = buffer_handler_resize(info, w, h, pixel_size);
 		ret = buffer_handler_load(info);
 		if (ret == 0) {
 			id = buffer_handler_id(info);
@@ -7867,7 +7867,7 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 			goto out;
 		}
 
-		ret = buffer_handler_resize(info, w, h);
+		ret = buffer_handler_resize(info, w, h, 0);
 		/*!
 		 * \note
 		 * id is resued for newly assigned ID
@@ -7885,7 +7885,7 @@ static struct packet *slave_resize_buffer(pid_t pid, int handle, const struct pa
 			goto out;
 		}
 
-		ret = buffer_handler_resize(info, w, h);
+		ret = buffer_handler_resize(info, w, h, 0);
 		/*!
 		 * \note
 		 * id is resued for newly assigned ID

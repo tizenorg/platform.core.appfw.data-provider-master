@@ -65,7 +65,7 @@ extern int buffer_handler_is_loaded(const struct buffer_info *info);
  * \param[in] h
  * \return int
  */
-extern int buffer_handler_resize(struct buffer_info *info, int w, int h);
+extern int buffer_handler_resize(struct buffer_info *info, int w, int h, int pixel_size);
 
 /*!
  * \brief Only update the size information

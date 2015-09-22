@@ -889,7 +889,7 @@ EAPI void buffer_handler_update_size(struct buffer_info *info, int w, int h)
 	info->h = h;
 }
 
-EAPI int buffer_handler_resize(struct buffer_info *info, int w, int h)
+EAPI int buffer_handler_resize(struct buffer_info *info, int w, int h, int pixel_size)
 {
 	int ret;
 
@@ -899,8 +899,10 @@ EAPI int buffer_handler_resize(struct buffer_info *info, int w, int h)
 	}
 
 	if (info->w == w && info->h == h) {
-		DbgPrint("No changes\n");
-		return WIDGET_ERROR_NONE;
+		if (pixel_size == 0 || info->pixel_size == pixel_size) {
+			DbgPrint("No changes\n");
+			return WIDGET_ERROR_NONE;
+		}
 	}
 
 	buffer_handler_update_size(info, w, h);

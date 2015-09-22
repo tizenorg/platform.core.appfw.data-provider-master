@@ -320,9 +320,36 @@ static inline void abspath(const char* pBuffer, char* pRet)
 	}
 }
 
-static inline xmlChar *abspath_strdup(xmlChar *src)
+/**
+ * @note
+ * Allocate the buffer for path.
+ * And if the input path is not started with '/',
+ * Copy the root path into it.
+ */
+static inline xmlChar *abspath_strdup(const xmlChar *root_path, xmlChar *src, int *root_len)
 {
-	return xmlMalloc(xmlStrlen(src) + 3);
+	int _root_len = 0;
+	xmlChar *ptr;
+
+	if (!root_len) {
+		root_len = &_root_len;
+	}
+
+	if (src[0] != '/' && root_path) {
+		*root_len = xmlStrlen(root_path);
+	} else {
+		*root_len = 0;
+	}
+
+	ptr = xmlMalloc(*root_len + xmlStrlen(src) + 4);
+
+	if (*root_len) {
+		strcpy((char *)ptr, (char *)root_path);
+		ptr[*root_len] = '/';
+		(*root_len)++;
+	}
+
+	return ptr;
 }
 
 int begin_transaction(void)
@@ -2136,12 +2163,13 @@ static void update_i18n_name(struct widget *widget, xmlNodePtr node)
 	widget->i18n_list = dlist_append(widget->i18n_list, i18n);
 }
 
-static void update_i18n_icon(struct widget *widget, xmlNodePtr node)
+static void update_i18n_icon(struct widget *widget, xmlNodePtr node, const xmlChar *root_path)
 {
 	struct i18n *i18n;
 	struct dlist *l;
 	xmlChar *lang;
 	xmlChar *icon;
+	int root_len;
 
 	icon = xmlNodeGetContent(node);
 	if (!icon) {
@@ -2168,11 +2196,11 @@ static void update_i18n_icon(struct widget *widget, xmlNodePtr node)
 			}
 
 			i18n->icon = icon;
-			icon = abspath_strdup(i18n->icon);
+			icon = abspath_strdup(root_path, i18n->icon, &root_len);
 			if (!icon) {
 				ErrPrint("strdup: %d\n", errno);
 			} else {
-				abspath((char *)i18n->icon, (char *)icon);
+				abspath((char *)i18n->icon, ((char *)icon) + root_len);
 				xmlFree(i18n->icon);
 				i18n->icon = icon;
 			}
@@ -2189,11 +2217,11 @@ static void update_i18n_icon(struct widget *widget, xmlNodePtr node)
 	}
 
 	i18n->icon = icon;
-	icon = abspath_strdup(i18n->icon);
+	icon = abspath_strdup(root_path, i18n->icon, &root_len);
 	if (!icon) {
 		ErrPrint("strdup: %d\n", errno);
 	} else {
-		abspath((char *)i18n->icon, (char *)icon);
+		abspath((char *)i18n->icon, ((char *)icon) + root_len);
 		xmlFree(i18n->icon);
 		i18n->icon = icon;
 	}
@@ -2249,6 +2277,39 @@ static int update_category(struct widget *widget, xmlNodePtr node)
 	}
 
 	return 0;
+}
+
+static inline xmlChar *pkgmgr_get_root_path(const char *pkgid)
+{
+	int ret;
+	char *path;
+	xmlChar *ret_path;
+	pkgmgrinfo_pkginfo_h handle;
+
+	ret = pkgmgrinfo_pkginfo_get_pkginfo(pkgid, &handle);
+	if (ret != PMINFO_R_OK) {
+		return NULL;
+	}
+
+	path = NULL;
+	ret = pkgmgrinfo_pkginfo_get_root_path(handle, &path);
+	if (ret != PMINFO_R_OK) {
+		pkgmgrinfo_pkginfo_destroy_pkginfo(handle);
+		return NULL;
+	}
+
+	if (!path) {
+		pkgmgrinfo_pkginfo_destroy_pkginfo(handle);
+		return NULL;
+	}
+
+	ret_path = xmlStrdup((xmlChar *)path);
+	if (!ret_path) {
+		ErrPrint("xmlStrdup: %d\n", errno);
+	}
+
+	pkgmgrinfo_pkginfo_destroy_pkginfo(handle);
+	return ret_path;
 }
 
 static inline xmlChar *pkgmgr_get_mainapp(char *pkgid)
@@ -2341,18 +2402,19 @@ static void update_content(struct widget *widget, xmlNodePtr node)
 	}
 }
 
-static void update_size_info(struct widget *widget, int idx, xmlNodePtr node)
+static void update_size_info(struct widget *widget, int idx, xmlNodePtr node, const xmlChar *root_path)
 {
 	if (xmlHasProp(node, (const xmlChar *)"preview")) {
 		xmlChar *tmp_preview;
+		int root_len;
 
 		widget->preview[idx] = xmlGetProp(node, (const xmlChar *)"preview");
 
-		tmp_preview = abspath_strdup(widget->preview[idx]);
+		tmp_preview = abspath_strdup(root_path, widget->preview[idx], &root_len);
 		if (!tmp_preview) {
 			ErrPrint("strdup: %d\n", errno);
 		} else {
-			abspath((char *)widget->preview[idx], (char *)tmp_preview);
+			abspath((char *)widget->preview[idx], ((char *)tmp_preview) + root_len);
 			xmlFree(widget->preview[idx]);
 			widget->preview[idx] = tmp_preview;
 		}
@@ -2432,7 +2494,7 @@ static void update_size_info(struct widget *widget, int idx, xmlNodePtr node)
 	}
 }
 
-static void update_support_size(struct widget *widget, xmlNodePtr node)
+static void update_support_size(struct widget *widget, xmlNodePtr node, const xmlChar *root_path)
 {
 	xmlChar *size;
 	int is_easy = 0;
@@ -2460,61 +2522,61 @@ static void update_support_size(struct widget *widget, xmlNodePtr node)
 	if (!xmlStrcasecmp(size, (const xmlChar *)"1x1")) {
 		if (is_easy) {
 			widget->size_list |= WIDGET_SIZE_TYPE_EASY_1x1;
-			update_size_info(widget, 9, node);
+			update_size_info(widget, 9, node, root_path);
 		} else {
 			widget->size_list |= WIDGET_SIZE_TYPE_1x1;
-			update_size_info(widget, 0, node);
+			update_size_info(widget, 0, node, root_path);
 		}
 	} else if (!xmlStrcasecmp(size, (const xmlChar *)"3x1")) {
 		if (is_easy) {
 			widget->size_list |= WIDGET_SIZE_TYPE_EASY_3x1;
-			update_size_info(widget, 10, node);
+			update_size_info(widget, 10, node, root_path);
 		} else {
 			ErrPrint("Invalid size tag (%s)\n", size);
 		}
 	} else if (!xmlStrcasecmp(size, (const xmlChar *)"3x3")) {
 		if (is_easy) {
 			widget->size_list |= WIDGET_SIZE_TYPE_EASY_3x3;
-			update_size_info(widget, 11, node);
+			update_size_info(widget, 11, node, root_path);
 		} else {
 			ErrPrint("Invalid size tag (%s)\n", size);
 		}
 	} else if (!xmlStrcasecmp(size, (const xmlChar *)"2x1")) {
 		widget->size_list |= WIDGET_SIZE_TYPE_2x1;
-		update_size_info(widget, 1, node);
+		update_size_info(widget, 1, node, root_path);
 	} else if (!xmlStrcasecmp(size, (const xmlChar *)"2x2")) {
 		widget->size_list |= WIDGET_SIZE_TYPE_2x2;
-		update_size_info(widget, 2, node);
+		update_size_info(widget, 2, node, root_path);
 	} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x1")) {
 		widget->size_list |= WIDGET_SIZE_TYPE_4x1;
-		update_size_info(widget, 3, node);
+		update_size_info(widget, 3, node, root_path);
 	} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x2")) {
 		widget->size_list |= WIDGET_SIZE_TYPE_4x2;
-		update_size_info(widget, 4, node);
+		update_size_info(widget, 4, node, root_path);
 	} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x3")) {
 		widget->size_list |= WIDGET_SIZE_TYPE_4x3;
-		update_size_info(widget, 5, node);
+		update_size_info(widget, 5, node, root_path);
 	} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x4")) {
 		widget->size_list |= WIDGET_SIZE_TYPE_4x4;
-		update_size_info(widget, 6, node);
+		update_size_info(widget, 6, node, root_path);
 	} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x5")) {
 		widget->size_list |= WIDGET_SIZE_TYPE_4x5;
-		update_size_info(widget, 7, node);
+		update_size_info(widget, 7, node, root_path);
 	} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x6")) {
 		widget->size_list |= WIDGET_SIZE_TYPE_4x6;
-		update_size_info(widget, 8, node);
+		update_size_info(widget, 8, node, root_path);
 	} else if (!xmlStrcasecmp(size, (const xmlChar *)"21x21")) {
 		widget->size_list |= WIDGET_SIZE_TYPE_EASY_1x1;
-		update_size_info(widget, 9, node);
+		update_size_info(widget, 9, node, root_path);
 	} else if (!xmlStrcasecmp(size, (const xmlChar *)"23x21")) {
 		widget->size_list |= WIDGET_SIZE_TYPE_EASY_3x1;
-		update_size_info(widget, 10, node);
+		update_size_info(widget, 10, node, root_path);
 	} else if (!xmlStrcasecmp(size, (const xmlChar *)"23x23")) {
 		widget->size_list |= WIDGET_SIZE_TYPE_EASY_3x3;
-		update_size_info(widget, 11, node);
+		update_size_info(widget, 11, node, root_path);
 	} else if (!xmlStrcasecmp(size, (const xmlChar *)"0x0")) {
 		widget->size_list |= WIDGET_SIZE_TYPE_FULL;
-		update_size_info(widget, 12, node);
+		update_size_info(widget, 12, node, root_path);
 	} else {
 		ErrPrint("Invalid size tag (%s)\n", size);
 	}
@@ -2522,17 +2584,19 @@ static void update_support_size(struct widget *widget, xmlNodePtr node)
 	xmlFree(size);
 }
 
-static void update_box(struct widget *widget, xmlNodePtr node)
+static void update_box(struct widget *widget, xmlNodePtr node, const xmlChar *root_path)
 {
-	if (!xmlHasProp(node, (const xmlChar *)"type")) {
-		widget->widget_type = WIDGET_TYPE_FILE;
+	int root_len;
+
+	if (!xmlHasProp(node, (const xmlChar *)"content-type")) {
+		widget->widget_type = WIDGET_TYPE_BUFFER;
 	} else {
 		xmlChar *type;
 
-		type = xmlGetProp(node, (const xmlChar *)"type");
+		type = xmlGetProp(node, (const xmlChar *)"content-type");
 		if (!type) {
 			ErrPrint("Type is NIL\n");
-			widget->widget_type = WIDGET_TYPE_FILE;
+			widget->widget_type = WIDGET_TYPE_BUFFER;
 		} else {
 			if (!xmlStrcasecmp(type, (const xmlChar *)"text")) {
 				widget->widget_type = WIDGET_TYPE_TEXT;
@@ -2542,8 +2606,10 @@ static void update_box(struct widget *widget, xmlNodePtr node)
 				widget->widget_type = WIDGET_TYPE_SCRIPT;
 			} else if (!xmlStrcasecmp(type, (const xmlChar *)"elm")) {
 				widget->widget_type = WIDGET_TYPE_UIFW;
-			} else { /* Default */
+			} else if (!xmlStrcasecmp(type, (const xmlChar *)"image")) {
 				widget->widget_type = WIDGET_TYPE_FILE;
+			} else { /* Default */
+				widget->widget_type = WIDGET_TYPE_BUFFER;
 			}
 
 			xmlFree(type);
@@ -2659,61 +2725,61 @@ static void update_box(struct widget *widget, xmlNodePtr node)
 			if (!xmlStrcasecmp(size, (const xmlChar *)"1x1")) {
 				if (is_easy) {
 					widget->size_list |= WIDGET_SIZE_TYPE_EASY_1x1;
-					update_size_info(widget, 9, node);
+					update_size_info(widget, 9, node, root_path);
 				} else {
 					widget->size_list |= WIDGET_SIZE_TYPE_1x1;
-					update_size_info(widget, 0, node);
+					update_size_info(widget, 0, node, root_path);
 				}
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"3x1")) {
 				if (is_easy) {
 					widget->size_list |= WIDGET_SIZE_TYPE_EASY_3x1;
-					update_size_info(widget, 10, node);
+					update_size_info(widget, 10, node, root_path);
 				} else {
 					ErrPrint("Invalid size tag (%s)\n", size);
 				}
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"3x3")) {
 				if (is_easy) {
 					widget->size_list |= WIDGET_SIZE_TYPE_EASY_3x3;
-					update_size_info(widget, 11, node);
+					update_size_info(widget, 11, node, root_path);
 				} else {
 					ErrPrint("Invalid size tag (%s)\n", size);
 				}
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"2x1")) {
 				widget->size_list |= WIDGET_SIZE_TYPE_2x1;
-				update_size_info(widget, 1, node);
+				update_size_info(widget, 1, node, root_path);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"2x2")) {
 				widget->size_list |= WIDGET_SIZE_TYPE_2x2;
-				update_size_info(widget, 2, node);
+				update_size_info(widget, 2, node, root_path);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x1")) {
 				widget->size_list |= WIDGET_SIZE_TYPE_4x1;
-				update_size_info(widget, 3, node);
+				update_size_info(widget, 3, node, root_path);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x2")) {
 				widget->size_list |= WIDGET_SIZE_TYPE_4x2;
-				update_size_info(widget, 4, node);
+				update_size_info(widget, 4, node, root_path);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x3")) {
 				widget->size_list |= WIDGET_SIZE_TYPE_4x3;
-				update_size_info(widget, 5, node);
+				update_size_info(widget, 5, node, root_path);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x4")) {
 				widget->size_list |= WIDGET_SIZE_TYPE_4x4;
-				update_size_info(widget, 6, node);
+				update_size_info(widget, 6, node, root_path);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x5")) {
 				widget->size_list |= WIDGET_SIZE_TYPE_4x5;
-				update_size_info(widget, 7, node);
+				update_size_info(widget, 7, node, root_path);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"4x6")) {
 				widget->size_list |= WIDGET_SIZE_TYPE_4x6;
-				update_size_info(widget, 8, node);
+				update_size_info(widget, 8, node, root_path);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"21x21")) {
 				widget->size_list |= WIDGET_SIZE_TYPE_EASY_1x1;
-				update_size_info(widget, 9, node);
+				update_size_info(widget, 9, node, root_path);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"23x21")) {
 				widget->size_list |= WIDGET_SIZE_TYPE_EASY_3x1;
-				update_size_info(widget, 10, node);
+				update_size_info(widget, 10, node, root_path);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"23x23")) {
 				widget->size_list |= WIDGET_SIZE_TYPE_EASY_3x3;
-				update_size_info(widget, 11, node);
+				update_size_info(widget, 11, node, root_path);
 			} else if (!xmlStrcasecmp(size, (const xmlChar *)"0x0")) {
 				widget->size_list |= WIDGET_SIZE_TYPE_FULL;
-				update_size_info(widget, 12, node);
+				update_size_info(widget, 12, node, root_path);
 			} else {
 				ErrPrint("Invalid size tag (%s)\n", size);
 			}
@@ -2739,12 +2805,12 @@ static void update_box(struct widget *widget, xmlNodePtr node)
 			}
 
 			widget->widget_src = src;
-			src = abspath_strdup(widget->widget_src);
+			src = abspath_strdup(root_path, widget->widget_src, &root_len);
 			if (!src) {
 				ErrPrint("strdup: %d\n", errno);
 			} else {
 				if (!is_scheme((char *)widget->widget_src)) {
-					abspath((char *)widget->widget_src, (char *)src);
+					abspath((char *)widget->widget_src, ((char *)src) + root_len);
 				}
 				xmlFree(widget->widget_src);
 				widget->widget_src = src;
@@ -2898,14 +2964,16 @@ static void update_group(struct widget *widget, xmlNodePtr node)
 	}
 }
 
-static void update_glance_bar(struct widget *widget, xmlNodePtr node)
+static void update_glance_bar(struct widget *widget, xmlNodePtr node, const xmlChar *root_path)
 {
-	if (!xmlHasProp(node, (const xmlChar *)"type")) {
+	int root_len;
+
+	if (!xmlHasProp(node, (const xmlChar *)"content-type")) {
 		widget->gbar_type = GBAR_TYPE_SCRIPT;
 	} else {
 		xmlChar *type;
 
-		type = xmlGetProp(node, (const xmlChar *)"type");
+		type = xmlGetProp(node, (const xmlChar *)"content-type");
 		if (!type) {
 			ErrPrint("type is NIL\n");
 			return;
@@ -2959,12 +3027,12 @@ static void update_glance_bar(struct widget *widget, xmlNodePtr node)
 			}
 
 			widget->gbar_src = src;
-			src = abspath_strdup(widget->gbar_src);
+			src = abspath_strdup(root_path, widget->gbar_src, &root_len);
 			if (!src) {
 				ErrPrint("strdup: %d\n", errno);
 			} else {
 				if (!is_scheme((char *)widget->widget_src)) {
-					abspath((char *)widget->gbar_src, (char *)src);
+					abspath((char *)widget->gbar_src, ((char *)src) + root_len);
 				}
 				xmlFree(widget->gbar_src);
 				widget->gbar_src = src;
@@ -3184,7 +3252,6 @@ static int has_meta_tag(const char *appid, const char *meta_tag)
 	}
 
 	/*
-	 * @note, not supported by 3.0 yet
 	ret = pkgmgrinfo_appinfo_get_metadata_value(handle, meta_tag, &value);
 	if (ret != PMINFO_R_OK) {
 		pkgmgrinfo_appinfo_destroy_appinfo(handle);
@@ -3203,9 +3270,14 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 	struct widget *widget;
 	xmlChar *pkgid;
 	xmlChar *tmp;
+	xmlChar *root_path;
+
+	root_path = pkgmgr_get_root_path(appid);
+	DbgPrint("RootPath is %s\n", (char *)root_path);
 
 	if (!xmlHasProp(node, (const xmlChar *)"appid")) {
 		ErrPrint("Missing appid\n");
+		xmlFree(root_path);
 		return -EINVAL;
 	}
 
@@ -3213,6 +3285,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 	if (!pkgid || !validate_pkgid(appid, (char *)pkgid)) {
 		ErrPrint("Invalid appid\n");
 		xmlFree(pkgid);
+		xmlFree(root_path);
 		return -EINVAL;
 	}
 
@@ -3222,13 +3295,25 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 	if (!widget) {
 		ErrPrint("calloc: %d\n", errno);
 		xmlFree(pkgid);
+		xmlFree(root_path);
 		return -ENOMEM;
 	}
 
 	widget->pkgid = pkgid;
 
+	/**
+	 * @note
+	 * count == multiple
+	 * Check "count" first and then "multiple"
+	 */
 	if (xmlHasProp(node, (const xmlChar *)"count")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"count");
+		if (tmp && sscanf((const char *)tmp, "%d", &widget->count) != 1) {
+			ErrPrint("Invalid syntax: %s\n", (const char *)tmp);
+		}
+		xmlFree(tmp);
+	} else if (xmlHasProp(node, (const xmlChar *)"multiple")) {
+		tmp = xmlGetProp(node, (const xmlChar *)"multiple");
 		if (tmp && sscanf((const char *)tmp, "%d", &widget->count) != 1) {
 			ErrPrint("Invalid syntax: %s\n", (const char *)tmp);
 		}
@@ -3243,9 +3328,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 		tmp = xmlGetProp(node, (const xmlChar *)"primary");
 		widget->primary = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
 		xmlFree(tmp);
-	}
-
-	if (xmlHasProp(node, (const xmlChar *)"main")) {
+	} else if (xmlHasProp(node, (const xmlChar *)"main")) {
 		tmp = xmlGetProp(node, (const xmlChar *)"main");
 		widget->primary = tmp && !xmlStrcasecmp(tmp, (const xmlChar *)"true");
 		xmlFree(tmp);
@@ -3279,9 +3362,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 		if (!widget->period) {
 			ErrPrint("Period is NIL\n");
 		}
-	}
-
-	if (xmlHasProp(node, (const xmlChar *)"update-period")) {
+	} else if (xmlHasProp(node, (const xmlChar *)"update-period")) {
 		widget->period = xmlGetProp(node, (const xmlChar *)"update-period");
 		if (!widget->period) {
 			ErrPrint("Period is NIL\n");
@@ -3331,6 +3412,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 		if (!widget->abi) {
 			ErrPrint("ABI is NIL\n");
 			widget_destroy(widget);
+			xmlFree(root_path);
 			return -EFAULT;
 		}
 	}
@@ -3341,15 +3423,15 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 	 * But for the "widget-application" style tag, this "type" attribute is moved to "widget-application".
 	 * And there is no "box" tag.
 	 */
-	if (!xmlHasProp(node, (const xmlChar *)"type")) {
+	if (!xmlHasProp(node, (const xmlChar *)"content-type")) {
 		widget->widget_type = WIDGET_TYPE_BUFFER;
 	} else {
 		xmlChar *type;
 
-		type = xmlGetProp(node, (const xmlChar *)"type");
+		type = xmlGetProp(node, (const xmlChar *)"content-type");
 		if (!type) {
 			ErrPrint("Type is NIL\n");
-			widget->widget_type = WIDGET_TYPE_FILE;
+			widget->widget_type = WIDGET_TYPE_BUFFER;
 		} else {
 			if (!xmlStrcasecmp(type, (const xmlChar *)"text")) {
 				widget->widget_type = WIDGET_TYPE_TEXT;
@@ -3359,6 +3441,8 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 				widget->widget_type = WIDGET_TYPE_SCRIPT;
 			} else if (!xmlStrcasecmp(type, (const xmlChar *)"elm")) {
 				widget->widget_type = WIDGET_TYPE_UIFW;
+			} else if (!xmlStrcasecmp(type, (const xmlChar *)"image")) {
+				widget->widget_type = WIDGET_TYPE_FILE;
 			} else { /* Default */
 				widget->widget_type = WIDGET_TYPE_BUFFER;
 			}
@@ -3369,22 +3453,25 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 
 	if (xmlHasProp(node, (const xmlChar *)"libexec")) {
 		xmlChar *tmp_libexec;
+		int root_len;
 
 		widget->libexec = xmlGetProp(node, (const xmlChar *)"libexec");
 		if (!widget->libexec) {
 			ErrPrint("libexec is NIL\n");
 			widget_destroy(widget);
+			xmlFree(root_path);
 			return -EFAULT;
 		}
 
-		tmp_libexec = abspath_strdup(widget->libexec);
+		tmp_libexec = abspath_strdup(root_path, widget->libexec, &root_len);
 		if (!tmp_libexec) {
 			ErrPrint("strdup: %d\n", errno);
 			widget_destroy(widget);
+			xmlFree(root_path);
 			return -EFAULT;
 		}
 
-		abspath((char *)widget->libexec, (char *)tmp_libexec);
+		abspath((char *)widget->libexec, ((char *)tmp_libexec) + root_len);
 		xmlFree(widget->libexec);
 		widget->libexec = tmp_libexec;
 
@@ -3399,6 +3486,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 			if (!widget->abi) {
 				ErrPrint("xmlstrdup: %d\n", errno);
 				widget_destroy(widget);
+				xmlFree(root_path);
 				return -ENOMEM;
 			}
 		} else if (xmlStrcasecmp(widget->abi, (const xmlChar *)"c") && xmlStrcasecmp(widget->abi, (const xmlChar *)"cpp")) {
@@ -3406,22 +3494,25 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 		}
 	} else if (xmlHasProp(node, (const xmlChar *)"exec")) {
 		xmlChar *tmp_libexec;
+		int root_len;
 
 		widget->libexec = xmlGetProp(node, (const xmlChar *)"exec");
 		if (!widget->libexec) {
 			ErrPrint("libexec is NIL\n");
 			widget_destroy(widget);
+			xmlFree(root_path);
 			return -EFAULT;
 		}
 
-		tmp_libexec = abspath_strdup(widget->libexec);
+		tmp_libexec = abspath_strdup(root_path, widget->libexec, &root_len);
 		if (!tmp_libexec) {
 			ErrPrint("strdup: %d\n", errno);
 			widget_destroy(widget);
+			xmlFree(root_path);
 			return -EFAULT;
 		}
 
-		abspath((char *)widget->libexec, (char *)tmp_libexec);
+		abspath((char *)widget->libexec, ((char *)tmp_libexec) + root_len);
 		xmlFree(widget->libexec);
 		widget->libexec = tmp_libexec;
 
@@ -3436,6 +3527,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 			if (!widget->abi) {
 				ErrPrint("xmlstrdup: %d\n", errno);
 				widget_destroy(widget);
+				xmlFree(root_path);
 				return -ENOMEM;
 			}
 		} else if (xmlStrcasecmp(widget->abi, (const xmlChar *)"app")) {
@@ -3466,22 +3558,22 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"icon")) {
-			update_i18n_icon(widget, node);
+			update_i18n_icon(widget, node, root_path);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"box")) {
-			update_box(widget, node);
+			update_box(widget, node, root_path);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"support-size")) {
-			update_support_size(widget, node);
+			update_support_size(widget, node, root_path);
 			continue;
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"glancebar")) {
-			update_glance_bar(widget, node);
+			update_glance_bar(widget, node, root_path);
 			continue;
 		}
 
@@ -3513,6 +3605,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"category")) {
 			if (update_category(widget, node) < 0) {
 				widget_destroy(widget);
+				xmlFree(root_path);
 				return -EINVAL;
 			}
 
@@ -3544,6 +3637,7 @@ int db_install_widget(xmlNodePtr node, const char *appid)
 		widget->abi = xmlStrdup((xmlChar *)"meta");
 	}
 
+	xmlFree(root_path);
 	return db_insert_widget(widget, appid);
 }
 
@@ -3551,9 +3645,14 @@ int db_install_watchapp(xmlNodePtr node, const char *appid)
 {
 	struct widget *widget;
 	xmlChar *pkgid;
+	xmlChar *root_path;
+
+	root_path = pkgmgr_get_root_path(appid);
+	DbgPrint("RootPath is %s\n", root_path);
 
 	if (!xmlHasProp(node, (const xmlChar *)"appid")) {
 		ErrPrint("Missing appid\n");
+		xmlFree(root_path);
 		return -EINVAL;
 	}
 
@@ -3561,6 +3660,7 @@ int db_install_watchapp(xmlNodePtr node, const char *appid)
 	if (!pkgid || !validate_pkgid(appid, (char *)pkgid)) {
 		ErrPrint("Invalid appid\n");
 		xmlFree(pkgid);
+		xmlFree(root_path);
 		return -EINVAL;
 	}
 
@@ -3570,6 +3670,7 @@ int db_install_watchapp(xmlNodePtr node, const char *appid)
 	if (!widget) {
 		ErrPrint("strdup: %d\n", errno);
 		xmlFree(pkgid);
+		xmlFree(root_path);
 		return -ENOMEM;
 	}
 
@@ -3601,6 +3702,7 @@ int db_install_watchapp(xmlNodePtr node, const char *appid)
 		if (!widget->libexec) {
 			ErrPrint("libexec is NIL\n");
 			widget_destroy(widget);
+			xmlFree(root_path);
 			return -EFAULT;
 		}
 	}
@@ -3617,11 +3719,12 @@ int db_install_watchapp(xmlNodePtr node, const char *appid)
 		}
 
 		if (!xmlStrcasecmp(node->name, (const xmlChar *)"icon")) {
-			update_i18n_icon(widget, node);
+			update_i18n_icon(widget, node, root_path);
 			continue;
 		}
 	}
 
+	xmlFree(root_path);
 	return db_insert_widget(widget, appid);
 }
 
