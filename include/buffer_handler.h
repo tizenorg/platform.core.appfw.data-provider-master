@@ -74,7 +74,7 @@ extern int buffer_handler_resize(struct buffer_info *info, int w, int h, int pix
  * \param[in] h
  * \return void
  */
-extern void buffer_handler_update_size(struct buffer_info *info, int w, int h);
+extern void buffer_handler_update_size(struct buffer_info *info, int w, int h, int pixel_size);
 
 /*!
  * \brief

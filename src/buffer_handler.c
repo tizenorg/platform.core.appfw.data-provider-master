@@ -1030,7 +1030,7 @@ EAPI int buffer_handler_is_loaded(const struct buffer_info *info)
 	return info ? info->is_loaded : 0;
 }
 
-EAPI void buffer_handler_update_size(struct buffer_info *info, int w, int h)
+EAPI void buffer_handler_update_size(struct buffer_info *info, int w, int h, int pixel_size)
 {
 	if (!info) {
 		return;
@@ -1038,6 +1038,9 @@ EAPI void buffer_handler_update_size(struct buffer_info *info, int w, int h)
 
 	info->w = w;
 	info->h = h;
+	if (pixel_size > 0) {
+		info->pixel_size = pixel_size;
+	}
 }
 
 EAPI int buffer_handler_resize(struct buffer_info *info, int w, int h)
@@ -1054,7 +1057,7 @@ EAPI int buffer_handler_resize(struct buffer_info *info, int w, int h)
 		return WIDGET_ERROR_NONE;
 	}
 
-	buffer_handler_update_size(info, w, h);
+	buffer_handler_update_size(info, w, h, pixel_size);
 
 	if (!info->is_loaded) {
 		DbgPrint("Buffer size is updated[%dx%d]\n", w, h);

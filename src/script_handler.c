@@ -895,7 +895,7 @@ static void update_size_for_script(struct script_info *info, struct inst_info *i
 	 * If it required to be unload and load.
 	 * New size of buffer will be allocated
 	 */
-	buffer_handler_update_size(info->buffer_handle, w, h);
+	buffer_handler_update_size(info->buffer_handle, w, h, 0);
 
 	if (info->port->update_size) {
 		(void)info->port->update_size(info->port_data, NULL, w, h);
