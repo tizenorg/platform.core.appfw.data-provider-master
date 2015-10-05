@@ -951,7 +951,7 @@ HAPI int notification_service_init(void)
 
 	pkgmgr_init();
 	pkgmgr_add_event_callback(PKGMGR_EVENT_INSTALL, _package_install_cb, (void*)&s_info);
-	/* pkgmgr_add_event_callback(PKGMGR_EVENT_UPDATE, _package_install_cb, (void*)&s_info); */
+	pkgmgr_add_event_callback(PKGMGR_EVENT_UPDATE, _package_install_cb, (void*)&s_info);
 	pkgmgr_add_event_callback(PKGMGR_EVENT_UNINSTALL, _package_uninstall_cb, (void*)&s_info);
 	DbgPrint("Successfully initiated\n");
 	return SERVICE_COMMON_ERROR_NONE;
