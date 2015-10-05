@@ -954,7 +954,7 @@ HAPI int notification_service_init(void)
 	notification_setting_refresh_setting_table();
 
 	pkgmgr_add_event_callback(PKGMGR_EVENT_INSTALL, _package_install_cb, (void*)&s_info);
-	/* pkgmgr_add_event_callback(PKGMGR_EVENT_UPDATE, _package_install_cb, (void*)&s_info); */
+	pkgmgr_add_event_callback(PKGMGR_EVENT_UPDATE, _package_install_cb, (void*)&s_info);
 	pkgmgr_add_event_callback(PKGMGR_EVENT_UNINSTALL, _package_uninstall_cb, (void*)&s_info);
 	DbgPrint("Successfully initiated\n");
 	return WIDGET_ERROR_NONE;
