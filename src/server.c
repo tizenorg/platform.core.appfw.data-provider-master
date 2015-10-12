@@ -2463,7 +2463,7 @@ static struct packet *client_gbar_mouse_set(pid_t pid, int handle, const struct 
 		goto out;
 	}
 
-	ret = packet_get(packet, "ssdiiidd", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
+	ret = packet_get(packet, "ssdiiiddi", &pkgname, &id, &timestamp, &x, &y, &source, &ratio_w, &ratio_h, &device);
 	if (ret != 9) {
 		ErrPrint("Parameter is not matched\n");
 		ret = WIDGET_ERROR_INVALID_PARAMETER;
