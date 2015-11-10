@@ -629,6 +629,8 @@ static inline void clear_listener(struct event_listener *listener)
 		case EVENT_STATE_ACTIVATED:
 			p_event_data = &s_info.event_data;
 			next_state = EVENT_STATE_DEACTIVATE;
+			p_event_data->x += listener->x;
+			p_event_data->y += listener->y;
 			break;
 		case EVENT_STATE_DEACTIVATE:
 			memcpy(&event_data, &s_info.event_data, sizeof(event_data));
@@ -641,6 +643,8 @@ static inline void clear_listener(struct event_listener *listener)
 				next_state = EVENT_STATE_ACTIVATED;
 			} else {
 				next_state = EVENT_STATE_DEACTIVATED;
+				p_event_data->x += listener->x;
+				p_event_data->y += listener->y;
 			}
 			break;
 		case EVENT_STATE_DEACTIVATED:

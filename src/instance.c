@@ -1031,7 +1031,10 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 	}
 
 	if (fork_package(inst, pkgname) < 0) {
-		(void)client_unref(inst->client);
+		if (inst->client) {
+			(void)client_event_callback_del(inst->client, CLIENT_EVENT_DEACTIVATE, client_deactivated_cb, inst);
+			(void)client_unref(inst->client);
+		}
 		DbgFree(extra_bundle_data);
 		DbgFree(inst->title);
 		DbgFree(inst->category);
@@ -1062,7 +1065,10 @@ HAPI struct inst_info *instance_create(struct client_node *client, double timest
 		DbgFree(inst->widget.extra_buffer);
 		DbgFree(inst->gbar.extra_buffer);
 		unfork_package(inst);
-		(void)client_unref(inst->client);
+		if (inst->client) {
+			(void)client_event_callback_del(inst->client, CLIENT_EVENT_DEACTIVATE, client_deactivated_cb, inst);
+			(void)client_unref(inst->client);
+		}
 		DbgFree(inst->title);
 		DbgFree(inst->category);
 		DbgFree(inst->cluster);
