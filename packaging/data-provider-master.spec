@@ -210,7 +210,6 @@ echo "Successfully installed. Please start a daemon again manually"
 %if 0%{?tizen_build_binary_release_type_eng}
 /opt/usr/devel/usr/bin/*
 %endif
-%{_prefix}/etc/package-manager/parserlib/*
 %{_datarootdir}/%{name}/*
 /opt/etc/dump.d/module.d/dump_widget.sh
 #%defattr(-,owner,users,-)
