@@ -27,17 +27,11 @@
 
 #include <dlog.h>
 #include <Eina.h>
-#if defined(HAVE_LIVEBOX)
-#include <widget_errno.h>
-#include <widget_conf.h>
-#include <widget_util.h>
-#else
-#include "lite-errno.h"
-#endif
 
 #include "conf.h"
 #include "debug.h"
 #include "util.h"
+#include "service_common.h"
 #include "critical_log.h"
 
 static struct {
@@ -61,16 +55,16 @@ static inline void rotate_log(void)
 	char *filename;
 	int namelen;
 
-	if (s_info.nr_of_lines < WIDGET_CONF_MAX_LOG_LINE) {
+	if (s_info.nr_of_lines < CONF_MAX_LOG_LINE) {
 		return;
 	}
 
-	s_info.file_id = (s_info.file_id + 1) % WIDGET_CONF_MAX_LOG_FILE;
+	s_info.file_id = (s_info.file_id + 1) % CONF_MAX_LOG_FILE;
 
-	namelen = strlen(s_info.filename) + strlen(WIDGET_CONF_LOG_PATH) + 30;
+	namelen = strlen(s_info.filename) + strlen(CONF_LOG_PATH) + 30;
 	filename = malloc(namelen);
 	if (filename) {
-		snprintf(filename, namelen, "%s/%d_%s.%d", WIDGET_CONF_LOG_PATH, s_info.file_id, s_info.filename, getpid());
+		snprintf(filename, namelen, "%s/%d_%s.%d", CONF_LOG_PATH, s_info.file_id, s_info.filename, getpid());
 
 		if (s_info.fp) {
 			if (fclose(s_info.fp) != 0) {
@@ -97,12 +91,12 @@ HAPI int critical_log(const char *func, int line, const char *fmt, ...)
 	int ret;
 
 	if (!s_info.fp) {
-		return WIDGET_ERROR_IO_ERROR;
+		return SERVICE_COMMON_ERROR_IO_ERROR;
 	}
 
 	CRITICAL_SECTION_BEGIN(&s_info.cri_lock);
 
-	fprintf(s_info.fp, "%lf [%s:%d] ", util_timestamp(), widget_util_basename((char *)func), line);
+	fprintf(s_info.fp, "%lf [%s:%d] ", util_timestamp(), util_basename((char *)func), line);
 
 	va_start(ap, fmt);
 	ret = vfprintf(s_info.fp, fmt, ap);
@@ -125,26 +119,26 @@ HAPI int critical_log_init(const char *name)
 	char *filename;
 
 	if (s_info.fp) {
-		return WIDGET_ERROR_NONE;
+		return SERVICE_COMMON_ERROR_NONE;
 	}
 
 	s_info.filename = strdup(name);
 	if (!s_info.filename) {
 		ErrPrint("Failed to create a log file\n");
-		return WIDGET_ERROR_OUT_OF_MEMORY;
+		return SERVICE_COMMON_ERROR_OUT_OF_MEMORY;
 	}
 
-	namelen = strlen(name) + strlen(WIDGET_CONF_LOG_PATH) + 30;
+	namelen = strlen(name) + strlen(CONF_LOG_PATH) + 30;
 
 	filename = malloc(namelen);
 	if (!filename) {
 		ErrPrint("Failed to create a log file\n");
 		DbgFree(s_info.filename);
 		s_info.filename = NULL;
-		return WIDGET_ERROR_OUT_OF_MEMORY;
+		return SERVICE_COMMON_ERROR_OUT_OF_MEMORY;
 	}
 
-	snprintf(filename, namelen, "%s/%d_%s.%d", WIDGET_CONF_LOG_PATH, s_info.file_id, name, getpid());
+	snprintf(filename, namelen, "%s/%d_%s.%d", CONF_LOG_PATH, s_info.file_id, name, getpid());
 
 	s_info.fp = fopen(filename, "w+");
 	if (!s_info.fp) {
@@ -152,11 +146,11 @@ HAPI int critical_log_init(const char *name)
 		DbgFree(s_info.filename);
 		s_info.filename = NULL;
 		DbgFree(filename);
-		return WIDGET_ERROR_IO_ERROR;
+		return SERVICE_COMMON_ERROR_IO_ERROR;
 	}
 
 	DbgFree(filename);
-	return WIDGET_ERROR_NONE;
+	return SERVICE_COMMON_ERROR_NONE;
 }
 
 

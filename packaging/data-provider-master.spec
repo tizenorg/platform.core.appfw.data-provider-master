@@ -1,7 +1,7 @@
 %bcond_with wayland
 
 Name: data-provider-master
-Summary: Master service provider for widgetes
+Summary: Master service provider for badge, shortcut, notification
 Version: 1.3.0
 Release: 1
 Group: Applications/Core Applications
@@ -20,26 +20,12 @@ BuildRequires: pkgconfig(libsmack)
 BuildRequires: pkgconfig(bundle)
 BuildRequires: pkgconfig(capi-appfw-app-manager)
 
-%if %{with wayland}
-BuildRequires: pkgconfig(ecore-wayland)
-%else
-BuildRequires: pkgconfig(ecore-x)
-BuildRequires: pkgconfig(x11)
-BuildRequires: pkgconfig(xfixes)
-BuildRequires: pkgconfig(xext)
-BuildRequires: pkgconfig(libdri2)
-BuildRequires: pkgconfig(xdamage)
-BuildRequires: pkgconfig(dri2proto)
-%endif
-
-BuildRequires: pkgconfig(libtbm)
 BuildRequires: pkgconfig(ecore)
 BuildRequires: pkgconfig(eina)
 BuildRequires: pkgconfig(com-core)
 BuildRequires: pkgconfig(libxml-2.0)
 BuildRequires: pkgconfig(pkgmgr)
 BuildRequires: pkgconfig(pkgmgr-info)
-BuildRequires: pkgconfig(widget_service)
 BuildRequires: pkgconfig(notification)
 BuildRequires: pkgconfig(badge)
 BuildRequires: pkgconfig(badge-service)
@@ -54,8 +40,6 @@ Requires(post): sys-assert
 Requires(post): dbus
 
 %description
-Manage the 2nd stage widget service provider and communicate with the viewer application.
-Keep trace on the life-cycle of the widget and status of the service providers, viewer applications.
 
 %prep
 %setup -q
@@ -76,28 +60,13 @@ export FFLAGS="${FFLAGS} -DTIZEN_ENGINEER_MODE"
 export ENGINEER=true
 %endif
 
-%if %{with wayland}
-export WAYLAND_SUPPORT=On
-export X11_SUPPORT=Off
-export LIVEBOX_SHM=wayland
-%else
-export WAYLAND_SUPPORT=Off
-export X11_SUPPORT=On
-export LIVEBOX_SHM=x11
-%endif
-
 %if "%{_repository}" == "wearable"
-export LIVEBOX_SHM="${LIVEBOX_SHM}.wearable"
 export MOBILE=Off
 export WEARABLE=On
 %else
-export LIVEBOX_SHM="${LIVEBOX_SHM}.mobile"
 export MOBILE=On
 export WEARABLE=Off
 %endif
-
-export LIVEBOX_SHM="${LIVEBOX_SHM}.480x800"
-export LIVEBOX=On
 
 %ifarch %ix86
 export TARGET=emulator
@@ -105,7 +74,7 @@ export TARGET=emulator
 export TARGET=device
 %endif
 
-%cmake . -DNAME=%{name} -DPRODUCT=${LIVEBOX_SHM} -DENGINEER_BINARY=${ENGINEER} -DWAYLAND_SUPPORT=${WAYLAND_SUPPORT} -DX11_SUPPORT=${X11_SUPPORT} -DMOBILE=${MOBILE} -DWEARABLE=${WEARABLE} -DLIVEBOX=${LIVEBOX} -DTARGET=${TARGET}
+%cmake . -DNAME=%{name} -DENGINEER_BINARY=${ENGINEER} -DMOBILE=${MOBILE} -DWEARABLE=${WEARABLE} -DTARGET=${TARGET}
 
 CFLAGS="${CFLAGS} -Wall -Winline -Werror" LDFLAGS="${LDFLAGS}" make %{?jobs:-j%jobs}
 
@@ -115,27 +84,7 @@ rm -rf %{buildroot}
 mkdir -p %{buildroot}/%{_datarootdir}/license
 mkdir -p %{buildroot}%{_prefix}/lib/systemd/system/multi-user.target.wants
 ln -sf ../%{name}.service %{buildroot}%{_prefix}/lib/systemd/system/multi-user.target.wants/%{name}.service
-mkdir -p %{buildroot}/opt/usr/share/live_magazine
-mkdir -p %{buildroot}/opt/usr/share/live_magazine/log
-mkdir -p %{buildroot}/opt/usr/share/live_magazine/reader
-mkdir -p %{buildroot}/opt/usr/share/live_magazine/always
-mkdir -p %{buildroot}/opt/usr/share/live_magazine/widget.lck
 mkdir -p %{buildroot}/opt/usr/devel/usr/bin
-mkdir -p %{buildroot}/usr/dbspace
-
-echo "widget DB file is not exists, initiate it"
-sqlite3 %{buildroot}/usr/dbspace/.widget.db-new <<EOF
-CREATE TABLE version ( version INTEGER );
-CREATE TABLE box_size ( pkgid TEXT NOT NULL, size_type INTEGER, preview TEXT, touch_effect INTEGER, need_frame INTEGER, mouse_event INTEGER, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
-CREATE TABLE client (pkgid TEXT PRIMARY KEY NOT NULL, icon TEXT, name TEXT, auto_launch TEXT, gbar_size TEXT, content TEXT, nodisplay INTEGER, setup TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
-CREATE TABLE groupinfo ( id INTEGER PRIMARY KEY AUTOINCREMENT, cluster TEXT NOT NULL, category TEXT NOT NULL, pkgid TEXT NOT NULL, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
-CREATE TABLE groupmap (option_id INTEGER PRIMARY KEY AUTOINCREMENT, id INTEGER, pkgid TEXT NOT NULL, ctx_item TEXT NOT NULL, FOREIGN KEY(id) REFERENCES groupinfo(id), FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
-CREATE TABLE i18n ( pkgid TEXT NOT NULL, lang TEXT COLLATE NOCASE, name TEXT, icon TEXT, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
-CREATE TABLE option ( pkgid TEXT NOT NULL, option_id INTEGER, key TEXT NOT NULL, value TEXT NOT NULL, FOREIGN KEY(option_id) REFERENCES groupmap(option_id), FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
-CREATE TABLE pkgmap ( pkgid TEXT PRIMARY KEY NOT NULL, appid TEXT, uiapp TEXT, prime INTEGER, category TEXT DEFAULT 'http://tizen.org/category/default' );
-CREATE TABLE provider ( pkgid TEXT PRIMARY KEY NOT NULL, network INTEGER, abi TEXT, secured INTEGER, box_type INTEGER, box_src TEXT, box_group TEXT, gbar_type INTEGER, gbar_src TEXT, gbar_group TEXT, libexec TEXT, timeout INTEGER, period TEXT, script TEXT, pinup INTEGER, count INTEGER, direct_input INTEGER DEFAULT 0, hw_acceleration TEXT DEFAULT '', auto_align INTEGER DEFAULT 0, FOREIGN KEY(pkgid) REFERENCES pkgmap(pkgid) ON DELETE CASCADE);
-EOF
-
 %pre
 # Executing the stop script for stopping the service of installed provider (old version)
 if [ -x %{_sysconfdir}/rc.d/init.d/%{name} ]; then
@@ -143,53 +92,6 @@ if [ -x %{_sysconfdir}/rc.d/init.d/%{name} ]; then
 fi
 
 %post
-#
-# NOTE:
-# This SYSTEM_UID should be updated properly.
-# In the SPIN, system user id is 1000
-SYSTEM_UID=1000
-APP_UID=380
-APP_GID=0
-
-if [ ! -s /usr/dbspace/.widget.db ]; then
-	echo "DB is not exists"
-	mv /usr/dbspace/.widget.db-new /usr/dbspace/.widget.db
-	mv /usr/dbspace/.widget.db-new-journal /usr/dbspace/.widget.db-journal
-else
-	VERSION=`sqlite3 /usr/dbspace/.widget.db "SELECT * FROM version"`
-	echo "DB is already exists (Version: $VERSION)"
-	echo "==============================================="
-	sqlite3 /usr/dbspace/.widget.db "SELECT * FROM pkgmap"
-	echo "==============================================="
-	rm -rf /usr/dbspace/.widget.db-new
-	rm -rf /usr/dbspace/.widget.db-new-journal
-fi
-
-chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine
-# System tool(widget-mgr) should be able to access this folder.
-# So give the "rx" permission to the other group. (750 -> 755)
-chmod 755 /opt/usr/share/live_magazine
-
-chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine/log
-chmod 750 /opt/usr/share/live_magazine/log
-
-chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine/reader
-chmod 750 /opt/usr/share/live_magazine/reader
-
-chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine/always
-chmod 750 /opt/usr/share/live_magazine/always
-
-chown ${APP_UID}:${APP_GID} /opt/usr/share/live_magazine/widget.lck
-chmod 770 /opt/usr/share/live_magazine/widget.lck
-mv /opt/usr/share/live_magazine/widget.lck /opt/usr/share/live_magazine/.widget.lck
-
-chown ${APP_UID}:${APP_GID} %{_prefix}/dbspace/.widget.db
-chmod 644 %{_prefix}/dbspace/.widget.db
-chown ${APP_UID}:${APP_GID} /opt/dbspace/.widget.db-journal
-chmod 644 %{_prefix}/dbspace/.widget.db-journal
-
-echo "Successfully installed. Please start a daemon again manually"
-
 %files -n %{name}
 %manifest %{name}.manifest
 %defattr(-,system,system,-)
@@ -198,22 +100,14 @@ echo "Successfully installed. Please start a daemon again manually"
 %{_prefix}/lib/systemd/system/%{name}.service
 %{_prefix}/lib/systemd/system/%{name}.target
 %{_prefix}/bin/%{name}
-%{_prefix}/lib/systemd/system/%{name}-client.socket
-%{_prefix}/lib/systemd/system/%{name}-provider.socket
 %{_prefix}/lib/systemd/system/%{name}-service.socket
 %{_prefix}/lib/systemd/system/%{name}-badge.socket
 %{_prefix}/lib/systemd/system/%{name}-notification.socket
 %{_prefix}/lib/systemd/system/%{name}-shortcut.socket
-%{_prefix}/lib/systemd/system/%{name}-utility.socket
-%{_prefix}/lib/systemd/system/%{name}-fd.socket
 %{_datarootdir}/license/*
 %if 0%{?tizen_build_binary_release_type_eng}
 /opt/usr/devel/usr/bin/*
 %endif
-%{_datarootdir}/%{name}/*
-/opt/etc/dump.d/module.d/dump_widget.sh
 #%defattr(-,owner,users,-)
-/opt/usr/share/live_magazine/*
-%{_prefix}/dbspace/.widget.db*
 
 # End of a file
