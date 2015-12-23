@@ -32,11 +32,6 @@
 #include <cynara-creds-socket.h>
 
 #include <com-core.h>
-#if defined(HAVE_LIVEBOX)
-#include <widget_errno.h>
-#else
-#include <lite-errno.h>
-#endif
 
 #include "service_common.h"
 #include "util.h"
@@ -417,7 +412,7 @@ HAPI int service_register_tcb_callback(struct service_context *svc_ctx, struct t
 	cbdata = malloc(sizeof(*cbdata));
 	if (!cbdata) {
 		ErrPrint("malloc: %d\n", errno);
-		return WIDGET_ERROR_OUT_OF_MEMORY;
+		return SERVICE_COMMON_ERROR_OUT_OF_MEMORY;
 	}
 
 	cbdata->tcb = tcb;
@@ -436,10 +431,10 @@ HAPI int service_register_tcb_callback(struct service_context *svc_ctx, struct t
 		break;
 	default:
 		DbgFree(cbdata);
-		return WIDGET_ERROR_INVALID_PARAMETER;
+		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
 	}
 
-	return WIDGET_ERROR_NONE;
+	return SERVICE_COMMON_ERROR_NONE;
 }
 
 /*!
@@ -457,7 +452,7 @@ HAPI int service_unregister_tcb_callback(struct service_context *svc_ctx, struct
 			if (cbdata->tcb == tcb && cbdata->cb == cb && cbdata->data == data) {
 				svc_ctx->tcb_create_cb_list = eina_list_remove(svc_ctx->tcb_create_cb_list, cbdata);
 				DbgFree(cbdata);
-				return WIDGET_ERROR_NONE;
+				return SERVICE_COMMON_ERROR_NONE;
 			}
 		}
 		break;
@@ -466,15 +461,15 @@ HAPI int service_unregister_tcb_callback(struct service_context *svc_ctx, struct
 			if (cbdata->tcb == tcb && cbdata->cb == cb && cbdata->data == data) {
 				svc_ctx->tcb_destroy_cb_list = eina_list_remove(svc_ctx->tcb_destroy_cb_list, cbdata);
 				DbgFree(cbdata);
-				return WIDGET_ERROR_NONE;
+				return SERVICE_COMMON_ERROR_NONE;
 			}
 		}
 		break;
 	default:
-		return WIDGET_ERROR_INVALID_PARAMETER;
+		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
 	}
 
-	return WIDGET_ERROR_NOT_EXIST;
+	return SERVICE_COMMON_ERROR_NOT_EXIST;
 }
 
 /*!
@@ -575,7 +570,7 @@ static inline void tcb_teminate_all(struct service_context *svc_ctx)
 HAPI int service_common_destroy_tcb(struct service_context *svc_ctx, struct tcb *tcb)
 {
 	if (!svc_ctx || !tcb) {
-		return WIDGET_ERROR_INVALID_PARAMETER;
+		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
 	}
 	/**
 	 * @note
@@ -585,7 +580,7 @@ HAPI int service_common_destroy_tcb(struct service_context *svc_ctx, struct tcb 
 		ErrPrint("write: %d\n", errno);
 	}
 
-	return WIDGET_ERROR_NONE;
+	return SERVICE_COMMON_ERROR_NONE;
 }
 
 /*!

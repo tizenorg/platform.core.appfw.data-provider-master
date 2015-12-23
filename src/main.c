@@ -34,161 +34,32 @@
 #include <packet.h>
 #include <dlog.h>
 
-#if defined(HAVE_LIVEBOX)
-
-#include <widget_errno.h>
-#include <widget_service.h>
-#include <widget_service_internal.h>
-#include <widget_conf.h>
-#include <widget_util.h>
-#include <widget_abi.h>
-
-#include <com-core_packet.h>
-
-#include "slave_life.h"
-#include "slave_rpc.h"
-#include "client_life.h"
-#include "instance.h"
-#include "buffer_handler.h"
-#include "script_handler.h"
-#include "package.h"
-#include "group.h"
-#include "dead_monitor.h"
-#include "io.h"
-#include "xmonitor.h"
-#include "server.h"
-#include "event.h"
-#include "file_service.h"
-#include "utility_service.h"
-#endif
-
 #include "conf.h"
-#include "setting.h"
 #include "util.h"
 #include "debug.h"
 #include "critical_log.h"
 #include "shortcut_service.h"
 #include "notification_service.h"
 #include "badge_service.h"
-#include "shared_fd_service.h"
-
-#if defined(FLOG)
-#define TMP_LOG_FILE "/tmp/live.log"
-FILE *__file_log_fp;
-#endif
-
-#define WIDGET_STATIC_LOCK_PATH "/opt/usr/share/live_magazine/.widget.lck"
 
 static inline int app_create(void)
 {
 	int ret;
 
-	if (access(WIDGET_CONF_LOG_PATH, R_OK | W_OK) != 0) {
-		if (mkdir(WIDGET_CONF_LOG_PATH, 0755) < 0) {
-			ErrPrint("mkdir %s (%d)\n", WIDGET_CONF_LOG_PATH, errno);
-		}
-	}
-
-	/*!
-	 * \note
-	 * Dead signal handler has to be initialized before
-	 * initate package or client (slave and client).
-	 *
-	 * Because while creating slaves for packages.
-	 * It could be crashed before complete the initation stage.
-	 *
-	 * Then the dead callback should be invoked to handle it properly.
-	 *
-	 * To enable the dead signal handler,
-	 * dead_init should be done before other components are initiated.
-	 */
-	ret = setting_init();
+	ret = shortcut_service_init();
 	if (ret < 0) {
-		DbgPrint("Setting initialized: %d\n", ret);
+		DbgPrint("shortcut: %d\n", ret);
 	}
 
-#if defined(HAVE_LIVEBOX)
-	ret = client_init();
+	ret = notification_service_init();
 	if (ret < 0) {
-		DbgPrint("Client initialized: %d\n", ret);
+		DbgPrint("noti: %d\n", ret);
 	}
 
-	ret = dead_init();
+
+	ret = badge_service_init();
 	if (ret < 0) {
-		DbgPrint("Dead callback is registered: %d\n", ret);
-	}
-
-	ret = group_init();
-	if (ret < 0) {
-		DbgPrint("group init: %d\n", ret);
-	}
-
-	ret = io_init();
-	if (ret < 0) {
-		DbgPrint("Init I/O: %d\n", ret);
-	}
-
-	ret = package_init();
-	if (ret < 0) {
-		DbgPrint("pkgmgr initialized: %d\n", ret);
-	}
-
-	instance_init();
-
-	ret = xmonitor_init();
-	if (ret < 0) {
-		DbgPrint("XMonitor init is done: %d\n", ret);
-	}
-
-	ret = buffer_handler_init();
-	if (ret < 0) {
-		DbgPrint("Buffer handler init is done: %d\n", ret);
-	}
-
-	/**
-	 * @note
-	 * Use thread mode must has to be initialized before server or client initialization.
-	 */
-	com_core_packet_use_thread(WIDGET_CONF_COM_CORE_THREAD);
-
-	ret = shared_fd_service_init();
-	if (ret < 0) {
-		DbgPrint("Shared FD service init is done: %d\n", ret);
-	}
-
-	/*!
-	 * \note
-	 * After initiate all other sub-systtems,
-	 * Enable the server socket.
-	 */
-	ret = server_init();
-	if (ret < 0) {
-		DbgPrint("Server initialized: %d\n", ret);
-	}
-
-	event_init();
-
-	script_init();
-
-	if (util_service_is_enabled(WIDGET_CONF_SERVICE_FILE)) {
-		file_service_init();
-	}
-
-	if (util_service_is_enabled(WIDGET_CONF_SERVICE_UTILITY)) {
-		utility_service_init();
-	}
-#endif
-
-	if (util_service_is_enabled(WIDGET_CONF_SERVICE_SHORTCUT)) {
-		shortcut_service_init();
-	}
-
-	if (util_service_is_enabled(WIDGET_CONF_SERVICE_NOTIFICATION)) {
-		notification_service_init();
-	}
-
-	if (util_service_is_enabled(WIDGET_CONF_SERVICE_BADGE)) {
-		badge_service_init();
+		DbgPrint("badge: %d\n", ret);
 	}
 
 	return 0;
@@ -198,101 +69,20 @@ static inline int app_terminate(void)
 {
 	int ret;
 
-	if (util_service_is_enabled(WIDGET_CONF_SERVICE_BADGE)) {
-		ret = badge_service_fini();
-		if (ret < 0) {
-			DbgPrint("badge: %d\n", ret);
-		}
-	}
-
-	if (util_service_is_enabled(WIDGET_CONF_SERVICE_NOTIFICATION)) {
-		ret = notification_service_fini();
-		if (ret < 0) {
-			DbgPrint("noti: %d\n", ret);
-		}
-	}
-
-	if (util_service_is_enabled(WIDGET_CONF_SERVICE_SHORTCUT)) {
-		ret = shortcut_service_fini();
-		if (ret < 0) {
-			DbgPrint("shortcut: %d\n", ret);
-		}
-	}
-
-#if defined(HAVE_LIVEBOX)
-	if (util_service_is_enabled(WIDGET_CONF_SERVICE_FILE)) {
-		ret = file_service_fini();
-		if (ret < 0) {
-			DbgPrint("Finalize the file service: %d\n", ret);
-		}
-	}
-
-	ret = server_fini();
+	ret = badge_service_fini();
 	if (ret < 0) {
-		DbgPrint("Finalize server: %d\n", ret);
+		DbgPrint("badge: %d\n", ret);
 	}
 
-	ret = shared_fd_service_fini();
+	ret = notification_service_fini();
 	if (ret < 0) {
-		DbgPrint("Finalize shared service: %d\n", ret);
+		DbgPrint("noti: %d\n", ret);
 	}
 
-	ret = dead_fini();
+	ret = shortcut_service_fini();
 	if (ret < 0) {
-		DbgPrint("dead signal handler finalized: %d\n", ret);
+		DbgPrint("shortcut: %d\n", ret);
 	}
-
-	if (util_service_is_enabled(WIDGET_CONF_SERVICE_UTILITY)) {
-		ret = utility_service_fini();
-		if (ret < 0) {
-			DbgPrint("utility: %d\n", ret);
-		}
-	}
-
-	ret = event_fini();
-	if (ret < 0) {
-		DbgPrint("event: %d\n", ret);
-	}
-
-	ret = setting_fini();
-	if (ret < 0) {
-		DbgPrint("Finalize setting : %d\n", ret);
-	}
-
-	ret = instance_fini();
-	if (ret < 0) {
-		DbgPrint("Finalizing instances: %d\n", ret);
-	}
-
-	ret = package_fini();
-	if (ret < 0) {
-		DbgPrint("Finalize package info: %d\n", ret);
-	}
-
-	ret = script_fini();
-	if (ret < 0) {
-		DbgPrint("script: %d\n", ret);
-	}
-
-	ret = buffer_handler_fini();
-	if (ret < 0) {
-		DbgPrint("buffer handler: %d\n", ret);
-	}
-
-	xmonitor_fini();
-
-	client_fini();
-
-	ret = io_fini();
-	if (ret < 0) {
-		DbgPrint("IO finalized: %d\n", ret);
-	}
-
-	ret = group_fini();
-	if (ret < 0) {
-		DbgPrint("Group finalized: %d\n", ret);
-	}
-#endif
 
 	DbgPrint("Terminated\n");
 	return 0;
@@ -331,24 +121,6 @@ static Eina_Bool signal_cb(void *data, Ecore_Fd_Handler *handler)
 		vconf_set_bool(VCONFKEY_MASTER_STARTED, 0);
 		//exit(0);
 		ecore_main_loop_quit();
-	} else if (fdsi.ssi_signo == SIGUSR1) {
-		/*!
-		 * Turn off auto-reactivation
-		 * Terminate all slaves
-		 */
-#if defined(HAVE_LIVEBOX)
-		CRITICAL_LOG("USRS1, Deactivate ALL\n");
-		slave_deactivate_all(0, 1, 1);
-#endif
-	} else if (fdsi.ssi_signo == SIGUSR2) {
-		/*!
-		 * Turn on auto-reactivation
-		 * Launch all slaves again
-		 */
-#if defined(HAVE_LIVEBOX)
-		CRITICAL_LOG("USR2, Activate ALL\n");
-		slave_activate_all();
-#endif
 	} else {
 		CRITICAL_LOG("Unknown SIG[%d] received\n", fdsi.ssi_signo);
 	}
@@ -363,13 +135,6 @@ int main(int argc, char *argv[])
 	sigset_t mask;
 	Ecore_Fd_Handler *signal_handler = NULL;
 
-#if defined(FLOG)
-	__file_log_fp = fopen(TMP_LOG_FILE, "w+t");
-	if (!__file_log_fp) {
-		__file_log_fp = fdopen(1, "w+t");
-	}
-#endif
-
 	/* appcore_agent_terminate */
 	if (ecore_init() <= 0) {
 		return -EFAULT;
@@ -381,27 +146,7 @@ int main(int argc, char *argv[])
 	g_type_init();
 #endif
 
-	if (util_screen_init() <= 0) {
-		ecore_shutdown();
-		return -EFAULT;
-	}
-
-	widget_conf_init();
-	widget_conf_set_search_input_node(1);
-	widget_conf_load();
-	widget_abi_init();
-
-	if (vconf_get_int(VCONFKEY_MASTER_RESTART_COUNT, &restart_count) < 0 || restart_count == 0) {
-		/*!
-		 * \note
-		 * Clear old contents files before start the master provider.
-		 */
-		(void)util_unlink_files(WIDGET_CONF_ALWAYS_PATH);
-		(void)util_unlink_files(WIDGET_CONF_READER_PATH);
-		(void)util_unlink_files(WIDGET_CONF_IMAGE_PATH);
-		(void)util_unlink_files(WIDGET_CONF_LOG_PATH);
-		(void)util_unlink_files(WIDGET_STATIC_LOCK_PATH);
-	}
+	vconf_get_int(VCONFKEY_MASTER_RESTART_COUNT, &restart_count);
 
 	util_setup_log_disk();
 
@@ -409,7 +154,7 @@ int main(int argc, char *argv[])
 	 * How could we care this return values?
 	 * Is there any way to print something on the screen?
 	 */
-	ret = critical_log_init(widget_util_basename(argv[0]));
+	ret = critical_log_init(util_basename(argv[0]));
 	if (ret < 0) {
 		ErrPrint("Failed to init the critical log\n");
 	}
@@ -417,16 +162,6 @@ int main(int argc, char *argv[])
 	sigemptyset(&mask);
 
 	ret = sigaddset(&mask, SIGTERM);
-	if (ret < 0) {
-		CRITICAL_LOG("sigaddset: %d\n", errno);
-	}
-
-	ret = sigaddset(&mask, SIGUSR1);
-	if (ret < 0) {
-		CRITICAL_LOG("sigaddset: %d\n", errno);
-	}
-
-	ret = sigaddset(&mask, SIGUSR2);
 	if (ret < 0) {
 		CRITICAL_LOG("sigaddset: %d\n", errno);
 	}
@@ -456,8 +191,6 @@ int main(int argc, char *argv[])
 
 	app_terminate();
 
-	util_screen_fini();
-
 	if (signal_handler) {
 		ecore_main_fd_handler_del(signal_handler);
 	}
@@ -465,14 +198,6 @@ int main(int argc, char *argv[])
 	ecore_shutdown();
 	critical_log_fini();
 
-#if defined(FLOG)
-	if (__file_log_fp) {
-		fclose(__file_log_fp);
-	}
-#endif
-
-	widget_conf_reset();
-	widget_abi_fini();
 	return 0;
 }
 
