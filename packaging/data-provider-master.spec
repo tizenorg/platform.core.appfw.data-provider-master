@@ -50,7 +50,6 @@ BuildRequires: pkgconfig(cynara-client)
 BuildRequires: pkgconfig(cynara-session)
 BuildRequires: pkgconfig(cynara-creds-socket)
 
-Requires(post): sys-assert
 Requires(post): dbus
 
 %description
