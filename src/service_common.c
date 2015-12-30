@@ -403,6 +403,9 @@ static void *client_packet_pump_main(void *data)
 		ErrPrint("write: %d\n", errno);
 	}
 
+	if (ptr)
+		free(ptr);
+
 	return (void *)ret;
 }
 
