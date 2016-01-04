@@ -19,11 +19,6 @@
 #include <Eina.h>
 
 #include <dlog.h>
-#if defined(HAVE_LIVEBOX)
-#include <widget_errno.h>
-#else
-#include "lite-errno.h"
-#endif
 #include <packet.h>
 
 #include <sys/smack.h>
@@ -686,6 +681,7 @@ static void _notification_init(void) {
 	if (ret == 0 && restart_count <= 1) {
 		_notification_data_init();
 	}
+
 }
 
 /*!
@@ -940,7 +936,7 @@ HAPI int notification_service_init(void)
 {
 	if (s_info.svc_ctx) {
 		ErrPrint("Already initialized\n");
-		return WIDGET_ERROR_ALREADY_STARTED;
+		return SERVICE_COMMON_ERROR_ALREADY_STARTED;
 	}
 
 	_notification_init();
@@ -948,28 +944,31 @@ HAPI int notification_service_init(void)
 	s_info.svc_ctx = service_common_create(NOTIFICATION_SOCKET, NOTIFICATION_SMACK_LABEL, service_thread_main, NULL);
 	if (!s_info.svc_ctx) {
 		ErrPrint("Unable to activate service thread\n");
-		return WIDGET_ERROR_FAULT;
+		return SERVICE_COMMON_ERROR_FAULT;
 	}
 
 	notification_setting_refresh_setting_table();
 
+	pkgmgr_init();
 	pkgmgr_add_event_callback(PKGMGR_EVENT_INSTALL, _package_install_cb, (void*)&s_info);
 	/* pkgmgr_add_event_callback(PKGMGR_EVENT_UPDATE, _package_install_cb, (void*)&s_info); */
 	pkgmgr_add_event_callback(PKGMGR_EVENT_UNINSTALL, _package_uninstall_cb, (void*)&s_info);
 	DbgPrint("Successfully initiated\n");
-	return WIDGET_ERROR_NONE;
+	return SERVICE_COMMON_ERROR_NONE;
 }
 
 HAPI int notification_service_fini(void)
 {
 	if (!s_info.svc_ctx) {
-		return WIDGET_ERROR_INVALID_PARAMETER;
+		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
 	}
+
+	pkgmgr_fini();
 
 	service_common_destroy(s_info.svc_ctx);
 	s_info.svc_ctx = NULL;
 	DbgPrint("Successfully Finalized\n");
-	return WIDGET_ERROR_NONE;
+	return SERVICE_COMMON_ERROR_NONE;
 }
 
 /* End of a file */

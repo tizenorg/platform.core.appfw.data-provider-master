@@ -14,23 +14,9 @@
  * limitations under the License.
  */
 
-extern unsigned long util_string_hash(const char *str);
 extern double util_timestamp(void);
-extern int util_check_ext(const char *filename, const char *check_ptr);
-extern int util_unlink(const char *filename);
-extern int util_unlink_files(const char *folder);
-extern char *util_slavename(void);
-extern unsigned long long util_free_space(const char *path);
-extern void *util_timer_add(double interval, Eina_Bool (*cb)(void *data), void *data);
-extern void util_timer_interval_set(void *timer, double interval);
-extern double util_time_delay_for_compensation(double period);
 extern void util_setup_log_disk(void);
-extern int util_service_is_enabled(const char *tag);
-extern int util_string_is_in_list(const char *str, const char *haystack);
-
-extern int util_screen_size_get(int *width, int *height);
-extern int util_screen_init(void);
-extern int util_screen_fini(void);
+extern const char *util_basename(const char *name);
 
 #define SCHEMA_FILE	"file://"
 #define SCHEMA_PIXMAP	"pixmap://"

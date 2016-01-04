@@ -13,6 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+#include <packet.h>
+
 enum tcb_type {
 	TCB_CLIENT_TYPE_APP	= 0x00,
 	TCB_CLIENT_TYPE_SERVICE	= 0x01,
@@ -22,6 +25,18 @@ enum tcb_type {
 enum tcb_event_type {
 	TCB_EVENT_CREATE = 0x01,
 	TCB_EVENT_DESTROY = 0x02
+};
+
+enum service_common_error {
+	SERVICE_COMMON_ERROR_NONE = 0,
+	SERVICE_COMMON_ERROR_INVALID_PARAMETER = -1,
+	SERVICE_COMMON_ERROR_ALREADY_STARTED = -2,
+	SERVICE_COMMON_ERROR_FAULT = -3,
+	SERVICE_COMMON_ERROR_PERMISSION_DENIED = -4,
+	SERVICE_COMMON_ERROR_IO_ERROR = -5,
+	SERVICE_COMMON_ERROR_OUT_OF_MEMORY = -6,
+	SERVICE_COMMON_ERROR_NOT_EXIST = -7,
+	SERVICE_COMMON_ERROR_ALREADY_EXIST = -8,
 };
 
 struct tcb;

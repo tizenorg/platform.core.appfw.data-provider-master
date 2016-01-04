@@ -14,13 +14,6 @@
  * limitations under the License.
  */
 
-struct conf {
-	int debug_mode;
-	int slave_max_load;
-};
-
-extern struct conf g_conf;
-
 #define DELAY_TIME 0.0000001f
 #define HAPI __attribute__((visibility("hidden")))
 
@@ -31,6 +24,10 @@ extern struct conf g_conf;
 #if !defined(VCONFKEY_MASTER_RESTART_COUNT)
 #define VCONFKEY_MASTER_RESTART_COUNT	"memory/private/data-provider-master/restart_count"
 #endif
+
+#define CONF_LOG_PATH "/tmp/.widget.service"
+#define CONF_MAX_LOG_LINE 1000
+#define CONF_MAX_LOG_FILE 3
 
 #define CR 13
 #define LF 10

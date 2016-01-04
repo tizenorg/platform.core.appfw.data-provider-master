@@ -18,11 +18,6 @@
 #include <Eina.h>
 
 #include <dlog.h>
-#if defined(HAVE_LIVEBOX)
-#include <widget_errno.h>
-#else
-#include "lite-errno.h"
-#endif
 #include <packet.h>
 
 #include <Eina.h>
@@ -213,29 +208,29 @@ HAPI int shortcut_service_init(void)
 {
 	if (s_info.svc_ctx) {
 		ErrPrint("Already initialized\n");
-		return WIDGET_ERROR_ALREADY_STARTED;
+		return SERVICE_COMMON_ERROR_ALREADY_STARTED;
 	}
 
 	s_info.svc_ctx = service_common_create(SHORTCUT_SOCKET, SHORTCUT_SMACK_LABEL, service_thread_main, NULL);
 	if (!s_info.svc_ctx) {
 		ErrPrint("Unable to activate service thread\n");
-		return WIDGET_ERROR_FAULT;
+		return SERVICE_COMMON_ERROR_FAULT;
 	}
 
 	DbgPrint("Successfully initiated\n");
-	return WIDGET_ERROR_NONE;
+	return SERVICE_COMMON_ERROR_NONE;
 }
 
 HAPI int shortcut_service_fini(void)
 {
 	if (!s_info.svc_ctx) {
-		return WIDGET_ERROR_INVALID_PARAMETER;
+		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
 	}
 
 	service_common_destroy(s_info.svc_ctx);
 	s_info.svc_ctx = NULL;
 	DbgPrint("Successfully Finalized\n");
-	return WIDGET_ERROR_NONE;
+	return SERVICE_COMMON_ERROR_NONE;
 }
 
 /* End of a file */
