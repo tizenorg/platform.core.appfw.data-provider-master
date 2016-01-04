@@ -55,9 +55,8 @@ static inline void rotate_log(void)
 	char *filename;
 	int namelen;
 
-	if (s_info.nr_of_lines < CONF_MAX_LOG_LINE) {
+	if (s_info.nr_of_lines < CONF_MAX_LOG_LINE)
 		return;
-	}
 
 	s_info.file_id = (s_info.file_id + 1) % CONF_MAX_LOG_FILE;
 
@@ -65,17 +64,14 @@ static inline void rotate_log(void)
 	filename = malloc(namelen);
 	if (filename) {
 		snprintf(filename, namelen, "%s/%d_%s.%d", CONF_LOG_PATH, s_info.file_id, s_info.filename, getpid());
-
 		if (s_info.fp) {
-			if (fclose(s_info.fp) != 0) {
+			if (fclose(s_info.fp) != 0)
 				ErrPrint("fclose: %d\n", errno);
-			}
 		}
 
 		s_info.fp = fopen(filename, "w+");
-		if (!s_info.fp) {
+		if (!s_info.fp)
 			ErrPrint("Failed to open a file: %s\n", filename);
-		}
 
 		DbgFree(filename);
 	}
@@ -90,9 +86,8 @@ HAPI int critical_log(const char *func, int line, const char *fmt, ...)
 	va_list ap;
 	int ret;
 
-	if (!s_info.fp) {
+	if (!s_info.fp)
 		return SERVICE_COMMON_ERROR_IO_ERROR;
-	}
 
 	CRITICAL_SECTION_BEGIN(&s_info.cri_lock);
 
@@ -118,9 +113,8 @@ HAPI int critical_log_init(const char *name)
 	int namelen;
 	char *filename;
 
-	if (s_info.fp) {
+	if (s_info.fp)
 		return SERVICE_COMMON_ERROR_NONE;
-	}
 
 	s_info.filename = strdup(name);
 	if (!s_info.filename) {
@@ -163,9 +157,8 @@ HAPI void critical_log_fini(void)
 	}
 
 	if (s_info.fp) {
-		if (fclose(s_info.fp) != 0) {
+		if (fclose(s_info.fp) != 0)
 			ErrPrint("fclose: %d\n", errno);
-		}
 		s_info.fp = NULL;
 	}
 }

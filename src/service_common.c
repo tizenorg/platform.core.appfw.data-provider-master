@@ -120,9 +120,8 @@ static void _initialize_privilege_checker(struct service_context *svc_ctx)
 
 	/* Cynara structure init */
 	ret = cynara_initialize(&(svc_ctx->cynara_handle), NULL);
-	if (ret != CYNARA_API_SUCCESS) {
+	if (ret != CYNARA_API_SUCCESS)
 		ErrPrint("cynara_initialize failed[%d]\n", ret);
-	}
 }
 
 static void _finish_privilege_checker(struct service_context *svc_ctx)
@@ -130,9 +129,8 @@ static void _finish_privilege_checker(struct service_context *svc_ctx)
 	int ret;
 
 	ret = cynara_finish(svc_ctx->cynara_handle);
-	if (ret != CYNARA_API_SUCCESS) {
+	if (ret != CYNARA_API_SUCCESS)
 		ErrPrint("cynara_initialize failed[%d]\n", ret);
-	}
 }
 
 HAPI int service_common_send_packet_to_service(struct service_context *svc_ctx, struct tcb *tcb, struct packet *packet)
@@ -167,7 +165,6 @@ HAPI int service_common_send_packet_to_service(struct service_context *svc_ctx, 
 	}
 
 out:
-
 	return ret;
 }
 
@@ -266,9 +263,8 @@ static void *client_packet_pump_main(void *data)
 		case RECV_HEADER:
 			ret = secure_socket_recv(tcb->fd, ptr, size - recv_offset, &tcb->pid);
 			if (ret <= 0) {
-				if (ret == 0) {
+				if (ret == 0)
 					ret = -ECANCELED;
-				}
 				DbgFree(ptr);
 				ptr = NULL;
 				break;
@@ -308,9 +304,8 @@ static void *client_packet_pump_main(void *data)
 		case RECV_PAYLOAD:
 			ret = secure_socket_recv(tcb->fd, ptr, size - recv_offset, &tcb->pid);
 			if (ret <= 0) {
-				if (ret == 0) {
+				if (ret == 0)
 					ret = -ECANCELED;
-				}
 				DbgFree(ptr);
 				ptr = NULL;
 				break;
@@ -394,9 +389,8 @@ static void *client_packet_pump_main(void *data)
 	 * \note
 	 * Emit a signal to collect this TCB from the SERVER THREAD.
 	 */
-	if (write(svc_ctx->tcb_pipe[PIPE_WRITE], &tcb, sizeof(tcb)) != sizeof(tcb)) {
+	if (write(svc_ctx->tcb_pipe[PIPE_WRITE], &tcb, sizeof(tcb)) != sizeof(tcb))
 		ErrPrint("write: %d\n", errno);
-	}
 
 	if (ptr)
 		free(ptr);
@@ -424,9 +418,8 @@ HAPI int service_register_tcb_callback(struct service_context *svc_ctx, struct t
 
 	switch (event) {
 	case TCB_EVENT_CREATE:
-		if (tcb) {
+		if (tcb)
 			DbgPrint("To catch the create event of TCB does not requires \"tcb\" handle\n");
-		}
 		svc_ctx->tcb_create_cb_list = eina_list_append(svc_ctx->tcb_create_cb_list, cbdata);
 		break;
 	case TCB_EVENT_DESTROY:
@@ -552,16 +545,14 @@ static inline void tcb_teminate_all(struct service_context *svc_ctx)
 		/*!
 		 * ASSERT(tcb->fd >= 0);
 		 */
-		if (write(tcb->ctrl_pipe[PIPE_WRITE], &ch, sizeof(ch)) != sizeof(ch)) {
+		if (write(tcb->ctrl_pipe[PIPE_WRITE], &ch, sizeof(ch)) != sizeof(ch))
 			ErrPrint("write: %d\n", errno);
-		}
 
 		status = pthread_join(tcb->thid, &ret);
-		if (status != 0) {
+		if (status != 0)
 			ErrPrint("Unable to join a thread: %d\n", status);
-		} else {
+		else
 			DbgPrint("Thread returns: %p\n", ret);
-		}
 
 		secure_socket_destroy_handle(tcb->fd);
 
@@ -572,16 +563,14 @@ static inline void tcb_teminate_all(struct service_context *svc_ctx)
 
 HAPI int service_common_destroy_tcb(struct service_context *svc_ctx, struct tcb *tcb)
 {
-	if (!svc_ctx || !tcb) {
+	if (!svc_ctx || !tcb)
 		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
-	}
 	/**
 	 * @note
 	 * In this case, we just need to push terminate event to pipe.
 	 */
-	if (write(svc_ctx->tcb_pipe[PIPE_WRITE], &tcb, sizeof(tcb)) != sizeof(tcb)) {
+	if (write(svc_ctx->tcb_pipe[PIPE_WRITE], &tcb, sizeof(tcb)) != sizeof(tcb))
 		ErrPrint("write: %d\n", errno);
-	}
 
 	return SERVICE_COMMON_ERROR_NONE;
 }
@@ -608,9 +597,8 @@ static inline void tcb_destroy(struct service_context *svc_ctx, struct tcb *tcb)
 			continue;
 		}
 
-		if (cbdata->tcb != tcb) {
+		if (cbdata->tcb != tcb)
 			continue;
-		}
 
 		cbdata->cb(svc_ctx, tcb, cbdata->data);
 
@@ -627,16 +615,14 @@ static inline void tcb_destroy(struct service_context *svc_ctx, struct tcb *tcb)
 	 * ASSERT(tcb->fd >= 0);
 	 * Close the connection, and then collecting the return value of thread
 	 */
-	if (write(tcb->ctrl_pipe[PIPE_WRITE], &ch, sizeof(ch)) != sizeof(ch)) {
+	if (write(tcb->ctrl_pipe[PIPE_WRITE], &ch, sizeof(ch)) != sizeof(ch))
 		ErrPrint("write: %d\n", errno);
-	}
 
 	status = pthread_join(tcb->thid, &ret);
-	if (status != 0) {
+	if (status != 0)
 		ErrPrint("Unable to join a thread: %d\n", status);
-	} else {
+	else
 		DbgPrint("Thread returns: %p\n", ret);
-	}
 
 	secure_socket_destroy_handle(tcb->fd);
 
@@ -660,21 +646,18 @@ static inline int update_fdset(struct service_context *svc_ctx, fd_set *set)
 	fd = svc_ctx->fd;
 
 	FD_SET(svc_ctx->tcb_pipe[PIPE_READ], set);
-	if (svc_ctx->tcb_pipe[PIPE_READ] > fd) {
+	if (svc_ctx->tcb_pipe[PIPE_READ] > fd)
 		fd = svc_ctx->tcb_pipe[PIPE_READ];
-	}
 
 	FD_SET(svc_ctx->evt_pipe[PIPE_READ], set);
-	if (svc_ctx->evt_pipe[PIPE_READ] > fd) {
+	if (svc_ctx->evt_pipe[PIPE_READ] > fd)
 		fd = svc_ctx->evt_pipe[PIPE_READ];
-	}
 
 	EINA_LIST_FOREACH(svc_ctx->event_list, l, item) {
 		if (item->type == SERVICE_EVENT_TIMER) {
 			FD_SET(item->info.timer.fd, set);
-			if (fd < item->info.timer.fd) {
+			if (fd < item->info.timer.fd)
 				fd = item->info.timer.fd;
-			}
 		}
 	}
 
@@ -695,27 +678,23 @@ static inline void processing_timer_event(struct service_context *svc_ctx, fd_se
 	EINA_LIST_FOREACH_SAFE(svc_ctx->event_list, l, n, item) {
 		switch (item->type) {
 		case SERVICE_EVENT_TIMER:
-			if (!FD_ISSET(item->info.timer.fd, set)) {
+			if (!FD_ISSET(item->info.timer.fd, set))
 				break;
-			}
 
 			if (read(item->info.timer.fd, &expired_count, sizeof(expired_count)) == sizeof(expired_count)) {
 				DbgPrint("Expired %d times\n", expired_count);
-				if (item->event_cb(svc_ctx, item->cbdata) >= 0) {
+				if (item->event_cb(svc_ctx, item->cbdata) >= 0)
 					break;
-				}
 			} else {
 				ErrPrint("read: %d\n", errno);
 			}
 
-			if (!eina_list_data_find(svc_ctx->event_list, item)) {
+			if (!eina_list_data_find(svc_ctx->event_list, item))
 				break;
-			}
 
 			svc_ctx->event_list = eina_list_remove(svc_ctx->event_list, item);
-			if (close(item->info.timer.fd) < 0) {
+			if (close(item->info.timer.fd) < 0)
 				ErrPrint("close: %d\n", errno);
-			}
 			DbgFree(item);
 			break;
 		default:
@@ -800,9 +779,8 @@ static void *server_main(void *data)
 				svc_ctx->processing_service_handler = 1;
 				ret = svc_ctx->service_thread_main(packet_info->tcb, packet_info->packet, svc_ctx->service_thread_data);
 				svc_ctx->processing_service_handler = 0;
-				if (ret < 0) {
+				if (ret < 0)
 					ErrPrint("Service thread returns: %d\n", ret);
-				}
 
 				packet_destroy(packet_info->packet);
 				DbgFree(packet_info);
@@ -838,9 +816,8 @@ static void *server_main(void *data)
 			lockfree_packet_list = NULL;
 			CRITICAL_SECTION_BEGIN(&svc_ctx->packet_list_lock);
 			EINA_LIST_FOREACH_SAFE(svc_ctx->packet_list, l, n, packet_info) {
-				if (packet_info->tcb != tcb) {
+				if (packet_info->tcb != tcb)
 					continue;
-				}
 
 				svc_ctx->packet_list = eina_list_remove(svc_ctx->packet_list, packet_info);
 				lockfree_packet_list = eina_list_append(lockfree_packet_list, packet_info);
@@ -853,9 +830,9 @@ static void *server_main(void *data)
 				svc_ctx->processing_service_handler = 1;
 				ret = svc_ctx->service_thread_main(packet_info->tcb, packet_info->packet, svc_ctx->service_thread_data);
 				svc_ctx->processing_service_handler = 0;
-				if (ret < 0) {
+				if (ret < 0)
 					ErrPrint("Service thread returns: %d\n", ret);
-				}
+
 				packet_destroy(packet_info->packet);
 				DbgFree(packet_info);
 			}
@@ -895,9 +872,8 @@ static void *server_main(void *data)
 		svc_ctx->processing_service_handler = 1;
 		ret = svc_ctx->service_thread_main(packet_info->tcb, packet_info->packet, svc_ctx->service_thread_data);
 		svc_ctx->processing_service_handler = 0;
-		if (ret < 0) {
+		if (ret < 0)
 			ErrPrint("Service thread returns: %d\n", ret);
-		}
 		packet_destroy(packet_info->packet);
 		DbgFree(packet_info);
 	}
@@ -934,13 +910,11 @@ HAPI struct service_context *service_common_create(const char *addr, const char 
 		 * So, find the scheme length first and then "unlink" it.
 		 */
 		offset = strlen(COM_CORE_LOCAL_SCHEME);
-		if (strncmp(addr, COM_CORE_LOCAL_SCHEME, offset)) {
+		if (strncmp(addr, COM_CORE_LOCAL_SCHEME, offset))
 			offset = 0;
-		}
 
-		if (unlink(addr + offset) < 0) {
+		if (unlink(addr + offset) < 0)
 			ErrPrint("unlink [%s] - %d\n", addr, errno);
-		}
 	}
 
 	svc_ctx = calloc(1, sizeof(*svc_ctx));
@@ -958,13 +932,11 @@ HAPI struct service_context *service_common_create(const char *addr, const char 
 	svc_ctx->service_thread_main = service_thread_main;
 	svc_ctx->service_thread_data = data;
 
-	if (fcntl(svc_ctx->fd, F_SETFD, FD_CLOEXEC) < 0) {
+	if (fcntl(svc_ctx->fd, F_SETFD, FD_CLOEXEC) < 0)
 		ErrPrint("fcntl: %d\n", errno);
-	}
 
-	if (fcntl(svc_ctx->fd, F_SETFL, O_NONBLOCK) < 0) {
+	if (fcntl(svc_ctx->fd, F_SETFL, O_NONBLOCK) < 0)
 		ErrPrint("fcntl: %d\n", errno);
-	}
 
 	if (pipe2(svc_ctx->evt_pipe, O_CLOEXEC) < 0) {
 		ErrPrint("pipe2: %d\n", errno);
@@ -998,9 +970,9 @@ HAPI struct service_context *service_common_create(const char *addr, const char 
 	if (status != 0) {
 		ErrPrint("Unable to create a thread for shortcut service: %d\n", status);
 		status = pthread_mutex_destroy(&svc_ctx->packet_list_lock);
-		if (status != 0) {
+		if (status != 0)
 			ErrPrint("mutex_destroy: %d\n", status);
-		}
+
 		CLOSE_PIPE(svc_ctx->evt_pipe);
 		CLOSE_PIPE(svc_ctx->tcb_pipe);
 		secure_socket_destroy_handle(svc_ctx->fd);
@@ -1026,33 +998,29 @@ HAPI int service_common_destroy(struct service_context *svc_ctx)
 	int status = 0;
 	void *ret;
 
-	if (!svc_ctx) {
+	if (!svc_ctx)
 		return -EINVAL;
-	}
 
 	/*!
 	 * \note
 	 * Terminate server thread
 	 */
-	if (write(svc_ctx->tcb_pipe[PIPE_WRITE], &status, sizeof(status)) != sizeof(status)) {
+	if (write(svc_ctx->tcb_pipe[PIPE_WRITE], &status, sizeof(status)) != sizeof(status))
 		ErrPrint("write: %d\n", errno);
-	}
 
 	status = pthread_join(svc_ctx->server_thid, &ret);
-	if (status != 0) {
+	if (status != 0)
 		ErrPrint("Join: %d\n", status);
-	} else {
+	else
 		DbgPrint("Thread returns: %p\n", ret);
-	}
 
 	_finish_privilege_checker(svc_ctx);
 
 	secure_socket_destroy_handle(svc_ctx->fd);
 
 	status = pthread_mutex_destroy(&svc_ctx->packet_list_lock);
-	if (status != 0) {
+	if (status != 0)
 		ErrPrint("destroy_mutex: %d\n", status);
-	}
 
 	CLOSE_PIPE(svc_ctx->evt_pipe);
 	CLOSE_PIPE(svc_ctx->tcb_pipe);
@@ -1088,9 +1056,8 @@ HAPI int tcb_is_valid(struct service_context *svc_ctx, struct tcb *tcb)
  */
 HAPI int tcb_pid(struct tcb *tcb)
 {
-	if (!tcb) {
+	if (!tcb)
 		return -1;
-	}
 
 	return tcb->pid;
 }
@@ -1101,9 +1068,8 @@ HAPI int tcb_pid(struct tcb *tcb)
  */
 HAPI int tcb_fd(struct tcb *tcb)
 {
-	if (!tcb) {
+	if (!tcb)
 		return -EINVAL;
-	}
 
 	return tcb->fd;
 }
@@ -1114,9 +1080,8 @@ HAPI int tcb_fd(struct tcb *tcb)
  */
 HAPI int tcb_client_type(struct tcb *tcb)
 {
-	if (!tcb) {
+	if (!tcb)
 		return -EINVAL;
-	}
 
 	return tcb->type;
 }
@@ -1127,9 +1092,8 @@ HAPI int tcb_client_type(struct tcb *tcb)
  */
 HAPI int tcb_client_type_set(struct tcb *tcb, enum tcb_type type)
 {
-	if (!tcb) {
+	if (!tcb)
 		return -EINVAL;
-	}
 
 	DbgPrint("TCB[%p] Client type is changed to %d from %d\n", tcb, type, tcb->type);
 	tcb->type = type;
@@ -1142,9 +1106,8 @@ HAPI int tcb_client_type_set(struct tcb *tcb, enum tcb_type type)
  */
 HAPI struct service_context *tcb_svc_ctx(struct tcb *tcb)
 {
-	if (!tcb) {
+	if (!tcb)
 		return NULL;
-	}
 
 	return tcb->svc_ctx;
 }
@@ -1195,9 +1158,8 @@ HAPI int service_common_multicast_packet(struct tcb *tcb, struct packet *packet,
 		}
 
 		ret = com_core_send(target->fd, (void *)packet_data(packet), packet_size(packet), DEFAULT_TIMEOUT);
-		if (ret < 0) {
+		if (ret < 0)
 			ErrPrint("Failed to send packet: %d\n", ret);
-		}
 	}
 	DbgPrint("Finish to multicast packet\n");
 	return 0;
@@ -1226,9 +1188,8 @@ HAPI struct service_event_item *service_common_add_timer(struct service_context 
 	}
 
 	if (service_common_update_timer(item, timer) < 0) {
-		if (close(item->info.timer.fd) < 0) {
+		if (close(item->info.timer.fd) < 0)
 			ErrPrint("close: %d\n", errno);
-		}
 		DbgFree(item);
 		return NULL;
 	}
@@ -1277,9 +1238,8 @@ HAPI int service_common_del_timer(struct service_context *svc_ctx, struct servic
 
 	svc_ctx->event_list = eina_list_remove(svc_ctx->event_list, item);
 
-	if (close(item->info.timer.fd) < 0) {
+	if (close(item->info.timer.fd) < 0)
 		ErrPrint("close: %d\n", errno);
-	}
 	DbgFree(item);
 	return 0;
 }
@@ -1334,8 +1294,7 @@ HAPI int service_check_privilege_by_socket_fd(struct service_context *svc_ctx, i
 		if (ret == CYNARA_API_ACCESS_ALLOWED) {
 			DbgPrint("[%s] Access allowed.", privilege);
 			result = 1;
-		}
-		else {
+		} else {
 			DbgPrint("[%s] Access denied.[%d]", privilege, ret);
 			result = 0;
 		}
@@ -1343,17 +1302,14 @@ HAPI int service_check_privilege_by_socket_fd(struct service_context *svc_ctx, i
 	}
 
 out:
-	if (client_smack) {
+	if (client_smack)
 		free(client_smack);
-	}
 
-	if (session) {
+	if (session)
 		free(session);
-	}
 
-	if (uid) {
+	if (uid)
 		free(uid);
-	}
 
 	return result;
 }

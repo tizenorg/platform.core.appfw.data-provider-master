@@ -66,12 +66,10 @@ struct noti_service {
 
 static inline char *_string_get(char *string)
 {
-	if (string == NULL) {
+	if (string == NULL)
 		return NULL;
-	}
-	if (string[0] == '\0') {
+	if (string[0] == '\0')
 		return NULL;
-	}
 
 	return string;
 }
@@ -79,15 +77,16 @@ static inline char *_string_get(char *string)
 /*!
  * FUNCTIONS to create packets
  */
-static inline int _priv_id_get_from_list(int num_data, int *list, int index) {
-	if (index < num_data) {
+static inline int _priv_id_get_from_list(int num_data, int *list, int index)
+{
+	if (index < num_data)
 		return *(list + index);
-	} else {
+	else
 		return -1;
-	}
 }
 
-static inline struct packet *_packet_create_with_list(int op_num, int *list, int start_index) {
+static inline struct packet *_packet_create_with_list(int op_num, int *list, int start_index)
+{
 	return packet_create(
 			"del_noti_multiple",
 			"iiiiiiiiiii",
@@ -120,9 +119,8 @@ static void _handler_insert_noti(struct tcb *tcb, struct packet *packet, notific
 	DbgPrint("priv_id: [%d]\n", priv_id);
 	packet_reply = packet_create_reply(packet, "ii", ret, priv_id);
 	if (packet_reply) {
-		if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0) {
+		if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
 			ErrPrint("failed to send reply packet: %d\n", ret_p);
-		}
 		packet_destroy(packet_reply);
 	} else {
 		ErrPrint("failed to create a reply packet\n");
@@ -130,14 +128,13 @@ static void _handler_insert_noti(struct tcb *tcb, struct packet *packet, notific
 
 	if (ret != NOTIFICATION_ERROR_NONE) {
 		ErrPrint("failed to insert a notification: %d\n", ret);
-		return ;
+		return;
 	}
 
 	packet_service = notification_ipc_make_packet_from_noti(noti, "add_noti", 2);
 	if (packet_service != NULL) {
-		if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0) {
+		if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0)
 			ErrPrint("failed to send a multicast packet: %d\n", ret_p);
-		}
 		packet_destroy(packet_service);
 	} else {
 		ErrPrint("failed to create a multicats packet\n");
@@ -172,9 +169,8 @@ static void _handler_update_noti(struct tcb *tcb, struct packet *packet, notific
 	DbgPrint("priv_id: [%d]\n", priv_id);
 	packet_reply = packet_create_reply(packet, "ii", ret, priv_id);
 	if (packet_reply) {
-		if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0) {
+		if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
 			ErrPrint("failed to send reply packet:%d\n", ret_p);
-		}
 		packet_destroy(packet_reply);
 	} else {
 		ErrPrint("failed to create a reply packet\n");
@@ -182,14 +178,13 @@ static void _handler_update_noti(struct tcb *tcb, struct packet *packet, notific
 
 	if (ret != NOTIFICATION_ERROR_NONE) {
 		ErrPrint("failed to update a notification:%d\n", ret);
-		return ;
+		return;
 	}
 
 	packet_service = notification_ipc_make_packet_from_noti(noti, "update_noti", 2);
 	if (packet_service != NULL) {
-		if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0) {
+		if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0)
 			ErrPrint("failed to send a multicast packet: %d\n", ret_p);
-		}
 		packet_destroy(packet_service);
 	}
 }
@@ -200,11 +195,10 @@ static void _handler_update(struct tcb *tcb, struct packet *packet, void *data)
 
 	noti = notification_create(NOTIFICATION_TYPE_NOTI);
 	if (noti != NULL) {
-		if (notification_ipc_make_noti_from_packet(noti, packet) == NOTIFICATION_ERROR_NONE) {
+		if (notification_ipc_make_noti_from_packet(noti, packet) == NOTIFICATION_ERROR_NONE)
 			_handler_update_noti(tcb, packet, noti, data);
-		} else {
+		else
 			ErrPrint("Failed to create the packet");
-		}
 		notification_free(noti);
 	}
 }
@@ -218,11 +212,10 @@ static void _handler_check_noti_by_tag(struct tcb *tcb, struct packet *packet, v
 	if (noti != NULL) {
 		if (notification_ipc_make_noti_from_packet(noti, packet) == NOTIFICATION_ERROR_NONE) {
 			ret = notification_noti_check_tag(noti);
-			if (ret == NOTIFICATION_ERROR_NOT_EXIST_ID) {
+			if (ret == NOTIFICATION_ERROR_NOT_EXIST_ID)
 				_handler_insert_noti(tcb, packet, noti, data);
-			} else if (ret == NOTIFICATION_ERROR_ALREADY_EXIST_ID) {
+			else if (ret == NOTIFICATION_ERROR_ALREADY_EXIST_ID)
 				_handler_update_noti(tcb, packet, noti, data);
-			}
 		}
 		notification_free(noti);
 	}
@@ -231,8 +224,8 @@ static void _handler_check_noti_by_tag(struct tcb *tcb, struct packet *packet, v
 static void _handler_load_noti_by_tag(struct tcb *tcb, struct packet *packet, void *data)
 {
 	int ret = 0, ret_p = 0;
-	char* tag;
-	char* pkgname;
+	char *tag;
+	char *pkgname;
 	struct packet *packet_reply = NULL;
 	notification_h noti = NULL;
 
@@ -242,9 +235,8 @@ static void _handler_load_noti_by_tag(struct tcb *tcb, struct packet *packet, vo
 			ret = notification_noti_get_by_tag(noti, pkgname, tag);
 			packet_reply = notification_ipc_make_reply_packet_from_noti(noti, packet);
 			if (packet_reply) {
-				if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0) {
+				if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
 					ErrPrint("failed to send reply packet: %d\n", ret_p);
-				}
 				packet_destroy(packet_reply);
 			} else {
 				ErrPrint("failed to create a reply packet\n");
@@ -253,7 +245,7 @@ static void _handler_load_noti_by_tag(struct tcb *tcb, struct packet *packet, vo
 			if (ret != NOTIFICATION_ERROR_NONE) {
 				ErrPrint("failed to load_noti_by_tag : %d\n", ret);
 				notification_free(noti);
-				return ;
+				return;
 			}
 		} else {
 			ErrPrint("Failed to create the packet");
@@ -270,17 +262,15 @@ static void _handler_refresh(struct tcb *tcb, struct packet *packet, void *data)
 
 	packet_reply = packet_create_reply(packet, "i", ret);
 	if (packet_reply) {
-		if ((ret = service_common_unicast_packet(tcb, packet_reply)) < 0) {
+		if ((ret = service_common_unicast_packet(tcb, packet_reply)) < 0)
 			ErrPrint("failed to send reply packet:%d\n", ret);
-		}
 		packet_destroy(packet_reply);
 	} else {
 		ErrPrint("failed to create a reply packet\n");
 	}
 
-	if ((ret = service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE)) < 0) {
+	if ((ret = service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE)) < 0)
 		ErrPrint("failed to send a multicast packet:%d\n", ret);
-	}
 }
 
 static void _handler_delete_single(struct tcb *tcb, struct packet *packet, void *data)
@@ -300,9 +290,8 @@ static void _handler_delete_single(struct tcb *tcb, struct packet *packet, void 
 		DbgPrint("priv_id: [%d] num_delete:%d\n", priv_id, num_changes);
 		packet_reply = packet_create_reply(packet, "ii", ret, priv_id);
 		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0) {
+			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
 				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			}
 			packet_destroy(packet_reply);
 		} else {
 			ErrPrint("failed to create a reply packet\n");
@@ -310,14 +299,13 @@ static void _handler_delete_single(struct tcb *tcb, struct packet *packet, void 
 
 		if (ret != NOTIFICATION_ERROR_NONE || num_changes <= 0) {
 			ErrPrint("failed to delete a notification:%d %d\n", ret, num_changes);
-			return ;
+			return;
 		}
 
 		packet_service = packet_create("del_noti_single", "ii", 1, priv_id);
 		if (packet_service != NULL) {
-			if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0) {
+			if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0)
 				ErrPrint("failed to send a multicast packet: %d\n", ret_p);
-			}
 			packet_destroy(packet_service);
 		}
 	} else {
@@ -344,9 +332,8 @@ static void _handler_delete_multiple(struct tcb *tcb, struct packet *packet, voi
 
 		packet_reply = packet_create_reply(packet, "ii", ret, num_deleted);
 		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0) {
+			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
 				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			}
 			packet_destroy(packet_reply);
 		} else {
 			ErrPrint("failed to create a reply packet\n");
@@ -354,10 +341,9 @@ static void _handler_delete_multiple(struct tcb *tcb, struct packet *packet, voi
 
 		if (ret != NOTIFICATION_ERROR_NONE) {
 			ErrPrint("failed to delete notifications:%d\n", ret);
-			if (list_deleted != NULL) {
+			if (list_deleted != NULL)
 				DbgFree(list_deleted);
-			}
-			return ;
+			return;
 		}
 
 		if (num_deleted > 0) {
@@ -365,9 +351,8 @@ static void _handler_delete_multiple(struct tcb *tcb, struct packet *packet, voi
 				packet_service = _packet_create_with_list(num_deleted, list_deleted, 0);
 
 				if (packet_service) {
-					if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0) {
+					if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0)
 						ErrPrint("failed to send a multicast packet: %d\n", ret_p);
-					}
 					packet_destroy(packet_service);
 				} else {
 					ErrPrint("failed to create a multicast packet\n");
@@ -381,9 +366,8 @@ static void _handler_delete_multiple(struct tcb *tcb, struct packet *packet, voi
 							list_deleted, set * NOTIFICATION_DEL_PACKET_UNIT);
 
 					if (packet_service) {
-						if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0) {
+						if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0)
 							ErrPrint("failed to send a multicast packet:%d\n", ret_p);
-						}
 						packet_destroy(packet_service);
 					} else {
 						ErrPrint("failed to create a multicast packet\n");
@@ -418,17 +402,15 @@ static void _handler_noti_property_set(struct tcb *tcb, struct packet *packet, v
 
 		packet_reply = packet_create_reply(packet, "ii", ret, ret);
 		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0) {
+			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
 				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			}
 			packet_destroy(packet_reply);
 		} else {
 			ErrPrint("failed to create a reply packet\n");
 		}
 
-		if (ret != NOTIFICATION_ERROR_NONE) {
+		if (ret != NOTIFICATION_ERROR_NONE)
 			ErrPrint("failed to set noti property:%d\n", ret);
-		}
 	} else {
 		ErrPrint("Failed to get data from the packet");
 	}
@@ -450,17 +432,15 @@ static void _handler_noti_property_get(struct tcb *tcb, struct packet *packet, v
 
 		packet_reply = packet_create_reply(packet, "is", ret, value);
 		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0) {
+			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
 				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			}
 			packet_destroy(packet_reply);
 		} else {
 			ErrPrint("failed to create a reply packet\n");
 		}
 
-		if (value != NULL) {
+		if (value != NULL)
 			DbgFree(value);
-		}
 	}
 }
 
@@ -481,17 +461,15 @@ static void _handler_noti_update_setting(struct tcb *tcb, struct packet *packet,
 
 		packet_reply = packet_create_reply(packet, "ii", ret, ret);
 		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0) {
+			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
 				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			}
 			packet_destroy(packet_reply);
 		} else {
 			ErrPrint("failed to create a reply packet\n");
 		}
 
-		if (ret != NOTIFICATION_ERROR_NONE) {
+		if (ret != NOTIFICATION_ERROR_NONE)
 			ErrPrint("failed to update setting[%d]\n", ret);
-		}
 	} else {
 		ErrPrint("Failed to get data from the packet");
 	}
@@ -511,17 +489,15 @@ static void _handler_noti_update_system_setting(struct tcb *tcb, struct packet *
 
 		packet_reply = packet_create_reply(packet, "ii", ret, ret);
 		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0) {
+			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
 				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			}
 			packet_destroy(packet_reply);
 		} else {
 			ErrPrint("failed to create a reply packet\n");
 		}
 
-		if (ret != NOTIFICATION_ERROR_NONE) {
+		if (ret != NOTIFICATION_ERROR_NONE)
 			ErrPrint("failed to update system setting[%d]\n", ret);
-		}
 	} else {
 		ErrPrint("Failed to get data from the packet");
 	}
@@ -536,9 +512,8 @@ static void _handler_service_register(struct tcb *tcb, struct packet *packet, vo
 
 	packet_reply = packet_create_reply(packet, "i", ret);
 	if (packet_reply) {
-		if ((ret = service_common_unicast_packet(tcb, packet_reply)) < 0) {
+		if ((ret = service_common_unicast_packet(tcb, packet_reply)) < 0)
 			ErrPrint("failed to send reply packet:%d\n", ret);
-		}
 		packet_destroy(packet_reply);
 	} else {
 		ErrPrint("failed to create a reply packet\n");
@@ -552,18 +527,15 @@ static void _handler_post_toast_message(struct tcb *tcb, struct packet *packet, 
 
 	packet_reply = packet_create_reply(packet, "i", ret);
 	if (packet_reply) {
-		if ((ret = service_common_unicast_packet(tcb, packet_reply)) < 0) {
+		if ((ret = service_common_unicast_packet(tcb, packet_reply)) < 0)
 			ErrPrint("failed to send reply packet:%d\n", ret);
-		}
 		packet_destroy(packet_reply);
 	} else {
 		ErrPrint("failed to create a reply packet\n");
 	}
 
-	if ((ret = service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE)) < 0) {
+	if ((ret = service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE)) < 0)
 		ErrPrint("failed to send a multicast packet:%d\n", ret);
-	}
-
 }
 
 static void _handler_package_install(struct tcb *tcb, struct packet *packet, void *data)
@@ -576,10 +548,8 @@ static void _handler_package_install(struct tcb *tcb, struct packet *packet, voi
 		DbgPrint("package_name [%s]\n", package_name);
 		/* TODO : add codes to add a record to setting table */
 
-
-		if (ret != NOTIFICATION_ERROR_NONE) {
+		if (ret != NOTIFICATION_ERROR_NONE)
 			ErrPrint("failed to update setting[%d]\n", ret);
-		}
 	} else {
 		ErrPrint("Failed to get data from the packet");
 	}
@@ -595,9 +565,8 @@ static void _permission_check_common(struct tcb *tcb, struct packet *packet)
 
 	packet_reply = packet_create_reply(packet, "ii", NOTIFICATION_ERROR_PERMISSION_DENIED, 0);
 	if (packet_reply) {
-		if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0) {
+		if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
 			ErrPrint("Failed to send a reply packet:%d", ret_p);
-		}
 		packet_destroy(packet_reply);
 	} else {
 		ErrPrint("Failed to create a reply packet");
@@ -611,9 +580,8 @@ static void _permission_check_refresh(struct tcb *tcb, struct packet *packet)
 
 	packet_reply = packet_create_reply(packet, "i", NOTIFICATION_ERROR_PERMISSION_DENIED);
 	if (packet_reply) {
-		if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0) {
+		if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
 			ErrPrint("Failed to send a reply packet:%d", ret_p);
-		}
 		packet_destroy(packet_reply);
 	} else {
 		ErrPrint("Failed to create a reply packet");
@@ -627,9 +595,8 @@ static void _permission_check_property_get(struct tcb *tcb, struct packet *packe
 
 	packet_reply = packet_create_reply(packet, "is", NOTIFICATION_ERROR_PERMISSION_DENIED, NULL);
 	if (packet_reply) {
-		if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0) {
+		if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
 			ErrPrint("Failed to send a reply packet:%d", ret_p);
-		}
 		packet_destroy(packet_reply);
 	} else {
 		ErrPrint("Failed to create a reply packet");
@@ -668,20 +635,18 @@ static void _notification_data_init(void)
 		noti_list = notification_list_get_next(noti_list);
 	}
 
-	if (noti_list_head != NULL) {
+	if (noti_list_head != NULL)
 		notification_free_list(noti_list_head);
-	}
 }
 
-static void _notification_init(void) {
+static void _notification_init(void)
+{
 	int ret = -1;
 	int restart_count = 0;
 
 	ret = vconf_get_int(VCONFKEY_MASTER_RESTART_COUNT, &restart_count);
-	if (ret == 0 && restart_count <= 1) {
+	if (ret == 0 && restart_count <= 1)
 		_notification_data_init();
-	}
-
 }
 
 /*!
@@ -820,16 +785,14 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 		DbgPrint("%p REQ: Command: [%s]\n", tcb, command);
 
 		for (i = 0; service_req_table[i].cmd; i++) {
-			if (strcmp(service_req_table[i].cmd, command)) {
+			if (strcmp(service_req_table[i].cmd, command))
 				continue;
-			}
 
 			if (service_check_privilege_by_socket_fd(tcb_svc_ctx(tcb), tcb_fd(tcb), "http://tizen.org/privilege/notification") == 1) {
 				service_req_table[i].handler(tcb, packet, data);
 			} else {
-				if (service_req_table[i].handler_access_error != NULL) {
+				if (service_req_table[i].handler_access_error != NULL)
 					service_req_table[i].handler_access_error(tcb, packet);
-				}
 			}
 			break;
 		}
@@ -838,9 +801,8 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 	case PACKET_REQ_NOACK:
 		DbgPrint("%p PACKET_REQ_NOACK: Command: [%s]\n", tcb, command);
 		for (i = 0; service_req_no_ack_table[i].cmd; i++) {
-			if (strcmp(service_req_no_ack_table[i].cmd, command)) {
+			if (strcmp(service_req_no_ack_table[i].cmd, command))
 				continue;
-			}
 			service_req_no_ack_table[i].handler(tcb, packet, data);
 			break;
 		}
@@ -873,17 +835,15 @@ static int _invoke_package_change_event(struct info *notification_service_info, 
 
 	if (event_type == PKGMGR_EVENT_INSTALL) {
 		packet = packet_create_noack("package_install", "s", pkgname);
-	}
-	else if (event_type == PKGMGR_EVENT_UNINSTALL){
+	} else if (event_type == PKGMGR_EVENT_UNINSTALL) {
 		packet = packet_create_noack("package_uninstall", "s", pkgname);
-	}
-	else {
+	} else {
 		/* Ignore other events */
 		goto out;
 	}
 
 	if (packet == NULL) {
-		ErrPrint("packet_create_noack failed\n");\
+		ErrPrint("packet_create_noack failed\n");
 		ret = -1;
 		goto out;
 	}
@@ -906,9 +866,8 @@ static int _package_install_cb(const char *pkgname, enum pkgmgr_status status, d
 {
 	struct info *notification_service_info = (struct info *)data;
 
-	if (status != PKGMGR_STATUS_END) {
+	if (status != PKGMGR_STATUS_END)
 		return 0;
-	}
 
 	_invoke_package_change_event(notification_service_info, PKGMGR_EVENT_INSTALL, pkgname);
 
@@ -919,9 +878,8 @@ static int _package_uninstall_cb(const char *pkgname, enum pkgmgr_status status,
 {
 	struct info *notification_service_info = (struct info *)data;
 
-	if (status != PKGMGR_STATUS_END) {
+	if (status != PKGMGR_STATUS_END)
 		return 0;
-	}
 
 	_invoke_package_change_event(notification_service_info, PKGMGR_EVENT_UNINSTALL, pkgname);
 
@@ -950,18 +908,17 @@ HAPI int notification_service_init(void)
 	notification_setting_refresh_setting_table();
 
 	pkgmgr_init();
-	pkgmgr_add_event_callback(PKGMGR_EVENT_INSTALL, _package_install_cb, (void*)&s_info);
-	pkgmgr_add_event_callback(PKGMGR_EVENT_UPDATE, _package_install_cb, (void*)&s_info);
-	pkgmgr_add_event_callback(PKGMGR_EVENT_UNINSTALL, _package_uninstall_cb, (void*)&s_info);
+	pkgmgr_add_event_callback(PKGMGR_EVENT_INSTALL, _package_install_cb, (void *)&s_info);
+	pkgmgr_add_event_callback(PKGMGR_EVENT_UPDATE, _package_install_cb, (void *)&s_info);
+	pkgmgr_add_event_callback(PKGMGR_EVENT_UNINSTALL, _package_uninstall_cb, (void *)&s_info);
 	DbgPrint("Successfully initiated\n");
 	return SERVICE_COMMON_ERROR_NONE;
 }
 
 HAPI int notification_service_fini(void)
 {
-	if (!s_info.svc_ctx) {
+	if (!s_info.svc_ctx)
 		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
-	}
 
 	pkgmgr_fini();
 

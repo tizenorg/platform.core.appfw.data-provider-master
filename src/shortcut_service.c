@@ -78,9 +78,8 @@ static inline struct tcb *get_reply_context(double seq)
 
 	tcb = NULL;
 	EINA_LIST_FOREACH_SAFE(s_info.context_list, l, n, ctx) {
-		if (ctx->seq != seq) {
+		if (ctx->seq != seq)
 			continue;
-		}
 
 		s_info.context_list = eina_list_remove(s_info.context_list, ctx);
 		tcb = ctx->tcb;
@@ -101,9 +100,8 @@ static void send_reply_packet(struct tcb *tcb, struct packet *packet, int ret)
 		return;
 	}
 
-	if (service_common_unicast_packet(tcb, reply_packet) < 0) {
+	if (service_common_unicast_packet(tcb, reply_packet) < 0)
 		ErrPrint("Unable to send reply packet\n");
-	}
 
 	packet_destroy(reply_packet);
 }
@@ -150,11 +148,10 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 			}
 		}
 
-		if (service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE) < 0) {
+		if (service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE) < 0)
 			ErrPrint("Unable to send service request packet\n");
-		} else {
+		else
 			(void)put_reply_context(tcb, packet_seq(packet));
-		}
 		break;
 	case PACKET_REQ_NOACK:
 		/* Doesn't need to send reply packet */
@@ -164,9 +161,8 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 			break;
 		}
 
-		if (service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE) < 0) {
+		if (service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE) < 0)
 			ErrPrint("Unable to send service reuqest packet\n");
-		}
 		break;
 	case PACKET_ACK:
 		/* Okay, client(or app) send a reply packet to us. */
@@ -182,9 +178,8 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
 			break;
 		}
 
-		if (service_common_unicast_packet(tcb, packet) < 0) {
+		if (service_common_unicast_packet(tcb, packet) < 0)
 			ErrPrint("Unable to send reply packet\n");
-		}
 		break;
 	default:
 		ErrPrint("Packet type is not valid[%s]\n", command);
@@ -223,9 +218,8 @@ HAPI int shortcut_service_init(void)
 
 HAPI int shortcut_service_fini(void)
 {
-	if (!s_info.svc_ctx) {
+	if (!s_info.svc_ctx)
 		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
-	}
 
 	service_common_destroy(s_info.svc_ctx);
 	s_info.svc_ctx = NULL;

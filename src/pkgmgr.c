@@ -67,9 +67,8 @@ static inline void invoke_install_event_handler(const char *pkgname, enum pkgmgr
 	struct event_item *item;
 
 	EINA_LIST_FOREACH(s_info.install_event, l, item) {
-		if (item->cb) {
+		if (item->cb)
 			item->cb(pkgname, status, value, item->data);
-		}
 	}
 }
 
@@ -79,9 +78,8 @@ static inline void invoke_uninstall_event_handler(const char *pkgname, enum pkgm
 	struct event_item *item;
 
 	EINA_LIST_FOREACH(s_info.uninstall_event, l, item) {
-		if (item->cb) {
+		if (item->cb)
 			item->cb(pkgname, status, value, item->data);
-		}
 	}
 }
 
@@ -91,9 +89,8 @@ static inline void invoke_update_event_handler(const char *pkgname, enum pkgmgr_
 	struct event_item *item;
 
 	EINA_LIST_FOREACH(s_info.update_event, l, item) {
-		if (item->cb) {
+		if (item->cb)
 			item->cb(pkgname, status, value, item->data);
-		}
 	}
 }
 
@@ -103,9 +100,8 @@ static inline void invoke_download_event_handler(const char *pkgname, enum pkgmg
 	struct event_item *item;
 
 	EINA_LIST_FOREACH(s_info.download_event, l, item) {
-		if (item->cb) {
+		if (item->cb)
 			item->cb(pkgname, status, value, item->data);
-		}
 	}
 }
 
@@ -115,9 +111,8 @@ static inline void invoke_recover_event_handler(const char *pkgname, enum pkgmgr
 	struct event_item *item;
 
 	EINA_LIST_FOREACH(s_info.recover_event, l, item) {
-		if (item->cb) {
+		if (item->cb)
 			item->cb(pkgname, status, value, item->data);
-		}
 	}
 }
 
@@ -183,9 +178,8 @@ static struct item *find_item(const char *pkgname)
 	}
 
 	EINA_LIST_FOREACH(s_info.item_list, l, item) {
-		if (strcmp(item->pkgname, pkgname)) {
+		if (strcmp(item->pkgname, pkgname))
 			continue;
-		}
 
 		return item;
 	}
@@ -245,13 +239,11 @@ static int icon_path_cb(const char *pkgname, const char *val, void *data)
 	DbgPrint("[%s] %s\n", pkgname, val);
 
 	item = find_item(pkgname);
-	if (!item) {
+	if (!item)
 		return SERVICE_COMMON_ERROR_NOT_EXIST;
-	}
 
-	if (item->icon) {
+	if (item->icon)
 		DbgFree(item->icon);
-	}
 
 	item->icon = strdup(val);
 	if (!item->icon) {
@@ -269,9 +261,8 @@ static int command_cb(const char *pkgname, const char *val, void *data)
 	DbgPrint("[%s] %s\n", pkgname, val);
 
 	item = find_item(pkgname);
-	if (!item) {
+	if (!item)
 		return SERVICE_COMMON_ERROR_NOT_EXIST;
-	}
 
 	if (!is_valid_status(item, val)) {
 		DbgPrint("Invalid status: %d, %s\n", item->type, val);
@@ -291,9 +282,8 @@ static int error_cb(const char *pkgname, const char *val, void *data)
 	DbgPrint("[%s] %s\n", pkgname, val);
 
 	item = find_item(pkgname);
-	if (!item) {
+	if (!item)
 		return SERVICE_COMMON_ERROR_NOT_EXIST;
-	}
 
 	item->status = PKGMGR_STATUS_ERROR;
 	invoke_callback(pkgname, item, 0.0f);
@@ -308,9 +298,8 @@ static int change_pkgname_cb(const char *pkgname, const char *val, void *data)
 	DbgPrint("[%s] %s\n", pkgname, val);
 
 	item = find_item(pkgname);
-	if (!item) {
+	if (!item)
 		return SERVICE_COMMON_ERROR_NOT_EXIST;
-	}
 
 	new_pkgname = strdup(val);
 	if (!new_pkgname) {
@@ -354,9 +343,8 @@ static int download_cb(const char *pkgname, const char *val, void *data)
 	}
 
 	if (val) {
-		if (sscanf(val, "%lf", &value) != 1) {
+		if (sscanf(val, "%lf", &value) != 1)
 			value = (double)SERVICE_COMMON_ERROR_INVALID_PARAMETER;
-		}
 	} else {
 		value = (double)SERVICE_COMMON_ERROR_INVALID_PARAMETER;
 	}
@@ -391,9 +379,8 @@ static int progress_cb(const char *pkgname, const char *val, void *data)
 	}
 
 	if (val) {
-		if (sscanf(val, "%lf", &value) != 1) {
+		if (sscanf(val, "%lf", &value) != 1)
 			value = (double)SERVICE_COMMON_ERROR_INVALID_PARAMETER;
-		}
 	} else {
 		value = (double)SERVICE_COMMON_ERROR_INVALID_PARAMETER;
 	}
@@ -409,9 +396,8 @@ static int end_cb(const char *pkgname, const char *val, void *data)
 	DbgPrint("[%s] %s\n", pkgname, val);
 
 	item = find_item(pkgname);
-	if (!item) {
+	if (!item)
 		return SERVICE_COMMON_ERROR_NOT_EXIST;
-	}
 
 	item->status = !strcasecmp(val, "ok") ? PKGMGR_STATUS_END : PKGMGR_STATUS_ERROR;
 
@@ -449,9 +435,8 @@ static int pkgmgr_cb(uid_t target_uid, int req_id, const char *type, const char 
 	int ret;
 
 	for (i = 0; handler[i].key; i++) {
-		if (strcasecmp(key, handler[i].key)) {
+		if (strcasecmp(key, handler[i].key))
 			continue;
-		}
 
 		ret = handler[i].func(pkgname, val, data);
 		if (ret < 0) {
@@ -465,18 +450,15 @@ static int pkgmgr_cb(uid_t target_uid, int req_id, const char *type, const char 
 
 HAPI int pkgmgr_init(void)
 {
-	if (s_info.listen_pc) {
+	if (s_info.listen_pc)
 		return SERVICE_COMMON_ERROR_ALREADY_EXIST;
-	}
 
 	s_info.listen_pc = pkgmgr_client_new(PC_LISTENING);
-	if (!s_info.listen_pc) {
+	if (!s_info.listen_pc)
 		return SERVICE_COMMON_ERROR_FAULT;
-	}
 
-	if (pkgmgr_client_listen_status(s_info.listen_pc, pkgmgr_cb, NULL) != PKGMGR_R_OK) {
+	if (pkgmgr_client_listen_status(s_info.listen_pc, pkgmgr_cb, NULL) != PKGMGR_R_OK)
 		return SERVICE_COMMON_ERROR_FAULT;
-	}
 
 	return SERVICE_COMMON_ERROR_NONE;
 }
@@ -486,13 +468,11 @@ HAPI int pkgmgr_fini(void)
 	struct event_item *item;
 	struct item *ctx;
 
-	if (!s_info.listen_pc) {
+	if (!s_info.listen_pc)
 		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
-	}
 
-	if (pkgmgr_client_free(s_info.listen_pc) != PKGMGR_R_OK) {
+	if (pkgmgr_client_free(s_info.listen_pc) != PKGMGR_R_OK)
 		return SERVICE_COMMON_ERROR_FAULT;
-	}
 
 	s_info.listen_pc = NULL;
 

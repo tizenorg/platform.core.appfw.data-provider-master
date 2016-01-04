@@ -60,48 +60,25 @@ HAPI double util_timestamp(void)
 
 HAPI void util_setup_log_disk(void)
 {
-#if 0
-	int ret;
-#endif
-
 	if (access(CONF_LOG_PATH, R_OK | W_OK | X_OK) == 0) {
 		DbgPrint("[%s] is already accessible\n", CONF_LOG_PATH);
 		return;
 	}
 
 	DbgPrint("Initiate the critical log folder [%s]\n", CONF_LOG_PATH);
-	if (mkdir(CONF_LOG_PATH, 0755) < 0) {
+	if (mkdir(CONF_LOG_PATH, 0755) < 0)
 		ErrPrint("mkdir: %d\n", errno);
-	} else {
-#if 0
-		if (chmod(CONF_LOG_PATH, 0750) < 0) {
-			ErrPrint("chmod: %d\n", errno);
-		}
-
-		if (chown(CONF_LOG_PATH, 5000, 5000) < 0) {
-			ErrPrint("chown: %d\n", errno);
-		}
-
-		ret = smack_setlabel(CONF_LOG_PATH, DATA_SHARE_LABEL, SMACK_LABEL_ACCESS);
-		if (ret != 0) {
-			ErrPrint("Failed to set SMACK for %s (%d)\n", CONF_LOG_PATH, ret);
-		} else {
-			ret = smack_setlabel(CONF_LOG_PATH, "1", SMACK_LABEL_TRANSMUTE);
-			DbgPrint("[%s] is successfully created (t: %d)\n", CONF_LOG_PATH, ret);
-		}
-#endif
-	}
 }
 
 HAPI const char *util_basename(const char *name)
 {
 	int length;
 	length = name ? strlen(name) : 0;
-	if (!length) {
+	if (!length)
 		return ".";
-	}
 
-	while (--length > 0 && name[length] != '/');
+	while (--length > 0 && name[length] != '/')
+		;
 
 	return length <= 0 ? name : (name + length + (name[length] == '/'));
 }
