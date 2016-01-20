@@ -14,1304 +14,314 @@
  * limitations under the License.
  */
 #include <stdio.h>
-#include <pthread.h>
-#include <secure_socket.h>
-#include <packet.h>
-#include <errno.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/timerfd.h>
+#include <stdlib.h>
 #include <unistd.h>
-#include <fcntl.h>
-#include <time.h>
-
+#include <gio/gio.h>
 #include <dlog.h>
-#include <Eina.h>
 #include <cynara-client.h>
 #include <cynara-session.h>
 #include <cynara-creds-socket.h>
-
-#include <com-core.h>
+#include <notification.h>
 
 #include "service_common.h"
-#include "util.h"
 #include "debug.h"
-#include "conf.h"
 
-#define EVT_CH		'e'
-#define EVT_END_CH	'x'
-#define DEFAULT_TIMEOUT	2.0f
+#include "notification_service.h"
+#include "badge_service.h"
+#include "shortcut_service.h"
 
-int errno;
+#define PROVIDER_BUS_NAME "org.tizen.data_provider_service"
+#define PROVIDER_OBJECT_PATH "/org/tizen/data_provider_service"
+#define PROVIDER_NOTI_INTERFACE_NAME "org.tizen.data_provider_noti_service"
+#define PROVIDER_BADGE_INTERFACE_NAME "org.tizen.data_provider_badge_service"
+#define PROVIDER_SHORTCUT_INTERFACE_NAME "org.tizen.data_provider_shortcut_service"
 
-struct service_event_item {
-	enum {
-		SERVICE_EVENT_TIMER
-	} type;
+#define DBUS_SERVICE_DBUS "org.freedesktop.DBus"
+#define DBUS_PATH_DBUS "/org/freedesktop/DBus"
+#define DBUS_INTERFACE_DBUS "org.freedesktop.DBus"
 
-	union {
-		struct {
-			int fd;
-		} timer;
-	} info;
+static GDBusConnection *_gdbus_conn = NULL;
+static GList *notification_monitoring_list = NULL;
+static GList *badge_monitoring_list = NULL;
+static GList *shortcut_monitoring_list = NULL;
 
-	int (*event_cb)(struct service_context *svc_cx, void *data);
-	void *cbdata;
-};
+typedef struct monitoring_info {
+	int watcher_id;
+	char *bus_name;
+	service_type type;
+} monitoring_info_s;
 
-struct tcb_event_cbdata {
-	struct tcb *tcb;
-	void (*cb)(struct service_context *svc_ctx, struct tcb *tcb, void *data);
-	void *data;
-};
+void print_noti(notification_h noti) {
+	char *pkgname = NULL;
+	char *text = NULL;
+	char *content = NULL;
+	const char *tag = NULL;
 
-/*!
- * \note
- * Server information and global (only in this file-scope) variables are defined
- */
-struct service_context {
-	pthread_t server_thid; /*!< Server thread Id */
-	int fd; /*!< Server socket handle */
+	notification_get_pkgname(noti, &pkgname);
+	notification_get_text(noti, NOTIFICATION_TEXT_TYPE_TITLE, &text);
+	notification_get_text(noti, NOTIFICATION_TEXT_TYPE_CONTENT, &content);
+	notification_get_tag(noti, &tag);
 
-	Eina_List *tcb_list; /*!< TCB list, list of every thread for client connections */
-	pthread_mutex_t tcb_list_lock;
-
-	Eina_List *packet_list;
-	pthread_mutex_t packet_list_lock;
-	int evt_pipe[PIPE_MAX];
-	int tcb_pipe[PIPE_MAX];
-
-	int (*service_thread_main)(struct tcb *tcb, struct packet *packet, void *data);
-	void *service_thread_data;
-
-	Eina_List *event_list;
-
-	Eina_List *tcb_create_cb_list;
-	Eina_List *tcb_destroy_cb_list;
-
-	int processing_service_handler;
-
-	cynara *cynara_handle;
-};
-
-struct packet_info {
-	struct tcb *tcb;
-	struct packet *packet;
-};
-
-/*!
- * \note
- * Thread Control Block
- * - The main server will create a thread for every client connections.
- *   When a new client is comming to us, this TCB block will be allocated and initialized.
- */
-struct tcb { /* Thread controll block */
-	struct service_context *svc_ctx;
-	pthread_t thid; /*!< Thread Id */
-	int fd; /*!< Connection handle */
-	enum tcb_type type;
-	int ctrl_pipe[PIPE_MAX];
-	pid_t pid; /*!< Keep the PID of client, if the client is remote one, this will be -1 */
-};
-
-static void _initialize_privilege_checker(struct service_context *svc_ctx)
-{
-	int ret;
-
-	/* Cynara structure init */
-	ret = cynara_initialize(&(svc_ctx->cynara_handle), NULL);
-	if (ret != CYNARA_API_SUCCESS)
-		ErrPrint("cynara_initialize failed[%d]\n", ret);
+	DbgPrint("provider print_noti  pkgname  = %s ", pkgname );
+	DbgPrint("provider print_noti  title  = %s ", text );
+	DbgPrint("provider print_noti  content  = %s ", content );
+	DbgPrint("provider print_noti  tag  = %s ", tag );
 }
 
-static void _finish_privilege_checker(struct service_context *svc_ctx)
+char *string_get(char *string)
 {
-	int ret;
+	if (string == NULL)
+		return NULL;
+	if (string[0] == '\0')
+		return NULL;
 
-	ret = cynara_finish(svc_ctx->cynara_handle);
-	if (ret != CYNARA_API_SUCCESS)
-		ErrPrint("cynara_initialize failed[%d]\n", ret);
+	return string;
 }
 
-HAPI int service_common_send_packet_to_service(struct service_context *svc_ctx, struct tcb *tcb, struct packet *packet)
+int send_notify(GVariant *body, char *cmd, service_type type)
 {
-	int ret = 0;
-	struct packet_info *packet_info = NULL;
-	char evt_ch = EVT_CH;
+	GError *err = NULL;
+	GList *target_list;
+	char *target_bus_name = NULL;
+	GDBusConnection *conn = service_common_get_connection();
+	GList *monitoring_app_list = NULL;
+	char *interface_name = NULL;
 
-	packet_info = malloc(sizeof(*packet_info));
-	if (!packet_info) {
-		ret = -errno;
-		ErrPrint("malloc: %d\n", errno);
-		goto out;
+	if(conn == NULL)
+		return SERVICE_COMMON_ERROR_IO_ERROR;
+
+	if (type == NOTIFICATION_SERVICE) {
+
+		monitoring_app_list = notification_monitoring_list;
+		interface_name = PROVIDER_NOTI_INTERFACE_NAME;
+
+	} else if (type == BADGE_SERVICE) {
+
+		monitoring_app_list = badge_monitoring_list;
+		interface_name = PROVIDER_BADGE_INTERFACE_NAME;
+
+	} else if (type == SHORTCUT_SERVICE) {
+
+		monitoring_app_list = shortcut_monitoring_list;
+		interface_name = PROVIDER_SHORTCUT_INTERFACE_NAME;
 	}
 
-	packet_info->packet = packet_ref(packet);
-	packet_info->tcb = tcb;
+	target_list = g_list_first(monitoring_app_list);
+	for (; target_list != NULL; target_list = target_list->next) {
+		err = NULL;
+		target_bus_name = target_list->data;
 
-	CRITICAL_SECTION_BEGIN(&svc_ctx->packet_list_lock);
-	svc_ctx->packet_list = eina_list_append(svc_ctx->packet_list, packet_info);
-	CRITICAL_SECTION_END(&svc_ctx->packet_list_lock);
+		DbgPrint("emit signal to : %s", target_bus_name);
+		if (g_dbus_connection_emit_signal(conn,
+					target_bus_name,
+					PROVIDER_OBJECT_PATH,
+					interface_name,
+					cmd,
+					g_variant_ref(body),
+					&err) == FALSE) {
 
-	if (write(svc_ctx->evt_pipe[PIPE_WRITE], &evt_ch, sizeof(evt_ch)) != sizeof(evt_ch)) {
-		ret = -errno;
-		ErrPrint("write: %d\n", errno);
-		CRITICAL_SECTION_BEGIN(&svc_ctx->packet_list_lock);
-		svc_ctx->packet_list = eina_list_remove(svc_ctx->packet_list, packet_info);
-		CRITICAL_SECTION_END(&svc_ctx->packet_list_lock);
-		packet_unref(packet);
-		DbgFree(packet_info);
-		goto out;
+			ErrPrint("g_dbus_connection_emit_signal() is failed");
+			if (err != NULL) {
+				ErrPrint("g_dbus_connection_emit_signal() err : %s",
+						err->message);
+				g_error_free(err);
+			}
+			return SERVICE_COMMON_ERROR_IO_ERROR;
+		}
+		DbgPrint("signal send done: %s", target_bus_name);
 	}
 
-out:
-	return ret;
+	if (body != NULL)
+		g_variant_unref(body);
+
+	DbgPrint("provider _send_notify cmd %s done", cmd);
+	return SERVICE_COMMON_ERROR_NONE;
 }
 
-/*!
- * Do services for clients
- * Routing packets to destination processes.
- * CLIENT THREAD
- */
-static void *client_packet_pump_main(void *data)
+/* register service */
+static void _on_name_appeared(GDBusConnection *connection,
+		const gchar     *name,
+		const gchar     *name_owner,
+		gpointer         user_data)
 {
-	struct tcb *tcb = data;
-	struct service_context *svc_ctx = tcb->svc_ctx;
-	struct packet *packet = NULL;
-	fd_set set;
-	char *ptr = NULL;
-	int size = 0;
-	int packet_offset = 0;
-	int recv_offset = 0;
-	long ret;
-	int fd;
-	char evt_ch = EVT_CH;
-	enum {
-		RECV_INIT,
-		RECV_HEADER,
-		RECV_PAYLOAD,
-		RECV_DONE,
-	} recv_state;
-	struct packet_info *packet_info;
-	Eina_List *l;
+	DbgPrint("name appeared : %s", name);
+}
 
-	ret = 0;
-	recv_state = RECV_INIT;
-	/*!
-	 * \note
-	 * To escape from the switch statement, we use this ret value
-	 */
-	while (ret == 0) {
-		FD_ZERO(&set);
-		FD_SET(tcb->fd, &set);
-		FD_SET(tcb->ctrl_pipe[PIPE_READ], &set);
-		fd = tcb->fd > tcb->ctrl_pipe[PIPE_READ] ? tcb->fd : tcb->ctrl_pipe[PIPE_READ];
-		ret = select(fd + 1, &set, NULL, NULL, NULL);
-		if (ret < 0) {
-			ret = -errno;
-			if (errno == EINTR) {
-				ErrPrint("INTERRUPTED\n");
-				ret = 0;
-				continue;
-			}
-			ErrPrint("select: %d\n", errno);
-			DbgFree(ptr);
-			ptr = NULL;
-			break;
-		} else if (ret == 0) {
-			ErrPrint("Timeout\n");
-			ret = -ETIMEDOUT;
-			DbgFree(ptr);
-			ptr = NULL;
-			break;
-		}
+static void _on_name_vanished(GDBusConnection *connection,
+		const gchar     *name,
+		gpointer         user_data)
+{
+	DbgPrint("name vanished : %s", name);
+	monitoring_info_s *info = (monitoring_info_s *)user_data;
 
-		if (FD_ISSET(tcb->ctrl_pipe[PIPE_READ], &set)) {
-			DbgPrint("Thread is canceled\n");
-			ret = -ECANCELED;
-			DbgFree(ptr);
-			ptr = NULL;
-			break;
-		}
+	if (info->type == NOTIFICATION_SERVICE)
+		notification_monitoring_list = g_list_remove(notification_monitoring_list, info->bus_name);
+	else if (info->type == BADGE_SERVICE)
+		badge_monitoring_list = g_list_remove(badge_monitoring_list, info->bus_name);
+	else if (info->type == SHORTCUT_SERVICE)
+		shortcut_monitoring_list = g_list_remove(shortcut_monitoring_list, info->bus_name);
 
-		if (!FD_ISSET(tcb->fd, &set)) {
-			ErrPrint("Unexpected handler is toggled\n");
-			ret = -EINVAL;
-			DbgFree(ptr);
-			ptr = NULL;
-			break;
-		}
+	g_bus_unwatch_name(info->watcher_id);
+	free(info);
+}
 
-		/*!
-		 * \TODO
-		 * Service!!! Receive packet & route packet
-		 */
-		switch (recv_state) {
-		case RECV_INIT:
-			size = packet_header_size();
-			packet_offset = 0;
-			recv_offset = 0;
-			packet = NULL;
-			ptr = malloc(size);
-			if (!ptr) {
-				ErrPrint("malloc: %d\n", errno);
-				ret = -ENOMEM;
-				break;
-			}
-			recv_state = RECV_HEADER;
-			/* Go through, don't break from here */
-		case RECV_HEADER:
-			ret = secure_socket_recv(tcb->fd, ptr, size - recv_offset, &tcb->pid);
-			if (ret <= 0) {
-				if (ret == 0)
-					ret = -ECANCELED;
-				DbgFree(ptr);
-				ptr = NULL;
-				break;
-			}
+static int _monitoring_app_list_compare_cb(gconstpointer a, gconstpointer b)
+{
+	return strcmp(a, b);
+}
 
-			recv_offset += ret;
-			ret = 0;
+int service_register(GVariant *parameters, GVariant **reply_body, const gchar *sender, service_type type)
+{
+	GList *added_list = NULL;
+	char *bus_name = strdup(sender);
+	monitoring_info_s *m_info = NULL;
 
-			if (recv_offset == size) {
-				packet = packet_build(packet, packet_offset, ptr, size);
-				DbgFree(ptr);
-				ptr = NULL;
-				if (!packet) {
-					ret = -EFAULT;
-					break;
+	if (bus_name == NULL) {
+
+		return SERVICE_COMMON_ERROR_IO_ERROR;
+
+	} else {
+
+		if (type == NOTIFICATION_SERVICE) {
+
+			added_list = g_list_find_custom(notification_monitoring_list, sender,
+					(GCompareFunc)_monitoring_app_list_compare_cb);
+			if (added_list == NULL) {
+				notification_monitoring_list = g_list_append(notification_monitoring_list, bus_name);
+				DbgPrint("service_register : register success sender is %s , length : %d",
+						sender, g_list_length(notification_monitoring_list));
+
+				m_info = (monitoring_info_s *)calloc(1, sizeof(monitoring_info_s));
+				if (m_info == NULL) {
+					ErrPrint("Can not alloc monitoring_info_s");
+					return SERVICE_COMMON_ERROR_IO_ERROR;
 				}
-
-				packet_offset += recv_offset;
-
-				size = packet_payload_size(packet);
-				if (size <= 0) {
-					recv_state = RECV_DONE;
-					recv_offset = 0;
-					break;
-				}
-
-				recv_state = RECV_PAYLOAD;
-				recv_offset = 0;
-
-				ptr = malloc(size);
-				if (!ptr) {
-					ErrPrint("malloc: %d\n", errno);
-					ret = -ENOMEM;
-				}
-			}
-			break;
-		case RECV_PAYLOAD:
-			ret = secure_socket_recv(tcb->fd, ptr, size - recv_offset, &tcb->pid);
-			if (ret <= 0) {
-				if (ret == 0)
-					ret = -ECANCELED;
-				DbgFree(ptr);
-				ptr = NULL;
-				break;
-			}
-
-			recv_offset += ret;
-			ret = 0;
-
-			if (recv_offset == size) {
-				packet = packet_build(packet, packet_offset, ptr, size);
-				DbgFree(ptr);
-				ptr = NULL;
-				if (!packet) {
-					ret = -EFAULT;
-					break;
-				}
-
-				packet_offset += recv_offset;
-
-				recv_state = RECV_DONE;
-				recv_offset = 0;
-			}
-			break;
-		case RECV_DONE:
-		default:
-			/* Dead code */
-			break;
-		}
-
-		if (recv_state == RECV_DONE) {
-			/*!
-			 * Push this packet to the packet list with TCB
-			 * Then the service main function will get this.
-			 */
-			packet_info = malloc(sizeof(*packet_info));
-			if (!packet_info) {
-				ret = -errno;
-				ErrPrint("malloc: %d\n", errno);
-				packet_destroy(packet);
-				break;
-			}
-
-			packet_info->packet = packet;
-			packet_info->tcb = tcb;
-
-			CRITICAL_SECTION_BEGIN(&svc_ctx->packet_list_lock);
-			svc_ctx->packet_list = eina_list_append(svc_ctx->packet_list, packet_info);
-			CRITICAL_SECTION_END(&svc_ctx->packet_list_lock);
-
-			if (write(svc_ctx->evt_pipe[PIPE_WRITE], &evt_ch, sizeof(evt_ch)) != sizeof(evt_ch)) {
-				ret = -errno;
-				ErrPrint("write: %d\n", errno);
-				CRITICAL_SECTION_BEGIN(&svc_ctx->packet_list_lock);
-				svc_ctx->packet_list = eina_list_remove(svc_ctx->packet_list, packet_info);
-				CRITICAL_SECTION_END(&svc_ctx->packet_list_lock);
-
-				packet_destroy(packet);
-				DbgFree(packet_info);
-				ErrPrint("Terminate thread: %p\n", tcb);
-				break;
 			} else {
-				DbgPrint("Packet received: %d bytes\n", packet_offset);
-				recv_state = RECV_INIT;
+				ErrPrint("service_register : register sender %s already exist", sender);
 			}
 
-			/* Take a breathe */
-			pthread_yield();
+		} else if (type == BADGE_SERVICE) {
+
+			added_list = g_list_find_custom(badge_monitoring_list, sender,
+					(GCompareFunc)_monitoring_app_list_compare_cb);
+			if (added_list == NULL) {
+				badge_monitoring_list = g_list_append(badge_monitoring_list, bus_name);
+				DbgPrint("service_register : register success sender is %s , length : %d",
+						sender, g_list_length(badge_monitoring_list));
+
+				m_info = (monitoring_info_s *)calloc(1, sizeof(monitoring_info_s));
+				if (m_info == NULL) {
+					ErrPrint("Can not alloc monitoring_info_s");
+					return SERVICE_COMMON_ERROR_IO_ERROR;
+				}
+			} else {
+				ErrPrint("service_register : register sender %s already exist", sender);
+			}
+
+		} else if (type == SHORTCUT_SERVICE) {
+
+			added_list = g_list_find_custom(shortcut_monitoring_list, sender,
+					(GCompareFunc)_monitoring_app_list_compare_cb);
+			if (added_list == NULL) {
+				shortcut_monitoring_list = g_list_append(shortcut_monitoring_list, bus_name);
+				DbgPrint("service_register : register success sender is %s , length : %d",
+						sender, g_list_length(shortcut_monitoring_list));
+
+				m_info = (monitoring_info_s *)calloc(1, sizeof(monitoring_info_s));
+				if (m_info == NULL) {
+					ErrPrint("Can not alloc monitoring_info_s");
+					return SERVICE_COMMON_ERROR_IO_ERROR;
+				}
+			} else {
+				ErrPrint("service_register : register sender %s already exist", sender);
+			}
 		}
 	}
 
-	CRITICAL_SECTION_BEGIN(&svc_ctx->packet_list_lock);
-	EINA_LIST_FOREACH(svc_ctx->packet_list, l, packet_info) {
-		if (packet_info->tcb == tcb) {
-			DbgPrint("Reset ptr of the TCB[%p] in the list of packet info\n", tcb);
-			packet_info->tcb = NULL;
+	if (m_info != NULL) {
+		m_info->type = type;
+		m_info->bus_name = bus_name;
+		m_info->watcher_id = g_bus_watch_name_on_connection(
+				_gdbus_conn,
+				bus_name,
+				G_BUS_NAME_WATCHER_FLAGS_NONE,
+				_on_name_appeared,
+				_on_name_vanished,
+				m_info,
+				NULL);
+		if (m_info->watcher_id == 0) {
+			ErrPrint("fail to watch name");
+			free(m_info);
+			return SERVICE_COMMON_ERROR_IO_ERROR;
+		} else {
+			DbgPrint("watch on %s success", bus_name);
 		}
 	}
-	CRITICAL_SECTION_END(&svc_ctx->packet_list_lock);
 
-	/*!
-	 * \note
-	 * Emit a signal to collect this TCB from the SERVER THREAD.
-	 */
-	if (write(svc_ctx->tcb_pipe[PIPE_WRITE], &tcb, sizeof(tcb)) != sizeof(tcb))
-		ErrPrint("write: %d\n", errno);
-
-	if (ptr)
-		free(ptr);
-
-	return (void *)ret;
-}
-
-/*!
- * \note
- * SERVER THREAD
- */
-HAPI int service_register_tcb_callback(struct service_context *svc_ctx, struct tcb *tcb, enum tcb_event_type event, void (*cb)(struct service_context *svc_ctx, struct tcb *tcb, void *data), void *data)
-{
-	struct tcb_event_cbdata *cbdata;
-
-	cbdata = malloc(sizeof(*cbdata));
-	if (!cbdata) {
-		ErrPrint("malloc: %d\n", errno);
+	*reply_body = g_variant_new("()");
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make reply_body");
 		return SERVICE_COMMON_ERROR_OUT_OF_MEMORY;
 	}
 
-	cbdata->tcb = tcb;
-	cbdata->cb = cb;
-	cbdata->data = data;
-
-	switch (event) {
-	case TCB_EVENT_CREATE:
-		if (tcb)
-			DbgPrint("To catch the create event of TCB does not requires \"tcb\" handle\n");
-		svc_ctx->tcb_create_cb_list = eina_list_append(svc_ctx->tcb_create_cb_list, cbdata);
-		break;
-	case TCB_EVENT_DESTROY:
-		svc_ctx->tcb_destroy_cb_list = eina_list_append(svc_ctx->tcb_destroy_cb_list, cbdata);
-		break;
-	default:
-		DbgFree(cbdata);
-		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
-	}
-
 	return SERVICE_COMMON_ERROR_NONE;
 }
 
-/*!
- * \note
- * SERVER THREAD
- */
-HAPI int service_unregister_tcb_callback(struct service_context *svc_ctx, struct tcb *tcb, enum tcb_event_type event, void (*cb)(struct service_context *svc_ctx, struct tcb *tcb, void *data), void *data)
+int _register_dbus_interface()
 {
-	struct tcb_event_cbdata *cbdata;
-	Eina_List *l;
+	int result = SERVICE_COMMON_ERROR_NONE;
 
-	switch (event) {
-	case TCB_EVENT_CREATE:
-		EINA_LIST_FOREACH(svc_ctx->tcb_create_cb_list, l, cbdata) {
-			if (cbdata->tcb == tcb && cbdata->cb == cb && cbdata->data == data) {
-				svc_ctx->tcb_create_cb_list = eina_list_remove(svc_ctx->tcb_create_cb_list, cbdata);
-				DbgFree(cbdata);
-				return SERVICE_COMMON_ERROR_NONE;
-			}
-		}
-		break;
-	case TCB_EVENT_DESTROY:
-		EINA_LIST_FOREACH(svc_ctx->tcb_destroy_cb_list, l, cbdata) {
-			if (cbdata->tcb == tcb && cbdata->cb == cb && cbdata->data == data) {
-				svc_ctx->tcb_destroy_cb_list = eina_list_remove(svc_ctx->tcb_destroy_cb_list, cbdata);
-				DbgFree(cbdata);
-				return SERVICE_COMMON_ERROR_NONE;
-			}
-		}
-		break;
-	default:
-		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
+	result = notification_register_dbus_interface(_gdbus_conn);
+	if(result != SERVICE_COMMON_ERROR_NONE) {
+		ErrPrint("notification register dbus fail %d", result);
+		return result;
 	}
 
-	return SERVICE_COMMON_ERROR_NOT_EXIST;
-}
-
-/*!
- * \note
- * SERVER THREAD
- */
-static inline struct tcb *tcb_create(struct service_context *svc_ctx, int fd)
-{
-	struct tcb *tcb;
-	int status;
-	struct tcb_event_cbdata *cbdata;
-	Eina_List *l;
-	Eina_List *n;
-
-	tcb = malloc(sizeof(*tcb));
-	if (!tcb) {
-		ErrPrint("malloc: %d\n", errno);
-		return NULL;
+	badge_register_dbus_interface(_gdbus_conn);
+	if(result != SERVICE_COMMON_ERROR_NONE) {
+		ErrPrint("badge register dbus fail %d", result);
+		return result;
 	}
 
-	if (pipe2(tcb->ctrl_pipe, O_CLOEXEC) < 0) {
-		ErrPrint("pipe2: %d\n", errno);
-		DbgFree(tcb);
-		return NULL;
+	shortcut_register_dbus_interface(_gdbus_conn);
+	if(result != SERVICE_COMMON_ERROR_NONE) {
+		ErrPrint("shortcut register dbus fail %d", result);
+		return result;
 	}
-
-	tcb->fd = fd;
-	tcb->svc_ctx = svc_ctx;
-	tcb->type = TCB_CLIENT_TYPE_APP;
-	tcb->pid = -1;
-
-	DbgPrint("Create a new service thread [%d]\n", fd);
-	status = pthread_create(&tcb->thid, NULL, client_packet_pump_main, tcb);
-	if (status != 0) {
-		ErrPrint("pthread_create: %d\n", status);
-		CLOSE_PIPE(tcb->ctrl_pipe);
-		DbgFree(tcb);
-		return NULL;
-	}
-
-	CRITICAL_SECTION_BEGIN(&svc_ctx->tcb_list_lock);
-	svc_ctx->tcb_list = eina_list_append(svc_ctx->tcb_list, tcb);
-	CRITICAL_SECTION_END(&svc_ctx->tcb_list_lock);
-
-	EINA_LIST_FOREACH_SAFE(svc_ctx->tcb_create_cb_list, l, n, cbdata) {
-		if (!cbdata->cb) {
-			/* ASSERT */
-			ErrPrint("invalid CB\n");
-			svc_ctx->tcb_create_cb_list = eina_list_remove(svc_ctx->tcb_create_cb_list, cbdata);
-			DbgFree(cbdata);
-			continue;
-		}
-
-		cbdata->cb(svc_ctx, tcb, cbdata->data);
-	}
-
-	return tcb;
-}
-
-/*!
- * \note
- * SERVER THREAD
- */
-static inline void tcb_teminate_all(struct service_context *svc_ctx)
-{
-	struct tcb *tcb;
-	void *ret;
-	int status;
-	char ch = EVT_END_CH;
-
-	/*!
-	 * We don't need to make critical section on here.
-	 * If we call this after terminate the server thread first.
-	 * Then there is no other thread to access tcb_list.
-	 */
-	EINA_LIST_FREE(svc_ctx->tcb_list, tcb) {
-		/*!
-		 * ASSERT(tcb->fd >= 0);
-		 */
-		if (write(tcb->ctrl_pipe[PIPE_WRITE], &ch, sizeof(ch)) != sizeof(ch))
-			ErrPrint("write: %d\n", errno);
-
-		status = pthread_join(tcb->thid, &ret);
-		if (status != 0)
-			ErrPrint("Unable to join a thread: %d\n", status);
-		else
-			DbgPrint("Thread returns: %p\n", ret);
-
-		secure_socket_destroy_handle(tcb->fd);
-
-		CLOSE_PIPE(tcb->ctrl_pipe);
-		DbgFree(tcb);
-	}
-}
-
-HAPI int service_common_destroy_tcb(struct service_context *svc_ctx, struct tcb *tcb)
-{
-	if (!svc_ctx || !tcb)
-		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
-	/**
-	 * @note
-	 * In this case, we just need to push terminate event to pipe.
-	 */
-	if (write(svc_ctx->tcb_pipe[PIPE_WRITE], &tcb, sizeof(tcb)) != sizeof(tcb))
-		ErrPrint("write: %d\n", errno);
-
-	return SERVICE_COMMON_ERROR_NONE;
-}
-
-/*!
- * \note
- * SERVER THREAD
- */
-static inline void tcb_destroy(struct service_context *svc_ctx, struct tcb *tcb)
-{
-	void *ret;
-	int status;
-	char ch = EVT_END_CH;
-	struct tcb_event_cbdata *cbdata;
-	Eina_List *l;
-	Eina_List *n;
-
-	EINA_LIST_FOREACH_SAFE(svc_ctx->tcb_destroy_cb_list, l, n, cbdata) {
-		if (!cbdata->cb) {
-			/* ASSERT */
-			ErrPrint("invalid CB\n");
-			svc_ctx->tcb_destroy_cb_list = eina_list_remove(svc_ctx->tcb_destroy_cb_list, cbdata);
-			DbgFree(cbdata);
-			continue;
-		}
-
-		if (cbdata->tcb != tcb)
-			continue;
-
-		cbdata->cb(svc_ctx, tcb, cbdata->data);
-
-		if (eina_list_data_find(svc_ctx->tcb_destroy_cb_list, cbdata)) {
-			svc_ctx->tcb_destroy_cb_list = eina_list_remove(svc_ctx->tcb_destroy_cb_list, cbdata);
-			DbgFree(cbdata);
-		}
-	}
-
-	CRITICAL_SECTION_BEGIN(&svc_ctx->tcb_list_lock);
-	svc_ctx->tcb_list = eina_list_remove(svc_ctx->tcb_list, tcb);
-	CRITICAL_SECTION_END(&svc_ctx->tcb_list_lock);
-	/*!
-	 * ASSERT(tcb->fd >= 0);
-	 * Close the connection, and then collecting the return value of thread
-	 */
-	if (write(tcb->ctrl_pipe[PIPE_WRITE], &ch, sizeof(ch)) != sizeof(ch))
-		ErrPrint("write: %d\n", errno);
-
-	status = pthread_join(tcb->thid, &ret);
-	if (status != 0)
-		ErrPrint("Unable to join a thread: %d\n", status);
-	else
-		DbgPrint("Thread returns: %p\n", ret);
-
-	secure_socket_destroy_handle(tcb->fd);
-
-	CLOSE_PIPE(tcb->ctrl_pipe);
-	DbgFree(tcb);
-}
-
-/*!
- * \note
- * SERVER THREAD
- */
-static inline int update_fdset(struct service_context *svc_ctx, fd_set *set)
-{
-	Eina_List *l;
-	struct service_event_item *item;
-	int fd = 0;
-
-	FD_ZERO(set);
-
-	FD_SET(svc_ctx->fd, set);
-	fd = svc_ctx->fd;
-
-	FD_SET(svc_ctx->tcb_pipe[PIPE_READ], set);
-	if (svc_ctx->tcb_pipe[PIPE_READ] > fd)
-		fd = svc_ctx->tcb_pipe[PIPE_READ];
-
-	FD_SET(svc_ctx->evt_pipe[PIPE_READ], set);
-	if (svc_ctx->evt_pipe[PIPE_READ] > fd)
-		fd = svc_ctx->evt_pipe[PIPE_READ];
-
-	EINA_LIST_FOREACH(svc_ctx->event_list, l, item) {
-		if (item->type == SERVICE_EVENT_TIMER) {
-			FD_SET(item->info.timer.fd, set);
-			if (fd < item->info.timer.fd)
-				fd = item->info.timer.fd;
-		}
-	}
-
-	return fd + 1;
-}
-
-/*!
- * \note
- * SERVER THREAD
- */
-static inline void processing_timer_event(struct service_context *svc_ctx, fd_set *set)
-{
-	uint64_t expired_count;
-	Eina_List *l;
-	Eina_List *n;
-	struct service_event_item *item;
-
-	EINA_LIST_FOREACH_SAFE(svc_ctx->event_list, l, n, item) {
-		switch (item->type) {
-		case SERVICE_EVENT_TIMER:
-			if (!FD_ISSET(item->info.timer.fd, set))
-				break;
-
-			if (read(item->info.timer.fd, &expired_count, sizeof(expired_count)) == sizeof(expired_count)) {
-				DbgPrint("Expired %d times\n", expired_count);
-				if (item->event_cb(svc_ctx, item->cbdata) >= 0)
-					break;
-			} else {
-				ErrPrint("read: %d\n", errno);
-			}
-
-			if (!eina_list_data_find(svc_ctx->event_list, item))
-				break;
-
-			svc_ctx->event_list = eina_list_remove(svc_ctx->event_list, item);
-			if (close(item->info.timer.fd) < 0)
-				ErrPrint("close: %d\n", errno);
-			DbgFree(item);
-			break;
-		default:
-			ErrPrint("Unknown event: %d\n", item->type);
-			break;
-		}
-	}
-}
-
-/*!
- * Accept new client connections
- * And create a new thread for service.
- *
- * Create Client threads & Destroying them
- * SERVER THREAD
- */
-static void *server_main(void *data)
-{
-	struct service_context *svc_ctx = data;
-	fd_set set;
-	fd_set except_set;
-	long ret;
-	int client_fd;
-	struct tcb *tcb;
-	int fd;
-	char evt_ch;
-	struct packet_info *packet_info;
-
-	DbgPrint("Server thread is activated\n");
-	while (1) {
-		fd = update_fdset(svc_ctx, &set);
-		memcpy(&except_set, &set, sizeof(set));
-
-		ret = select(fd, &set, NULL, &except_set, NULL);
-		if (ret < 0) {
-			ret = -errno;
-			if (errno == EINTR) {
-				DbgPrint("INTERRUPTED\n");
-				continue;
-			}
-			ErrPrint("select: %d\n", errno);
-			break;
-		} else if (ret == 0) {
-			ErrPrint("Timeout\n");
-			ret = -ETIMEDOUT;
-			break;
-		}
-
-		if (FD_ISSET(svc_ctx->fd, &set)) {
-			client_fd = secure_socket_get_connection_handle(svc_ctx->fd);
-			if (client_fd < 0) {
-				ErrPrint("Failed to establish a new connection [%d]\n", svc_ctx->fd);
-				ret = -EFAULT;
-				break;
-			}
-
-			tcb = tcb_create(svc_ctx, client_fd);
-			if (!tcb) {
-				ErrPrint("Failed to create a new TCB: %d (%d)\n", client_fd, svc_ctx->fd);
-				secure_socket_destroy_handle(client_fd);
-			}
-		}
-
-		if (FD_ISSET(svc_ctx->evt_pipe[PIPE_READ], &set)) {
-			if (read(svc_ctx->evt_pipe[PIPE_READ], &evt_ch, sizeof(evt_ch)) != sizeof(evt_ch)) {
-				ErrPrint("read: %d\n", errno);
-				ret = -EFAULT;
-				break;
-			}
-
-			CRITICAL_SECTION_BEGIN(&svc_ctx->packet_list_lock);
-			packet_info = eina_list_nth(svc_ctx->packet_list, 0);
-			svc_ctx->packet_list = eina_list_remove(svc_ctx->packet_list, packet_info);
-			CRITICAL_SECTION_END(&svc_ctx->packet_list_lock);
-
-			if (packet_info) {
-				/*!
-				 * \CRITICAL
-				 * What happens if the client thread is terminated, so the packet_info->tcb is deleted
-				 * while processing svc_ctx->service_thread_main?
-				 */
-				svc_ctx->processing_service_handler = 1;
-				ret = svc_ctx->service_thread_main(packet_info->tcb, packet_info->packet, svc_ctx->service_thread_data);
-				svc_ctx->processing_service_handler = 0;
-				if (ret < 0)
-					ErrPrint("Service thread returns: %d\n", ret);
-
-				packet_destroy(packet_info->packet);
-				DbgFree(packet_info);
-			}
-
-			/* Take a breathe */
-			pthread_yield();
-		}
-
-		processing_timer_event(svc_ctx, &set);
-
-		/*!
-		 * \note
-		 * Destroying TCB should be processed at last.
-		 */
-		if (FD_ISSET(svc_ctx->tcb_pipe[PIPE_READ], &set)) {
-			Eina_List *lockfree_packet_list;
-			Eina_List *l;
-			Eina_List *n;
-
-			if (read(svc_ctx->tcb_pipe[PIPE_READ], &tcb, sizeof(tcb)) != sizeof(tcb)) {
-				ErrPrint("read: %d\n", errno);
-				ret = -EFAULT;
-				break;
-			}
-
-			if (!tcb) {
-				ErrPrint("Terminate service thread\n");
-				ret = -ECANCELED;
-				break;
-			}
-
-			lockfree_packet_list = NULL;
-			CRITICAL_SECTION_BEGIN(&svc_ctx->packet_list_lock);
-			EINA_LIST_FOREACH_SAFE(svc_ctx->packet_list, l, n, packet_info) {
-				if (packet_info->tcb != tcb)
-					continue;
-
-				svc_ctx->packet_list = eina_list_remove(svc_ctx->packet_list, packet_info);
-				lockfree_packet_list = eina_list_append(lockfree_packet_list, packet_info);
-			}
-			CRITICAL_SECTION_END(&svc_ctx->packet_list_lock);
-
-			EINA_LIST_FREE(lockfree_packet_list, packet_info) {
-				ret = read(svc_ctx->evt_pipe[PIPE_READ], &evt_ch, sizeof(evt_ch));
-				DbgPrint("Flushing filtered pipe: %d (%c)\n", ret, evt_ch);
-				svc_ctx->processing_service_handler = 1;
-				ret = svc_ctx->service_thread_main(packet_info->tcb, packet_info->packet, svc_ctx->service_thread_data);
-				svc_ctx->processing_service_handler = 0;
-				if (ret < 0)
-					ErrPrint("Service thread returns: %d\n", ret);
-
-				packet_destroy(packet_info->packet);
-				DbgFree(packet_info);
-			}
-
-			/*!
-			 * \note
-			 * Invoke the service thread main, to notify the termination of a TCB
-			 */
-			svc_ctx->processing_service_handler = 1;
-			ret = svc_ctx->service_thread_main(tcb, NULL, svc_ctx->service_thread_data);
-			svc_ctx->processing_service_handler = 0;
-
-			/*!
-			 * at this time, the client thread can access this tcb.
-			 * how can I protect this TCB from deletion without disturbing the server thread?
-			 */
-			tcb_destroy(svc_ctx, tcb);
-		}
-
-		/* If there is no such triggered FD? */
-	}
-
-	/*!
-	 * Consuming all pended packets before terminates server thread.
-	 *
-	 * If the server thread is terminated, we should flush all pended packets.
-	 * And we should services them.
-	 * While processing this routine, the mutex is locked.
-	 * So every other client thread will be slowed down, sequently, every clients can meet problems.
-	 * But in case of termination of server thread, there could be systemetic problem.
-	 * This only should be happenes while terminating the master daemon process.
-	 */
-	CRITICAL_SECTION_BEGIN(&svc_ctx->packet_list_lock);
-	EINA_LIST_FREE(svc_ctx->packet_list, packet_info) {
-		ret = read(svc_ctx->evt_pipe[PIPE_READ], &evt_ch, sizeof(evt_ch));
-		DbgPrint("Flushing pipe: %d (%c)\n", ret, evt_ch);
-		svc_ctx->processing_service_handler = 1;
-		ret = svc_ctx->service_thread_main(packet_info->tcb, packet_info->packet, svc_ctx->service_thread_data);
-		svc_ctx->processing_service_handler = 0;
-		if (ret < 0)
-			ErrPrint("Service thread returns: %d\n", ret);
-		packet_destroy(packet_info->packet);
-		DbgFree(packet_info);
-	}
-	CRITICAL_SECTION_END(&svc_ctx->packet_list_lock);
-
-	tcb_teminate_all(svc_ctx);
-	return (void *)ret;
-}
-
-/*!
- * \NOTE
- * MAIN THREAD
- */
-HAPI struct service_context *service_common_create(const char *addr, const char *label, int (*service_thread_main)(struct tcb *tcb, struct packet *packet, void *data), void *data)
-{
-	int status;
-	struct service_context *svc_ctx;
-
-	if (!service_thread_main || !addr) {
-		ErrPrint("Invalid argument\n");
-		return NULL;
-	}
-
-	/**
-	 * @note
-	 * Do not try to delete a URI file if it is created for a remote service or by the systemd service.
-	 */
-	if (strncmp(addr, COM_CORE_REMOTE_SCHEME, strlen(COM_CORE_REMOTE_SCHEME)) && strncmp(addr, COM_CORE_SD_LOCAL_SCHEME, strlen(COM_CORE_SD_LOCAL_SCHEME))) {
-		int offset;
-
-		/**
-		 * @note
-		 * If the address is not for the REMOTE or SD_LOCAL, we can assume it just a local(unix) domain socket file.
-		 * So, find the scheme length first and then "unlink" it.
-		 */
-		offset = strlen(COM_CORE_LOCAL_SCHEME);
-		if (strncmp(addr, COM_CORE_LOCAL_SCHEME, offset))
-			offset = 0;
-
-		if (unlink(addr + offset) < 0)
-			ErrPrint("unlink [%s] - %d\n", addr, errno);
-	}
-
-	svc_ctx = calloc(1, sizeof(*svc_ctx));
-	if (!svc_ctx) {
-		ErrPrint("calloc: %d\n", errno);
-		return NULL;
-	}
-
-	svc_ctx->fd = secure_socket_create_server_with_permission(addr, label);
-	if (svc_ctx->fd < 0) {
-		DbgFree(svc_ctx);
-		return NULL;
-	}
-
-	svc_ctx->service_thread_main = service_thread_main;
-	svc_ctx->service_thread_data = data;
-
-	if (fcntl(svc_ctx->fd, F_SETFD, FD_CLOEXEC) < 0)
-		ErrPrint("fcntl: %d\n", errno);
-
-	if (fcntl(svc_ctx->fd, F_SETFL, O_NONBLOCK) < 0)
-		ErrPrint("fcntl: %d\n", errno);
-
-	if (pipe2(svc_ctx->evt_pipe, O_CLOEXEC) < 0) {
-		ErrPrint("pipe2: %d\n", errno);
-		secure_socket_destroy_handle(svc_ctx->fd);
-		DbgFree(svc_ctx);
-		return NULL;
-	}
-
-	if (pipe2(svc_ctx->tcb_pipe, O_CLOEXEC) < 0) {
-		ErrPrint("pipe2: %d\n", errno);
-		CLOSE_PIPE(svc_ctx->evt_pipe);
-		secure_socket_destroy_handle(svc_ctx->fd);
-		DbgFree(svc_ctx);
-		return NULL;
-	}
-
-	_initialize_privilege_checker(svc_ctx);
-
-	status = pthread_mutex_init(&svc_ctx->packet_list_lock, NULL);
-	if (status != 0) {
-		ErrPrint("Unable to create a mutex: %d\n", status);
-		CLOSE_PIPE(svc_ctx->evt_pipe);
-		CLOSE_PIPE(svc_ctx->tcb_pipe);
-		secure_socket_destroy_handle(svc_ctx->fd);
-		DbgFree(svc_ctx);
-		return NULL;
-	}
-
-	DbgPrint("Creating server thread\n");
-	status = pthread_create(&svc_ctx->server_thid, NULL, server_main, svc_ctx);
-	if (status != 0) {
-		ErrPrint("Unable to create a thread for shortcut service: %d\n", status);
-		status = pthread_mutex_destroy(&svc_ctx->packet_list_lock);
-		if (status != 0)
-			ErrPrint("mutex_destroy: %d\n", status);
-
-		CLOSE_PIPE(svc_ctx->evt_pipe);
-		CLOSE_PIPE(svc_ctx->tcb_pipe);
-		secure_socket_destroy_handle(svc_ctx->fd);
-		DbgFree(svc_ctx);
-		return NULL;
-	}
-
-	/*!
-	 * \note
-	 * To give a chance to run for server thread.
-	 */
-	pthread_yield();
-
-	return svc_ctx;
-}
-
-/*!
- * \note
- * MAIN THREAD
- */
-HAPI int service_common_destroy(struct service_context *svc_ctx)
-{
-	int status = 0;
-	void *ret;
-
-	if (!svc_ctx)
-		return -EINVAL;
-
-	/*!
-	 * \note
-	 * Terminate server thread
-	 */
-	if (write(svc_ctx->tcb_pipe[PIPE_WRITE], &status, sizeof(status)) != sizeof(status))
-		ErrPrint("write: %d\n", errno);
-
-	status = pthread_join(svc_ctx->server_thid, &ret);
-	if (status != 0)
-		ErrPrint("Join: %d\n", status);
-	else
-		DbgPrint("Thread returns: %p\n", ret);
-
-	_finish_privilege_checker(svc_ctx);
-
-	secure_socket_destroy_handle(svc_ctx->fd);
-
-	status = pthread_mutex_destroy(&svc_ctx->packet_list_lock);
-	if (status != 0)
-		ErrPrint("destroy_mutex: %d\n", status);
-
-	CLOSE_PIPE(svc_ctx->evt_pipe);
-	CLOSE_PIPE(svc_ctx->tcb_pipe);
-	DbgFree(svc_ctx);
-	return 0;
-}
-
-/*!
- * \note
- * SERVER THREAD or OTHER THREAD (not main)
- */
-HAPI int tcb_is_valid(struct service_context *svc_ctx, struct tcb *tcb)
-{
-	Eina_List *l;
-	struct tcb *tmp;
-	int ret = -ENOENT;
-
-	CRITICAL_SECTION_BEGIN(&svc_ctx->tcb_list_lock);
-	EINA_LIST_FOREACH(svc_ctx->tcb_list, l, tmp) {
-		if (tmp == tcb /* && tcb->svc_ctx == svc_ctx */) {
-			ret = tcb->fd;
-			break;
-		}
-	}
-	CRITICAL_SECTION_END(&svc_ctx->tcb_list_lock);
-
-	return ret;
-}
-
-/*!
- * \note
- * SERVER THREAD
- */
-HAPI int tcb_pid(struct tcb *tcb)
-{
-	if (!tcb)
-		return -1;
-
-	return tcb->pid;
-}
-
-/*!
- * \note
- * SERVER THREAD
- */
-HAPI int tcb_fd(struct tcb *tcb)
-{
-	if (!tcb)
-		return -EINVAL;
-
-	return tcb->fd;
-}
-
-/*!
- * \note
- * SERVER THREAD
- */
-HAPI int tcb_client_type(struct tcb *tcb)
-{
-	if (!tcb)
-		return -EINVAL;
-
-	return tcb->type;
-}
-
-/*!
- * \note
- * SERVER THREAD
- */
-HAPI int tcb_client_type_set(struct tcb *tcb, enum tcb_type type)
-{
-	if (!tcb)
-		return -EINVAL;
-
-	DbgPrint("TCB[%p] Client type is changed to %d from %d\n", tcb, type, tcb->type);
-	tcb->type = type;
-	return 0;
-}
-
-/*!
- * \note
- * SERVER THREAD
- */
-HAPI struct service_context *tcb_svc_ctx(struct tcb *tcb)
-{
-	if (!tcb)
-		return NULL;
-
-	return tcb->svc_ctx;
-}
-
-/*!
- * \note
- * SERVER THREAD
- */
-HAPI int service_common_unicast_packet(struct tcb *tcb, struct packet *packet)
-{
-	if (!tcb || !packet) {
-		DbgPrint("Invalid unicast: tcb[%p], packet[%p]\n", tcb, packet);
-		return -EINVAL;
-	}
-
-	DbgPrint("Unicast packet\n");
-	return com_core_send(tcb->fd, (void *)packet_data(packet), packet_size(packet), DEFAULT_TIMEOUT);
-}
-
-/*!
- * \note
- * SERVER THREAD
- */
-HAPI int service_common_multicast_packet(struct tcb *tcb, struct packet *packet, int type)
-{
-	Eina_List *l;
-	struct tcb *target;
-	struct service_context *svc_ctx;
-	int ret;
-
-	if (!tcb || !packet) {
-		DbgPrint("Invalid multicast: tcb[%p], packet[%p]\n", tcb, packet);
-		return -EINVAL;
-	}
-
-	svc_ctx = tcb->svc_ctx;
-
-	DbgPrint("Multicasting packets\n");
-
-	/*!
-	 * \note
-	 * Does not need to make a critical section from here.
-	 */
-	EINA_LIST_FOREACH(svc_ctx->tcb_list, l, target) {
-		if (target == tcb || target->type != type) {
-			DbgPrint("Skip target: %p(%d) == %p/%d\n", target, target->type, tcb, type);
-			continue;
-		}
-
-		ret = com_core_send(target->fd, (void *)packet_data(packet), packet_size(packet), DEFAULT_TIMEOUT);
-		if (ret < 0)
-			ErrPrint("Failed to send packet: %d\n", ret);
-	}
-	DbgPrint("Finish to multicast packet\n");
-	return 0;
-}
-
-/*!
- * \note
- * SERVER THREAD
- */
-HAPI struct service_event_item *service_common_add_timer(struct service_context *svc_ctx, double timer, int (*timer_cb)(struct service_context *svc_cx, void *data), void *data)
-{
-	struct service_event_item *item;
-
-	item = calloc(1, sizeof(*item));
-	if (!item) {
-		ErrPrint("calloc: %d\n", errno);
-		return NULL;
-	}
-
-	item->type = SERVICE_EVENT_TIMER;
-	item->info.timer.fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
-	if (item->info.timer.fd < 0) {
-		ErrPrint("timerfd_create: %d\n", errno);
-		DbgFree(item);
-		return NULL;
-	}
-
-	if (service_common_update_timer(item, timer) < 0) {
-		if (close(item->info.timer.fd) < 0)
-			ErrPrint("close: %d\n", errno);
-		DbgFree(item);
-		return NULL;
-	}
-
-	item->event_cb = timer_cb;
-	item->cbdata = data;
-
-	svc_ctx->event_list = eina_list_append(svc_ctx->event_list, item);
-	return item;
-}
-
-HAPI int service_common_update_timer(struct service_event_item *item, double timer)
-{
-	struct itimerspec spec;
-
-	spec.it_interval.tv_sec = (time_t)timer;
-	spec.it_interval.tv_nsec = (timer - spec.it_interval.tv_sec) * 1000000000;
-
-	if (clock_gettime(CLOCK_MONOTONIC, &spec.it_value) < 0) {
-		ErrPrint("clock_gettime: %d\n", errno);
-		return -EFAULT;
-	}
-
-	spec.it_value.tv_sec += spec.it_interval.tv_sec;
-	spec.it_value.tv_nsec += spec.it_interval.tv_nsec;
-
-	if (timerfd_settime(item->info.timer.fd, TFD_TIMER_ABSTIME, &spec, NULL) < 0) {
-		ErrPrint("timerfd_settime: %d\n", errno);
-		return -EFAULT;
-	}
-
-	DbgPrint("Armed interval: %u %u\n", spec.it_interval.tv_sec, spec.it_interval.tv_nsec);
-	return 0;
-}
-
-/*!
- * \note
- * SERVER THREAD
- */
-HAPI int service_common_del_timer(struct service_context *svc_ctx, struct service_event_item *item)
-{
-	if (!eina_list_data_find(svc_ctx->event_list, item)) {
-		ErrPrint("Invalid event item\n");
-		return -EINVAL;
-	}
-
-	svc_ctx->event_list = eina_list_remove(svc_ctx->event_list, item);
-
-	if (close(item->info.timer.fd) < 0)
-		ErrPrint("close: %d\n", errno);
-	DbgFree(item);
-	return 0;
-}
-
-HAPI int service_common_fd(struct service_context *ctx)
-{
-	return ctx->fd;
-}
-
-
-HAPI int service_check_privilege_by_socket_fd(struct service_context *svc_ctx, int socket_fd, char *privilege)
-{
-	int ret = 0;
-	int result = 0;
-	char *uid = NULL;
-	pid_t pid;
-	char *client_smack = NULL;
-	char *session = NULL;
-
-	if (privilege != NULL) {
-
-		ret = cynara_creds_socket_get_client(socket_fd, CLIENT_METHOD_SMACK, &client_smack);
-
-		if (ret != CYNARA_API_SUCCESS) {
-			ErrPrint("cynara_creds_socket_get_client failed [%d]", ret);
-			goto out;
-		}
-
-		ret = cynara_creds_socket_get_user(socket_fd, USER_METHOD_UID, &uid);
-
-		if (ret != CYNARA_API_SUCCESS) {
-			ErrPrint("cynara_creds_socket_get_user failed [%d]", ret);
-			goto out;
-		}
-
-		ret = cynara_creds_socket_get_pid(socket_fd, &pid);
-
-		if (ret != CYNARA_API_SUCCESS) {
-			ErrPrint("cynara_creds_socket_get_pid failed [%d]", ret);
-			goto out;
-		}
-
-		session = cynara_session_from_pid(pid);
-
-		if (session == NULL) {
-			ErrPrint("cynara_session_from_pid failed");
-			goto out;
-		}
-
-		ret = cynara_check(svc_ctx->cynara_handle, client_smack, session, uid, privilege);
-
-		if (ret == CYNARA_API_ACCESS_ALLOWED) {
-			DbgPrint("[%s] Access allowed.", privilege);
-			result = 1;
-		} else {
-			DbgPrint("[%s] Access denied.[%d]", privilege, ret);
-			result = 0;
-		}
-
-	}
-
-out:
-	if (client_smack)
-		free(client_smack);
-
-	if (session)
-		free(session);
-
-	if (uid)
-		free(uid);
 
 	return result;
 }
 
-/* End of a file */
+static int _dbus_init(void)
+{
+	int ret = SERVICE_COMMON_ERROR_NONE;
+	GError *error = NULL;
+
+	_gdbus_conn = g_bus_get_sync(G_BUS_TYPE_SYSTEM, NULL, &error);
+	if (_gdbus_conn == NULL) {
+		if (error != NULL) {
+			ErrPrint("Failed to get dbus [%s]", error->message);
+			g_error_free(error);
+		}
+		return SERVICE_COMMON_ERROR_IO_ERROR;
+	}
+
+	return ret;
+
+}
+
+int service_common_dbus_init() {
+	int ret = SERVICE_COMMON_ERROR_NONE;
+	if (_gdbus_conn == NULL) {
+		ret = _dbus_init();
+		if(ret != SERVICE_COMMON_ERROR_NONE)
+			return ret;
+		ret = _register_dbus_interface();
+	}
+	return ret;
+}
+
+GDBusConnection *service_common_get_connection() {
+	service_common_dbus_init();
+	return _gdbus_conn;
+}

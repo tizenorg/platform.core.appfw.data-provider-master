@@ -14,466 +14,512 @@
  * limitations under the License.
  */
 
-#include <stdio.h>
-
-#include <Eina.h>
-
 #include <dlog.h>
-#include <packet.h>
-
+#include <gio/gio.h>
 #include <sys/smack.h>
-
 #include <badge.h>
 #include <badge_db.h>
 #include <badge_setting_service.h>
+#include <badge_internal.h>
 
 #include "service_common.h"
+#include "badge_service.h"
 #include "debug.h"
-#include "util.h"
-#include "conf.h"
 
-static struct info {
-	Eina_List *context_list;
-	struct service_context *svc_ctx;
-} s_info = {
-	.context_list = NULL, /*!< \WARN: This is only used for SERVICE THREAD */
-	.svc_ctx = NULL, /*!< \WARN: This is only used for MAIN THREAD */
-};
+#define PROVIDER_BUS_NAME "org.tizen.data_provider_service"
+#define PROVIDER_OBJECT_PATH "/org/tizen/data_provider_service"
+#define PROVIDER_BADGE_INTERFACE_NAME "org.tizen.data_provider_badge_service"
 
-#define ENABLE_BS_ACCESS_CONTROL 1
-
-struct context {
-	struct tcb *tcb;
-	double seq;
-};
-
-struct badge_service {
-	const char *cmd;
-	void (*handler)(struct tcb *tcb, struct packet *packet, void *data);
-	const char *rule;
-	const char *access;
-};
-
-/*!
- * FUNCTIONS to handle badge
- */
-static inline char *get_string(char *string)
+static void _on_bus_acquired(GDBusConnection *connection,
+		const gchar *name, gpointer user_data)
 {
-	if (string == NULL)
-		return NULL;
-	if (string[0] == '\0')
-		return NULL;
-
-	return string;
+	DbgPrint("_on_bus_acquired : %s", name);
 }
 
-/*!
- * SERVICE HANDLER
- */
-static void _handler_insert_badge(struct tcb *tcb, struct packet *packet, void *data)
+static void _on_name_acquired(GDBusConnection *connection,
+		const gchar *name, gpointer user_data)
 {
-	int ret = 0, ret_p = 0;
-	struct packet *packet_reply = NULL;
-	struct packet *packet_service = NULL;
+	DbgPrint("_on_name_acquired : %s", name);
+}
+
+static void _on_name_lost(GDBusConnection *connection,
+		const gchar *name, gpointer user_data)
+{
+	DbgPrint("_on_name_lost : %s", name);
+}
+
+static void _badge_dbus_method_call_handler(GDBusConnection *conn,
+		const gchar *sender, const gchar *object_path,
+		const gchar *iface_name, const gchar *method_name,
+		GVariant *parameters, GDBusMethodInvocation *invocation,
+		gpointer user_data)
+{
+	/* TODO : sender authority(privilege) check */
+	DbgPrint("badge method_name: %s", method_name);
+
+	GVariant *reply_body = NULL;
+	int ret = BADGE_ERROR_NONE;
+
+	if (g_strcmp0(method_name, "badge_service_register") == 0)
+		ret = service_register(parameters, &reply_body, sender, BADGE_SERVICE);
+	else if (g_strcmp0(method_name, "insert_badge") == 0)
+		ret = badge_insert(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "delete_badge") == 0)
+		ret = badge_delete(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "set_badge_count") == 0)
+		ret = badge_set_badge_count(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "get_badge_count") == 0)
+		ret = badge_get_badge_count(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "set_disp_option") == 0)
+		ret = badge_set_display_option(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "get_disp_option") == 0)
+		ret = badge_get_display_option(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "set_noti_property") == 0)
+		ret = badge_set_setting_property(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "get_noti_property") == 0)
+		ret = badge_get_setting_property(parameters, &reply_body);
+
+	if (ret == BADGE_ERROR_NONE) {
+		DbgPrint("badge service success : %d", ret);
+		g_dbus_method_invocation_return_value(
+				invocation, reply_body);
+	} else {
+		DbgPrint("badge service fail : %d", ret);
+		g_dbus_method_invocation_return_error(
+				invocation,
+				BADGE_ERROR,
+				ret,
+				"badge service error");
+	}
+}
+
+static const GDBusInterfaceVTable _badge_interface_vtable = {
+		_badge_dbus_method_call_handler,
+		NULL,
+		NULL
+};
+
+int badge_register_dbus_interface(GDBusConnection *connection)
+{
+	int result = SERVICE_COMMON_ERROR_NONE;
+	GDBusNodeInfo *introspection_data = NULL;
+	int badge_registration_id = 0;
+
+	static gchar introspection_xml[] =
+			"  <node>"
+			"  <interface name='org.tizen.data_provider_badge_service'>"
+			"        <method name='badge_service_register'>"
+			"        </method>"
+
+			"        <method name='insert_badge'>"
+			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='s' name='writable_pkg' direction='in'/>"
+			"          <arg type='s' name='caller' direction='in'/>"
+			"        </method>"
+
+			"        <method name='delete_badge'>"
+			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='s' name='caller' direction='in'/>"
+			"        </method>"
+
+			"        <method name='set_badge_count'>"
+			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='s' name='caller' direction='in'/>"
+			"          <arg type='i' name='count' direction='in'/>"
+			"        </method>"
+
+			"        <method name='get_badge_count'>"
+			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='i' name='count' direction='out'/>"
+			"        </method>"
+
+			"        <method name='set_disp_option'>"
+			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='s' name='caller' direction='in'/>"
+			"          <arg type='i' name='is_display' direction='in'/>"
+			"        </method>"
+
+			"        <method name='get_disp_option'>"
+			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='i' name='is_display' direction='out'/>"
+			"        </method>"
+
+			"        <method name='set_noti_property'>"
+			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='s' name='property' direction='in'/>"
+			"          <arg type='s' name='value' direction='in'/>"
+			"        </method>"
+
+			"        <method name='get_noti_property'>"
+			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='s' name='property' direction='in'/>"
+			"          <arg type='s' name='value' direction='out'/>"
+			"        </method>"
+			"  </interface>"
+			"  </node>";
+
+	int owner_id = 0;
+	GError *error = NULL;
+
+	owner_id = g_bus_own_name(G_BUS_TYPE_SYSTEM,
+			PROVIDER_BUS_NAME,
+			G_BUS_NAME_OWNER_FLAGS_NONE,
+			_on_bus_acquired,
+			_on_name_acquired,
+			_on_name_lost,
+			NULL, NULL);
+	if (!owner_id) {
+		ErrPrint("g_bus_own_name error");
+		result = SERVICE_COMMON_ERROR_IO_ERROR;
+		goto out;
+	}
+
+	DbgPrint("Acquiring the own name : %d", owner_id);
+	introspection_data = g_dbus_node_info_new_for_xml(introspection_xml, &error);
+	if (!introspection_data) {
+		ErrPrint("g_dbus_node_info_new_for_xml() is failed.");
+		result = SERVICE_COMMON_ERROR_IO_ERROR;
+		if (error != NULL) {
+			ErrPrint("g_dbus_node_info_new_for_xml error [%s]", error->message);
+			g_error_free(error);
+		}
+		goto out;
+	}
+
+	badge_registration_id = g_dbus_connection_register_object(connection,
+			PROVIDER_OBJECT_PATH, introspection_data->interfaces[0],
+			&_badge_interface_vtable, NULL, NULL, NULL);
+	DbgPrint("badge_registration_id %d", badge_registration_id);
+	if (badge_registration_id == 0) {
+		ErrPrint("Failed to g_dbus_connection_register_object");
+		result = SERVICE_COMMON_ERROR_IO_ERROR;
+		goto out;
+	}
+
+out:
+	if (introspection_data)
+		g_dbus_node_info_unref(introspection_data);
+
+	return result;
+}
+
+/* insert_badge */
+int badge_insert(GVariant *parameters, GVariant **reply_body)
+{
+	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
 	char *writable_pkg = NULL;
 	char *caller = NULL;
+	GVariant *body = NULL;
 
-	if (packet_get(packet, "sss", &pkgname, &writable_pkg, &caller) == 3) {
-		pkgname = get_string(pkgname);
-		writable_pkg = get_string(writable_pkg);
-		caller = get_string(caller);
+	g_variant_get(parameters, "(sss)", &pkgname, &writable_pkg, &caller);
+	pkgname = string_get(pkgname);
+	writable_pkg = string_get(writable_pkg);
+	caller = string_get(caller);
 
-		if (pkgname != NULL && writable_pkg != NULL && caller != NULL)
-			ret = badge_db_insert(pkgname, writable_pkg, caller);
-		else
-			ret = BADGE_ERROR_INVALID_PARAMETER;
+	if (pkgname != NULL && writable_pkg != NULL && caller != NULL)
+		ret = badge_db_insert(pkgname, writable_pkg, caller);
+	else
+		return BADGE_ERROR_INVALID_PARAMETER;
 
-		packet_reply = packet_create_reply(packet, "i", ret);
-		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-				ErrPrint("Failed to send a reply packet:%d", ret_p);
-			packet_destroy(packet_reply);
-		} else {
-			ErrPrint("Failed to create a reply packet");
-		}
-
-		if (ret == BADGE_ERROR_NONE) {
-			packet_service = packet_create("insert_badge", "is", ret, pkgname);
-			if (packet_service != NULL) {
-				if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0)
-					ErrPrint("Failed to send a muticast packet:%d", ret_p);
-				packet_destroy(packet_service);
-			} else {
-				ErrPrint("Failed to create a multicast packet");
-			}
-		} else {
-			ErrPrint("Failed to insert a badge:%d", ret);
-		}
-	} else {
-		ErrPrint("Failed to get data from the packet");
+	if (ret != BADGE_ERROR_NONE) {
+		ErrPrint("failed to insert badge :%d\n", ret);
+		return ret;
 	}
+
+	body = g_variant_new("(s)", pkgname);
+	if (body == NULL) {
+		ErrPrint("cannot make gvariant to noti");
+		return BADGE_ERROR_OUT_OF_MEMORY;
+	}
+
+	ret = send_notify(body, "insert_badge_notify", BADGE_SERVICE);
+	if (ret != BADGE_ERROR_NONE) {
+		ErrPrint("failed to send notify:%d\n", ret);
+		return ret;
+	}
+
+	*reply_body = g_variant_new("()");
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make gvariant to noti");
+		return BADGE_ERROR_OUT_OF_MEMORY;
+	}
+
+	return ret;
 }
 
-static void _handler_delete_badge(struct tcb *tcb, struct packet *packet, void *data)
+/* delete_badge */
+int badge_delete(GVariant *parameters, GVariant **reply_body)
 {
-	int ret = 0, ret_p = 0;
-	struct packet *packet_reply = NULL;
-	struct packet *packet_service = NULL;
+	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
 	char *caller = NULL;
+	GVariant *body = NULL;
 
-	if (packet_get(packet, "ss", &pkgname, &caller) == 2) {
-		pkgname = get_string(pkgname);
-		caller = get_string(caller);
+	g_variant_get(parameters, "(ss)", &pkgname, &caller);
+	pkgname = string_get(pkgname);
+	caller = string_get(caller);
 
-		if (pkgname != NULL && caller != NULL) {
-			if (service_check_privilege_by_socket_fd(tcb_svc_ctx(tcb), tcb_fd(tcb), "http://tizen.org/privilege/notification") == 1)
-				ret = badge_db_delete(pkgname, pkgname);
-			else
-				ret = badge_db_delete(pkgname, caller);
-		} else {
-			ret = BADGE_ERROR_INVALID_PARAMETER;
-		}
-
-		packet_reply = packet_create_reply(packet, "i", ret);
-		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-				ErrPrint("Failed to send a reply packet:%d", ret_p);
-			packet_destroy(packet_reply);
-		} else {
-			ErrPrint("Failed to create a reply packet");
-		}
-
-		if (ret == BADGE_ERROR_NONE) {
-			packet_service = packet_create("delete_badge", "is", ret, pkgname);
-			if (packet_service != NULL) {
-				if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0)
-					ErrPrint("Failed to send a muticast packet:%d", ret_p);
-				packet_destroy(packet_service);
-			} else {
-				ErrPrint("Failed to create a multicast packet");
-			}
-		} else {
-			ErrPrint("Failed to delete a badge:%d", ret);
-		}
+	if (pkgname != NULL && caller != NULL) {
+		ret = badge_db_delete(pkgname, pkgname);
 	} else {
-		ErrPrint("Failed to get data from the packet");
+		return BADGE_ERROR_INVALID_PARAMETER;
 	}
+
+	if (ret != BADGE_ERROR_NONE) {
+		ErrPrint("failed to delete badge :%d\n", ret);
+		return ret;
+	}
+
+	body = g_variant_new("(s)", pkgname);
+	if (body == NULL) {
+		ErrPrint("cannot make gvariant to noti");
+		return BADGE_ERROR_OUT_OF_MEMORY;
+	}
+	ret = send_notify(body, "delete_badge_notify", BADGE_SERVICE);
+	if (ret != BADGE_ERROR_NONE) {
+		ErrPrint("failed to send notify:%d\n", ret);
+		return ret;
+	}
+
+	*reply_body = g_variant_new("()");
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make gvariant to noti");
+		return BADGE_ERROR_OUT_OF_MEMORY;
+	}
+	return ret;
 }
 
-static void _handler_set_badge_count(struct tcb *tcb, struct packet *packet, void *data)
+/* set_badge_count */
+int badge_set_badge_count(GVariant *parameters, GVariant **reply_body)
 {
-	int ret = 0, ret_p = 0;
-	struct packet *packet_reply = NULL;
-	struct packet *packet_service = NULL;
+	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
 	char *caller = NULL;
 	int count = 0;
+	GVariant *body = NULL;
 
-	if (packet_get(packet, "ssi", &pkgname, &caller, &count) == 3) {
-		pkgname = get_string(pkgname);
-		caller = get_string(caller);
+	g_variant_get(parameters, "(ssi)", &pkgname, &caller, &count);
+	pkgname = string_get(pkgname);
+	caller = string_get(caller);
 
-		if (pkgname != NULL && caller != NULL)
-			ret = badge_db_set_count(pkgname, caller, count);
-		else
-			ret = BADGE_ERROR_INVALID_PARAMETER;
+	if (pkgname != NULL && caller != NULL)
+		ret = badge_db_set_count(pkgname, caller, count);
+	else
+		return BADGE_ERROR_INVALID_PARAMETER;
 
-		packet_reply = packet_create_reply(packet, "i", ret);
-		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-				ErrPrint("Failed to send a reply packet:%d", ret_p);
-			packet_destroy(packet_reply);
-		} else {
-			ErrPrint("Failed to create a reply packet");
-		}
-
-		if (ret == BADGE_ERROR_NONE) {
-			packet_service = packet_create("set_badge_count", "isi", ret, pkgname, count);
-			if (packet_service != NULL) {
-				if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0)
-					ErrPrint("Failed to send a muticast packet:%d", ret_p);
-				packet_destroy(packet_service);
-			} else {
-				ErrPrint("Failed to create a multicast packet");
-			}
-		} else {
-			ErrPrint("Failed to set count of badge:%d", ret);
-		}
-	} else {
-		ErrPrint("Failed to get data from the packet");
+	if (ret != BADGE_ERROR_NONE) {
+		ErrPrint("failed to set badge :%d\n", ret);
+		return ret;
 	}
+
+	body = g_variant_new("(si)", pkgname, count);
+	if (body == NULL) {
+		ErrPrint("cannot make gvariant to noti");
+		return BADGE_ERROR_OUT_OF_MEMORY;
+	}
+
+	ret = send_notify(body, "set_badge_count_notify", BADGE_SERVICE);
+	if (ret != BADGE_ERROR_NONE) {
+		ErrPrint("failed to send notify:%d\n", ret);
+		return ret;
+	}
+	DbgPrint("send badge count notify done ret : %d", ret);
+
+	*reply_body = g_variant_new("()");
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make gvariant to noti");
+		return BADGE_ERROR_OUT_OF_MEMORY;
+	}
+	return ret;
 }
 
-static void _handler_set_display_option(struct tcb *tcb, struct packet *packet, void *data)
+/* get_badge_count */
+int badge_get_badge_count(GVariant *parameters, GVariant **reply_body)
 {
-	int ret = 0, ret_p = 0;
-	struct packet *packet_reply = NULL;
-	struct packet *packet_service = NULL;
+	int ret = BADGE_ERROR_NONE;
+	char *pkgname = NULL;
+	int count = 0;
+
+	g_variant_get(parameters, "(s)", &pkgname);
+	pkgname = string_get(pkgname);
+
+	if (pkgname != NULL)
+		ret =  badge_db_get_count(pkgname, &count);
+	else
+		return BADGE_ERROR_INVALID_PARAMETER;
+
+	if (ret != BADGE_ERROR_NONE) {
+		ErrPrint("failed to get badge count :%d\n", ret);
+		return ret;
+	}
+
+	*reply_body = g_variant_new("(i)", count);
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make gvariant to noti");
+		return BADGE_ERROR_OUT_OF_MEMORY;
+	}
+	DbgPrint("badge_get_badge_count service done");
+	return ret;
+}
+
+/* set_disp_option */
+int badge_set_display_option(GVariant *parameters, GVariant **reply_body)
+{
+	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
 	char *caller = NULL;
 	int is_display = 0;
+	GVariant *body = NULL;
 
-	if (packet_get(packet, "ssi", &pkgname, &caller, &is_display) == 3) {
-		pkgname = get_string(pkgname);
-		caller = get_string(caller);
+	g_variant_get(parameters, "(ssi)", &pkgname, &caller, &is_display);
+	pkgname = string_get(pkgname);
+	caller = string_get(caller);
+	DbgPrint("set disp option : %s, %s, %d", pkgname, caller, is_display);
 
-		if (pkgname != NULL && caller != NULL)
-			ret = badge_db_set_display_option(pkgname, caller, is_display);
-		else
-			ret = BADGE_ERROR_INVALID_PARAMETER;
+	if (pkgname != NULL && caller != NULL)
+		ret = badge_db_set_display_option(pkgname, caller, is_display);
+	else
+		return BADGE_ERROR_INVALID_PARAMETER;
 
-		packet_reply = packet_create_reply(packet, "i", ret);
-		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-				ErrPrint("Failed to send a reply packet:%d", ret_p);
-			packet_destroy(packet_reply);
-		} else {
-			ErrPrint("Failed to create a reply packet");
-		}
-
-		if (ret == BADGE_ERROR_NONE) {
-			packet_service = packet_create("set_disp_option", "isi", ret, pkgname, is_display);
-			if (packet_service != NULL) {
-				if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0)
-					ErrPrint("Failed to send a muticast packet:%d", ret_p);
-				packet_destroy(packet_service);
-			} else {
-				ErrPrint("Failed to create a multicast packet");
-			}
-		} else {
-			ErrPrint("Failed to set display option of badge:%d", ret);
-		}
-	} else {
-		ErrPrint("Failed to get data from the packet");
+	if (ret != BADGE_ERROR_NONE) {
+		ErrPrint("failed to set display option :%d\n", ret);
+		return ret;
 	}
+
+	body = g_variant_new("(si)", pkgname, is_display);
+	if (body == NULL) {
+		ErrPrint("cannot make gvariant to noti");
+		return BADGE_ERROR_OUT_OF_MEMORY;
+	}
+	ret = send_notify(body, "set_disp_option_notify", BADGE_SERVICE);
+	if (ret != BADGE_ERROR_NONE) {
+		ErrPrint("failed to send notify:%d\n", ret);
+		return ret;
+	}
+
+	*reply_body = g_variant_new("()");
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make gvariant to noti");
+		return BADGE_ERROR_OUT_OF_MEMORY;
+	}
+	DbgPrint("set disp option done %d", ret);
+	return ret;
 }
 
-static void _handler_set_setting_property(struct tcb *tcb, struct packet *packet, void *data)
+/* get_disp_option */
+int badge_get_display_option(GVariant *parameters, GVariant **reply_body)
 {
-	int ret = 0, ret_p = 0;
+	int ret = BADGE_ERROR_NONE;
+	char *pkgname = NULL;
 	int is_display = 0;
-	struct packet *packet_reply = NULL;
-	struct packet *packet_service = NULL;
-	char *pkgname = NULL;
-	char *property = NULL;
-	char *value = NULL;
 
-	if (packet_get(packet, "sss", &pkgname, &property, &value) == 3) {
-		pkgname = get_string(pkgname);
-		property = get_string(property);
-		value = get_string(value);
+	g_variant_get(parameters, "(s)", &pkgname);
+	pkgname = string_get(pkgname);
+	DbgPrint("get disp option : %s", pkgname);
 
-		if (pkgname != NULL && property != NULL && value != NULL)
-			ret = badge_setting_db_set(pkgname, property, value);
-		else
-			ret = BADGE_ERROR_INVALID_PARAMETER;
+	if (pkgname != NULL)
+		ret = badge_db_get_display_option(pkgname, &is_display);
+	else
+		return BADGE_ERROR_INVALID_PARAMETER;
 
-		packet_reply = packet_create_reply(packet, "ii", ret, ret);
-		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			packet_destroy(packet_reply);
-		} else {
-			ErrPrint("failed to create a reply packet\n");
-		}
-
-		if (ret == BADGE_ERROR_NONE) {
-			if (strcmp(property, "OPT_BADGE") == 0) {
-				if (strcmp(value, "ON") == 0)
-					is_display = 1;
-				else
-					is_display = 0;
-
-				packet_service = packet_create("set_disp_option", "isi", ret, pkgname, is_display);
-				if (packet_service != NULL) {
-					if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0)
-						ErrPrint("Failed to send a muticast packet:%d", ret_p);
-					packet_destroy(packet_service);
-				} else {
-					ErrPrint("Failed to create a multicast packet");
-				}
-			}
-		} else {
-			ErrPrint("failed to set noti property:%d\n", ret);
-		}
-	} else {
-		ErrPrint("Failed to get data from the packet");
+	if (ret != BADGE_ERROR_NONE) {
+		ErrPrint("failed to get display option :%d\n", ret);
+		return ret;
 	}
+
+	*reply_body = g_variant_new("(i)", is_display);
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make gvariant to noti");
+		return BADGE_ERROR_OUT_OF_MEMORY;
+	}
+	return ret;
 }
 
-static void _handler_get_setting_property(struct tcb *tcb, struct packet *packet, void *data)
-{
-	int ret = 0, ret_p = 0;
-	struct packet *packet_reply = NULL;
-	char *pkgname = NULL;
-	char *property = NULL;
-	char *value = NULL;
-
-	if (packet_get(packet, "sss", &pkgname, &property) == 2) {
-		pkgname = get_string(pkgname);
-		property = get_string(property);
-
-		if (pkgname != NULL && property != NULL)
-			ret = badge_setting_db_get(pkgname, property, &value);
-		else
-			ret = BADGE_ERROR_INVALID_PARAMETER;
-
-		packet_reply = packet_create_reply(packet, "is", ret, value);
-		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			packet_destroy(packet_reply);
-		} else {
-			ErrPrint("failed to create a reply packet\n");
-		}
-
-		if (value != NULL)
-			DbgFree(value);
-	}
-}
-
-static void _handler_service_register(struct tcb *tcb, struct packet *packet, void *data)
+/* set_noti_property */
+int badge_set_setting_property(GVariant *parameters, GVariant **reply_body)
 {
 	int ret = 0;
-	struct packet *packet_reply;
+	int is_display = 0;
+	char *pkgname = NULL;
+	char *property = NULL;
+	char *value = NULL;
+	GVariant *body = NULL;
 
-	ret = tcb_client_type_set(tcb, TCB_CLIENT_TYPE_SERVICE);
-	if (ret < 0)
-		ErrPrint("Failed to set the type of client:%d", ret);
+	g_variant_get(parameters, "(sss)", &pkgname, &property, &value);
+	pkgname = string_get(pkgname);
+	property = string_get(property);
+	value = string_get(value);
 
-	packet_reply = packet_create_reply(packet, "i", ret);
-	if (packet_reply) {
-		if ((ret = service_common_unicast_packet(tcb, packet_reply)) < 0)
-			ErrPrint("Failed to send a reply packet:%d", ret);
-		packet_destroy(packet_reply);
-	} else {
-		ErrPrint("Failed to create a reply packet");
-	}
-}
+	if (pkgname != NULL && property != NULL && value != NULL)
+		ret = badge_setting_db_set(pkgname, property, value);
+	else
+		return BADGE_ERROR_INVALID_PARAMETER;
 
-static void _handler_access_control_error(struct tcb *tcb, struct packet *packet)
-{
-	int ret_p = 0;
-	struct packet *packet_reply = NULL;
-
-	packet_reply = packet_create_reply(packet, "i", BADGE_ERROR_PERMISSION_DENIED);
-	if (packet_reply) {
-		if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-			ErrPrint("Failed to send a reply packet:%d", ret_p);
-		packet_destroy(packet_reply);
-	} else {
-		ErrPrint("Failed to create a reply packet");
-	}
-}
-
-/*!
- * SERVICE THREAD
- */
-static int service_thread_main(struct tcb *tcb, struct packet *packet, void *data)
-{
-	int i = 0;
-	const char *command;
-	static struct badge_service service_req_table[] = {
-		{
-			.cmd = "insert_badge",
-			.handler = _handler_insert_badge,
-			.rule = "data-provider-master::badge.client",
-			.access = "w",
-		},
-		{
-			.cmd = "delete_badge",
-			.handler = _handler_delete_badge,
-			.rule = "data-provider-master::badge.client",
-			.access = "w",
-		},
-		{
-			.cmd = "set_badge_count",
-			.handler = _handler_set_badge_count,
-			.rule = "data-provider-master::badge.client",
-			.access = "w",
-		},
-		{
-			.cmd = "set_disp_option",
-			.handler = _handler_set_display_option,
-			.rule = "data-provider-master::badge.client",
-			.access = "w",
-		},
-		{
-			.cmd = "set_noti_property",
-			.handler = _handler_set_setting_property,
-			.rule = "data-provider-master::badge.client",
-			.access = "w",
-		},
-		{
-			.cmd = "get_noti_property",
-			.handler = _handler_get_setting_property,
-			.rule = "data-provider-master::badge.client",
-			.access = "r",
-		},
-		{
-			.cmd = "service_register",
-			.handler = _handler_service_register,
-			.rule = NULL,
-			.access = NULL,
-		},
-		{
-			.cmd = NULL,
-			.handler = NULL,
-			.rule = NULL,
-			.access = NULL,
-		},
-	};
-
-	if (!packet) {
-		DbgPrint("TCB: %p is terminated (NIL packet)\n", tcb);
-		return 0;
+	if (ret != BADGE_ERROR_NONE) {
+		ErrPrint("failed to setting db set :%d\n", ret);
+		return ret;
 	}
 
-	command = packet_command(packet);
-	if (!command) {
-		ErrPrint("Invalid command\n");
-		return -EINVAL;
-	}
-	DbgPrint("Command: [%s], Packet type[%d]\n", command, packet_type(packet));
-
-	switch (packet_type(packet)) {
-	case PACKET_REQ:
-		/* Need to send reply packet */
-		for (i = 0; service_req_table[i].cmd; i++) {
-			if (strcmp(service_req_table[i].cmd, command))
-				continue;
-
-#if ENABLE_BS_ACCESS_CONTROL
-			if (service_check_privilege_by_socket_fd(tcb_svc_ctx(tcb), tcb_fd(tcb), "http://tizen.org/privilege/notification") == 1)
-				service_req_table[i].handler(tcb, packet, data);
+	if (ret == BADGE_ERROR_NONE) {
+		if (strcmp(property, "OPT_BADGE") == 0) {
+			if (strcmp(value, "ON") == 0)
+				is_display = 1;
 			else
-				_handler_access_control_error(tcb, packet);
-#else
-			service_check_privilege_by_socket_fd(tcb_svc_ctx(tcb), tcb_fd(tcb), "http://tizen.org/privilege/notification");
-			service_req_table[i].handler(tcb, packet, data);
-#endif
-			break;
-		}
+				is_display = 0;
 
-		break;
-	case PACKET_REQ_NOACK:
-		break;
-	case PACKET_ACK:
-		break;
-	default:
-		ErrPrint("Packet type is not valid[%s]\n", command);
-		return -EINVAL;
+			body = g_variant_new("(si)", pkgname, is_display);
+			if (body == NULL) {
+				ErrPrint("cannot make gvariant to noti");
+				return BADGE_ERROR_OUT_OF_MEMORY;
+			}
+			ret = send_notify(body, "set_disp_option_notify", BADGE_SERVICE);
+			if (ret != BADGE_ERROR_NONE) {
+				ErrPrint("failed to send notify:%d\n", ret);
+				return ret;
+			}
+		}
+	} else {
+		ErrPrint("failed to set noti property:%d\n", ret);
 	}
 
-	/*!
-	 * return value has no meanning,
-	 * it will be printed by dlogutil.
-	 */
-	return 0;
+	*reply_body = g_variant_new("()");
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make gvariant to noti");
+		return BADGE_ERROR_OUT_OF_MEMORY;
+	}
+	return ret;
 }
 
+/* get_noti_property */
+int badge_get_setting_property(GVariant *parameters, GVariant **reply_body)
+{
+	int ret = 0;
+	char *pkgname = NULL;
+	char *property = NULL;
+	char *value = NULL;
+
+	g_variant_get(parameters, "(ss)", &pkgname, &property);
+	pkgname = string_get(pkgname);
+	property = string_get(property);
+
+	if (pkgname != NULL && property != NULL)
+		ret = badge_setting_db_get(pkgname, property, &value);
+	else
+		return BADGE_ERROR_INVALID_PARAMETER;
+
+	if (ret != BADGE_ERROR_NONE) {
+		ErrPrint("failed to setting db get :%d\n", ret);
+		return ret;
+	}
+
+	*reply_body = g_variant_new("(s)", value);
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make gvariant to noti");
+		return BADGE_ERROR_OUT_OF_MEMORY;
+	}
+	return ret;
+}
 
 /*!
  * MAIN THREAD
@@ -481,30 +527,12 @@ static int service_thread_main(struct tcb *tcb, struct packet *packet, void *dat
  */
 HAPI int badge_service_init(void)
 {
-	if (s_info.svc_ctx) {
-		ErrPrint("Already initialized\n");
-		return SERVICE_COMMON_ERROR_ALREADY_STARTED;
-	}
-
-	s_info.svc_ctx = service_common_create(BADGE_SOCKET, BADGE_SMACK_LABEL, service_thread_main, NULL);
-	if (!s_info.svc_ctx) {
-		ErrPrint("Unable to activate service thread\n");
-		return SERVICE_COMMON_ERROR_FAULT;
-	}
-
-	DbgPrint("Successfully initiated\n");
-	return SERVICE_COMMON_ERROR_NONE;
+	return BADGE_ERROR_NONE;
 }
 
 HAPI int badge_service_fini(void)
 {
-	if (!s_info.svc_ctx)
-		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
-
-	service_common_destroy(s_info.svc_ctx);
-	s_info.svc_ctx = NULL;
-	DbgPrint("Successfully finalized\n");
-	return SERVICE_COMMON_ERROR_NONE;
+	return BADGE_ERROR_NONE;
 }
 
 /* End of a file */
