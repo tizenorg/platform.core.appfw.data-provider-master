@@ -81,8 +81,8 @@ CFLAGS="${CFLAGS} -Wall -Winline -Werror" LDFLAGS="${LDFLAGS}" make %{?jobs:-j%j
 rm -rf %{buildroot}
 %make_install
 mkdir -p %{buildroot}/%{_datarootdir}/license
-mkdir -p %{buildroot}%{_prefix}/lib/systemd/system/multi-user.target.wants
-ln -sf ../%{name}.service %{buildroot}%{_prefix}/lib/systemd/system/multi-user.target.wants/%{name}.service
+#mkdir -p %{buildroot}%{_prefix}/lib/systemd/system/multi-user.target.wants
+#ln -sf ../%{name}.service %{buildroot}%{_prefix}/lib/systemd/system/multi-user.target.wants/%{name}.service
 mkdir -p %{buildroot}/opt/usr/devel/usr/bin
 %pre
 # Executing the stop script for stopping the service of installed provider (old version)
@@ -93,16 +93,13 @@ fi
 %post
 %files -n %{name}
 %manifest %{name}.manifest
-%defattr(-,system,system,-)
-#%caps(cap_chown,cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_nice+ep) %{_prefix}/bin/%{name}
-%{_prefix}/lib/systemd/system/multi-user.target.wants/%{name}.service
-%{_prefix}/lib/systemd/system/%{name}.service
-%{_prefix}/lib/systemd/system/%{name}.target
+%defattr(-,root,root,-)
+%{_datadir}/dbus-1/system-services/data-provider-master.service
+%config %{_sysconfdir}/dbus-1/system.d/data-provider-master.conf
+#%{_prefix}/lib/systemd/system/multi-user.target.wants/%{name}.service
+#%{_prefix}/lib/systemd/system/%{name}.service
+#%{_prefix}/lib/systemd/system/%{name}.target
 %{_prefix}/bin/%{name}
-%{_prefix}/lib/systemd/system/%{name}-service.socket
-%{_prefix}/lib/systemd/system/%{name}-badge.socket
-%{_prefix}/lib/systemd/system/%{name}-notification.socket
-%{_prefix}/lib/systemd/system/%{name}-shortcut.socket
 %{_datarootdir}/license/*
 %if 0%{?tizen_build_binary_release_type_eng}
 /opt/usr/devel/usr/bin/*

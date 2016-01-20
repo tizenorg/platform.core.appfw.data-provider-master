@@ -1,0 +1,4 @@
+[D-BUS Service]
+User=root
+Name=data-provider-master
+Exec=@PREFIX@/bin/data-provider-master
