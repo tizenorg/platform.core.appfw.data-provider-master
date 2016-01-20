@@ -203,7 +203,7 @@ static int start_cb(const char *pkgname, const char *val, void *data)
 	item->pkgname = strdup(pkgname);
 	if (!item->pkgname) {
 		ErrPrint("strdup: %d\n", errno);
-		DbgFree(item);
+		free(item);
 		return SERVICE_COMMON_ERROR_OUT_OF_MEMORY;
 	}
 
@@ -220,8 +220,8 @@ static int start_cb(const char *pkgname, const char *val, void *data)
 	} else if (!strcasecmp(val, "recover")) {
 		item->type = PKGMGR_EVENT_RECOVER;
 	} else {
-		DbgFree(item->pkgname);
-		DbgFree(item);
+		free(item->pkgname);
+		free(item);
 		ErrPrint("Invalid val: %s\n", val);
 		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
 	}
@@ -243,7 +243,7 @@ static int icon_path_cb(const char *pkgname, const char *val, void *data)
 		return SERVICE_COMMON_ERROR_NOT_EXIST;
 
 	if (item->icon)
-		DbgFree(item->icon);
+		free(item->icon);
 
 	item->icon = strdup(val);
 	if (!item->icon) {
@@ -307,7 +307,7 @@ static int change_pkgname_cb(const char *pkgname, const char *val, void *data)
 		return SERVICE_COMMON_ERROR_OUT_OF_MEMORY;
 	}
 
-	DbgFree(item->pkgname);
+	free(item->pkgname);
 	item->pkgname = new_pkgname;
 	return SERVICE_COMMON_ERROR_NONE;
 }
@@ -404,9 +404,9 @@ static int end_cb(const char *pkgname, const char *val, void *data)
 	invoke_callback(pkgname, item, 0.0f);
 
 	s_info.item_list = eina_list_remove(s_info.item_list, item);
-	DbgFree(item->icon);
-	DbgFree(item->pkgname);
-	DbgFree(item);
+	free(item->icon);
+	free(item->pkgname);
+	free(item);
 	return SERVICE_COMMON_ERROR_NONE;
 }
 
@@ -477,29 +477,29 @@ HAPI int pkgmgr_fini(void)
 	s_info.listen_pc = NULL;
 
 	EINA_LIST_FREE(s_info.download_event, item) {
-		DbgFree(item);
+		free(item);
 	}
 
 	EINA_LIST_FREE(s_info.uninstall_event, item) {
-		DbgFree(item);
+		free(item);
 	}
 
 	EINA_LIST_FREE(s_info.install_event, item) {
-		DbgFree(item);
+		free(item);
 	}
 
 	EINA_LIST_FREE(s_info.update_event, item) {
-		DbgFree(item);
+		free(item);
 	}
 
 	EINA_LIST_FREE(s_info.recover_event, item) {
-		DbgFree(item);
+		free(item);
 	}
 
 	EINA_LIST_FREE(s_info.item_list, ctx) {
-		DbgFree(ctx->pkgname);
-		DbgFree(ctx->icon);
-		DbgFree(ctx);
+		free(ctx->pkgname);
+		free(ctx->icon);
+		free(ctx);
 	}
 
 	return SERVICE_COMMON_ERROR_NONE;
@@ -535,7 +535,7 @@ HAPI int pkgmgr_add_event_callback(enum pkgmgr_event_type type, int (*cb)(const 
 		s_info.recover_event = eina_list_prepend(s_info.recover_event, item);
 		break;
 	default:
-		DbgFree(item);
+		free(item);
 		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
 	}
 
@@ -554,7 +554,7 @@ HAPI void *pkgmgr_del_event_callback(enum pkgmgr_event_type type, int (*cb)(cons
 			if (item->cb == cb && item->data == data) {
 				s_info.download_event = eina_list_remove(s_info.download_event, item);
 				cbdata = item->data;
-				DbgFree(item);
+				free(item);
 				break;
 			}
 		}
@@ -564,7 +564,7 @@ HAPI void *pkgmgr_del_event_callback(enum pkgmgr_event_type type, int (*cb)(cons
 			if (item->cb == cb && item->data == data) {
 				s_info.uninstall_event = eina_list_remove(s_info.uninstall_event, item);
 				cbdata = item->data;
-				DbgFree(item);
+				free(item);
 				break;
 			}
 		}
@@ -574,7 +574,7 @@ HAPI void *pkgmgr_del_event_callback(enum pkgmgr_event_type type, int (*cb)(cons
 			if (item->cb == cb && item->data == data) {
 				s_info.install_event = eina_list_remove(s_info.install_event, item);
 				cbdata = item->data;
-				DbgFree(item);
+				free(item);
 				break;
 			}
 		}
@@ -584,7 +584,7 @@ HAPI void *pkgmgr_del_event_callback(enum pkgmgr_event_type type, int (*cb)(cons
 			if (item->cb == cb && item->data == data) {
 				s_info.update_event = eina_list_remove(s_info.update_event, item);
 				cbdata = item->data;
-				DbgFree(item);
+				free(item);
 				break;
 			}
 		}
@@ -594,7 +594,7 @@ HAPI void *pkgmgr_del_event_callback(enum pkgmgr_event_type type, int (*cb)(cons
 			if (item->cb == cb && item->data == data) {
 				s_info.recover_event = eina_list_remove(s_info.recover_event, item);
 				cbdata = item->data;
-				DbgFree(item);
+				free(item);
 				break;
 			}
 		}

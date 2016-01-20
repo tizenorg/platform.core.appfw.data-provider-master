@@ -14,7 +14,13 @@
  * limitations under the License.
  */
 
+#include <gio/gio.h>
+
 extern int shortcut_service_init(void);
 extern int shortcut_service_fini(void);
+
+int shortcut_add(GVariant *parameters, GVariant **reply_body);
+int shortcut_add_widget(GVariant *parameters, GVariant **reply_body);
+int shortcut_register_dbus_interface(GDBusConnection *connection);
 
 /* End of a file */
