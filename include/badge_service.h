@@ -14,7 +14,18 @@
  * limitations under the License.
  */
 
+#include <gio/gio.h>
+
 extern int badge_service_init(void);
 extern int badge_service_fini(void);
+
+int badge_insert(GVariant *parameters, GVariant **reply_body);
+int badge_delete(GVariant *parameters, GVariant **reply_body);
+int badge_set_badge_count(GVariant *parameters, GVariant **reply_body);
+int badge_get_badge_count(GVariant *parameters, GVariant **reply_body);
+int badge_set_display_option(GVariant *parameters, GVariant **reply_body);
+int badge_get_display_option(GVariant *parameters, GVariant **reply_body);
+int badge_set_setting_property(GVariant *parameters, GVariant **reply_body);
+int badge_get_setting_property(GVariant *parameters, GVariant **reply_body);
 
 /* End of a file */
