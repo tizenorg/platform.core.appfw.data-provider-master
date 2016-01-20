@@ -17,9 +17,6 @@
 #define DELAY_TIME 0.0000001f
 #define HAPI __attribute__((visibility("hidden")))
 
-#if !defined(VCONFKEY_MASTER_STARTED)
-#define VCONFKEY_MASTER_STARTED	"memory/data-provider-master/started"
-#endif
 
 #if !defined(VCONFKEY_MASTER_RESTART_COUNT)
 #define VCONFKEY_MASTER_RESTART_COUNT	"memory/private/data-provider-master/restart_count"
