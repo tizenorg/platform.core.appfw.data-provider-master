@@ -73,7 +73,7 @@ static inline void rotate_log(void)
 		if (!s_info.fp)
 			ErrPrint("Failed to open a file: %s\n", filename);
 
-		DbgFree(filename);
+		free(filename);
 	}
 
 	s_info.nr_of_lines = 0;
@@ -127,7 +127,7 @@ HAPI int critical_log_init(const char *name)
 	filename = malloc(namelen);
 	if (!filename) {
 		ErrPrint("Failed to create a log file\n");
-		DbgFree(s_info.filename);
+		free(s_info.filename);
 		s_info.filename = NULL;
 		return SERVICE_COMMON_ERROR_OUT_OF_MEMORY;
 	}
@@ -137,13 +137,13 @@ HAPI int critical_log_init(const char *name)
 	s_info.fp = fopen(filename, "w+");
 	if (!s_info.fp) {
 		ErrPrint("fopen: %d\n", errno);
-		DbgFree(s_info.filename);
+		free(s_info.filename);
 		s_info.filename = NULL;
-		DbgFree(filename);
+		free(filename);
 		return SERVICE_COMMON_ERROR_IO_ERROR;
 	}
 
-	DbgFree(filename);
+	free(filename);
 	return SERVICE_COMMON_ERROR_NONE;
 }
 
@@ -152,7 +152,7 @@ HAPI int critical_log_init(const char *name)
 HAPI void critical_log_fini(void)
 {
 	if (s_info.filename) {
-		DbgFree(s_info.filename);
+		free(s_info.filename);
 		s_info.filename = NULL;
 	}
 

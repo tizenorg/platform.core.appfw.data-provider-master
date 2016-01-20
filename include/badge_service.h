@@ -14,7 +14,16 @@
  * limitations under the License.
  */
 
+#include <gio/gio.h>
+
 extern int badge_service_init(void);
 extern int badge_service_fini(void);
+
+void badge_insert(GVariant *parameters, GDBusMethodInvocation *invocation);
+void badge_delete(GVariant *parameters, GDBusMethodInvocation *invocation);
+void badge_set_badge_count(GVariant *parameters, GDBusMethodInvocation *invocation);
+void badge_set_display_option(GVariant *parameters, GDBusMethodInvocation *invocation);
+void badge_set_setting_property(GVariant *parameters, GDBusMethodInvocation *invocation);
+void badge_get_setting_property(GVariant *parameters, GDBusMethodInvocation *invocation);
 
 /* End of a file */
