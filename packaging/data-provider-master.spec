@@ -22,13 +22,11 @@ BuildRequires: pkgconfig(capi-appfw-app-manager)
 
 BuildRequires: pkgconfig(ecore)
 BuildRequires: pkgconfig(eina)
-BuildRequires: pkgconfig(com-core)
 BuildRequires: pkgconfig(libxml-2.0)
 BuildRequires: pkgconfig(pkgmgr)
 BuildRequires: pkgconfig(pkgmgr-info)
 BuildRequires: pkgconfig(notification)
 BuildRequires: pkgconfig(badge)
-BuildRequires: pkgconfig(badge-service)
 BuildRequires: pkgconfig(shortcut)
 BuildRequires: pkgconfig(security-server)
 BuildRequires: pkgconfig(libsystemd-daemon)
@@ -93,16 +91,13 @@ fi
 %post
 %files -n %{name}
 %manifest %{name}.manifest
-%defattr(-,system,system,-)
-#%caps(cap_chown,cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_nice+ep) %{_prefix}/bin/%{name}
+%defattr(-,root,root,-)
+%{_datadir}/dbus-1/system-services/data-provider-master.service
+%config %{_sysconfdir}/dbus-1/system.d/data-provider-master.conf
 %{_prefix}/lib/systemd/system/multi-user.target.wants/%{name}.service
 %{_prefix}/lib/systemd/system/%{name}.service
-%{_prefix}/lib/systemd/system/%{name}.target
+#%{_prefix}/lib/systemd/system/%{name}.target
 %{_prefix}/bin/%{name}
-%{_prefix}/lib/systemd/system/%{name}-service.socket
-%{_prefix}/lib/systemd/system/%{name}-badge.socket
-%{_prefix}/lib/systemd/system/%{name}-notification.socket
-%{_prefix}/lib/systemd/system/%{name}-shortcut.socket
 %{_datarootdir}/license/*
 %if 0%{?tizen_build_binary_release_type_eng}
 /opt/usr/devel/usr/bin/*
