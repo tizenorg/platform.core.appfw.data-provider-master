@@ -1,5 +1,5 @@
 /*
- * Copyright 2013  Samsung Electronics Co., Ltd
+ * Copyright 2016  Samsung Electronics Co., Ltd
  *
  * Licensed under the Flora License, Version 1.1 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,21 @@
  * limitations under the License.
  */
 
+#include <gio/gio.h>
+
 extern int notification_service_init(void);
 extern int notification_service_fini(void);
+
+void notification_server_register(GVariant *parameters, GDBusMethodInvocation *invocation);
+void notification_add_noti(GVariant *parameters, GDBusMethodInvocation *invocation);
+void notification_update_noti(GVariant *parameters, GDBusMethodInvocation *invocation);
+void notification_refresh_noti(GVariant *parameters, GDBusMethodInvocation *invocation);
+void notification_del_noti_single(GVariant *parameters, GDBusMethodInvocation *invocation);
+void notification_del_noti_multiple(GVariant *parameters, GDBusMethodInvocation *invocation);
+void notification_set_noti_property(GVariant *parameters, GDBusMethodInvocation *invocation);
+void notification_get_noti_property(GVariant *parameters, GDBusMethodInvocation *invocation);
+void notification_update_noti_setting(GVariant *parameters, GDBusMethodInvocation *invocation);
+void notification_update_noti_sys_setting(GVariant *parameters, GDBusMethodInvocation *invocation);
+void notification_load_noti_by_tag(GVariant *parameters, GDBusMethodInvocation *invocation);
 
 /* End of a file */
