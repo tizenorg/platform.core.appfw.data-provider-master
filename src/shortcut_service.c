@@ -13,216 +13,206 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <stdio.h>
-
-#include <Eina.h>
-
 #include <dlog.h>
-#include <packet.h>
-
-#include <Eina.h>
+#include <gio/gio.h>
 #include <sys/smack.h>
-
-#if defined(HAVE_SECURITY_SERVER)
-#include <security-server.h>
-#endif
 #include <shortcut.h>
-
 #include "service_common.h"
+#include "shortcut_service.h"
 #include "debug.h"
-#include "util.h"
-#include "conf.h"
 
-static struct info {
-	Eina_List *context_list;
-	struct service_context *svc_ctx;
-} s_info = {
-	.context_list = NULL, /*!< \WARN: This is only used for SERVICE THREAD */
-	.svc_ctx = NULL, /*!< \WARN: This is only used for MAIN THREAD */
+#define SHORTCUT_IPC_OBJECT_PATH "/org/tizen/shortcut_service"
+
+#define PROVIDER_BUS_NAME "org.tizen.data_provider_service"
+#define PROVIDER_OBJECT_PATH "/org/tizen/data_provider_service"
+
+static void _on_bus_acquired(GDBusConnection *connection,
+		const gchar *name, gpointer user_data)
+{
+	DbgPrint("_on_bus_acquired : %s", name);
+}
+
+static void _on_name_acquired(GDBusConnection *connection,
+		const gchar *name, gpointer user_data)
+{
+	DbgPrint("_on_name_acquired : %s", name);
+}
+
+static void _on_name_lost(GDBusConnection *connection,
+		const gchar *name, gpointer user_data)
+{
+	DbgPrint("_on_name_lost : %s", name);
+}
+
+static void _shortcut_dbus_method_call_handler(GDBusConnection *conn,
+		const gchar *sender, const gchar *object_path,
+		const gchar *iface_name, const gchar *method_name,
+		GVariant *parameters, GDBusMethodInvocation *invocation,
+		gpointer user_data)
+{
+	/* TODO : sender authority(privilege) check */
+	DbgPrint("shortcut method_name: %s", method_name);
+	GVariant *reply_body = NULL;
+	int ret = SHORTCUT_ERROR_NONE;
+
+	if (g_strcmp0(method_name, "shortcut_service_register") == 0)
+		ret = service_register(parameters, &reply_body, sender, SHORTCUT_SERVICE);
+	else if (g_strcmp0(method_name, "add_shortcut") == 0)
+		ret = shortcut_add(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "add_shortcut_widget") == 0)
+		ret = shortcut_add_widget(parameters, &reply_body);
+
+	if (ret == SHORTCUT_ERROR_NONE) {
+		DbgPrint("badge service success : %d", ret);
+		g_dbus_method_invocation_return_value(
+				invocation, reply_body);
+	} else {
+		DbgPrint("shortcut service fail : %d", ret);
+		g_dbus_method_invocation_return_error(
+				invocation,
+				SHORTCUT_ERROR,
+				ret,
+				"shortcut service error");
+	}
+}
+
+static const GDBusInterfaceVTable _shortcut_interface_vtable = {
+		_shortcut_dbus_method_call_handler,
+		NULL,
+		NULL
 };
 
-struct context {
-	struct tcb *tcb;
-	double seq;
-};
-
-/*!
- * SERVICE THREAD
- */
-static inline int put_reply_context(struct tcb *tcb, double seq)
+int shortcut_register_dbus_interface(GDBusConnection *connection)
 {
-	struct context *ctx;
+	int result = SERVICE_COMMON_ERROR_NONE;
+	GDBusNodeInfo *introspection_data = NULL;
+	int shortcut_registration_id = 0;
 
-	ctx = malloc(sizeof(*ctx));
-	if (!ctx) {
-		ErrPrint("malloc: %d\n", errno);
-		return -ENOMEM;
+	static gchar introspection_xml[] =
+			"  <node>"
+			"  <interface name='org.tizen.data_provider_shortcut_service'>"
+			"        <method name='shortcut_service_register'>"
+			"        </method>"
+			"        <method name='add_shortcut'>"
+			"          <arg type='i' name='pid' direction='in'/>"
+			"          <arg type='s' name='appid' direction='in'/>"
+			"          <arg type='s' name='name' direction='in'/>"
+			"          <arg type='i' name='type' direction='in'/>"
+			"          <arg type='s' name='uri' direction='in'/>"
+			"          <arg type='s' name='icon' direction='in'/>"
+			"          <arg type='i' name='allow_duplicate' direction='in'/>"
+			"        </method>"
+
+			"        <method name='add_shortcut_widget'>"
+			"          <arg type='i' name='pid' direction='in'/>"
+			"          <arg type='s' name='widget_id' direction='in'/>"
+			"          <arg type='s' name='name' direction='in'/>"
+			"          <arg type='i' name='size' direction='in'/>"
+			"          <arg type='s' name='uri' direction='in'/>"
+			"          <arg type='s' name='icon' direction='in'/>"
+			"          <arg type='d' name='period' direction='in'/>"
+			"          <arg type='i' name='allow_duplicate' direction='in'/>"
+			"        </method>"
+			"  </interface>"
+			"  </node>";
+
+	int owner_id = 0;
+	GError *error = NULL;
+
+	owner_id = g_bus_own_name(G_BUS_TYPE_SYSTEM,
+			PROVIDER_BUS_NAME,
+			G_BUS_NAME_OWNER_FLAGS_NONE,
+			_on_bus_acquired,
+			_on_name_acquired,
+			_on_name_lost,
+			NULL, NULL);
+	if (!owner_id) {
+		ErrPrint("g_bus_own_name error");
+		result = SERVICE_COMMON_ERROR_IO_ERROR;
+		goto out;
 	}
 
-	ctx->tcb = tcb;
-	ctx->seq = seq; /* Could we this sequence value is uniq? */
+	DbgPrint("Acquiring the own name : %d", owner_id);
+	introspection_data = g_dbus_node_info_new_for_xml(introspection_xml, &error);
+	if (!introspection_data) {
+		ErrPrint("g_dbus_node_info_new_for_xml() is failed.");
+		result = SERVICE_COMMON_ERROR_IO_ERROR;
+		if (error != NULL) {
+			ErrPrint("g_dbus_node_info_new_for_xml error [%s]", error->message);
+			g_error_free(error);
+		}
+		goto out;
+	}
 
-	s_info.context_list = eina_list_append(s_info.context_list, ctx);
-	return 0;
+	shortcut_registration_id = g_dbus_connection_register_object(connection,
+			PROVIDER_OBJECT_PATH, introspection_data->interfaces[0],
+			&_shortcut_interface_vtable, NULL, NULL, NULL);
+	DbgPrint("shortcut_registration_id %d", shortcut_registration_id);
+	if (shortcut_registration_id == 0) {
+		ErrPrint("Failed to g_dbus_connection_register_object");
+		result = SERVICE_COMMON_ERROR_IO_ERROR;
+		goto out;
+	}
+
+out:
+	if (introspection_data)
+		g_dbus_node_info_unref(introspection_data);
+
+	return result;
 }
 
-/*!
- * SERVICE THREAD
- */
-static inline struct tcb *get_reply_context(double seq)
+/* add_shortcut */
+int shortcut_add(GVariant *parameters, GVariant **reply_body)
 {
-	Eina_List *l;
-	Eina_List *n;
-	struct context *ctx;
-	struct tcb *tcb;
+	int ret = SERVICE_COMMON_ERROR_NONE;
 
-	tcb = NULL;
-	EINA_LIST_FOREACH_SAFE(s_info.context_list, l, n, ctx) {
-		if (ctx->seq != seq)
-			continue;
-
-		s_info.context_list = eina_list_remove(s_info.context_list, ctx);
-		tcb = ctx->tcb;
-		DbgFree(ctx);
-		break;
+	ret = send_notify(parameters, "add_shortcut_notify", SHORTCUT_SERVICE);
+	if (ret != SERVICE_COMMON_ERROR_NONE) {
+		ErrPrint("failed to send notify:%d\n", ret);
+		return ret;
 	}
 
-	return tcb;
+	*reply_body = g_variant_new("()");
+	if (*reply_body == NULL) {
+		ErrPrint("Cannot make reply body");
+		return SHORTCUT_ERROR_OUT_OF_MEMORY;
+	}
+
+	return ret;
 }
 
-static void send_reply_packet(struct tcb *tcb, struct packet *packet, int ret)
+/* add_shortcut_widget */
+int shortcut_add_widget(GVariant *parameters, GVariant **reply_body)
 {
-	struct packet *reply_packet;
+	int ret = SERVICE_COMMON_ERROR_NONE;
 
-	reply_packet = packet_create_reply(packet, "i", ret);
-	if (!reply_packet) {
-		ErrPrint("Failed to create a packet\n");
-		return;
+	ret = send_notify(parameters, "add_shortcut_widget_notify", SHORTCUT_SERVICE);
+	if (ret != SERVICE_COMMON_ERROR_NONE) {
+		ErrPrint("failed to send notify:%d\n", ret);
+		return ret;
 	}
 
-	if (service_common_unicast_packet(tcb, reply_packet) < 0)
-		ErrPrint("Unable to send reply packet\n");
+	*reply_body = g_variant_new("()");
+	if (*reply_body == NULL) {
+		ErrPrint("Cannot make reply body");
+		return SHORTCUT_ERROR_OUT_OF_MEMORY;
+	}
 
-	packet_destroy(reply_packet);
+	return ret;
 }
-
-/*!
- * SERVICE THREAD
- */
-static int service_thread_main(struct tcb *tcb, struct packet *packet, void *data)
-{
-	const char *command;
-
-	if (!packet) {
-		DbgPrint("TCB: %p is terminated (NIL packet)\n", tcb);
-		return 0;
-	}
-
-	command = packet_command(packet);
-	if (!command) {
-		ErrPrint("Invalid command\n");
-		return -EINVAL;
-	}
-
-	switch (packet_type(packet)) {
-	case PACKET_REQ:
-
-		/* Need to send reply packet */
-		DbgPrint("%p REQ: Command: [%s]\n", tcb, command);
-		if (!strcmp(command, "add_shortcut_widget") || !strcmp(command, "rm_shortcut_widget")) {
-			int ret;
-			ret = service_check_privilege_by_socket_fd(tcb_svc_ctx(tcb), tcb_fd(tcb), "http://tizen.org/privilege/shortcut");
-			if (ret == 0) {
-				ErrPrint("SMACK:Access denied\n");
-				send_reply_packet(tcb, packet, SHORTCUT_ERROR_PERMISSION_DENIED);
-				break;
-			}
-
-		} else if (!strcmp(command, "add_shortcut") || !strcmp(command, "rm_shortcut")) {
-			int ret;
-			ret = service_check_privilege_by_socket_fd(tcb_svc_ctx(tcb), tcb_fd(tcb), "http://tizen.org/privilege/shortcut");
-			if (ret == 0) {
-				ErrPrint("SMACK:Access denied\n");
-				send_reply_packet(tcb, packet, SHORTCUT_ERROR_PERMISSION_DENIED);
-				break;
-			}
-		}
-
-		if (service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE) < 0)
-			ErrPrint("Unable to send service request packet\n");
-		else
-			(void)put_reply_context(tcb, packet_seq(packet));
-		break;
-	case PACKET_REQ_NOACK:
-		/* Doesn't need to send reply packet */
-		DbgPrint("%p REQ_NOACK: Command: [%s]\n", tcb, command);
-		if (!strcmp(command, "service_register")) {
-			tcb_client_type_set(tcb, TCB_CLIENT_TYPE_SERVICE);
-			break;
-		}
-
-		if (service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE) < 0)
-			ErrPrint("Unable to send service reuqest packet\n");
-		break;
-	case PACKET_ACK:
-		/* Okay, client(or app) send a reply packet to us. */
-		DbgPrint("%p ACK: Command: [%s]\n", tcb, command);
-		tcb = get_reply_context(packet_seq(packet));
-		if (!tcb) {
-			ErrPrint("There is no proper context\n");
-			break;
-		}
-
-		if (tcb_is_valid(s_info.svc_ctx, tcb) < 0) {
-			ErrPrint("TCB is not valid (already disconnected?)\n");
-			break;
-		}
-
-		if (service_common_unicast_packet(tcb, packet) < 0)
-			ErrPrint("Unable to send reply packet\n");
-		break;
-	default:
-		ErrPrint("Packet type is not valid[%s]\n", command);
-		return -EINVAL;
-	}
-
-	/*!
-	 * return value has no meanning,
-	 * it will be printed by dlogutil.
-	 */
-	return 0;
-}
-
 
 /*!
  * MAIN THREAD
  * Do not try to do anyother operation in these functions
  */
-
 HAPI int shortcut_service_init(void)
 {
-	if (s_info.svc_ctx) {
-		ErrPrint("Already initialized\n");
-		return SERVICE_COMMON_ERROR_ALREADY_STARTED;
-	}
-
-	s_info.svc_ctx = service_common_create(SHORTCUT_SOCKET, SHORTCUT_SMACK_LABEL, service_thread_main, NULL);
-	if (!s_info.svc_ctx) {
-		ErrPrint("Unable to activate service thread\n");
-		return SERVICE_COMMON_ERROR_FAULT;
-	}
-
 	DbgPrint("Successfully initiated\n");
 	return SERVICE_COMMON_ERROR_NONE;
 }
 
 HAPI int shortcut_service_fini(void)
 {
-	if (!s_info.svc_ctx)
-		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
-
-	service_common_destroy(s_info.svc_ctx);
-	s_info.svc_ctx = NULL;
 	DbgPrint("Successfully Finalized\n");
 	return SERVICE_COMMON_ERROR_NONE;
 }
