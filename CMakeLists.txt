@@ -1,6 +1,12 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 PROJECT(${NAME} C)
 
+SET(PREFIX ${CMAKE_INSTALL_PREFIX})
+SET(EXEC_PREFIX "\${prefix}")
+SET(LIBDIR ${LIB_INSTALL_DIR})
+SET(INCLUDEDIR "\${prefix}/include")
+
+
 INCLUDE(FindPkgConfig)
 pkg_check_modules(pkg REQUIRED
 	dlog
@@ -13,11 +19,9 @@ pkg_check_modules(pkg REQUIRED
 	bundle
 	ecore
 	eina
-	com-core
 	pkgmgr
 	notification
 	badge
-	badge-service
 	libsmack
 	shortcut
 	pkgmgr-info
@@ -41,16 +45,6 @@ ADD_DEFINITIONS("-DLOCALEDIR=\"${LOCALEDIR}\"")
 ADD_DEFINITIONS("-D_GNU_SOURCE")
 ADD_DEFINITIONS("-D_FILE_OFFSET_BITS=64")
 
-ADD_DEFINITIONS("-DCLIENT_SOCKET=\"/tmp/.data-provider-master-client.socket\"")
-ADD_DEFINITIONS("-DSLAVE_SOCKET=\"/tmp/.data-provider-master-slave.socket\"")
-ADD_DEFINITIONS("-DSERVICE_SOCKET=\"/tmp/.data-provider-master-service.socket\"")
-
-ADD_DEFINITIONS("-DCLIENT_PORT=\"8208\"")
-
-ADD_DEFINITIONS("-DBADGE_SOCKET=\"/tmp/.badge.service\"")
-ADD_DEFINITIONS("-DSHORTCUT_SOCKET=\"/tmp/.shortcut.service\"")
-ADD_DEFINITIONS("-DNOTIFICATION_SOCKET=\"/tmp/.notification.service\"")
-
 ADD_DEFINITIONS("-DSHORTCUT_SMACK_LABEL=NULL")
 ADD_DEFINITIONS("-DNOTIFICATION_SMACK_LABEL=NULL")
 ADD_DEFINITIONS("-DBADGE_SMACK_LABEL=NULL")
@@ -71,11 +65,11 @@ SET(BUILD_SOURCE
 	src/main.c
 	src/util.c
 	src/pkgmgr.c
-	src/critical_log.c
 	src/shortcut_service.c
 	src/badge_service.c
 	src/notification_service.c
 	src/service_common.c
+	src/critical_log.c
 )
 
 STRING(REPLACE "-L-l" "-l" pkg_fixed_LDFLAGS ${pkg_LDFLAGS})
@@ -93,7 +87,9 @@ TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${pkg_LDFLAGS} "-ldl -lrt -pie")
 INSTALL(FILES ${CMAKE_SOURCE_DIR}/LICENSE DESTINATION /usr/share/license RENAME "${PROJECT_NAME}")
 INSTALL(TARGETS ${PROJECT_NAME} DESTINATION /usr/bin PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 
-# INCLUDE FOR BUILD & INSTALL .PO FILES
-ADD_SUBDIRECTORY(data)
+CONFIGURE_FILE(data-provider-master.conf.in data-provider-master.conf @ONLY)
+CONFIGURE_FILE(org.tizen.data-provider-master.service.in org.tizen.data-provider-master.service @ONLY)
 
+INSTALL(FILES ${CMAKE_CURRENT_SOURCE_DIR}/org.tizen.data-provider-master.service DESTINATION ${SHARE_INSTALL_PREFIX}/dbus-1/system-services/)
+INSTALL(FILES ${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}.conf DESTINATION ${SYSCONF_INSTALL_DIR}/dbus-1/system.d/)
 # End of a file
