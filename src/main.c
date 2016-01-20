@@ -25,19 +25,17 @@
 
 #include <systemd/sd-daemon.h>
 
-#include <Ecore.h>
 #include <glib.h>
 #include <glib-object.h>
 #include <aul.h>
 #include <vconf.h>
-
-#include <packet.h>
+#include <Ecore.h>
 #include <dlog.h>
 
-#include "conf.h"
-#include "util.h"
 #include "debug.h"
+#include "util.h"
 #include "critical_log.h"
+#include "service_common.h"
 #include "shortcut_service.h"
 #include "notification_service.h"
 #include "badge_service.h"
@@ -163,7 +161,7 @@ int main(int argc, char *argv[])
 				NULL, NULL, NULL);
 		CRITICAL_LOG("Signal handler initiated: %d\n", ret);
 	}
-
+	service_common_dbus_init();
 	app_create();
 	sd_notify(0, "READY=1");
 

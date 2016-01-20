@@ -71,11 +71,11 @@ SET(BUILD_SOURCE
 	src/main.c
 	src/util.c
 	src/pkgmgr.c
-	src/critical_log.c
 	src/shortcut_service.c
 	src/badge_service.c
 	src/notification_service.c
 	src/service_common.c
+	src/critical_log.c
 )
 
 STRING(REPLACE "-L-l" "-l" pkg_fixed_LDFLAGS ${pkg_LDFLAGS})
