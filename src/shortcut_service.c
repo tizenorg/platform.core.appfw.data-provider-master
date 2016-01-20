@@ -13,216 +13,124 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <stdio.h>
-
-#include <Eina.h>
-
 #include <dlog.h>
-#include <packet.h>
-
-#include <Eina.h>
+#include <gio/gio.h>
 #include <sys/smack.h>
-
-#if defined(HAVE_SECURITY_SERVER)
-#include <security-server.h>
-#endif
 #include <shortcut.h>
-
 #include "service_common.h"
 #include "debug.h"
-#include "util.h"
-#include "conf.h"
+#define SHORTCUT_IPC_OBJECT_PATH "/org/tizen/shortcut_service"
 
-static struct info {
-	Eina_List *context_list;
-	struct service_context *svc_ctx;
-} s_info = {
-	.context_list = NULL, /*!< \WARN: This is only used for SERVICE THREAD */
-	.svc_ctx = NULL, /*!< \WARN: This is only used for MAIN THREAD */
-};
+static GList *monitoring_app_list;
 
-struct context {
-	struct tcb *tcb;
-	double seq;
-};
-
-/*!
- * SERVICE THREAD
- */
-static inline int put_reply_context(struct tcb *tcb, double seq)
+static int _send_notify(GVariant *body, char *cmd)
 {
-	struct context *ctx;
+	DbgPrint("_send_notify");
+	GError *err = NULL;
+	GDBusMessage *msg = NULL;
+	GList *target_list;
+	char *target_bus_name = NULL;
 
-	ctx = malloc(sizeof(*ctx));
-	if (!ctx) {
-		ErrPrint("malloc: %d\n", errno);
-		return -ENOMEM;
+	target_list = monitoring_app_list;
+	for (; target_list != NULL; target_list = target_list->next) {
+		target_bus_name = target_list->data;
+		msg = g_dbus_message_new_method_call(
+				target_bus_name,
+				SHORTCUT_IPC_OBJECT_PATH,
+				target_bus_name,
+				cmd);
+		if (!msg) {
+			ErrPrint("Can't allocate new method call");
+			return SERVICE_COMMON_ERROR_OUT_OF_MEMORY;
+		}
+
+		g_dbus_message_set_body(msg, body);
+		g_dbus_connection_send_message(service_common_get_connection(), msg, G_DBUS_SEND_MESSAGE_FLAGS_NONE, NULL, &err);
+		if (err != NULL) {
+			ErrPrint("No reply. error = %s", err->message);
+			g_error_free(err);
+		}
 	}
-
-	ctx->tcb = tcb;
-	ctx->seq = seq; /* Could we this sequence value is uniq? */
-
-	s_info.context_list = eina_list_append(s_info.context_list, ctx);
-	return 0;
+	ErrPrint("_send_notify %s done", cmd);
+	return SERVICE_COMMON_ERROR_NONE;
 }
 
-/*!
- * SERVICE THREAD
- */
-static inline struct tcb *get_reply_context(double seq)
+/* register service */
+static int _monitoring_app_list_compare_cb(gconstpointer a, gconstpointer b)
 {
-	Eina_List *l;
-	Eina_List *n;
-	struct context *ctx;
-	struct tcb *tcb;
-
-	tcb = NULL;
-	EINA_LIST_FOREACH_SAFE(s_info.context_list, l, n, ctx) {
-		if (ctx->seq != seq)
-			continue;
-
-		s_info.context_list = eina_list_remove(s_info.context_list, ctx);
-		tcb = ctx->tcb;
-		DbgFree(ctx);
-		break;
-	}
-
-	return tcb;
+	return strcmp(a, b);
 }
 
-static void send_reply_packet(struct tcb *tcb, struct packet *packet, int ret)
+void shortcut_server_register(GVariant *parameters, GDBusMethodInvocation *invocation)
 {
-	struct packet *reply_packet;
+	int ret = SERVICE_COMMON_ERROR_NONE;
+	char *bus_name = NULL;
+	GList *added_list = NULL;
 
-	reply_packet = packet_create_reply(packet, "i", ret);
-	if (!reply_packet) {
-		ErrPrint("Failed to create a packet\n");
+	g_variant_get(parameters, "(s)", &bus_name);
+	if (bus_name != NULL) {
+		added_list = g_list_find_custom(monitoring_app_list, bus_name,
+		                                        (GCompareFunc)_monitoring_app_list_compare_cb);
+		if (added_list == NULL) {
+			monitoring_app_list = g_list_append(monitoring_app_list, bus_name);
+			ErrPrint("_server_register_service : register success bus_name is %s", bus_name);
+		} else {
+			ErrPrint("_server_register_service : register bus_name %s already exist", bus_name);
+		}
+
+	} else {
+		ErrPrint("_server_register_service : bus_name is NULL");
+		ret = SERVICE_COMMON_ERROR_INVALID_PARAMETER;
+	}
+	g_dbus_method_invocation_return_value(
+			invocation,
+			g_variant_new("(i)", ret));
+}
+
+/* add_shortcut */
+void shortcut_add(GVariant *parameters, GDBusMethodInvocation *invocation)
+{
+	int ret = SERVICE_COMMON_ERROR_NONE;
+
+	g_dbus_method_invocation_return_value(
+			invocation,
+			g_variant_new("(i)", ret));
+
+	ret = _send_notify(parameters, "add_shortcut_notify");
+	if (ret != SERVICE_COMMON_ERROR_NONE) {
+		ErrPrint("failed to send notify:%d\n", ret);
 		return;
 	}
-
-	if (service_common_unicast_packet(tcb, reply_packet) < 0)
-		ErrPrint("Unable to send reply packet\n");
-
-	packet_destroy(reply_packet);
 }
 
-/*!
- * SERVICE THREAD
- */
-static int service_thread_main(struct tcb *tcb, struct packet *packet, void *data)
+/* add_shortcut_widget */
+void shortcut_add_widget(GVariant *parameters, GDBusMethodInvocation *invocation)
 {
-	const char *command;
+	int ret = SERVICE_COMMON_ERROR_NONE;
 
-	if (!packet) {
-		DbgPrint("TCB: %p is terminated (NIL packet)\n", tcb);
-		return 0;
+	g_dbus_method_invocation_return_value(
+			invocation,
+			g_variant_new("(i)", ret));
+
+	ret = _send_notify(parameters, "add_shortcut_widget_notify");
+	if (ret != SERVICE_COMMON_ERROR_NONE) {
+		ErrPrint("failed to send notify:%d\n", ret);
+		return;
 	}
-
-	command = packet_command(packet);
-	if (!command) {
-		ErrPrint("Invalid command\n");
-		return -EINVAL;
-	}
-
-	switch (packet_type(packet)) {
-	case PACKET_REQ:
-
-		/* Need to send reply packet */
-		DbgPrint("%p REQ: Command: [%s]\n", tcb, command);
-		if (!strcmp(command, "add_shortcut_widget") || !strcmp(command, "rm_shortcut_widget")) {
-			int ret;
-			ret = service_check_privilege_by_socket_fd(tcb_svc_ctx(tcb), tcb_fd(tcb), "http://tizen.org/privilege/shortcut");
-			if (ret == 0) {
-				ErrPrint("SMACK:Access denied\n");
-				send_reply_packet(tcb, packet, SHORTCUT_ERROR_PERMISSION_DENIED);
-				break;
-			}
-
-		} else if (!strcmp(command, "add_shortcut") || !strcmp(command, "rm_shortcut")) {
-			int ret;
-			ret = service_check_privilege_by_socket_fd(tcb_svc_ctx(tcb), tcb_fd(tcb), "http://tizen.org/privilege/shortcut");
-			if (ret == 0) {
-				ErrPrint("SMACK:Access denied\n");
-				send_reply_packet(tcb, packet, SHORTCUT_ERROR_PERMISSION_DENIED);
-				break;
-			}
-		}
-
-		if (service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE) < 0)
-			ErrPrint("Unable to send service request packet\n");
-		else
-			(void)put_reply_context(tcb, packet_seq(packet));
-		break;
-	case PACKET_REQ_NOACK:
-		/* Doesn't need to send reply packet */
-		DbgPrint("%p REQ_NOACK: Command: [%s]\n", tcb, command);
-		if (!strcmp(command, "service_register")) {
-			tcb_client_type_set(tcb, TCB_CLIENT_TYPE_SERVICE);
-			break;
-		}
-
-		if (service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE) < 0)
-			ErrPrint("Unable to send service reuqest packet\n");
-		break;
-	case PACKET_ACK:
-		/* Okay, client(or app) send a reply packet to us. */
-		DbgPrint("%p ACK: Command: [%s]\n", tcb, command);
-		tcb = get_reply_context(packet_seq(packet));
-		if (!tcb) {
-			ErrPrint("There is no proper context\n");
-			break;
-		}
-
-		if (tcb_is_valid(s_info.svc_ctx, tcb) < 0) {
-			ErrPrint("TCB is not valid (already disconnected?)\n");
-			break;
-		}
-
-		if (service_common_unicast_packet(tcb, packet) < 0)
-			ErrPrint("Unable to send reply packet\n");
-		break;
-	default:
-		ErrPrint("Packet type is not valid[%s]\n", command);
-		return -EINVAL;
-	}
-
-	/*!
-	 * return value has no meanning,
-	 * it will be printed by dlogutil.
-	 */
-	return 0;
 }
-
 
 /*!
  * MAIN THREAD
  * Do not try to do anyother operation in these functions
  */
-
 HAPI int shortcut_service_init(void)
 {
-	if (s_info.svc_ctx) {
-		ErrPrint("Already initialized\n");
-		return SERVICE_COMMON_ERROR_ALREADY_STARTED;
-	}
-
-	s_info.svc_ctx = service_common_create(SHORTCUT_SOCKET, SHORTCUT_SMACK_LABEL, service_thread_main, NULL);
-	if (!s_info.svc_ctx) {
-		ErrPrint("Unable to activate service thread\n");
-		return SERVICE_COMMON_ERROR_FAULT;
-	}
-
 	DbgPrint("Successfully initiated\n");
 	return SERVICE_COMMON_ERROR_NONE;
 }
 
 HAPI int shortcut_service_fini(void)
 {
-	if (!s_info.svc_ctx)
-		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
-
-	service_common_destroy(s_info.svc_ctx);
-	s_info.svc_ctx = NULL;
 	DbgPrint("Successfully Finalized\n");
 	return SERVICE_COMMON_ERROR_NONE;
 }
