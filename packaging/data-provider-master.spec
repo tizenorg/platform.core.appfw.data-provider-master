@@ -7,6 +7,7 @@ Release: 1
 Group: Applications/Core Applications
 License: Flora-1.1
 Source0: %{name}-%{version}.tar.gz
+Source1: data-provider-master.service
 Source1001: %{name}.manifest
 BuildRequires: cmake, gettext-tools, smack, coreutils
 BuildRequires: pkgconfig(dlog)
@@ -22,13 +23,11 @@ BuildRequires: pkgconfig(capi-appfw-app-manager)
 
 BuildRequires: pkgconfig(ecore)
 BuildRequires: pkgconfig(eina)
-BuildRequires: pkgconfig(com-core)
 BuildRequires: pkgconfig(libxml-2.0)
 BuildRequires: pkgconfig(pkgmgr)
 BuildRequires: pkgconfig(pkgmgr-info)
 BuildRequires: pkgconfig(notification)
 BuildRequires: pkgconfig(badge)
-BuildRequires: pkgconfig(badge-service)
 BuildRequires: pkgconfig(shortcut)
 BuildRequires: pkgconfig(security-server)
 BuildRequires: pkgconfig(libsystemd-daemon)
@@ -82,30 +81,22 @@ rm -rf %{buildroot}
 %make_install
 mkdir -p %{buildroot}/%{_datarootdir}/license
 mkdir -p %{buildroot}%{_prefix}/lib/systemd/system/multi-user.target.wants
+install -m 0644 %SOURCE1 %{buildroot}%{_unitdir}/data-provider-master.service
 ln -sf ../%{name}.service %{buildroot}%{_prefix}/lib/systemd/system/multi-user.target.wants/%{name}.service
-mkdir -p %{buildroot}/opt/usr/devel/usr/bin
-%pre
-# Executing the stop script for stopping the service of installed provider (old version)
-if [ -x %{_sysconfdir}/rc.d/init.d/%{name} ]; then
-	%{_sysconfdir}/rc.d/init.d/%{name} stop
-fi
 
 %post
 %files -n %{name}
 %manifest %{name}.manifest
-%defattr(-,system,system,-)
-#%caps(cap_chown,cap_dac_override,cap_dac_read_search,cap_sys_admin,cap_sys_nice+ep) %{_prefix}/bin/%{name}
-%{_prefix}/lib/systemd/system/multi-user.target.wants/%{name}.service
-%{_prefix}/lib/systemd/system/%{name}.service
-%{_prefix}/lib/systemd/system/%{name}.target
+%defattr(-,root,root,-)
+
+%attr(0755,root,root) %{_bindir}/data-provider-master
+%attr(0644,root,root) %{_unitdir}/data-provider-master.service
+%{_unitdir}/multi-user.target.wants/data-provider-master.service
+%attr(0644,root,root) %{_datadir}/dbus-1/system-services/org.tizen.data-provider-master.service
+%config %{_sysconfdir}/dbus-1/system.d/data-provider-master.conf
 %{_prefix}/bin/%{name}
-%{_prefix}/lib/systemd/system/%{name}-service.socket
-%{_prefix}/lib/systemd/system/%{name}-badge.socket
-%{_prefix}/lib/systemd/system/%{name}-notification.socket
-%{_prefix}/lib/systemd/system/%{name}-shortcut.socket
 %{_datarootdir}/license/*
 %if 0%{?tizen_build_binary_release_type_eng}
-/opt/usr/devel/usr/bin/*
 %endif
 #%defattr(-,owner,users,-)
 
