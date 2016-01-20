@@ -1,0 +1,13 @@
+[Unit]
+Description=Data Provider Master
+
+[Service]
+BusName=org.tizen.data_provider_service
+Type=dbus
+ExecStart=/usr/bin/data-provider-master
+TimeoutStopSec=3s
+Restart=always
+RestartSec=0
+
+[Install]
+WantedBy=multi-user.target
