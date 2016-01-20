@@ -25,19 +25,16 @@
 
 #include <systemd/sd-daemon.h>
 
-#include <Ecore.h>
 #include <glib.h>
 #include <glib-object.h>
 #include <aul.h>
-#include <vconf.h>
-
-#include <packet.h>
+#include <Ecore.h>
 #include <dlog.h>
 
-#include "conf.h"
-#include "util.h"
 #include "debug.h"
+#include "util.h"
 #include "critical_log.h"
+#include "service_common.h"
 #include "shortcut_service.h"
 #include "notification_service.h"
 #include "badge_service.h"
@@ -108,7 +105,7 @@ static Eina_Bool signal_cb(void *data, Ecore_Fd_Handler *handler)
 		if (cfd < 0 || close(cfd) < 0)
 			ErrPrint("stop.provider: %d\n", errno);
 
-		vconf_set_bool(VCONFKEY_MASTER_STARTED, 0);
+//		vconf_set_bool(VCONFKEY_MASTER_STARTED, 0);
 		ecore_main_loop_quit();
 	} else {
 		CRITICAL_LOG("Unknown SIG[%d] received\n", fdsi.ssi_signo);
@@ -134,7 +131,7 @@ int main(int argc, char *argv[])
 	g_type_init();
 #endif
 
-	vconf_get_int(VCONFKEY_MASTER_RESTART_COUNT, &restart_count);
+	//vconf_get_int(VCONFKEY_MASTER_RESTART_COUNT, &restart_count);
 	util_setup_log_disk();
 
 	/*!
@@ -163,16 +160,16 @@ int main(int argc, char *argv[])
 				NULL, NULL, NULL);
 		CRITICAL_LOG("Signal handler initiated: %d\n", ret);
 	}
-
+	service_common_dbus_init();
 	app_create();
 	sd_notify(0, "READY=1");
 
 	restart_count++;
-	vconf_set_int(VCONFKEY_MASTER_RESTART_COUNT, restart_count);
+//	vconf_set_int(VCONFKEY_MASTER_RESTART_COUNT, restart_count);
 
-	vconf_set_bool(VCONFKEY_MASTER_STARTED, 1);
+//	vconf_set_bool(VCONFKEY_MASTER_STARTED, 1);
 	ecore_main_loop_begin();
-	vconf_set_bool(VCONFKEY_MASTER_STARTED, 0);
+//	vconf_set_bool(VCONFKEY_MASTER_STARTED, 0);
 
 	app_terminate();
 
