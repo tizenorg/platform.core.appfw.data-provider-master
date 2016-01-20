@@ -1,0 +1,12 @@
+[Unit]
+Description=Data Provider daemon
+
+[Service]
+ExecStart=/usr/bin/data-provider-master
+ExecStop=/usr/bin/killall data-provider-master
+RestartSec=1
+Restart=always
+MemoryLimit=50M
+
+[Install]
+WantedBy=default.target
