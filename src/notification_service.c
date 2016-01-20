@@ -14,512 +14,398 @@
  * limitations under the License.
  */
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 
-#include <Eina.h>
-
 #include <dlog.h>
-#include <packet.h>
-
 #include <sys/smack.h>
 
 #include <pkgmgr-info.h>
 
-#include <vconf.h>
 #include <notification.h>
+#include <gio/gio.h>
 
 #include "pkgmgr.h"
 #include "service_common.h"
 #include "debug.h"
-#include "util.h"
-#include "conf.h"
 
 #include <notification_noti.h>
 #include <notification_internal.h>
 #include <notification_ipc.h>
 #include <notification_setting_service.h>
 
-#ifndef NOTIFICATION_DEL_PACKET_UNIT
-#define NOTIFICATION_DEL_PACKET_UNIT 10
-#endif
+#define NOTI_IPC_OBJECT_PATH "/org/tizen/noti_service"
 
-static struct info {
-	Eina_List *context_list;
-	struct service_context *svc_ctx;
-} s_info = {
-	.context_list = NULL, /*!< \WARN: This is only used for SERVICE THREAD */
-	.svc_ctx = NULL, /*!< \WARN: This is only used for MAIN THREAD */
-};
+#define PROVIDER_BUS_NAME "org.tizen.data_provider_service"
+#define PROVIDER_OBJECT_PATH "/org/tizen/data_provider_service"
+#define PROVIDER_NOTI_INTERFACE_NAME "org.tizen.data_provider_noti_service"
+#define PROVIDER_BADGE_INTERFACE_NAME "org.tizen.data_provider_badge_service"
 
-struct context {
-	struct tcb *tcb;
-	double seq;
-};
-
-struct noti_service {
-	const char *cmd;
-	void (*handler)(struct tcb *tcb, struct packet *packet, void *data);
-	const char *rule;
-	const char *access;
-	void (*handler_access_error)(struct tcb *tcb, struct packet *packet);
-};
-
-static inline char *_string_get(char *string)
-{
-	if (string == NULL)
-		return NULL;
-	if (string[0] == '\0')
-		return NULL;
-
-	return string;
-}
-
-/*!
- * FUNCTIONS to create packets
- */
-static inline int _priv_id_get_from_list(int num_data, int *list, int index)
-{
-	if (index < num_data)
-		return *(list + index);
-	else
-		return -1;
-}
-
-static inline struct packet *_packet_create_with_list(int op_num, int *list, int start_index)
-{
-	return packet_create(
-			"del_noti_multiple",
-			"iiiiiiiiiii",
-			((op_num - start_index) > NOTIFICATION_DEL_PACKET_UNIT) ? NOTIFICATION_DEL_PACKET_UNIT : op_num - start_index,
-			_priv_id_get_from_list(op_num, list, start_index),
-			_priv_id_get_from_list(op_num, list, start_index + 1),
-			_priv_id_get_from_list(op_num, list, start_index + 2),
-			_priv_id_get_from_list(op_num, list, start_index + 3),
-			_priv_id_get_from_list(op_num, list, start_index + 4),
-			_priv_id_get_from_list(op_num, list, start_index + 5),
-			_priv_id_get_from_list(op_num, list, start_index + 6),
-			_priv_id_get_from_list(op_num, list, start_index + 7),
-			_priv_id_get_from_list(op_num, list, start_index + 8),
-			_priv_id_get_from_list(op_num, list, start_index + 9)
-			);
-}
+static void _update_noti(GDBusMethodInvocation *invocation, notification_h noti);
 
 /*!
  * SERVICE HANDLER
  */
-static void _handler_insert_noti(struct tcb *tcb, struct packet *packet, notification_h noti, void *data)
+
+/* add noti */
+static void _add_noti(GDBusMethodInvocation *invocation, notification_h noti)
 {
-	int ret = 0, ret_p = 0;
+	int ret = 0;
 	int priv_id = 0;
-	struct packet *packet_reply = NULL;
-	struct packet *packet_service = NULL;
+	GVariant *body = NULL;
+
+	print_noti(noti);
 
 	ret = notification_noti_insert(noti);
 	notification_get_id(noti, NULL, &priv_id);
-	DbgPrint("priv_id: [%d]\n", priv_id);
-	packet_reply = packet_create_reply(packet, "ii", ret, priv_id);
-	if (packet_reply) {
-		if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-			ErrPrint("failed to send reply packet: %d\n", ret_p);
-		packet_destroy(packet_reply);
-	} else {
-		ErrPrint("failed to create a reply packet\n");
-	}
+	DbgPrint("priv_id: [%d]", priv_id);
 
-	if (ret != NOTIFICATION_ERROR_NONE) {
-		ErrPrint("failed to insert a notification: %d\n", ret);
-		return;
-	}
-
-	packet_service = notification_ipc_make_packet_from_noti(noti, "add_noti", 2);
-	if (packet_service != NULL) {
-		if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0)
-			ErrPrint("failed to send a multicast packet: %d\n", ret_p);
-		packet_destroy(packet_service);
-	} else {
-		ErrPrint("failed to create a multicats packet\n");
-	}
-}
-
-/*static void _handler_insert(struct tcb *tcb, struct packet *packet, void *data) // not used
-  {
-  notification_h noti = NULL;
-
-  noti = notification_create(NOTIFICATION_TYPE_NOTI);
-  if (noti != NULL) {
-  if (notification_ipc_make_noti_from_packet(noti, packet) == NOTIFICATION_ERROR_NONE) {
-  _handler_insert_noti(tcb, packet, noti, data);
-  } else {
-  ErrPrint("Failed to create the packet");
-  }
-  notification_free(noti);
-  }
-  }*/
-
-static void _handler_update_noti(struct tcb *tcb, struct packet *packet, notification_h noti, void *data)
-{
-	int ret = 0, ret_p = 0;
-	int priv_id = 0;
-	struct packet *packet_reply = NULL;
-	struct packet *packet_service = NULL;
-
-	ret = notification_noti_update(noti);
-
-	notification_get_id(noti, NULL, &priv_id);
-	DbgPrint("priv_id: [%d]\n", priv_id);
-	packet_reply = packet_create_reply(packet, "ii", ret, priv_id);
-	if (packet_reply) {
-		if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-			ErrPrint("failed to send reply packet:%d\n", ret_p);
-		packet_destroy(packet_reply);
-	} else {
-		ErrPrint("failed to create a reply packet\n");
-	}
+	g_dbus_method_invocation_return_value(invocation,
+			g_variant_new("(ii)", ret, priv_id));
 
 	if (ret != NOTIFICATION_ERROR_NONE) {
 		ErrPrint("failed to update a notification:%d\n", ret);
 		return;
 	}
 
-	packet_service = notification_ipc_make_packet_from_noti(noti, "update_noti", 2);
-	if (packet_service != NULL) {
-		if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0)
-			ErrPrint("failed to send a multicast packet: %d\n", ret_p);
-		packet_destroy(packet_service);
+	body = notification_ipc_make_gvariant_from_noti(noti);
+	if (body == NULL) {
+		ErrPrint("cannot make gvariant to noti");
+		return;
 	}
-}
-
-static void _handler_update(struct tcb *tcb, struct packet *packet, void *data)
-{
-	notification_h noti = NULL;
-
-	noti = notification_create(NOTIFICATION_TYPE_NOTI);
-	if (noti != NULL) {
-		if (notification_ipc_make_noti_from_packet(noti, packet) == NOTIFICATION_ERROR_NONE)
-			_handler_update_noti(tcb, packet, noti, data);
-		else
-			ErrPrint("Failed to create the packet");
-		notification_free(noti);
+	ret = send_notify(body, "add_noti_notify", NOTIFICATION_SERVICE);
+	if (ret != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("failed to send notify:%d\n", ret);
+		return;
 	}
-}
 
-static void _handler_check_noti_by_tag(struct tcb *tcb, struct packet *packet, void *data)
+	DbgPrint("_insert_noti done !!");
+}
+void notification_add_noti(GVariant *parameters, GDBusMethodInvocation *invocation)
 {
 	int ret = 0;
 	notification_h noti = NULL;
 
 	noti = notification_create(NOTIFICATION_TYPE_NOTI);
 	if (noti != NULL) {
-		if (notification_ipc_make_noti_from_packet(noti, packet) == NOTIFICATION_ERROR_NONE) {
+		ret = notification_ipc_make_noti_from_gvariant(noti, parameters);
+		if (ret == NOTIFICATION_ERROR_NONE) {
 			ret = notification_noti_check_tag(noti);
 			if (ret == NOTIFICATION_ERROR_NOT_EXIST_ID)
-				_handler_insert_noti(tcb, packet, noti, data);
+				_add_noti(invocation, noti);
 			else if (ret == NOTIFICATION_ERROR_ALREADY_EXIST_ID)
-				_handler_update_noti(tcb, packet, noti, data);
+				_update_noti(invocation, noti);
+			else
+				g_dbus_method_invocation_return_value(invocation, g_variant_new("(i)", ret));
+
+			notification_free(noti);
+		} else {
+			g_dbus_method_invocation_return_value(invocation, g_variant_new("(i)", ret));
 		}
-		notification_free(noti);
+	} else {
+		g_dbus_method_invocation_return_value(invocation, g_variant_new("(i)", NOTIFICATION_ERROR_OUT_OF_MEMORY));
+	}
+
+}
+
+
+/* update noti */
+static void _update_noti(GDBusMethodInvocation *invocation, notification_h noti)
+{
+	int ret = 0;
+	GVariant *body = NULL;
+	int priv_id = 0;
+
+	print_noti(noti);
+	notification_get_id(noti, NULL, &priv_id);
+	DbgPrint("priv_id: [%d]", priv_id);
+
+	ret = notification_noti_update(noti);
+	if (ret != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("failed to update a notification:%d", ret);
+		if (ret == NOTIFICATION_ERROR_NOT_EXIST_ID) {
+			ErrPrint("NOTIFICATION_ERROR_NOT_EXIST_ID !!");
+		} else if (ret == NOTIFICATION_ERROR_FROM_DB) {
+			ErrPrint("NOTIFICATION_ERROR_FROM_DB !!");
+		}
+	}
+	g_dbus_method_invocation_return_value(invocation,
+			g_variant_new("(ii)", ret, priv_id));
+
+	body = notification_ipc_make_gvariant_from_noti(noti);
+	if (body == NULL) {
+		ErrPrint("cannot make gvariant to noti");
+		return;
+	}
+	ret = send_notify(body, "update_noti_notify", NOTIFICATION_SERVICE);
+
+	if (ret != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("failed to send notify:%d\n", ret);
+		return;
 	}
 }
 
-static void _handler_load_noti_by_tag(struct tcb *tcb, struct packet *packet, void *data)
+void notification_update_noti(GVariant *parameters, GDBusMethodInvocation *invocation)
 {
-	int ret = 0, ret_p = 0;
-	char *tag;
-	char *pkgname;
-	struct packet *packet_reply = NULL;
 	notification_h noti = NULL;
+	int ret = NOTIFICATION_ERROR_NONE;
 
 	noti = notification_create(NOTIFICATION_TYPE_NOTI);
 	if (noti != NULL) {
-		if (packet_get(packet, "ss", &pkgname, &tag) == 2) {
-			ret = notification_noti_get_by_tag(noti, pkgname, tag);
-			packet_reply = notification_ipc_make_reply_packet_from_noti(noti, packet);
-			if (packet_reply) {
-				if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-					ErrPrint("failed to send reply packet: %d\n", ret_p);
-				packet_destroy(packet_reply);
-			} else {
-				ErrPrint("failed to create a reply packet\n");
-			}
-
-			if (ret != NOTIFICATION_ERROR_NONE) {
-				ErrPrint("failed to load_noti_by_tag : %d\n", ret);
+		ret = notification_ipc_make_noti_from_gvariant(noti, parameters);
+		if (ret == NOTIFICATION_ERROR_NONE) {
+				_update_noti(invocation, noti);
 				notification_free(noti);
-				return;
-			}
 		} else {
-			ErrPrint("Failed to create the packet");
+			g_dbus_method_invocation_return_value(
+					invocation,
+					g_variant_new("(ii)",
+						ret,
+						NOTIFICATION_PRIV_ID_NONE));
 		}
+	} else {
+		g_dbus_method_invocation_return_value(
+				invocation,
+				g_variant_new("(ii)",
+					NOTIFICATION_ERROR_OUT_OF_MEMORY,
+					NOTIFICATION_PRIV_ID_NONE));
+	}
+}
+
+/* load_noti_by_tag */
+void notification_load_noti_by_tag(GVariant *parameters, GDBusMethodInvocation *invocation)
+{
+	int ret = NOTIFICATION_ERROR_NONE;
+	char *tag;
+	char *pkgname;
+	notification_h noti = NULL;
+	GVariant *body = NULL;
+
+	noti = notification_create(NOTIFICATION_TYPE_NOTI);
+	if (noti != NULL) {
+		g_variant_get(parameters, "(ss)", &pkgname, &tag);
+		DbgPrint("_load_noti_by_tag pkgname : %s, tag : %s ", pkgname, tag);
+		ret = notification_noti_get_by_tag(noti, pkgname, tag);
+
+		DbgPrint("notification_noti_get_by_tag ret : %d", ret);
+		print_noti(noti);
+
+		body = notification_ipc_make_gvariant_from_noti(noti);
+		g_dbus_method_invocation_return_value(
+					invocation, body);
 		notification_free(noti);
 	}
+	DbgPrint("_load_noti_by_tag done !!");
 }
 
-
-static void _handler_refresh(struct tcb *tcb, struct packet *packet, void *data)
+/* refresh_noti */
+void notification_refresh_noti(GVariant *parameters, GDBusMethodInvocation *invocation)
 {
 	int ret = 0;
-	struct packet *packet_reply = NULL;
-
-	packet_reply = packet_create_reply(packet, "i", ret);
-	if (packet_reply) {
-		if ((ret = service_common_unicast_packet(tcb, packet_reply)) < 0)
-			ErrPrint("failed to send reply packet:%d\n", ret);
-		packet_destroy(packet_reply);
-	} else {
-		ErrPrint("failed to create a reply packet\n");
+	g_dbus_method_invocation_return_value(invocation,
+			g_variant_new("(i)", ret));
+	ret = send_notify(parameters, "refresh_noti_notify", NOTIFICATION_SERVICE);
+	if (ret != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("failed to send notify:%d\n", ret);
+		return;
 	}
-
-	if ((ret = service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE)) < 0)
-		ErrPrint("failed to send a multicast packet:%d\n", ret);
+	DbgPrint("_refresh_noti_service done !!");
 }
 
-static void _handler_delete_single(struct tcb *tcb, struct packet *packet, void *data)
+/* del_noti_single */
+void notification_del_noti_single(GVariant *parameters, GDBusMethodInvocation *invocation)
 {
+	int ret = NOTIFICATION_ERROR_NONE;
 	int num_changes = 0;
-	int ret = 0, ret_p = 0;
 	int priv_id = 0;
-	struct packet *packet_reply = NULL;
-	struct packet *packet_service = NULL;
 	char *pkgname = NULL;
+	GVariant *body = NULL;
 
-	if (packet_get(packet, "si", &pkgname, &priv_id) == 2) {
-		pkgname = _string_get(pkgname);
+	g_variant_get(parameters, "(si)", &pkgname, &priv_id);
+	pkgname = string_get(pkgname);
+	ret = notification_noti_delete_by_priv_id_get_changes(pkgname, priv_id, &num_changes);
+	DbgPrint("priv_id: [%d] num_delete:%d\n", priv_id, num_changes);
+	if (pkgname)
+		g_free(pkgname);
 
-		ret = notification_noti_delete_by_priv_id_get_changes(pkgname, priv_id, &num_changes);
+	g_dbus_method_invocation_return_value(
+			invocation,
+			g_variant_new("(ii)", ret, priv_id));
 
-		DbgPrint("priv_id: [%d] num_delete:%d\n", priv_id, num_changes);
-		packet_reply = packet_create_reply(packet, "ii", ret, priv_id);
-		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			packet_destroy(packet_reply);
-		} else {
-			ErrPrint("failed to create a reply packet\n");
-		}
-
-		if (ret != NOTIFICATION_ERROR_NONE || num_changes <= 0) {
-			ErrPrint("failed to delete a notification:%d %d\n", ret, num_changes);
-			return;
-		}
-
-		packet_service = packet_create("del_noti_single", "ii", 1, priv_id);
-		if (packet_service != NULL) {
-			if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0)
-				ErrPrint("failed to send a multicast packet: %d\n", ret_p);
-			packet_destroy(packet_service);
-		}
-	} else {
-		ErrPrint("Failed to get data from the packet");
+	if (ret != NOTIFICATION_ERROR_NONE || num_changes <= 0) {
+		ErrPrint("failed to delete a notification:%d %d\n", ret, num_changes);
+		return;
 	}
+
+	body = g_variant_new("(ii)", 1, priv_id);
+	if (body == NULL) {
+		ErrPrint("cannot make gvariant to noti");
+		return;
+	}
+	ret = send_notify(body, "delete_single_notify", NOTIFICATION_SERVICE);
+
+	g_variant_unref(body);
+
+	if (ret != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("failed to send notify:%d\n", ret);
+		return;
+	}
+	DbgPrint("_del_noti_single done !!");
 }
 
-static void _handler_delete_multiple(struct tcb *tcb, struct packet *packet, void *data)
+/* del_noti_multiple */
+void notification_del_noti_multiple(GVariant *parameters, GDBusMethodInvocation *invocation)
 {
-	int ret = 0, ret_p = 0;
-	struct packet *packet_reply = NULL;
-	struct packet *packet_service = NULL;
+	int ret = NOTIFICATION_ERROR_NONE;
 	char *pkgname = NULL;
 	notification_type_e type = 0;
 	int num_deleted = 0;
 	int *list_deleted = NULL;
+	GVariant *deleted_noti_list;
+	int i = 0;
 
-	if (packet_get(packet, "si", &pkgname, &type) == 2) {
-		pkgname = _string_get(pkgname);
-		DbgPrint("pkgname: [%s] type: [%d]\n", pkgname, type);
+	g_variant_get(parameters, "(si)", &pkgname, &type);
+	pkgname = string_get(pkgname);
 
-		ret = notification_noti_delete_all(type, pkgname, &num_deleted, &list_deleted);
-		DbgPrint("ret: [%d] num_deleted: [%d]\n", ret, num_deleted);
+	DbgPrint("pkgname: [%s] type: [%d]\n", pkgname, type);
 
-		packet_reply = packet_create_reply(packet, "ii", ret, num_deleted);
-		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			packet_destroy(packet_reply);
-		} else {
-			ErrPrint("failed to create a reply packet\n");
+	ret = notification_noti_delete_all(type, pkgname, &num_deleted, &list_deleted);
+	DbgPrint("ret: [%d] num_deleted: [%d]\n", ret, num_deleted);
+	if (pkgname)
+		g_free(pkgname);
+
+	g_dbus_method_invocation_return_value(
+			invocation,
+			g_variant_new("(ii)", ret, num_deleted));
+
+	if (ret != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("failed to delete notifications:%d\n", ret);
+		if (list_deleted != NULL)
+			free(list_deleted);
+		return;
+	}
+
+	if (num_deleted > 0) {
+		GVariantBuilder * builder = g_variant_builder_new(G_VARIANT_TYPE("a(i)"));
+		for (i = 0; i < num_deleted; i++) {
+			g_variant_builder_add(builder, "(i)", *(list_deleted + i));
 		}
+		deleted_noti_list = g_variant_new("(a(i))", builder);
+		ret = send_notify(deleted_noti_list, "delete_multiple_notify", NOTIFICATION_SERVICE);
+
+		g_variant_builder_unref(builder);
+		g_variant_unref(deleted_noti_list);
+		free(list_deleted);
 
 		if (ret != NOTIFICATION_ERROR_NONE) {
-			ErrPrint("failed to delete notifications:%d\n", ret);
-			if (list_deleted != NULL)
-				DbgFree(list_deleted);
+			ErrPrint("failed to send notify:%d\n", ret);
 			return;
 		}
-
-		if (num_deleted > 0) {
-			if (num_deleted <= NOTIFICATION_DEL_PACKET_UNIT) {
-				packet_service = _packet_create_with_list(num_deleted, list_deleted, 0);
-
-				if (packet_service) {
-					if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0)
-						ErrPrint("failed to send a multicast packet: %d\n", ret_p);
-					packet_destroy(packet_service);
-				} else {
-					ErrPrint("failed to create a multicast packet\n");
-				}
-			} else {
-				int set = 0;
-				int set_total = num_deleted / NOTIFICATION_DEL_PACKET_UNIT;
-
-				for (set = 0; set <= set_total; set++) {
-					packet_service = _packet_create_with_list(num_deleted,
-							list_deleted, set * NOTIFICATION_DEL_PACKET_UNIT);
-
-					if (packet_service) {
-						if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0)
-							ErrPrint("failed to send a multicast packet:%d\n", ret_p);
-						packet_destroy(packet_service);
-					} else {
-						ErrPrint("failed to create a multicast packet\n");
-					}
-				}
-			}
-		}
-
-		if (list_deleted != NULL) {
-			DbgFree(list_deleted);
-			list_deleted = NULL;
-		}
-	} else {
-		ErrPrint("Failed to get data from the packet");
 	}
+	DbgPrint("_del_noti_multiple done !!");
 }
 
-static void _handler_noti_property_set(struct tcb *tcb, struct packet *packet, void *data)
+/* set_noti_property */
+void notification_set_noti_property(GVariant *parameters, GDBusMethodInvocation *invocation)
 {
-	int ret = 0, ret_p = 0;
-	struct packet *packet_reply = NULL;
+	int ret = NOTIFICATION_ERROR_NONE;
 	char *pkgname = NULL;
 	char *property = NULL;
 	char *value = NULL;
 
-	if (packet_get(packet, "sss", &pkgname, &property, &value) == 3) {
-		pkgname = _string_get(pkgname);
-		property = _string_get(property);
-		value = _string_get(value);
+	g_variant_get(parameters, "(sss)", &pkgname, &property, &value);
+	pkgname = string_get(pkgname);
+	property = string_get(property);
+	value = string_get(value);
 
-		ret = notification_setting_db_set(pkgname, property, value);
+	ret = notification_setting_db_set(pkgname, property, value);
+	g_dbus_method_invocation_return_value(
+			invocation, g_variant_new("(i)", ret));
+	if (pkgname)
+		g_free(pkgname);
+	if (property)
+		g_free(property);
+	if (value)
+		g_free(value);
 
-		packet_reply = packet_create_reply(packet, "ii", ret, ret);
-		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			packet_destroy(packet_reply);
-		} else {
-			ErrPrint("failed to create a reply packet\n");
-		}
-
-		if (ret != NOTIFICATION_ERROR_NONE)
-			ErrPrint("failed to set noti property:%d\n", ret);
-	} else {
-		ErrPrint("Failed to get data from the packet");
-	}
+	DbgPrint("_set_noti_property_service done !! %d", ret);
 }
 
-static void _handler_noti_property_get(struct tcb *tcb, struct packet *packet, void *data)
+/* get_noti_property */
+void notification_get_noti_property(GVariant *parameters, GDBusMethodInvocation *invocation)
 {
-	int ret = 0, ret_p = 0;
-	struct packet *packet_reply = NULL;
+	int ret = NOTIFICATION_ERROR_NONE;
 	char *pkgname = NULL;
 	char *property = NULL;
 	char *value = NULL;
 
-	if (packet_get(packet, "sss", &pkgname, &property) == 2) {
-		pkgname = _string_get(pkgname);
-		property = _string_get(property);
+	g_variant_get(parameters, "(ss)", &pkgname, &property);
+	pkgname = string_get(pkgname);
+	property = string_get(property);
 
-		ret = notification_setting_db_get(pkgname, property, &value);
+	ret = notification_setting_db_get(pkgname, property, &value);
+	g_dbus_method_invocation_return_value(
+			invocation, g_variant_new("(is)", ret, value));
 
-		packet_reply = packet_create_reply(packet, "is", ret, value);
-		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			packet_destroy(packet_reply);
-		} else {
-			ErrPrint("failed to create a reply packet\n");
-		}
+	if (value != NULL)
+		free(value);
+	if (value)
+		g_free(pkgname);
+	if (property)
+		g_free(property);
 
-		if (value != NULL)
-			DbgFree(value);
-	}
+	DbgPrint("_get_noti_property_service done !! %d", ret);
 }
 
-static void _handler_noti_update_setting(struct tcb *tcb, struct packet *packet, void *data)
+/* update_noti_setting */
+void notification_update_noti_setting(GVariant *parameters, GDBusMethodInvocation *invocation)
 {
-	int ret = 0, ret_p = 0;
-	struct packet *packet_reply = NULL;
-	char *package_name = NULL;
+	int ret = NOTIFICATION_ERROR_NONE;
+	char *pkgname = NULL;
 	int allow_to_notify = 0;
 	int do_not_disturb_except = 0;
 	int visivility_class = 0;
 
-	if (packet_get(packet, "siii", &package_name, &allow_to_notify, &do_not_disturb_except, &visivility_class) == 4) {
-		package_name = _string_get(package_name);
-		DbgPrint("package_name: [%s] allow_to_notify: [%d] do_not_disturb_except: [%d] visivility_class: [%d]\n", package_name, allow_to_notify, do_not_disturb_except, visivility_class);
-		/* ADD CODES HERE */
-		ret = notification_setting_db_update(package_name, allow_to_notify, do_not_disturb_except, visivility_class);
+	g_variant_get(parameters, "(siii)",
+			&pkgname,
+			&allow_to_notify,
+			&do_not_disturb_except,
+			&visivility_class);
 
-		packet_reply = packet_create_reply(packet, "ii", ret, ret);
-		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			packet_destroy(packet_reply);
-		} else {
-			ErrPrint("failed to create a reply packet\n");
-		}
+	pkgname = string_get(pkgname);
+	DbgPrint("package_name: [%s] allow_to_notify: [%d] do_not_disturb_except: [%d] visivility_class: [%d]\n",
+			pkgname, allow_to_notify, do_not_disturb_except, visivility_class);
+	ret = notification_setting_db_update(pkgname, allow_to_notify, do_not_disturb_except, visivility_class);
 
-		if (ret != NOTIFICATION_ERROR_NONE)
-			ErrPrint("failed to update setting[%d]\n", ret);
-	} else {
-		ErrPrint("Failed to get data from the packet");
-	}
+	g_dbus_method_invocation_return_value(
+			invocation, g_variant_new("(i)", ret));
+	if (pkgname)
+		g_free(pkgname);
+
+	DbgPrint("_update_noti_setting_service done !! %d", ret);
 }
 
-static void _handler_noti_update_system_setting(struct tcb *tcb, struct packet *packet, void *data)
+/* update_noti_sys_setting */
+void notification_update_noti_sys_setting(GVariant *parameters, GDBusMethodInvocation *invocation)
 {
-	int ret = 0, ret_p = 0;
-	struct packet *packet_reply = NULL;
+	int ret = NOTIFICATION_ERROR_NONE;
 	int do_not_disturb = 0;
 	int visivility_class = 0;
 
-	if (packet_get(packet, "ii", &do_not_disturb, &visivility_class) == 2) {
-		DbgPrint("do_not_disturb [%d] visivility_class [%d]\n", do_not_disturb, visivility_class);
-		/* ADD CODES HERE */
-		ret = notification_setting_db_update_system_setting(do_not_disturb, visivility_class);
+	g_variant_get(parameters, "(ii)",
+			&do_not_disturb,
+			&visivility_class);
 
-		packet_reply = packet_create_reply(packet, "ii", ret, ret);
-		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			packet_destroy(packet_reply);
-		} else {
-			ErrPrint("failed to create a reply packet\n");
-		}
+	DbgPrint("do_not_disturb [%d] visivility_class [%d]\n", do_not_disturb, visivility_class);
+	ret = notification_setting_db_update_system_setting(do_not_disturb, visivility_class);
 
-		if (ret != NOTIFICATION_ERROR_NONE)
-			ErrPrint("failed to update system setting[%d]\n", ret);
-	} else {
-		ErrPrint("Failed to get data from the packet");
-	}
+	g_dbus_method_invocation_return_value(
+			invocation, g_variant_new("(i)", ret));
+
+	DbgPrint("_update_noti_sys_setting_service done !! %d", ret);
 }
 
-static void _handler_service_register(struct tcb *tcb, struct packet *packet, void *data)
-{
-	int ret = 0;
-	struct packet *packet_reply;
-
-	ret = tcb_client_type_set(tcb, TCB_CLIENT_TYPE_SERVICE);
-
-	packet_reply = packet_create_reply(packet, "i", ret);
-	if (packet_reply) {
-		if ((ret = service_common_unicast_packet(tcb, packet_reply)) < 0)
-			ErrPrint("failed to send reply packet:%d\n", ret);
-		packet_destroy(packet_reply);
-	} else {
-		ErrPrint("failed to create a reply packet\n");
-	}
-}
-
+/*
 static void _handler_post_toast_message(struct tcb *tcb, struct packet *packet, void *data)
 {
 	int ret = 0;
@@ -537,7 +423,8 @@ static void _handler_post_toast_message(struct tcb *tcb, struct packet *packet, 
 	if ((ret = service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE)) < 0)
 		ErrPrint("failed to send a multicast packet:%d\n", ret);
 }
-
+*/
+/*
 static void _handler_package_install(struct tcb *tcb, struct packet *packet, void *data)
 {
 	int ret = NOTIFICATION_ERROR_NONE;
@@ -546,7 +433,7 @@ static void _handler_package_install(struct tcb *tcb, struct packet *packet, voi
 	DbgPrint("_handler_package_install");
 	if (packet_get(packet, "s", &package_name) == 1) {
 		DbgPrint("package_name [%s]\n", package_name);
-		/* TODO : add codes to add a record to setting table */
+		// TODO : add codes to add a record to setting table
 
 		if (ret != NOTIFICATION_ERROR_NONE)
 			ErrPrint("failed to update setting[%d]\n", ret);
@@ -554,10 +441,12 @@ static void _handler_package_install(struct tcb *tcb, struct packet *packet, voi
 		ErrPrint("Failed to get data from the packet");
 	}
 }
+*/
 
 /*!
  * SERVICE PERMISSION CHECK
  */
+/*
 static void _permission_check_common(struct tcb *tcb, struct packet *packet)
 {
 	int ret_p = 0;
@@ -577,7 +466,7 @@ static void _permission_check_refresh(struct tcb *tcb, struct packet *packet)
 {
 	int ret_p = 0;
 	struct packet *packet_reply = NULL;
-
+g_dbus_connection_unregister_object(__gdbus_conn, local_port_id);
 	packet_reply = packet_create_reply(packet, "i", NOTIFICATION_ERROR_PERMISSION_DENIED);
 	if (packet_reply) {
 		if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
@@ -601,7 +490,7 @@ static void _permission_check_property_get(struct tcb *tcb, struct packet *packe
 	} else {
 		ErrPrint("Failed to create a reply packet");
 	}
-}
+}*/
 
 /*!
  * NOTIFICATION SERVICE INITIALIZATION
@@ -639,193 +528,11 @@ static void _notification_data_init(void)
 		notification_free_list(noti_list_head);
 }
 
-static void _notification_init(void)
-{
-	int ret = -1;
-	int restart_count = 0;
-
-	ret = vconf_get_int(VCONFKEY_MASTER_RESTART_COUNT, &restart_count);
-	if (ret == 0 && restart_count <= 1)
-		_notification_data_init();
-}
-
-/*!
- * SERVICE THREAD
- */
-static int service_thread_main(struct tcb *tcb, struct packet *packet, void *data)
-{
-	int i = 0;
-	const char *command;
-
-	static struct noti_service service_req_table[] = {
-		{
-			.cmd = "add_noti",
-			.handler = _handler_check_noti_by_tag,
-			.rule = "data-provider-master::notification.client",
-			.access = "w",
-			.handler_access_error = _permission_check_common,
-		},
-		{
-			.cmd = "update_noti",
-			.handler = _handler_update,
-			.rule = "data-provider-master::notification.client",
-			.access = "w",
-			.handler_access_error = _permission_check_common,
-		},
-		{
-			.cmd = "load_noti_by_tag",
-			.handler = _handler_load_noti_by_tag,
-			.rule = "data-provider-master::notification.client",
-			.access = "r",
-			.handler_access_error = _permission_check_common,
-		},
-		{
-			.cmd = "refresh_noti",
-			.handler = _handler_refresh,
-			.rule = "data-provider-master::notification.client",
-			.access = "w",
-			.handler_access_error = _permission_check_refresh,
-		},
-		{
-			.cmd = "del_noti_single",
-			.handler = _handler_delete_single,
-			.rule = "data-provider-master::notification.client",
-			.access = "w",
-			.handler_access_error = _permission_check_common,
-		},
-		{
-			.cmd = "del_noti_multiple",
-			.handler = _handler_delete_multiple,
-			.rule = "data-provider-master::notification.client",
-			.access = "w",
-			.handler_access_error = _permission_check_common,
-		},
-		{
-			.cmd = "set_noti_property",
-			.handler = _handler_noti_property_set,
-			.rule = "data-provider-master::notification.client",
-			.access = "w",
-			.handler_access_error = _permission_check_common,
-		},
-		{
-			.cmd = "get_noti_property",
-			.handler = _handler_noti_property_get,
-			.rule = "data-provider-master::notification.client",
-			.access = "r",
-			.handler_access_error = _permission_check_property_get,
-		},
-		{
-			.cmd = "update_noti_setting",
-			.handler = _handler_noti_update_setting,
-			.rule = "data-provider-master::notification.client",
-			.access = "w",
-			.handler_access_error = _permission_check_property_get,
-		},
-		{
-			.cmd = "update_noti_sys_setting",
-			.handler = _handler_noti_update_system_setting,
-			.rule = "data-provider-master::notification.client",
-			.access = "w",
-			.handler_access_error = _permission_check_property_get,
-		},
-		{
-			.cmd = "service_register",
-			.handler = _handler_service_register,
-			.rule = NULL,
-			.access = NULL,
-			.handler_access_error = NULL,
-		},
-		{
-			.cmd = "post_toast",
-			.handler = _handler_post_toast_message,
-			.rule = NULL,
-			.access = NULL,
-			.handler_access_error = NULL,
-		},
-		{
-			.cmd = NULL,
-			.handler = NULL,
-			.rule = NULL,
-			.access = NULL,
-			.handler_access_error = NULL,
-		},
-	};
-
-	static struct noti_service service_req_no_ack_table[] = {
-		{
-			.cmd = "package_install",
-			.handler = _handler_package_install,
-			.rule = NULL,
-			.access = NULL,
-			.handler_access_error = NULL,
-		},
-		{
-			.cmd = NULL,
-			.handler = NULL,
-			.rule = NULL,
-			.access = NULL,
-			.handler_access_error = NULL,
-		},
-	};
-
-	if (!packet) {
-		DbgPrint("TCB: %p is terminated\n", tcb);
-		return 0;
-	}
-
-	command = packet_command(packet);
-	if (!command) {
-		ErrPrint("Invalid command\n");
-		return -EINVAL;
-	}
-
-	switch (packet_type(packet)) {
-	case PACKET_REQ:
-		/* Need to send reply packet */
-		DbgPrint("%p REQ: Command: [%s]\n", tcb, command);
-
-		for (i = 0; service_req_table[i].cmd; i++) {
-			if (strcmp(service_req_table[i].cmd, command))
-				continue;
-
-			if (service_check_privilege_by_socket_fd(tcb_svc_ctx(tcb), tcb_fd(tcb), "http://tizen.org/privilege/notification") == 1) {
-				service_req_table[i].handler(tcb, packet, data);
-			} else {
-				if (service_req_table[i].handler_access_error != NULL)
-					service_req_table[i].handler_access_error(tcb, packet);
-			}
-			break;
-		}
-
-		break;
-	case PACKET_REQ_NOACK:
-		DbgPrint("%p PACKET_REQ_NOACK: Command: [%s]\n", tcb, command);
-		for (i = 0; service_req_no_ack_table[i].cmd; i++) {
-			if (strcmp(service_req_no_ack_table[i].cmd, command))
-				continue;
-			service_req_no_ack_table[i].handler(tcb, packet, data);
-			break;
-		}
-		break;
-	case PACKET_ACK:
-		break;
-	default:
-		ErrPrint("Packet type is not valid[%s]\n", command);
-		return -EINVAL;
-	}
-
-	/*!
-	 * return value has no meanning,
-	 * it will be printed by dlogutil.
-	 */
-	return 0;
-}
-
 /*!
  * Managing setting DB
  */
-
-static int _invoke_package_change_event(struct info *notification_service_info, enum pkgmgr_event_type event_type, const char *pkgname)
+/*
+static int _invoke_package_change_event(enum pkgmgr_event_type event_type, const char *pkgname)
 {
 	int ret = 0;
 	struct packet *packet = NULL;
@@ -838,7 +545,6 @@ static int _invoke_package_change_event(struct info *notification_service_info, 
 	} else if (event_type == PKGMGR_EVENT_UNINSTALL) {
 		packet = packet_create_noack("package_uninstall", "s", pkgname);
 	} else {
-		/* Ignore other events */
 		goto out;
 	}
 
@@ -861,27 +567,30 @@ out:
 	DbgPrint("_invoke_package_change_event returns [%d]\n", ret);
 	return ret;
 }
-
+*/
 static int _package_install_cb(const char *pkgname, enum pkgmgr_status status, double value, void *data)
 {
-	struct info *notification_service_info = (struct info *)data;
+
+	notification_setting_insert_package(pkgname);
+	/*struct info *notification_service_info = (struct info *)data;
 
 	if (status != PKGMGR_STATUS_END)
 		return 0;
 
-	_invoke_package_change_event(notification_service_info, PKGMGR_EVENT_INSTALL, pkgname);
+	_invoke_package_change_event(notification_service_info, PKGMGR_EVENT_INSTALL, pkgname);*/
 
 	return 0;
 }
 
 static int _package_uninstall_cb(const char *pkgname, enum pkgmgr_status status, double value, void *data)
 {
-	struct info *notification_service_info = (struct info *)data;
+	notification_setting_delete_package(pkgname);
+	/*struct info *notification_service_info = (struct info *)data;
 
 	if (status != PKGMGR_STATUS_END)
 		return 0;
 
-	_invoke_package_change_event(notification_service_info, PKGMGR_EVENT_UNINSTALL, pkgname);
+	_invoke_package_change_event(notification_service_info, PKGMGR_EVENT_UNINSTALL, pkgname);*/
 
 	return 0;
 }
@@ -892,38 +601,25 @@ static int _package_uninstall_cb(const char *pkgname, enum pkgmgr_status status,
  */
 HAPI int notification_service_init(void)
 {
-	if (s_info.svc_ctx) {
+	/*if (s_info.svc_ctx) {
 		ErrPrint("Already initialized\n");
 		return SERVICE_COMMON_ERROR_ALREADY_STARTED;
-	}
+	}*/
 
-	_notification_init();
-
-	s_info.svc_ctx = service_common_create(NOTIFICATION_SOCKET, NOTIFICATION_SMACK_LABEL, service_thread_main, NULL);
-	if (!s_info.svc_ctx) {
-		ErrPrint("Unable to activate service thread\n");
-		return SERVICE_COMMON_ERROR_FAULT;
-	}
-
+	_notification_data_init();
 	notification_setting_refresh_setting_table();
 
 	pkgmgr_init();
-	pkgmgr_add_event_callback(PKGMGR_EVENT_INSTALL, _package_install_cb, (void *)&s_info);
-	pkgmgr_add_event_callback(PKGMGR_EVENT_UPDATE, _package_install_cb, (void *)&s_info);
-	pkgmgr_add_event_callback(PKGMGR_EVENT_UNINSTALL, _package_uninstall_cb, (void *)&s_info);
+	pkgmgr_add_event_callback(PKGMGR_EVENT_INSTALL, _package_install_cb, NULL);
+	pkgmgr_add_event_callback(PKGMGR_EVENT_UPDATE, _package_install_cb, NULL);
+	pkgmgr_add_event_callback(PKGMGR_EVENT_UNINSTALL, _package_uninstall_cb, NULL);
 	DbgPrint("Successfully initiated\n");
 	return SERVICE_COMMON_ERROR_NONE;
 }
 
 HAPI int notification_service_fini(void)
 {
-	if (!s_info.svc_ctx)
-		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
-
 	pkgmgr_fini();
-
-	service_common_destroy(s_info.svc_ctx);
-	s_info.svc_ctx = NULL;
 	DbgPrint("Successfully Finalized\n");
 	return SERVICE_COMMON_ERROR_NONE;
 }

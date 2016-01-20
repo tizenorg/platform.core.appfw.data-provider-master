@@ -14,7 +14,12 @@
  * limitations under the License.
  */
 
+#include <gio/gio.h>
+
 extern int shortcut_service_init(void);
 extern int shortcut_service_fini(void);
+
+void shortcut_add(GVariant *parameters, GDBusMethodInvocation *invocation);
+void shortcut_add_widget(GVariant *parameters, GDBusMethodInvocation *invocation);
 
 /* End of a file */
