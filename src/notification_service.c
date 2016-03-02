@@ -14,598 +14,909 @@
  * limitations under the License.
  */
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 
-#include <Eina.h>
-
 #include <dlog.h>
-#include <packet.h>
-
 #include <sys/smack.h>
 
 #include <pkgmgr-info.h>
 
-#include <vconf.h>
 #include <notification.h>
+#include <gio/gio.h>
 
 #include "pkgmgr.h"
 #include "service_common.h"
+#include "notification_service.h"
 #include "debug.h"
-#include "util.h"
-#include "conf.h"
+
 
 #include <notification_noti.h>
 #include <notification_internal.h>
 #include <notification_ipc.h>
 #include <notification_setting_service.h>
 
-#ifndef NOTIFICATION_DEL_PACKET_UNIT
-#define NOTIFICATION_DEL_PACKET_UNIT 10
-#endif
+#define PROVIDER_NOTI_INTERFACE_NAME "org.tizen.data_provider_noti_service"
 
-static struct info {
-	Eina_List *context_list;
-	struct service_context *svc_ctx;
-} s_info = {
-	.context_list = NULL, /*!< \WARN: This is only used for SERVICE THREAD */
-	.svc_ctx = NULL, /*!< \WARN: This is only used for MAIN THREAD */
-};
+static GList *_monitoring_list = NULL;
 
-struct context {
-	struct tcb *tcb;
-	double seq;
-};
-
-struct noti_service {
-	const char *cmd;
-	void (*handler)(struct tcb *tcb, struct packet *packet, void *data);
-	const char *rule;
-	const char *access;
-	void (*handler_access_error)(struct tcb *tcb, struct packet *packet);
-};
-
-static inline char *_string_get(char *string)
-{
-	if (string == NULL)
-		return NULL;
-	if (string[0] == '\0')
-		return NULL;
-
-	return string;
-}
-
-/*!
- * FUNCTIONS to create packets
- */
-static inline int _priv_id_get_from_list(int num_data, int *list, int index)
-{
-	if (index < num_data)
-		return *(list + index);
-	else
-		return -1;
-}
-
-static inline struct packet *_packet_create_with_list(int op_num, int *list, int start_index)
-{
-	return packet_create(
-			"del_noti_multiple",
-			"iiiiiiiiiii",
-			((op_num - start_index) > NOTIFICATION_DEL_PACKET_UNIT) ? NOTIFICATION_DEL_PACKET_UNIT : op_num - start_index,
-			_priv_id_get_from_list(op_num, list, start_index),
-			_priv_id_get_from_list(op_num, list, start_index + 1),
-			_priv_id_get_from_list(op_num, list, start_index + 2),
-			_priv_id_get_from_list(op_num, list, start_index + 3),
-			_priv_id_get_from_list(op_num, list, start_index + 4),
-			_priv_id_get_from_list(op_num, list, start_index + 5),
-			_priv_id_get_from_list(op_num, list, start_index + 6),
-			_priv_id_get_from_list(op_num, list, start_index + 7),
-			_priv_id_get_from_list(op_num, list, start_index + 8),
-			_priv_id_get_from_list(op_num, list, start_index + 9)
-			);
-}
+static int _update_noti(GVariant **reply_body, notification_h noti);
 
 /*!
  * SERVICE HANDLER
  */
-static void _handler_insert_noti(struct tcb *tcb, struct packet *packet, notification_h noti, void *data)
-{
-	int ret = 0, ret_p = 0;
-	int priv_id = 0;
-	struct packet *packet_reply = NULL;
-	struct packet *packet_service = NULL;
-
-	ret = notification_noti_insert(noti);
-	notification_get_id(noti, NULL, &priv_id);
-	DbgPrint("priv_id: [%d]\n", priv_id);
-	packet_reply = packet_create_reply(packet, "ii", ret, priv_id);
-	if (packet_reply) {
-		if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-			ErrPrint("failed to send reply packet: %d\n", ret_p);
-		packet_destroy(packet_reply);
-	} else {
-		ErrPrint("failed to create a reply packet\n");
-	}
-
-	if (ret != NOTIFICATION_ERROR_NONE) {
-		ErrPrint("failed to insert a notification: %d\n", ret);
-		return;
-	}
-
-	packet_service = notification_ipc_make_packet_from_noti(noti, "add_noti", 2);
-	if (packet_service != NULL) {
-		if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0)
-			ErrPrint("failed to send a multicast packet: %d\n", ret_p);
-		packet_destroy(packet_service);
-	} else {
-		ErrPrint("failed to create a multicats packet\n");
-	}
-}
-
-/*static void _handler_insert(struct tcb *tcb, struct packet *packet, void *data) // not used
-  {
-  notification_h noti = NULL;
-
-  noti = notification_create(NOTIFICATION_TYPE_NOTI);
-  if (noti != NULL) {
-  if (notification_ipc_make_noti_from_packet(noti, packet) == NOTIFICATION_ERROR_NONE) {
-  _handler_insert_noti(tcb, packet, noti, data);
-  } else {
-  ErrPrint("Failed to create the packet");
-  }
-  notification_free(noti);
-  }
-  }*/
-
-static void _handler_update_noti(struct tcb *tcb, struct packet *packet, notification_h noti, void *data)
-{
-	int ret = 0, ret_p = 0;
-	int priv_id = 0;
-	struct packet *packet_reply = NULL;
-	struct packet *packet_service = NULL;
-
-	ret = notification_noti_update(noti);
-
-	notification_get_id(noti, NULL, &priv_id);
-	DbgPrint("priv_id: [%d]\n", priv_id);
-	packet_reply = packet_create_reply(packet, "ii", ret, priv_id);
-	if (packet_reply) {
-		if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-			ErrPrint("failed to send reply packet:%d\n", ret_p);
-		packet_destroy(packet_reply);
-	} else {
-		ErrPrint("failed to create a reply packet\n");
-	}
-
-	if (ret != NOTIFICATION_ERROR_NONE) {
-		ErrPrint("failed to update a notification:%d\n", ret);
-		return;
-	}
-
-	packet_service = notification_ipc_make_packet_from_noti(noti, "update_noti", 2);
-	if (packet_service != NULL) {
-		if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0)
-			ErrPrint("failed to send a multicast packet: %d\n", ret_p);
-		packet_destroy(packet_service);
-	}
-}
-
-static void _handler_update(struct tcb *tcb, struct packet *packet, void *data)
-{
-	notification_h noti = NULL;
-
-	noti = notification_create(NOTIFICATION_TYPE_NOTI);
-	if (noti != NULL) {
-		if (notification_ipc_make_noti_from_packet(noti, packet) == NOTIFICATION_ERROR_NONE)
-			_handler_update_noti(tcb, packet, noti, data);
-		else
-			ErrPrint("Failed to create the packet");
-		notification_free(noti);
-	}
-}
-
-static void _handler_check_noti_by_tag(struct tcb *tcb, struct packet *packet, void *data)
-{
-	int ret = 0;
-	notification_h noti = NULL;
-
-	noti = notification_create(NOTIFICATION_TYPE_NOTI);
-	if (noti != NULL) {
-		if (notification_ipc_make_noti_from_packet(noti, packet) == NOTIFICATION_ERROR_NONE) {
-			ret = notification_noti_check_tag(noti);
-			if (ret == NOTIFICATION_ERROR_NOT_EXIST_ID)
-				_handler_insert_noti(tcb, packet, noti, data);
-			else if (ret == NOTIFICATION_ERROR_ALREADY_EXIST_ID)
-				_handler_update_noti(tcb, packet, noti, data);
-		}
-		notification_free(noti);
-	}
-}
-
-static void _handler_load_noti_by_tag(struct tcb *tcb, struct packet *packet, void *data)
-{
-	int ret = 0, ret_p = 0;
-	char *tag;
-	char *pkgname;
-	struct packet *packet_reply = NULL;
-	notification_h noti = NULL;
-
-	noti = notification_create(NOTIFICATION_TYPE_NOTI);
-	if (noti != NULL) {
-		if (packet_get(packet, "ss", &pkgname, &tag) == 2) {
-			ret = notification_noti_get_by_tag(noti, pkgname, tag);
-			packet_reply = notification_ipc_make_reply_packet_from_noti(noti, packet);
-			if (packet_reply) {
-				if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-					ErrPrint("failed to send reply packet: %d\n", ret_p);
-				packet_destroy(packet_reply);
-			} else {
-				ErrPrint("failed to create a reply packet\n");
-			}
-
-			if (ret != NOTIFICATION_ERROR_NONE) {
-				ErrPrint("failed to load_noti_by_tag : %d\n", ret);
-				notification_free(noti);
-				return;
-			}
-		} else {
-			ErrPrint("Failed to create the packet");
-		}
-		notification_free(noti);
-	}
-}
-
-
-static void _handler_refresh(struct tcb *tcb, struct packet *packet, void *data)
-{
-	int ret = 0;
-	struct packet *packet_reply = NULL;
-
-	packet_reply = packet_create_reply(packet, "i", ret);
-	if (packet_reply) {
-		if ((ret = service_common_unicast_packet(tcb, packet_reply)) < 0)
-			ErrPrint("failed to send reply packet:%d\n", ret);
-		packet_destroy(packet_reply);
-	} else {
-		ErrPrint("failed to create a reply packet\n");
-	}
-
-	if ((ret = service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE)) < 0)
-		ErrPrint("failed to send a multicast packet:%d\n", ret);
-}
-
-static void _handler_delete_single(struct tcb *tcb, struct packet *packet, void *data)
-{
-	int num_changes = 0;
-	int ret = 0, ret_p = 0;
-	int priv_id = 0;
-	struct packet *packet_reply = NULL;
-	struct packet *packet_service = NULL;
-	char *pkgname = NULL;
-
-	if (packet_get(packet, "si", &pkgname, &priv_id) == 2) {
-		pkgname = _string_get(pkgname);
-
-		ret = notification_noti_delete_by_priv_id_get_changes(pkgname, priv_id, &num_changes);
-
-		DbgPrint("priv_id: [%d] num_delete:%d\n", priv_id, num_changes);
-		packet_reply = packet_create_reply(packet, "ii", ret, priv_id);
-		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			packet_destroy(packet_reply);
-		} else {
-			ErrPrint("failed to create a reply packet\n");
-		}
-
-		if (ret != NOTIFICATION_ERROR_NONE || num_changes <= 0) {
-			ErrPrint("failed to delete a notification:%d %d\n", ret, num_changes);
-			return;
-		}
-
-		packet_service = packet_create("del_noti_single", "ii", 1, priv_id);
-		if (packet_service != NULL) {
-			if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0)
-				ErrPrint("failed to send a multicast packet: %d\n", ret_p);
-			packet_destroy(packet_service);
-		}
-	} else {
-		ErrPrint("Failed to get data from the packet");
-	}
-}
-
-static void _handler_delete_multiple(struct tcb *tcb, struct packet *packet, void *data)
-{
-	int ret = 0, ret_p = 0;
-	struct packet *packet_reply = NULL;
-	struct packet *packet_service = NULL;
-	char *pkgname = NULL;
-	notification_type_e type = 0;
-	int num_deleted = 0;
-	int *list_deleted = NULL;
-
-	if (packet_get(packet, "si", &pkgname, &type) == 2) {
-		pkgname = _string_get(pkgname);
-		DbgPrint("pkgname: [%s] type: [%d]\n", pkgname, type);
-
-		ret = notification_noti_delete_all(type, pkgname, &num_deleted, &list_deleted);
-		DbgPrint("ret: [%d] num_deleted: [%d]\n", ret, num_deleted);
-
-		packet_reply = packet_create_reply(packet, "ii", ret, num_deleted);
-		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			packet_destroy(packet_reply);
-		} else {
-			ErrPrint("failed to create a reply packet\n");
-		}
-
-		if (ret != NOTIFICATION_ERROR_NONE) {
-			ErrPrint("failed to delete notifications:%d\n", ret);
-			if (list_deleted != NULL)
-				DbgFree(list_deleted);
-			return;
-		}
-
-		if (num_deleted > 0) {
-			if (num_deleted <= NOTIFICATION_DEL_PACKET_UNIT) {
-				packet_service = _packet_create_with_list(num_deleted, list_deleted, 0);
-
-				if (packet_service) {
-					if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0)
-						ErrPrint("failed to send a multicast packet: %d\n", ret_p);
-					packet_destroy(packet_service);
-				} else {
-					ErrPrint("failed to create a multicast packet\n");
-				}
-			} else {
-				int set = 0;
-				int set_total = num_deleted / NOTIFICATION_DEL_PACKET_UNIT;
-
-				for (set = 0; set <= set_total; set++) {
-					packet_service = _packet_create_with_list(num_deleted,
-							list_deleted, set * NOTIFICATION_DEL_PACKET_UNIT);
-
-					if (packet_service) {
-						if ((ret_p = service_common_multicast_packet(tcb, packet_service, TCB_CLIENT_TYPE_SERVICE)) < 0)
-							ErrPrint("failed to send a multicast packet:%d\n", ret_p);
-						packet_destroy(packet_service);
-					} else {
-						ErrPrint("failed to create a multicast packet\n");
-					}
-				}
-			}
-		}
-
-		if (list_deleted != NULL) {
-			DbgFree(list_deleted);
-			list_deleted = NULL;
-		}
-	} else {
-		ErrPrint("Failed to get data from the packet");
-	}
-}
-
-static void _handler_noti_property_set(struct tcb *tcb, struct packet *packet, void *data)
-{
-	int ret = 0, ret_p = 0;
-	struct packet *packet_reply = NULL;
-	char *pkgname = NULL;
-	char *property = NULL;
-	char *value = NULL;
-
-	if (packet_get(packet, "sss", &pkgname, &property, &value) == 3) {
-		pkgname = _string_get(pkgname);
-		property = _string_get(property);
-		value = _string_get(value);
-
-		ret = notification_setting_db_set(pkgname, property, value);
-
-		packet_reply = packet_create_reply(packet, "ii", ret, ret);
-		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			packet_destroy(packet_reply);
-		} else {
-			ErrPrint("failed to create a reply packet\n");
-		}
-
-		if (ret != NOTIFICATION_ERROR_NONE)
-			ErrPrint("failed to set noti property:%d\n", ret);
-	} else {
-		ErrPrint("Failed to get data from the packet");
-	}
-}
-
-static void _handler_noti_property_get(struct tcb *tcb, struct packet *packet, void *data)
-{
-	int ret = 0, ret_p = 0;
-	struct packet *packet_reply = NULL;
-	char *pkgname = NULL;
-	char *property = NULL;
-	char *value = NULL;
-
-	if (packet_get(packet, "sss", &pkgname, &property) == 2) {
-		pkgname = _string_get(pkgname);
-		property = _string_get(property);
-
-		ret = notification_setting_db_get(pkgname, property, &value);
-
-		packet_reply = packet_create_reply(packet, "is", ret, value);
-		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			packet_destroy(packet_reply);
-		} else {
-			ErrPrint("failed to create a reply packet\n");
-		}
-
-		if (value != NULL)
-			DbgFree(value);
-	}
-}
-
-static void _handler_noti_update_setting(struct tcb *tcb, struct packet *packet, void *data)
-{
-	int ret = 0, ret_p = 0;
-	struct packet *packet_reply = NULL;
-	char *package_name = NULL;
-	int allow_to_notify = 0;
-	int do_not_disturb_except = 0;
-	int visivility_class = 0;
-
-	if (packet_get(packet, "siii", &package_name, &allow_to_notify, &do_not_disturb_except, &visivility_class) == 4) {
-		package_name = _string_get(package_name);
-		DbgPrint("package_name: [%s] allow_to_notify: [%d] do_not_disturb_except: [%d] visivility_class: [%d]\n", package_name, allow_to_notify, do_not_disturb_except, visivility_class);
-		/* ADD CODES HERE */
-		ret = notification_setting_db_update(package_name, allow_to_notify, do_not_disturb_except, visivility_class);
-
-		packet_reply = packet_create_reply(packet, "ii", ret, ret);
-		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			packet_destroy(packet_reply);
-		} else {
-			ErrPrint("failed to create a reply packet\n");
-		}
-
-		if (ret != NOTIFICATION_ERROR_NONE)
-			ErrPrint("failed to update setting[%d]\n", ret);
-	} else {
-		ErrPrint("Failed to get data from the packet");
-	}
-}
-
-static void _handler_noti_update_system_setting(struct tcb *tcb, struct packet *packet, void *data)
-{
-	int ret = 0, ret_p = 0;
-	struct packet *packet_reply = NULL;
-	int do_not_disturb = 0;
-	int visivility_class = 0;
-
-	if (packet_get(packet, "ii", &do_not_disturb, &visivility_class) == 2) {
-		DbgPrint("do_not_disturb [%d] visivility_class [%d]\n", do_not_disturb, visivility_class);
-		/* ADD CODES HERE */
-		ret = notification_setting_db_update_system_setting(do_not_disturb, visivility_class);
-
-		packet_reply = packet_create_reply(packet, "ii", ret, ret);
-		if (packet_reply) {
-			if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-				ErrPrint("failed to send reply packet:%d\n", ret_p);
-			packet_destroy(packet_reply);
-		} else {
-			ErrPrint("failed to create a reply packet\n");
-		}
-
-		if (ret != NOTIFICATION_ERROR_NONE)
-			ErrPrint("failed to update system setting[%d]\n", ret);
-	} else {
-		ErrPrint("Failed to get data from the packet");
-	}
-}
-
-static void _handler_service_register(struct tcb *tcb, struct packet *packet, void *data)
-{
-	int ret = 0;
-	struct packet *packet_reply;
-
-	ret = tcb_client_type_set(tcb, TCB_CLIENT_TYPE_SERVICE);
-
-	packet_reply = packet_create_reply(packet, "i", ret);
-	if (packet_reply) {
-		if ((ret = service_common_unicast_packet(tcb, packet_reply)) < 0)
-			ErrPrint("failed to send reply packet:%d\n", ret);
-		packet_destroy(packet_reply);
-	} else {
-		ErrPrint("failed to create a reply packet\n");
-	}
-}
-
-static void _handler_post_toast_message(struct tcb *tcb, struct packet *packet, void *data)
-{
-	int ret = 0;
-	struct packet *packet_reply = NULL;
-
-	packet_reply = packet_create_reply(packet, "i", ret);
-	if (packet_reply) {
-		if ((ret = service_common_unicast_packet(tcb, packet_reply)) < 0)
-			ErrPrint("failed to send reply packet:%d\n", ret);
-		packet_destroy(packet_reply);
-	} else {
-		ErrPrint("failed to create a reply packet\n");
-	}
-
-	if ((ret = service_common_multicast_packet(tcb, packet, TCB_CLIENT_TYPE_SERVICE)) < 0)
-		ErrPrint("failed to send a multicast packet:%d\n", ret);
-}
-
-static void _handler_package_install(struct tcb *tcb, struct packet *packet, void *data)
-{
-	int ret = NOTIFICATION_ERROR_NONE;
-	char *package_name = NULL;
-
-	DbgPrint("_handler_package_install");
-	if (packet_get(packet, "s", &package_name) == 1) {
-		DbgPrint("package_name [%s]\n", package_name);
-		/* TODO : add codes to add a record to setting table */
-
-		if (ret != NOTIFICATION_ERROR_NONE)
-			ErrPrint("failed to update setting[%d]\n", ret);
-	} else {
-		ErrPrint("Failed to get data from the packet");
-	}
-}
-
-/*!
- * SERVICE PERMISSION CHECK
- */
-static void _permission_check_common(struct tcb *tcb, struct packet *packet)
-{
-	int ret_p = 0;
-	struct packet *packet_reply = NULL;
-
-	packet_reply = packet_create_reply(packet, "ii", NOTIFICATION_ERROR_PERMISSION_DENIED, 0);
-	if (packet_reply) {
-		if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-			ErrPrint("Failed to send a reply packet:%d", ret_p);
-		packet_destroy(packet_reply);
-	} else {
-		ErrPrint("Failed to create a reply packet");
-	}
-}
-
-static void _permission_check_refresh(struct tcb *tcb, struct packet *packet)
-{
-	int ret_p = 0;
-	struct packet *packet_reply = NULL;
-
-	packet_reply = packet_create_reply(packet, "i", NOTIFICATION_ERROR_PERMISSION_DENIED);
-	if (packet_reply) {
-		if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-			ErrPrint("Failed to send a reply packet:%d", ret_p);
-		packet_destroy(packet_reply);
-	} else {
-		ErrPrint("Failed to create a reply packet");
-	}
-}
-
-static void _permission_check_property_get(struct tcb *tcb, struct packet *packet)
-{
-	int ret_p = 0;
-	struct packet *packet_reply = NULL;
-
-	packet_reply = packet_create_reply(packet, "is", NOTIFICATION_ERROR_PERMISSION_DENIED, NULL);
-	if (packet_reply) {
-		if ((ret_p = service_common_unicast_packet(tcb, packet_reply)) < 0)
-			ErrPrint("Failed to send a reply packet:%d", ret_p);
-		packet_destroy(packet_reply);
-	} else {
-		ErrPrint("Failed to create a reply packet");
-	}
-}
 
 /*!
  * NOTIFICATION SERVICE INITIALIZATION
  */
+	static void _print_noti(notification_h noti) {
+		char *pkgname = NULL;
+		char *text = NULL;
+		char *content = NULL;
+		const char *tag = NULL;
+
+		notification_get_pkgname(noti, &pkgname);
+		notification_get_text(noti, NOTIFICATION_TEXT_TYPE_TITLE, &text);
+		notification_get_text(noti, NOTIFICATION_TEXT_TYPE_CONTENT, &content);
+		notification_get_tag(noti, &tag);
+
+		DbgPrint("client print_noti  pkgname  = %s ", pkgname );
+		DbgPrint("client print_noti  title	= %s ", text );
+		DbgPrint("client print_noti  content  = %s ", content );
+		DbgPrint("client print_noti  tag  = %s ", tag );
+	}
+
+static void _on_name_appeared(GDBusConnection *connection,
+		const gchar     *name,
+		const gchar     *name_owner,
+		gpointer         user_data)
+{
+	DbgPrint("name appeared : %s", name);
+}
+
+static void _on_name_vanished(GDBusConnection *connection,
+		const gchar     *name,
+		gpointer         user_data)
+{
+	DbgPrint("name vanished : %s", name);
+	monitoring_info_s *info = (monitoring_info_s *)user_data;
+
+	if(info) {
+		g_bus_unwatch_name(info->watcher_id);
+
+		if (info->bus_name) {
+			_monitoring_list = g_list_remove(_monitoring_list, info->bus_name);
+			free(info->bus_name);
+		}
+		free(info);
+	}
+}
+
+static void _noti_dbus_method_call_handler(GDBusConnection *conn,
+		const gchar *sender, const gchar *object_path,
+		const gchar *iface_name, const gchar *method_name,
+		GVariant *parameters, GDBusMethodInvocation *invocation,
+		gpointer user_data)
+{
+	/* TODO : sender authority(privilege) check */
+	DbgPrint("notification method_name: %s, sender : %s ", method_name, sender);
+
+	GVariant *reply_body = NULL;
+	int ret = NOTIFICATION_ERROR_INVALID_OPERATION;
+
+	if (g_strcmp0(method_name, "noti_service_register") == 0)
+		ret = service_register(parameters, &reply_body, sender,
+		 _on_name_appeared, _on_name_vanished, &_monitoring_list);
+	else if (g_strcmp0(method_name, "update_noti") == 0)
+		ret = notification_update_noti(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "add_noti") == 0)
+		ret = notification_add_noti(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "refresh_noti") == 0)
+		ret = notification_refresh_noti(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "del_noti_single") == 0)
+		ret = notification_del_noti_single(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "del_noti_multiple") == 0)
+		ret = notification_del_noti_multiple(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "set_noti_property") == 0)
+		ret = notification_set_noti_property(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "get_noti_property") == 0)
+		ret = notification_get_noti_property(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "get_noti_count") == 0)
+		ret = notification_get_noti_count(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "update_noti_setting") == 0)
+		ret = notification_update_noti_setting(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "update_noti_sys_setting") == 0)
+		ret = notification_update_noti_sys_setting(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "load_noti_by_tag") == 0)
+		ret = notification_load_noti_by_tag(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "load_noti_by_priv_id") == 0)
+		ret = notification_load_noti_by_priv_id(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "load_noti_grouping_list") == 0)
+		ret = notification_load_grouping_list(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "load_noti_detail_list") == 0)
+		ret = notification_load_detail_list(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "get_setting_array") == 0)
+		ret = notification_get_setting_array(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "get_setting_by_package_name") == 0)
+		ret = notification_get_setting_by_package_name(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "load_system_setting") == 0)
+		ret = notification_load_system_setting(parameters, &reply_body);
+
+	if (ret == NOTIFICATION_ERROR_NONE) {
+		DbgPrint("notification service success : %d", ret);
+		g_dbus_method_invocation_return_value(
+				invocation, reply_body);
+	} else {
+		DbgPrint("notification service fail : %d", ret);
+		g_dbus_method_invocation_return_error(
+				invocation,
+				NOTIFICATION_ERROR,
+				ret,
+				"notification service error");
+	}
+
+}
+
+static const GDBusInterfaceVTable _noti_interface_vtable = {
+		_noti_dbus_method_call_handler,
+		NULL,
+		NULL
+};
+
+int notification_register_dbus_interface()
+{
+	static gchar introspection_xml[] =
+			"  <node>"
+			"  <interface name='org.tizen.data_provider_noti_service'>"
+			"        <method name='noti_service_register'>"
+			"        </method>"
+
+			"        <method name='add_noti'>"
+			"          <arg type='v' name='noti' direction='in'/>"
+			"          <arg type='i' name='priv_id' direction='out'/>"
+			"        </method>"
+
+			"        <method name='update_noti'>"
+			"          <arg type='v' name='noti' direction='in'/>"
+			"          <arg type='i' name='priv_id' direction='out'/>"
+			"        </method>"
+
+			"        <method name='refresh_noti'>"
+			"        </method>"
+
+			"        <method name='del_noti_single'>"
+			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='i' name='priv_id' direction='in'/>"
+			"          <arg type='i' name='priv_id' direction='out'/>"
+			"        </method>"
+
+			"        <method name='del_noti_multiple'>"
+			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='i' name='priv_id' direction='in'/>"
+			"          <arg type='i' name='priv_id' direction='out'/>"
+			"        </method>"
+
+			"        <method name='load_noti_by_tag'>"
+			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='s' name='tag' direction='in'/>"
+			"          <arg type='v' name='noti' direction='out'/>"
+			"        </method>"
+
+			"        <method name='load_noti_by_priv_id'>"
+			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='i' name='priv_id' direction='in'/>"
+			"          <arg type='v' name='noti' direction='out'/>"
+			"        </method>"
+
+			"        <method name='load_noti_grouping_list'>"
+			"          <arg type='i' name='type' direction='in'/>"
+			"          <arg type='i' name='count' direction='in'/>"
+			"          <arg type='a(v)' name='noti_list' direction='out'/>"
+			"        </method>"
+
+			"        <method name='load_noti_detail_list'>"
+			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='i' name='group_id' direction='in'/>"
+			"          <arg type='i' name='priv_id' direction='in'/>"
+			"          <arg type='i' name='count' direction='in'/>"
+			"          <arg type='a(v)' name='noti_list' direction='out'/>"
+			"        </method>"
+
+			"        <method name='set_noti_property'>"
+			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='s' name='property' direction='in'/>"
+			"          <arg type='s' name='value' direction='in'/>"
+			"        </method>"
+
+			"        <method name='get_noti_property'>"
+			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='s' name='property' direction='in'/>"
+			"          <arg type='s' name='ret_value' direction='out'/>"
+			"        </method>"
+
+			"        <method name='get_noti_count'>"
+			"          <arg type='i' name='type' direction='in'/>"
+			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='i' name='group_id' direction='in'/>"
+			"          <arg type='i' name='priv_id' direction='in'/>"
+			"          <arg type='i' name='ret_count' direction='out'/>"
+			"        </method>"
+
+			"        <method name='update_noti_setting'>"
+			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='i' name='allow_to_notify' direction='in'/>"
+			"          <arg type='i' name='do_not_disturb_except' direction='in'/>"
+			"          <arg type='i' name='visibility_class' direction='in'/>"
+			"        </method>"
+
+			"        <method name='update_noti_sys_setting'>"
+			"          <arg type='i' name='do_not_disturb' direction='in'/>"
+			"          <arg type='i' name='visibility_class' direction='in'/>"
+			"        </method>"
+
+			"        <method name='get_setting_array'>"
+			"          <arg type='i' name='setting_cnt' direction='out'/>"
+			"          <arg type='a(v)' name='setting_arr' direction='out'/>"
+			"        </method>"
+
+			"        <method name='get_setting_by_package_name'>"
+			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='v' name='setting' direction='out'/>"
+			"        </method>"
+
+			"        <method name='load_system_setting'>"
+			"          <arg type='v' name='setting' direction='out'/>"
+			"        </method>"
+
+			"        <method name='post_toast'>"
+			"        </method>"
+			"  </interface>"
+			"  </node>";
+
+	return service_common_register_dbus_interface(introspection_xml, _noti_interface_vtable);
+}
+
+/* add noti */
+static int _add_noti(GVariant **reply_body, notification_h noti)
+{
+	int ret;
+	int priv_id = NOTIFICATION_PRIV_ID_NONE;
+	GVariant *body = NULL;
+
+	print_noti(noti);
+	ret = notification_noti_insert(noti);
+	notification_get_id(noti, NULL, &priv_id);
+	DbgPrint("priv_id: [%d]", priv_id);
+
+	if (ret != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("failed to update a notification:%d\n", ret);
+		return ret;
+	}
+
+	body = notification_ipc_make_gvariant_from_noti(noti);
+	if (body == NULL) {
+		ErrPrint("cannot make gvariant to noti");
+		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+	ret = send_notify(body, "add_noti_notify", _monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
+	g_variant_unref(body);
+
+	if (ret != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("failed to send notify:%d\n", ret);
+		return ret;
+	}
+
+	*reply_body = g_variant_new("(i)", priv_id);
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make reply_body");
+		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+
+	DbgPrint("_insert_noti done !!");
+	return ret;
+}
+
+int notification_add_noti(GVariant *parameters, GVariant **reply_body)
+{
+	int ret;
+	notification_h noti;
+	GVariant *body = NULL;
+
+	noti = notification_create(NOTIFICATION_TYPE_NOTI);
+	if (noti != NULL) {
+		g_variant_get(parameters, "(v)", &body);
+		ret = notification_ipc_make_noti_from_gvariant(noti, body);
+		g_variant_unref(body);
+
+		if (ret == NOTIFICATION_ERROR_NONE) {
+			ret = notification_noti_check_tag(noti);
+			if (ret == NOTIFICATION_ERROR_NOT_EXIST_ID)
+				ret = _add_noti(reply_body, noti);
+			else if (ret == NOTIFICATION_ERROR_ALREADY_EXIST_ID)
+				ret = _update_noti(reply_body, noti);
+		}
+		notification_free(noti);
+
+	} else {
+		ret = NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+
+	DbgPrint("notification_add_noti ret : %d", ret);
+	return ret;
+}
+
+/* update noti */
+static int _update_noti(GVariant **reply_body, notification_h noti)
+{
+	int ret;
+	GVariant *body = NULL;
+	int priv_id = NOTIFICATION_PRIV_ID_NONE;
+
+	print_noti(noti);
+	notification_get_id(noti, NULL, &priv_id);
+	DbgPrint("priv_id: [%d]", priv_id);
+
+	ret = notification_noti_update(noti);
+	if (ret != NOTIFICATION_ERROR_NONE)
+		return ret;
+
+	body = notification_ipc_make_gvariant_from_noti(noti);
+	if (body == NULL) {
+		ErrPrint("cannot make gvariant to noti");
+		return NOTIFICATION_ERROR_IO_ERROR;
+	}
+
+	ret = send_notify(body, "update_noti_notify", _monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
+	g_variant_unref(body);
+
+	if (ret != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("failed to send notify:%d\n", ret);
+		return ret;
+	}
+
+	*reply_body = g_variant_new("(i)", priv_id);
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make reply_body");
+		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+	DbgPrint("_update_noti done !!");
+	return ret;
+}
+
+int notification_update_noti(GVariant *parameters, GVariant **reply_body)
+{
+	notification_h noti;
+	int ret;
+	GVariant *body = NULL;
+
+	noti = notification_create(NOTIFICATION_TYPE_NOTI);
+	if (noti != NULL) {
+		g_variant_get(parameters, "(v)", &body);
+		ret = notification_ipc_make_noti_from_gvariant(noti, body);
+		g_variant_unref(body);
+
+		if (ret == NOTIFICATION_ERROR_NONE)
+			ret = _update_noti(reply_body, noti);
+
+		notification_free(noti);
+	} else {
+		ret = NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+	return ret;
+}
+
+/* load_noti_by_tag */
+int notification_load_noti_by_tag(GVariant *parameters, GVariant **reply_body)
+{
+	int ret;
+	char *tag = NULL;
+	char *pkgname = NULL;
+	notification_h noti;
+
+	noti = notification_create(NOTIFICATION_TYPE_NOTI);
+	if (noti != NULL) {
+		g_variant_get(parameters, "(&s&s)", &pkgname, &tag);
+		DbgPrint("_load_noti_by_tag pkgname : %s, tag : %s ", pkgname, tag);
+		ret = notification_noti_get_by_tag(noti, pkgname, tag);
+
+		DbgPrint("notification_noti_get_by_tag ret : %d", ret);
+		_print_noti(noti);
+
+		*reply_body = notification_ipc_make_gvariant_from_noti(noti);
+		notification_free(noti);
+
+		if (*reply_body == NULL) {
+			ErrPrint("cannot make reply_body");
+			return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+		}
+	} else {
+		ret = NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+	DbgPrint("_load_noti_by_tag done !!");
+	return ret;
+}
+
+/* load_noti_by_priv_id */
+int notification_load_noti_by_priv_id(GVariant *parameters, GVariant **reply_body)
+{
+	int ret;
+	int priv_id = NOTIFICATION_PRIV_ID_NONE;
+	char *pkgname = NULL;
+	notification_h noti;
+
+	noti = notification_create(NOTIFICATION_TYPE_NOTI);
+	if (noti != NULL) {
+		g_variant_get(parameters, "(&si)", &pkgname, &priv_id);
+		DbgPrint("load_noti_by_priv_id pkgname : %s, priv_id : %d ", pkgname, priv_id);
+		ret = notification_noti_get_by_priv_id(noti, pkgname, priv_id);
+
+		DbgPrint("notification_noti_get_by_priv_id ret : %d", ret);
+		print_noti(noti);
+
+		*reply_body = notification_ipc_make_gvariant_from_noti(noti);
+		notification_free(noti);
+
+		if (*reply_body == NULL) {
+			ErrPrint("cannot make reply_body");
+			return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+		}
+	} else {
+		ret = NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+
+	DbgPrint("_load_noti_by_priv_id done !!");
+	return ret;
+}
+
+/* load_noti_grouping_list */
+int notification_load_grouping_list(GVariant *parameters, GVariant **reply_body)
+{
+	int ret;
+	notification_h noti;
+	GVariant *body = NULL;
+	notification_type_e type = NOTIFICATION_TYPE_NONE;
+	notification_list_h get_list = NULL;
+	notification_list_h list_iter;
+	GVariantBuilder *builder;
+	int count = 0;
+
+	g_variant_get(parameters, "(ii)", &type, &count);
+	DbgPrint("load grouping list type : %d, count : %d ", type, count);
+
+	ret = notification_noti_get_grouping_list(type, count, &get_list);
+	if (ret != NOTIFICATION_ERROR_NONE)
+		return ret;
+
+	builder = g_variant_builder_new(G_VARIANT_TYPE("a(v)"));
+	if (get_list) {
+
+		list_iter = notification_list_get_head(get_list);
+		do {
+			noti = notification_list_get_data(list_iter);
+			body = notification_ipc_make_gvariant_from_noti(noti);
+			g_variant_builder_add(builder, "(v)", body);
+
+			list_iter = notification_list_get_next(list_iter);
+		} while (list_iter != NULL);
+
+		notification_free_list(get_list);
+	}
+
+	*reply_body = g_variant_new("(a(v))", builder);
+	g_variant_builder_unref(builder);
+
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make reply_body");
+		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+
+	DbgPrint("load grouping list done !!");
+	return ret;
+}
+
+/* get_setting_array */
+int notification_get_setting_array(GVariant *parameters, GVariant **reply_body)
+{
+	int ret;
+	GVariant *body;
+	GVariantBuilder *builder;
+	int count = 0;
+	int i;
+	notification_setting_h setting_array = NULL;
+	notification_setting_h temp;
+
+	ret = noti_setting_get_setting_array(&setting_array, &count);
+	if (ret != NOTIFICATION_ERROR_NONE)
+		return ret;
+
+	DbgPrint("get setting array : %d", count);
+	builder = g_variant_builder_new(G_VARIANT_TYPE("a(v)"));
+
+	if (setting_array) {
+		for (i = 0; i < count; i++) {
+			temp = setting_array + i;
+			body = notification_ipc_make_gvariant_from_setting(temp);
+			g_variant_builder_add(builder, "(v)", body);
+
+			if(temp->package_name)
+				free(temp->package_name);
+		}
+		free(setting_array);
+	}
+	*reply_body = g_variant_new("(ia(v))", count, builder);
+	g_variant_builder_unref(builder);
+
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make reply_body");
+		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+	return ret;
+}
+
+/* get_setting_array */
+int notification_get_setting_by_package_name(GVariant *parameters, GVariant **reply_body)
+{
+	int ret;
+	GVariant *body;
+	char *pkgname = NULL;
+	notification_setting_h setting = NULL;
+
+	g_variant_get(parameters, "(&s)", &pkgname);
+	DbgPrint("get setting by pkgname : %s", pkgname);
+
+	ret = noti_setting_service_get_setting_by_package_name(pkgname, &setting);
+	if (ret == NOTIFICATION_ERROR_NONE) {
+		body = notification_ipc_make_gvariant_from_setting(setting);
+		notification_setting_free_notification(setting);
+
+		if (body == NULL) {
+			ErrPrint("fail to make gvariant");
+			return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+		}
+	} else {
+		return ret;
+	}
+
+	*reply_body = g_variant_new("(v)", body);
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make reply_body");
+		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+	return ret;
+}
+
+/* load_system_setting */
+int notification_load_system_setting(GVariant *parameters, GVariant **reply_body)
+{
+	int ret;
+	GVariant *body;
+	notification_system_setting_h setting = NULL;
+
+	ret = noti_system_setting_load_system_setting(&setting);
+	if (ret == NOTIFICATION_ERROR_NONE) {
+		body = notification_ipc_make_gvariant_from_system_setting(setting);
+		notification_system_setting_free_system_setting(setting);
+
+		if (body == NULL) {
+			ErrPrint("fail to make gvariant");
+			return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+		}
+	} else {
+		return ret;
+	}
+	*reply_body = g_variant_new("(v)", body);
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make reply_body");
+		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+	DbgPrint("load system setting done !!");
+
+	return ret;
+}
+
+/* load_noti_detail_list */
+int notification_load_detail_list(GVariant *parameters, GVariant **reply_body)
+{
+	int ret;
+	notification_h noti;
+	GVariant *body = NULL;
+	notification_list_h get_list = NULL;
+	notification_list_h list_iter;
+	GVariantBuilder *builder;
+	char *pkgname = NULL;
+	int group_id = NOTIFICATION_GROUP_ID_NONE;
+	int priv_id = NOTIFICATION_PRIV_ID_NONE;
+	int count = 0;
+
+	g_variant_get(parameters, "(&siii)", &pkgname, &group_id, &priv_id, &count);
+	DbgPrint("load detail list pkgname : %s, group_id : %d, priv_id : %d, count : %d ",
+			pkgname, group_id, priv_id, count);
+
+	ret = notification_noti_get_detail_list(pkgname, group_id, priv_id,
+			count, &get_list);
+	if (ret != NOTIFICATION_ERROR_NONE)
+		return ret;
+
+	builder = g_variant_builder_new(G_VARIANT_TYPE("a(v)"));
+
+	if (get_list) {
+		list_iter = notification_list_get_head(get_list);
+		do {
+			noti = notification_list_get_data(list_iter);
+			body = notification_ipc_make_gvariant_from_noti(noti);
+			if (body) {
+				g_variant_builder_add(builder, "(v)", body);
+				list_iter = notification_list_get_next(list_iter);
+			}
+		} while (list_iter != NULL);
+		notification_free_list(get_list);
+	}
+
+	*reply_body = g_variant_new("(a(v))", builder);
+	g_variant_builder_unref(builder);
+
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make reply_body");
+		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+
+	DbgPrint("load detail list done !!");
+	return ret;
+}
+
+/* refresh_noti */
+int notification_refresh_noti(GVariant *parameters, GVariant **reply_body)
+{
+	int ret;
+	ret = send_notify(parameters, "refresh_noti_notify", _monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
+	if (ret != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("failed to send notify:%d\n", ret);
+		return ret;
+	}
+
+	*reply_body = g_variant_new("()");
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make reply_body");
+		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+
+	DbgPrint("_refresh_noti_service done !!");
+	return ret;
+}
+
+/* del_noti_single */
+int notification_del_noti_single(GVariant *parameters, GVariant **reply_body)
+{
+	int ret;
+	int num_changes = 0;
+	int priv_id = NOTIFICATION_PRIV_ID_NONE;
+	char *pkgname = NULL;
+	GVariant *body = NULL;
+
+	g_variant_get(parameters, "(&si)", &pkgname, &priv_id);
+	ret = notification_noti_delete_by_priv_id_get_changes(pkgname, priv_id, &num_changes);
+	DbgPrint("priv_id: [%d] num_delete:%d\n", priv_id, num_changes);
+
+	if (ret != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("failed to delete a notification:%d %d\n", ret, num_changes);
+		return ret;
+	}
+
+	if (num_changes > 0) {
+		body = g_variant_new("(ii)", 1, priv_id);
+		if (body == NULL) {
+			ErrPrint("cannot make gvariant to noti");
+			return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+		}
+		ret = send_notify(body, "delete_single_notify", _monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
+		g_variant_unref(body);
+		if (ret != NOTIFICATION_ERROR_NONE) {
+			ErrPrint("failed to send notify:%d\n", ret);
+			return ret;
+		}
+	}
+
+	*reply_body = g_variant_new("(i)", priv_id);
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make reply_body");
+		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+	DbgPrint("_del_noti_single done !!");
+	return ret;
+}
+
+/* del_noti_multiple */
+int notification_del_noti_multiple(GVariant *parameters, GVariant **reply_body)
+{
+	int ret;
+	char *pkgname = NULL;
+	notification_type_e type = NOTIFICATION_TYPE_NONE;
+	int num_deleted = 0;
+	int *list_deleted = NULL;
+	GVariant *deleted_noti_list;
+	GVariantBuilder * builder;
+	int i;
+
+	g_variant_get(parameters, "(&si)", &pkgname, &type);
+	DbgPrint("pkgname: [%s] type: [%d]\n", pkgname, type);
+
+	ret = notification_noti_delete_all(type, pkgname, &num_deleted, &list_deleted);
+	DbgPrint("ret: [%d] num_deleted: [%d]\n", ret, num_deleted);
+
+	if (ret != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("failed to delete notifications:%d\n", ret);
+		if (list_deleted != NULL)
+			free(list_deleted);
+		return ret;
+	}
+
+	if (num_deleted > 0) {
+		builder = g_variant_builder_new(G_VARIANT_TYPE("a(i)"));
+
+		for (i = 0; i < num_deleted; i++) {
+			g_variant_builder_add(builder, "(i)", *(list_deleted + i));
+		}
+		deleted_noti_list = g_variant_new("(a(i))", builder);
+		ret = send_notify(deleted_noti_list, "delete_multiple_notify", _monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
+
+		g_variant_builder_unref(builder);
+		g_variant_unref(deleted_noti_list);
+		free(list_deleted);
+
+		if (ret != NOTIFICATION_ERROR_NONE) {
+			ErrPrint("failed to send notify:%d\n", ret);
+			return ret;
+		}
+	}
+
+	*reply_body = g_variant_new("(i)", num_deleted);
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make reply_body");
+		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+	DbgPrint("_del_noti_multiple done !!");
+	return ret;
+}
+
+/* set_noti_property */
+int notification_set_noti_property(GVariant *parameters, GVariant **reply_body)
+{
+	int ret;
+	char *pkgname = NULL;
+	char *property = NULL;
+	char *value = NULL;
+
+	g_variant_get(parameters, "(&s&s&s)", &pkgname, &property, &value);
+
+	ret = notification_setting_db_set(pkgname, property, value);
+	if (ret != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("failed to setting db set : %d\n", ret);
+		return ret;
+	}
+	*reply_body = g_variant_new("()");
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make reply_body");
+		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+
+	DbgPrint("_set_noti_property_service done !! %d", ret);
+	return ret;
+}
+
+/* get_noti_property */
+int notification_get_noti_property(GVariant *parameters, GVariant **reply_body)
+{
+	int ret;
+	char *pkgname = NULL;
+	char *property = NULL;
+	char *value = NULL;
+
+	g_variant_get(parameters, "(&s&s)", &pkgname, &property);
+
+	ret = notification_setting_db_get(pkgname, property, &value);
+	if (ret != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("failed to setting db get : %d\n", ret);
+		return ret;
+	}
+	*reply_body = g_variant_new("(s)", value);
+	free(value);
+
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make reply_body");
+		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+
+	DbgPrint("_get_noti_property_service done !! %d", ret);
+	return ret;
+}
+
+/* get_noti_count */
+int notification_get_noti_count(GVariant *parameters, GVariant **reply_body)
+{
+	int ret;
+	notification_type_e type = NOTIFICATION_TYPE_NONE;
+	char *pkgname = NULL;
+	int group_id = NOTIFICATION_GROUP_ID_NONE;
+	int priv_id = NOTIFICATION_PRIV_ID_NONE;
+	int noti_count = 0;
+
+	g_variant_get(parameters, "(i&sii)", &type, &pkgname, &group_id, &priv_id);
+
+	ret = notification_noti_get_count(type, pkgname, group_id, priv_id,
+			&noti_count);
+	if (ret != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("failed to get count : %d\n", ret);
+		return ret;
+	}
+
+	*reply_body = g_variant_new("(i)", noti_count);
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make reply_body");
+		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+	DbgPrint("_get_noti_property_service done !! %d", ret);
+	return ret;
+}
+
+/* update_noti_setting */
+int notification_update_noti_setting(GVariant *parameters, GVariant **reply_body)
+{
+	int ret;
+	char *pkgname = NULL;
+	int allow_to_notify = 0;
+	int do_not_disturb_except = 0;
+	int visivility_class = 0;
+
+	g_variant_get(parameters, "(&siii)",
+			&pkgname,
+			&allow_to_notify,
+			&do_not_disturb_except,
+			&visivility_class);
+
+	DbgPrint("package_name: [%s] allow_to_notify: [%d] do_not_disturb_except: [%d] visivility_class: [%d]\n",
+			pkgname, allow_to_notify, do_not_disturb_except, visivility_class);
+	ret = notification_setting_db_update(pkgname, allow_to_notify, do_not_disturb_except, visivility_class);
+	if (ret != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("failed to setting db update : %d\n", ret);
+		return ret;
+	}
+
+	*reply_body = g_variant_new("()");
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make reply_body");
+		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+	DbgPrint("_update_noti_setting_service done !! %d", ret);
+	return ret;
+}
+
+/* update_noti_sys_setting */
+int notification_update_noti_sys_setting(GVariant *parameters, GVariant **reply_body)
+{
+	int ret;
+	int do_not_disturb = 0;
+	int visivility_class = 0;
+
+	g_variant_get(parameters, "(ii)",
+			&do_not_disturb,
+			&visivility_class);
+
+	DbgPrint("do_not_disturb [%d] visivility_class [%d]\n", do_not_disturb, visivility_class);
+	ret = notification_setting_db_update_system_setting(do_not_disturb, visivility_class);
+	if (ret != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("failed to setting db update system setting : %d\n", ret);
+		return ret;
+	}
+
+	*reply_body = g_variant_new("()");
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make reply_body");
+		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+	DbgPrint("_update_noti_sys_setting_service done !! %d", ret);
+	return ret;
+}
+
 static void _notification_data_init(void)
 {
 	int property = 0;
@@ -616,7 +927,7 @@ static void _notification_data_init(void)
 	notification_list_h noti_list_head = NULL;
 	notification_type_e noti_type = NOTIFICATION_TYPE_NONE;
 
-	notification_get_list(NOTIFICATION_TYPE_NONE, -1, &noti_list);
+	notification_noti_get_grouping_list(NOTIFICATION_TYPE_NONE, -1, &noti_list);
 	noti_list_head = noti_list;
 
 	while (noti_list != NULL) {
@@ -639,250 +950,15 @@ static void _notification_data_init(void)
 		notification_free_list(noti_list_head);
 }
 
-static void _notification_init(void)
-{
-	int ret = -1;
-	int restart_count = 0;
-
-	ret = vconf_get_int(VCONFKEY_MASTER_RESTART_COUNT, &restart_count);
-	if (ret == 0 && restart_count <= 1)
-		_notification_data_init();
-}
-
-/*!
- * SERVICE THREAD
- */
-static int service_thread_main(struct tcb *tcb, struct packet *packet, void *data)
-{
-	int i = 0;
-	const char *command;
-
-	static struct noti_service service_req_table[] = {
-		{
-			.cmd = "add_noti",
-			.handler = _handler_check_noti_by_tag,
-			.rule = "data-provider-master::notification.client",
-			.access = "w",
-			.handler_access_error = _permission_check_common,
-		},
-		{
-			.cmd = "update_noti",
-			.handler = _handler_update,
-			.rule = "data-provider-master::notification.client",
-			.access = "w",
-			.handler_access_error = _permission_check_common,
-		},
-		{
-			.cmd = "load_noti_by_tag",
-			.handler = _handler_load_noti_by_tag,
-			.rule = "data-provider-master::notification.client",
-			.access = "r",
-			.handler_access_error = _permission_check_common,
-		},
-		{
-			.cmd = "refresh_noti",
-			.handler = _handler_refresh,
-			.rule = "data-provider-master::notification.client",
-			.access = "w",
-			.handler_access_error = _permission_check_refresh,
-		},
-		{
-			.cmd = "del_noti_single",
-			.handler = _handler_delete_single,
-			.rule = "data-provider-master::notification.client",
-			.access = "w",
-			.handler_access_error = _permission_check_common,
-		},
-		{
-			.cmd = "del_noti_multiple",
-			.handler = _handler_delete_multiple,
-			.rule = "data-provider-master::notification.client",
-			.access = "w",
-			.handler_access_error = _permission_check_common,
-		},
-		{
-			.cmd = "set_noti_property",
-			.handler = _handler_noti_property_set,
-			.rule = "data-provider-master::notification.client",
-			.access = "w",
-			.handler_access_error = _permission_check_common,
-		},
-		{
-			.cmd = "get_noti_property",
-			.handler = _handler_noti_property_get,
-			.rule = "data-provider-master::notification.client",
-			.access = "r",
-			.handler_access_error = _permission_check_property_get,
-		},
-		{
-			.cmd = "update_noti_setting",
-			.handler = _handler_noti_update_setting,
-			.rule = "data-provider-master::notification.client",
-			.access = "w",
-			.handler_access_error = _permission_check_property_get,
-		},
-		{
-			.cmd = "update_noti_sys_setting",
-			.handler = _handler_noti_update_system_setting,
-			.rule = "data-provider-master::notification.client",
-			.access = "w",
-			.handler_access_error = _permission_check_property_get,
-		},
-		{
-			.cmd = "service_register",
-			.handler = _handler_service_register,
-			.rule = NULL,
-			.access = NULL,
-			.handler_access_error = NULL,
-		},
-		{
-			.cmd = "post_toast",
-			.handler = _handler_post_toast_message,
-			.rule = NULL,
-			.access = NULL,
-			.handler_access_error = NULL,
-		},
-		{
-			.cmd = NULL,
-			.handler = NULL,
-			.rule = NULL,
-			.access = NULL,
-			.handler_access_error = NULL,
-		},
-	};
-
-	static struct noti_service service_req_no_ack_table[] = {
-		{
-			.cmd = "package_install",
-			.handler = _handler_package_install,
-			.rule = NULL,
-			.access = NULL,
-			.handler_access_error = NULL,
-		},
-		{
-			.cmd = NULL,
-			.handler = NULL,
-			.rule = NULL,
-			.access = NULL,
-			.handler_access_error = NULL,
-		},
-	};
-
-	if (!packet) {
-		DbgPrint("TCB: %p is terminated\n", tcb);
-		return 0;
-	}
-
-	command = packet_command(packet);
-	if (!command) {
-		ErrPrint("Invalid command\n");
-		return -EINVAL;
-	}
-
-	switch (packet_type(packet)) {
-	case PACKET_REQ:
-		/* Need to send reply packet */
-		DbgPrint("%p REQ: Command: [%s]\n", tcb, command);
-
-		for (i = 0; service_req_table[i].cmd; i++) {
-			if (strcmp(service_req_table[i].cmd, command))
-				continue;
-
-			if (service_check_privilege_by_socket_fd(tcb_svc_ctx(tcb), tcb_fd(tcb), "http://tizen.org/privilege/notification") == 1) {
-				service_req_table[i].handler(tcb, packet, data);
-			} else {
-				if (service_req_table[i].handler_access_error != NULL)
-					service_req_table[i].handler_access_error(tcb, packet);
-			}
-			break;
-		}
-
-		break;
-	case PACKET_REQ_NOACK:
-		DbgPrint("%p PACKET_REQ_NOACK: Command: [%s]\n", tcb, command);
-		for (i = 0; service_req_no_ack_table[i].cmd; i++) {
-			if (strcmp(service_req_no_ack_table[i].cmd, command))
-				continue;
-			service_req_no_ack_table[i].handler(tcb, packet, data);
-			break;
-		}
-		break;
-	case PACKET_ACK:
-		break;
-	default:
-		ErrPrint("Packet type is not valid[%s]\n", command);
-		return -EINVAL;
-	}
-
-	/*!
-	 * return value has no meanning,
-	 * it will be printed by dlogutil.
-	 */
-	return 0;
-}
-
-/*!
- * Managing setting DB
- */
-
-static int _invoke_package_change_event(struct info *notification_service_info, enum pkgmgr_event_type event_type, const char *pkgname)
-{
-	int ret = 0;
-	struct packet *packet = NULL;
-	struct service_context *svc_ctx = notification_service_info->svc_ctx;
-
-	DbgPrint("pkgname[%s], event_type[%d]\n", pkgname, event_type);
-
-	if (event_type == PKGMGR_EVENT_INSTALL) {
-		packet = packet_create_noack("package_install", "s", pkgname);
-	} else if (event_type == PKGMGR_EVENT_UNINSTALL) {
-		packet = packet_create_noack("package_uninstall", "s", pkgname);
-	} else {
-		/* Ignore other events */
-		goto out;
-	}
-
-	if (packet == NULL) {
-		ErrPrint("packet_create_noack failed\n");
-		ret = -1;
-		goto out;
-	}
-
-	if ((ret = service_common_send_packet_to_service(svc_ctx, NULL, packet)) != 0) {
-		ErrPrint("service_common_send_packet_to_service failed[%d]\n", ret);
-		ret = -1;
-		goto out;
-	}
-
-out:
-	if (ret != 0 && packet)
-		packet_destroy(packet);
-
-	DbgPrint("_invoke_package_change_event returns [%d]\n", ret);
-	return ret;
-}
-
 static int _package_install_cb(const char *pkgname, enum pkgmgr_status status, double value, void *data)
 {
-	struct info *notification_service_info = (struct info *)data;
-
-	if (status != PKGMGR_STATUS_END)
-		return 0;
-
-	_invoke_package_change_event(notification_service_info, PKGMGR_EVENT_INSTALL, pkgname);
-
+	notification_setting_insert_package(pkgname);
 	return 0;
 }
 
 static int _package_uninstall_cb(const char *pkgname, enum pkgmgr_status status, double value, void *data)
 {
-	struct info *notification_service_info = (struct info *)data;
-
-	if (status != PKGMGR_STATUS_END)
-		return 0;
-
-	_invoke_package_change_event(notification_service_info, PKGMGR_EVENT_UNINSTALL, pkgname);
-
+	notification_setting_delete_package(pkgname);
 	return 0;
 }
 
@@ -892,38 +968,28 @@ static int _package_uninstall_cb(const char *pkgname, enum pkgmgr_status status,
  */
 HAPI int notification_service_init(void)
 {
-	if (s_info.svc_ctx) {
-		ErrPrint("Already initialized\n");
-		return SERVICE_COMMON_ERROR_ALREADY_STARTED;
-	}
+	int result;
+	result = notification_register_dbus_interface();
 
-	_notification_init();
-
-	s_info.svc_ctx = service_common_create(NOTIFICATION_SOCKET, NOTIFICATION_SMACK_LABEL, service_thread_main, NULL);
-	if (!s_info.svc_ctx) {
-		ErrPrint("Unable to activate service thread\n");
-		return SERVICE_COMMON_ERROR_FAULT;
+	if(result != SERVICE_COMMON_ERROR_NONE) {
+		ErrPrint("notification register dbus fail %d", result);
+		return result;
 	}
+	_notification_data_init();
 
 	notification_setting_refresh_setting_table();
 
 	pkgmgr_init();
-	pkgmgr_add_event_callback(PKGMGR_EVENT_INSTALL, _package_install_cb, (void *)&s_info);
-	pkgmgr_add_event_callback(PKGMGR_EVENT_UPDATE, _package_install_cb, (void *)&s_info);
-	pkgmgr_add_event_callback(PKGMGR_EVENT_UNINSTALL, _package_uninstall_cb, (void *)&s_info);
+	pkgmgr_add_event_callback(PKGMGR_EVENT_INSTALL, _package_install_cb, NULL);
+	pkgmgr_add_event_callback(PKGMGR_EVENT_UPDATE, _package_install_cb, NULL);
+	pkgmgr_add_event_callback(PKGMGR_EVENT_UNINSTALL, _package_uninstall_cb, NULL);
 	DbgPrint("Successfully initiated\n");
 	return SERVICE_COMMON_ERROR_NONE;
 }
 
 HAPI int notification_service_fini(void)
 {
-	if (!s_info.svc_ctx)
-		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
-
 	pkgmgr_fini();
-
-	service_common_destroy(s_info.svc_ctx);
-	s_info.svc_ctx = NULL;
 	DbgPrint("Successfully Finalized\n");
 	return SERVICE_COMMON_ERROR_NONE;
 }
