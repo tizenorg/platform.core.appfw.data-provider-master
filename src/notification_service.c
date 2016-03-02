@@ -117,10 +117,6 @@ static void _noti_dbus_method_call_handler(GDBusConnection *conn,
 		ret = notification_del_noti_single(parameters, &reply_body);
 	else if (g_strcmp0(method_name, "del_noti_multiple") == 0)
 		ret = notification_del_noti_multiple(parameters, &reply_body);
-	else if (g_strcmp0(method_name, "set_noti_property") == 0)
-		ret = notification_set_noti_property(parameters, &reply_body);
-	else if (g_strcmp0(method_name, "get_noti_property") == 0)
-		ret = notification_get_noti_property(parameters, &reply_body);
 	else if (g_strcmp0(method_name, "get_noti_count") == 0)
 		ret = notification_get_noti_count(parameters, &reply_body);
 	else if (g_strcmp0(method_name, "update_noti_setting") == 0)
@@ -220,18 +216,6 @@ int notification_register_dbus_interface()
 			"          <arg type='i' name='priv_id' direction='in'/>"
 			"          <arg type='i' name='count' direction='in'/>"
 			"          <arg type='a(v)' name='noti_list' direction='out'/>"
-			"        </method>"
-
-			"        <method name='set_noti_property'>"
-			"          <arg type='s' name='pkgname' direction='in'/>"
-			"          <arg type='s' name='property' direction='in'/>"
-			"          <arg type='s' name='value' direction='in'/>"
-			"        </method>"
-
-			"        <method name='get_noti_property'>"
-			"          <arg type='s' name='pkgname' direction='in'/>"
-			"          <arg type='s' name='property' direction='in'/>"
-			"          <arg type='s' name='ret_value' direction='out'/>"
 			"        </method>"
 
 			"        <method name='get_noti_count'>"
@@ -775,58 +759,6 @@ int notification_del_noti_multiple(GVariant *parameters, GVariant **reply_body)
 		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
 	}
 	DbgPrint("_del_noti_multiple done !!");
-	return ret;
-}
-
-/* set_noti_property */
-int notification_set_noti_property(GVariant *parameters, GVariant **reply_body)
-{
-	int ret;
-	char *pkgname = NULL;
-	char *property = NULL;
-	char *value = NULL;
-
-	g_variant_get(parameters, "(&s&s&s)", &pkgname, &property, &value);
-
-	ret = notification_setting_db_set(pkgname, property, value);
-	if (ret != NOTIFICATION_ERROR_NONE) {
-		ErrPrint("failed to setting db set : %d\n", ret);
-		return ret;
-	}
-	*reply_body = g_variant_new("()");
-	if (*reply_body == NULL) {
-		ErrPrint("cannot make reply_body");
-		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
-	}
-
-	DbgPrint("_set_noti_property_service done !! %d", ret);
-	return ret;
-}
-
-/* get_noti_property */
-int notification_get_noti_property(GVariant *parameters, GVariant **reply_body)
-{
-	int ret;
-	char *pkgname = NULL;
-	char *property = NULL;
-	char *value = NULL;
-
-	g_variant_get(parameters, "(&s&s)", &pkgname, &property);
-
-	ret = notification_setting_db_get(pkgname, property, &value);
-	if (ret != NOTIFICATION_ERROR_NONE) {
-		ErrPrint("failed to setting db get : %d\n", ret);
-		return ret;
-	}
-	*reply_body = g_variant_new("(s)", value);
-	free(value);
-
-	if (*reply_body == NULL) {
-		ErrPrint("cannot make reply_body");
-		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
-	}
-
-	DbgPrint("_get_noti_property_service done !! %d", ret);
 	return ret;
 }
 
