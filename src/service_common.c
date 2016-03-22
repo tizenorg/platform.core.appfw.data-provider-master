@@ -67,13 +67,16 @@ int send_notify(GVariant *body, char *cmd, GList *monitoring_app_list, char *int
 		err = NULL;
 		target_bus_name = target_list->data;
 
+		if (g_variant_is_floating(body))
+			g_variant_ref(body);
+
 		DbgPrint("emit signal to : %s", target_bus_name);
 		if (g_dbus_connection_emit_signal(_gdbus_conn,
 					target_bus_name,
 					PROVIDER_OBJECT_PATH,
 					interface_name,
 					cmd,
-					g_variant_ref(body),
+					body,
 					&err) == FALSE) {
 
 			ErrPrint("g_dbus_connection_emit_signal() is failed");
