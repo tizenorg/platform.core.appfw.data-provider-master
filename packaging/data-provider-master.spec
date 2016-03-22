@@ -5,7 +5,7 @@ Summary: Master service provider for badge, shortcut, notification
 Version: 1.3.0
 Release: 1
 Group: Applications/Core Applications
-License: Flora-1.1
+License: Apache-2.0
 Source0: %{name}-%{version}.tar.gz
 Source1: data-provider-master.service
 Source1001: %{name}.manifest
