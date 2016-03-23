@@ -49,22 +49,6 @@ static int _update_noti(GVariant **reply_body, notification_h noti);
 /*!
  * NOTIFICATION SERVICE INITIALIZATION
  */
-	static void _print_noti(notification_h noti) {
-		char *pkgname = NULL;
-		char *text = NULL;
-		char *content = NULL;
-		const char *tag = NULL;
-
-		notification_get_pkgname(noti, &pkgname);
-		notification_get_text(noti, NOTIFICATION_TEXT_TYPE_TITLE, &text);
-		notification_get_text(noti, NOTIFICATION_TEXT_TYPE_CONTENT, &content);
-		notification_get_tag(noti, &tag);
-
-		DbgPrint("client print_noti  pkgname  = %s ", pkgname );
-		DbgPrint("client print_noti  title	= %s ", text );
-		DbgPrint("client print_noti  content  = %s ", content );
-		DbgPrint("client print_noti  tag  = %s ", tag );
-	}
 
 static void _on_name_appeared(GDBusConnection *connection,
 		const gchar     *name,
@@ -404,7 +388,7 @@ int notification_load_noti_by_tag(GVariant *parameters, GVariant **reply_body)
 		ret = notification_noti_get_by_tag(noti, pkgname, tag);
 
 		DbgPrint("notification_noti_get_by_tag ret : %d", ret);
-		_print_noti(noti);
+		print_noti(noti);
 
 		*reply_body = notification_ipc_make_gvariant_from_noti(noti);
 		notification_free(noti);

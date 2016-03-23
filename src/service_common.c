@@ -53,7 +53,7 @@ void print_noti(notification_h noti) {
 	DbgPrint("provider print_noti  title  = %s ", text );
 	DbgPrint("provider print_noti  content  = %s ", content );
 	DbgPrint("provider print_noti  tag  = %s ", tag );
-	DbgPrint("provider print_noti  vibration_path  = %s ", vibration_path);
+	DbgPrint("provider print_noti  vibration_path  = %s %d", vibration_path, type);
 }
 
 int send_notify(GVariant *body, char *cmd, GList *monitoring_app_list, char *interface_name)
