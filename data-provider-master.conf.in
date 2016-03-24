@@ -7,9 +7,16 @@
 		<allow own="org.tizen.data_provider_service"/>
 	</policy>
 	<policy context="default">
-                <allow send_destination="org.tizen.data_provider_service"/>
-		<check send_destination="org.tizen.data_provider_service" send_interface="org.tizen.data_provider_noti_service" send_member="service_register" privilege="http://tizen.org/privilege/notification"/>
-		<check send_destination="org.tizen.data_provider_service" send_interface="org.tizen.data_provider_badge_service" send_member="service_register" privilege="http://tizen.org/privilege/notification"/>
-		<check send_destination="org.tizen.data_provider_service" send_interface="org.tizen.data_provider_shortcut_service" send_member="service_register" privilege="http://tizen.org/privilege/shortcut"/>
-        </policy>
+        <allow send_destination="org.tizen.data_provider_service"/>
+	<check send_destination="org.tizen.data_provider_service" send_interface="org.tizen.data_provider_noti_service" send_member="service_register" privilege="http://tizen.org/privilege/notification"/>
+	<check send_destination="org.tizen.data_provider_service" send_interface="org.tizen.data_provider_noti_service" send_member="add_noti" privilege="http://tizen.org/privilege/notification"/>
+	<check send_destination="org.tizen.data_provider_service" send_interface="org.tizen.data_provider_noti_service" send_member="del_noti_single" privilege="http://tizen.org/privilege/notification"/>
+	<check send_destination="org.tizen.data_provider_service" send_interface="org.tizen.data_provider_noti_service" send_member="del_noti_multiple" privilege="http://tizen.org/privilege/notification"/>
+	<check send_destination="org.tizen.data_provider_service" send_interface="org.tizen.data_provider_noti_service" send_member="load_noti_by_tag" privilege="http://tizen.org/privilege/notification"/>
+	<check send_destination="org.tizen.data_provider_service" send_interface="org.tizen.data_provider_noti_service" send_member="update_noti" privilege="http://tizen.org/privilege/notification"/>
+	<check send_destination="org.tizen.data_provider_service" send_interface="org.tizen.data_provider_noti_service" send_member="update_noti" privilege="http://tizen.org/privilege/notification"/>
+
+        <check send_destination="org.tizen.data_provider_service" send_interface="org.tizen.data_provider_badge_service" privilege="http://tizen.org/privilege/notification"/>
+        <check send_destination="org.tizen.data_provider_service" send_interface="org.tizen.data_provider_shortcut_service" privilege="http://tizen.org/privilege/shortcut"/>
+    </policy>
 </busconfig>

@@ -179,7 +179,7 @@ int shortcut_get_shortcut_service_list(GVariant *parameters, GVariant **reply_bo
 			shortcut = iter_list->data;
 			body = g_variant_new("(&s&s&s&s&s)",
 				shortcut->package_name, shortcut->icon, shortcut->name, shortcut->extra_key, shortcut->extra_data);
-			g_variant_builder_add(builder, "v", body);
+			g_variant_builder_add(builder, "(v)", body);
 		}
 		g_list_free_full(shortcut_list, (GDestroyNotify)_release_shortcut_info);
 	}
