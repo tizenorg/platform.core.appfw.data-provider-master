@@ -65,7 +65,7 @@ static void _on_name_vanished(GDBusConnection *connection,
 	DbgPrint("name vanished : %s", name);
 	monitoring_info_s *info = (monitoring_info_s *)user_data;
 
-	if(info) {
+	if (info) {
 		g_bus_unwatch_name(info->watcher_id);
 
 		if (info->bus_name) {
@@ -457,7 +457,6 @@ int notification_load_grouping_list(GVariant *parameters, GVariant **reply_body)
 
 	builder = g_variant_builder_new(G_VARIANT_TYPE("a(v)"));
 	if (get_list) {
-
 		list_iter = notification_list_get_head(get_list);
 		do {
 			noti = notification_list_get_data(list_iter);
@@ -506,7 +505,7 @@ int notification_get_setting_array(GVariant *parameters, GVariant **reply_body)
 			body = notification_ipc_make_gvariant_from_setting(temp);
 			g_variant_builder_add(builder, "(v)", body);
 
-			if(temp->package_name)
+			if (temp->package_name)
 				free(temp->package_name);
 		}
 		free(setting_array);
@@ -572,13 +571,13 @@ int notification_load_system_setting(GVariant *parameters, GVariant **reply_body
 	} else {
 		return ret;
 	}
+
 	*reply_body = g_variant_new("(v)", body);
 	if (*reply_body == NULL) {
 		ErrPrint("cannot make reply_body");
 		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
 	}
 	DbgPrint("load system setting done !!");
-
 	return ret;
 }
 
@@ -702,7 +701,7 @@ int notification_del_noti_multiple(GVariant *parameters, GVariant **reply_body)
 	int num_deleted = 0;
 	int *list_deleted = NULL;
 	GVariant *deleted_noti_list;
-	GVariantBuilder * builder;
+	GVariantBuilder *builder;
 	int i;
 
 	g_variant_get(parameters, "(&si)", &pkgname, &type);
@@ -887,7 +886,7 @@ HAPI int notification_service_init(void)
 	int result;
 	result = notification_register_dbus_interface();
 
-	if(result != SERVICE_COMMON_ERROR_NONE) {
+	if (result != SERVICE_COMMON_ERROR_NONE) {
 		ErrPrint("notification register dbus fail %d", result);
 		return result;
 	}

@@ -168,7 +168,7 @@ int shortcut_get_shortcut_service_list(GVariant *parameters, GVariant **reply_bo
 	g_variant_get(parameters, "(v)", &param_body);
 	g_variant_dict_init(&dict, param_body);
 	g_variant_dict_lookup(&dict, "package_name", "&s", &package_name);
-	g_variant_dict_end (&dict);
+	g_variant_dict_end(&dict);
 
 	count = shortcut_db_get_list(package_name, &shortcut_list);
 	DbgPrint("shortcut count : %d", count);
@@ -246,7 +246,7 @@ HAPI int shortcut_service_init(void)
 	int result;
 
 	result = shortcut_register_dbus_interface();
-	if(result != SERVICE_COMMON_ERROR_NONE) {
+	if (result != SERVICE_COMMON_ERROR_NONE) {
 		ErrPrint("shortcut register dbus fail %d", result);
 	}
 	return result;

@@ -481,7 +481,7 @@ HAPI int badge_service_init(void)
 	int result;
 
 	result = badge_register_dbus_interface();
-	if(result != SERVICE_COMMON_ERROR_NONE) {
+	if (result != SERVICE_COMMON_ERROR_NONE) {
 		ErrPrint("badge register dbus fail %d", result);
 	}
 

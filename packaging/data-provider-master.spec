@@ -20,7 +20,6 @@ BuildRequires: pkgconfig(gio-2.0)
 BuildRequires: pkgconfig(libsmack)
 BuildRequires: pkgconfig(bundle)
 BuildRequires: pkgconfig(capi-appfw-app-manager)
-
 BuildRequires: pkgconfig(ecore)
 BuildRequires: pkgconfig(eina)
 BuildRequires: pkgconfig(libxml-2.0)
