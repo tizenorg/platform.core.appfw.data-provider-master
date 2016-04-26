@@ -35,7 +35,8 @@
 
 static GDBusConnection *_gdbus_conn = NULL;
 
-void print_noti(notification_h noti) {
+void print_noti(notification_h noti)
+{
 	char *pkgname = NULL;
 	char *text = NULL;
 	char *content = NULL;
@@ -49,10 +50,10 @@ void print_noti(notification_h noti) {
 	notification_get_tag(noti, &tag);
 	notification_get_vibration(noti, &type, &vibration_path);
 
-	DbgPrint("provider print_noti  pkgname  = %s ", pkgname );
-	DbgPrint("provider print_noti  title  = %s ", text );
-	DbgPrint("provider print_noti  content  = %s ", content );
-	DbgPrint("provider print_noti  tag  = %s ", tag );
+	DbgPrint("provider print_noti  pkgname  = %s ", pkgname);
+	DbgPrint("provider print_noti  title  = %s ", text);
+	DbgPrint("provider print_noti  content  = %s ", content);
+	DbgPrint("provider print_noti  tag  = %s ", tag);
 	DbgPrint("provider print_noti  vibration_path  = %s %d", vibration_path, type);
 }
 
@@ -165,7 +166,7 @@ static int _dbus_init(void)
 {
 	GError *error = NULL;
 
-	if(_gdbus_conn == NULL) {
+	if (_gdbus_conn == NULL) {
 		_gdbus_conn = g_bus_get_sync(G_BUS_TYPE_SYSTEM, NULL, &error);
 		if (_gdbus_conn == NULL) {
 			if (error != NULL) {
