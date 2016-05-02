@@ -22,6 +22,7 @@
 #include <fcntl.h>
 #include <sys/signalfd.h>
 #include <ctype.h>
+#include <locale.h>
 
 #include <systemd/sd-daemon.h>
 
@@ -43,6 +44,21 @@
 static inline int app_create(void)
 {
 	int ret;
+	char *lang;
+	char *r;
+
+	lang = vconf_get_str(VCONFKEY_LANGSET);
+	if (lang) {
+		setenv("LANG", lang, 1);
+		setenv("LC_MESSAGES", lang, 1);
+		r = setlocale(LC_ALL, "");
+		if (r == NULL) {
+			r = setlocale(LC_ALL, lang);
+			if (r != NULL)
+				DbgPrint("setlocale = %s", r);
+		}
+		free(lang);
+	}
 
 	ret = shortcut_service_init();
 	if (ret < 0)
