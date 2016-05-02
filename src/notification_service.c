@@ -261,7 +261,7 @@ static int _add_noti(GVariant **reply_body, notification_h noti)
 		return ret;
 	}
 
-	body = notification_ipc_make_gvariant_from_noti(noti);
+	body = notification_ipc_make_gvariant_from_noti(noti, true);
 	if (body == NULL) {
 		ErrPrint("cannot make gvariant to noti");
 		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
@@ -328,7 +328,7 @@ static int _update_noti(GVariant **reply_body, notification_h noti)
 	if (ret != NOTIFICATION_ERROR_NONE)
 		return ret;
 
-	body = notification_ipc_make_gvariant_from_noti(noti);
+	body = notification_ipc_make_gvariant_from_noti(noti, true);
 	if (body == NULL) {
 		ErrPrint("cannot make gvariant to noti");
 		return NOTIFICATION_ERROR_IO_ERROR;
@@ -390,7 +390,7 @@ int notification_load_noti_by_tag(GVariant *parameters, GVariant **reply_body)
 		DbgPrint("notification_noti_get_by_tag ret : %d", ret);
 		print_noti(noti);
 
-		*reply_body = notification_ipc_make_gvariant_from_noti(noti);
+		*reply_body = notification_ipc_make_gvariant_from_noti(noti, true);
 		notification_free(noti);
 
 		if (*reply_body == NULL) {
@@ -421,7 +421,7 @@ int notification_load_noti_by_priv_id(GVariant *parameters, GVariant **reply_bod
 		DbgPrint("notification_noti_get_by_priv_id ret : %d", ret);
 		print_noti(noti);
 
-		*reply_body = notification_ipc_make_gvariant_from_noti(noti);
+		*reply_body = notification_ipc_make_gvariant_from_noti(noti, true);
 		notification_free(noti);
 
 		if (*reply_body == NULL) {
@@ -460,7 +460,7 @@ int notification_load_grouping_list(GVariant *parameters, GVariant **reply_body)
 		list_iter = notification_list_get_head(get_list);
 		do {
 			noti = notification_list_get_data(list_iter);
-			body = notification_ipc_make_gvariant_from_noti(noti);
+			body = notification_ipc_make_gvariant_from_noti(noti, true);
 			g_variant_builder_add(builder, "(v)", body);
 
 			list_iter = notification_list_get_next(list_iter);
@@ -610,7 +610,7 @@ int notification_load_detail_list(GVariant *parameters, GVariant **reply_body)
 		list_iter = notification_list_get_head(get_list);
 		do {
 			noti = notification_list_get_data(list_iter);
-			body = notification_ipc_make_gvariant_from_noti(noti);
+			body = notification_ipc_make_gvariant_from_noti(noti, true);
 			if (body) {
 				g_variant_builder_add(builder, "(v)", body);
 				list_iter = notification_list_get_next(list_iter);

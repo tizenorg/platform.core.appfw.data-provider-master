@@ -31,6 +31,7 @@
 #include <vconf.h>
 #include <Ecore.h>
 #include <dlog.h>
+#include <locale.h>
 
 #include "debug.h"
 #include "util.h"
@@ -40,9 +41,35 @@
 #include "notification_service.h"
 #include "badge_service.h"
 
+static void lang_key_changed_cb(keynode_t *node EINA_UNUSED, void *first)
+{
+	char *lang;
+	char *r;
+
+	lang = vconf_get_str(VCONFKEY_LANGSET);
+	if (lang) {
+		setenv("LANG", lang, 1);
+		setenv("LC_MESSAGES", lang, 1);
+		r = setlocale(LC_ALL, "");
+		if (r == NULL) {
+			r = setlocale(LC_ALL, lang);
+			if (r != NULL)
+				DbgPrint("setlocale = %s", r);
+		}
+		DbgPrint("setlocale = %s", r);
+		free(lang);
+	}
+}
+
 static inline int app_create(void)
 {
 	int ret;
+
+	ret = vconf_notify_key_changed(VCONFKEY_LANGSET, lang_key_changed_cb, NULL);
+	if (ret < 0)
+		DbgPrint("VCONFKEY_LANGSET notify key chenaged: %d\n", ret);
+
+	lang_key_changed_cb(NULL, NULL);
 
 	ret = shortcut_service_init();
 	if (ret < 0)
