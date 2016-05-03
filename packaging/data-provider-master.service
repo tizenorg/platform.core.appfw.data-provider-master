@@ -2,6 +2,8 @@
 Description=Data Provider Master
 
 [Service]
+User=app_fw
+Group=app_fw
 BusName=org.tizen.data_provider_service
 Type=dbus
 ExecStart=/usr/bin/data-provider-master
