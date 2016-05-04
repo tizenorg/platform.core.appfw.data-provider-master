@@ -71,6 +71,10 @@ static void _badge_dbus_method_call_handler(GDBusConnection *conn,
 	if (g_strcmp0(method_name, "badge_service_register") == 0)
 		ret = service_register(parameters, &reply_body, sender,
 		 _on_name_appeared, _on_name_vanished, &_monitoring_list);
+	else if (g_strcmp0(method_name, "get_badge_existing") == 0)
+		ret = badge_get_badge_existing(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "get_list") == 0)
+		ret = badge_get_badge_list(parameters, &reply_body);
 	else if (g_strcmp0(method_name, "insert_badge") == 0)
 		ret = badge_insert(parameters, &reply_body);
 	else if (g_strcmp0(method_name, "delete_badge") == 0)
@@ -115,7 +119,13 @@ int badge_register_dbus_interface()
 			"  <interface name='org.tizen.data_provider_badge_service'>"
 			"        <method name='badge_service_register'>"
 			"        </method>"
-
+			"        <method name='get_badge_existing'>"
+			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='i' name='exist' direction='out'/>"
+			"        </method>"
+			"        <method name='get_list'>"
+			"          <arg type='a(v)' name='badge_list' direction='out'/>"
+			"        </method>"
 			"        <method name='insert_badge'>"
 			"          <arg type='s' name='pkgname' direction='in'/>"
 			"          <arg type='s' name='writable_pkg' direction='in'/>"
@@ -164,6 +174,81 @@ int badge_register_dbus_interface()
 			"  </node>";
 
 	return service_common_register_dbus_interface(introspection_xml, _badge_interface_vtable);
+}
+
+static void _release_badge_info(gpointer data)
+{
+	badge_info_s *badge = (badge_info_s *)data;
+	if (badge == NULL)
+		return;
+	if (badge->pkg)
+		free(badge->pkg);
+	free(badge);
+}
+
+/* get_badge_existing */
+int badge_get_badge_existing(GVariant *parameters, GVariant **reply_body)
+{
+	int ret = BADGE_ERROR_NONE;
+	char *pkgname = NULL;
+	bool existing = 0;
+
+	g_variant_get(parameters, "(&s)", &pkgname);
+	DbgPrint("badge_get_badge_existing %s", pkgname);
+	if (pkgname != NULL)
+		ret = badge_db_is_existing(pkgname, &existing);
+	else
+		return BADGE_ERROR_INVALID_PARAMETER;
+
+	if (ret != BADGE_ERROR_NONE) {
+		ErrPrint("failed to get badge existing :%d\n", ret);
+		return ret;
+	}
+
+	*reply_body = g_variant_new("(i)", existing);
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make gvariant to noti");
+		return BADGE_ERROR_OUT_OF_MEMORY;
+	}
+	DbgPrint("badge_get_badge_existing service done");
+	return ret;
+}
+
+/* get_list */
+int badge_get_badge_list(GVariant *parameters, GVariant **reply_body)
+{
+	GList *badge_list = NULL;
+	GList *iter_list = NULL;
+	GVariant *body = NULL;
+	badge_info_s *badge;
+	GVariantBuilder *builder;
+	int ret;
+
+	ret = badge_db_get_list(&badge_list);
+	if (ret != BADGE_ERROR_NONE) {
+		ErrPrint("badge get list fail : %d", ret);
+		return ret;
+	}
+
+	builder = g_variant_builder_new(G_VARIANT_TYPE("a(v)"));
+	iter_list = g_list_first(badge_list);
+	for (; iter_list != NULL; iter_list = iter_list->next) {
+		badge = iter_list->data;
+		body = g_variant_new("(&si)", badge->pkg, badge->badge_count);
+		g_variant_builder_add(builder, "(v)", body);
+	}
+	g_list_free_full(badge_list, (GDestroyNotify)_release_badge_info);
+
+	*reply_body = g_variant_new("(a(v))", builder);
+	g_variant_builder_unref(builder);
+
+	if (*reply_body == NULL) {
+		ErrPrint("cannot make reply_body");
+		return BADGE_ERROR_OUT_OF_MEMORY;
+	}
+
+	DbgPrint("badge_get_badge_list done !!");
+	return BADGE_ERROR_NONE;
 }
 
 /* insert_badge */
