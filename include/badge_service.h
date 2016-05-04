@@ -19,6 +19,8 @@
 extern int badge_service_init(void);
 extern int badge_service_fini(void);
 
+int badge_get_badge_existing(GVariant *parameters, GVariant **reply_body);
+int badge_get_badge_list(GVariant *parameters, GVariant **reply_body);
 int badge_insert(GVariant *parameters, GVariant **reply_body);
 int badge_delete(GVariant *parameters, GVariant **reply_body);
 int badge_set_badge_count(GVariant *parameters, GVariant **reply_body);
