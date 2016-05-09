@@ -18,9 +18,11 @@
 #include <unistd.h>
 #include <gio/gio.h>
 #include <dlog.h>
+#include <db-util.h>
 #include <cynara-client.h>
 #include <cynara-session.h>
 #include <cynara-creds-socket.h>
+#include <tzplatform_config.h>
 #include <notification.h>
 
 #include "service_common.h"
@@ -235,4 +237,55 @@ out:
 		g_dbus_node_info_unref(introspection_data);
 
 	return result;
+}
+
+
+static int _exec(sqlite3 *db, char *query)
+{
+	int r;
+	char *errmsg = NULL;
+	if (db == NULL) {
+		ErrPrint("db NULL");
+		return SERVICE_COMMON_ERROR_IO_ERROR;
+	}
+
+	r = sqlite3_exec(db, query, NULL, NULL, &errmsg);
+	if (r != SQLITE_OK) {
+		ErrPrint("query error(%d)(%s)", r, errmsg);
+		sqlite3_free(errmsg);
+		return SERVICE_COMMON_ERROR_IO_ERROR;
+	}
+
+	return SERVICE_COMMON_ERROR_NONE;
+}
+
+int db_init(char *db_name, char *query)
+{
+	int r;
+	sqlite3 *db = NULL;
+
+	char defname[FILENAME_MAX];
+	const char *db_path = tzplatform_getenv(TZ_SYS_DB);
+	if (db_path == NULL) {
+		ErrPrint("fail to get db_path");
+		return SERVICE_COMMON_ERROR_OUT_OF_MEMORY;
+	}
+	snprintf(defname, sizeof(defname), "%s/%s", db_path, db_name);
+
+	DbgPrint("db path : %s", defname);
+	r = sqlite3_open_v2(defname, &db, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, NULL);
+	if (r) {
+		db_util_close(db);
+		ErrPrint("fail to open notification db %d", r);
+		return SERVICE_COMMON_ERROR_IO_ERROR;
+	}
+
+	r = _exec(db, query);
+	if (r != SERVICE_COMMON_ERROR_NONE) {
+		db_util_close(db);
+		ErrPrint("fail to create notification table %d", r);
+		return SERVICE_COMMON_ERROR_IO_ERROR;
+	}
+
+	return SERVICE_COMMON_ERROR_NONE;
 }
