@@ -35,11 +35,10 @@
 #include <notification_internal.h>
 #include <notification_ipc.h>
 #include <notification_setting_service.h>
+#include <notification_db.h>
 
 #define PROVIDER_NOTI_INTERFACE_NAME "org.tizen.data_provider_noti_service"
-
 static GList *_monitoring_list = NULL;
-
 static int _update_noti(GVariant **reply_body, notification_h noti);
 
 /*!
@@ -884,14 +883,18 @@ static int _package_uninstall_cb(const char *pkgname, enum pkgmgr_status status,
 HAPI int notification_service_init(void)
 {
 	int result;
-	result = notification_register_dbus_interface();
-
-	if (result != SERVICE_COMMON_ERROR_NONE) {
-		ErrPrint("notification register dbus fail %d", result);
+	result = notification_db_init();
+	if (result != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("notification db init fail %d", result);
 		return result;
 	}
-	_notification_data_init();
 
+	result = notification_register_dbus_interface();
+	if (result != SERVICE_COMMON_ERROR_NONE) {
+		ErrPrint("notification register dbus fail %d", result);
+		return NOTIFICATION_ERROR_IO_ERROR;
+	}
+	_notification_data_init();
 	notification_setting_refresh_setting_table();
 
 	pkgmgr_init();
@@ -899,14 +902,14 @@ HAPI int notification_service_init(void)
 	pkgmgr_add_event_callback(PKGMGR_EVENT_UPDATE, _package_install_cb, NULL);
 	pkgmgr_add_event_callback(PKGMGR_EVENT_UNINSTALL, _package_uninstall_cb, NULL);
 	DbgPrint("Successfully initiated\n");
-	return SERVICE_COMMON_ERROR_NONE;
+	return NOTIFICATION_ERROR_NONE;
 }
 
 HAPI int notification_service_fini(void)
 {
 	pkgmgr_fini();
 	DbgPrint("Successfully Finalized\n");
-	return SERVICE_COMMON_ERROR_NONE;
+	return NOTIFICATION_ERROR_NONE;
 }
 
 /* End of a file */
