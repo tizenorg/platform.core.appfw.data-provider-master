@@ -27,7 +27,6 @@
 #include "debug.h"
 
 #define PROVIDER_BADGE_INTERFACE_NAME "org.tizen.data_provider_badge_service"
-
 static GList *_monitoring_list = NULL;
 
 static void _on_name_appeared(GDBusConnection *connection,
@@ -564,6 +563,12 @@ int badge_get_setting_property(GVariant *parameters, GVariant **reply_body)
 HAPI int badge_service_init(void)
 {
 	int result;
+
+	result = badge_db_init();
+	if (result != SERVICE_COMMON_ERROR_NONE) {
+		ErrPrint("badge db init fail %d", result);
+		return BADGE_ERROR_IO_ERROR;
+	}
 
 	result = badge_register_dbus_interface();
 	if (result != SERVICE_COMMON_ERROR_NONE) {
