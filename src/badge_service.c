@@ -27,6 +27,21 @@
 #include "debug.h"
 
 #define PROVIDER_BADGE_INTERFACE_NAME "org.tizen.data_provider_badge_service"
+#define BADGE_DB_NAME ".badge.db"
+#define CREATE_BADGE_TABLE " \
+PRAGMA journal_mode = PERSIST; \
+create table if not exists badge_data ( \
+	pkgname TEXT NOT NULL, \
+	writable_pkgs TEXT, \
+	badge INTEGER default 0, \
+	rowid INTEGER PRIMARY KEY AUTOINCREMENT, \
+	UNIQUE (pkgname) \
+); \
+create table if not exists badge_option ( \
+	pkgname TEXT NOT NULL, \
+	display INTEGER default 1, \
+	UNIQUE (pkgname) \
+); "
 
 static GList *_monitoring_list = NULL;
 
@@ -564,6 +579,12 @@ int badge_get_setting_property(GVariant *parameters, GVariant **reply_body)
 HAPI int badge_service_init(void)
 {
 	int result;
+
+	result = db_init(BADGE_DB_NAME, CREATE_BADGE_TABLE);
+	if (result != SERVICE_COMMON_ERROR_NONE) {
+		ErrPrint("badge register dbus fail %d", result);
+		return result;
+	}
 
 	result = badge_register_dbus_interface();
 	if (result != SERVICE_COMMON_ERROR_NONE) {
