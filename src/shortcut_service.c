@@ -25,8 +25,6 @@
 
 static GList *_monitoring_list = NULL;
 
-int shortcut_get_shortcut_service_list(GVariant *parameters, GVariant **reply_body);
-
 static void _on_name_appeared(GDBusConnection *connection,
 		const gchar     *name,
 		const gchar     *name_owner,
@@ -74,8 +72,10 @@ static void _shortcut_dbus_method_call_handler(GDBusConnection *conn,
 		ret = shortcut_add_widget(parameters, &reply_body);
 	else if (g_strcmp0(method_name, "get_list") == 0)
 		ret = shortcut_get_shortcut_service_list(parameters, &reply_body);
+	else if (g_strcmp0(method_name, "check_privilege") == 0)
+		ret = shortcut_check_privilege();
 
-	if (ret == SHORTCUT_ERROR_NONE) {
+	if (ret == SERVICE_COMMON_ERROR_NONE) {
 		DbgPrint("shortcut service success : %d", ret);
 		g_dbus_method_invocation_return_value(
 				invocation, reply_body);
@@ -102,11 +102,13 @@ int shortcut_register_dbus_interface()
 			"  <interface name='org.tizen.data_provider_shortcut_service'>"
 			"        <method name='shortcut_service_register'>"
 			"        </method>"
+
 			"        <method name='get_list'>"
 			"          <arg type='v' name='package_name' direction='in'/>"
 			"          <arg type='i' name='shortcut_cnt' direction='out'/>"
 			"          <arg type='a(v)' name='shortcut_list' direction='out'/>"
 			"        </method>"
+
 			"        <method name='add_shortcut'>"
 			"          <arg type='i' name='pid' direction='in'/>"
 			"          <arg type='s' name='appid' direction='in'/>"
@@ -127,6 +129,9 @@ int shortcut_register_dbus_interface()
 			"          <arg type='d' name='period' direction='in'/>"
 			"          <arg type='i' name='allow_duplicate' direction='in'/>"
 			"        </method>"
+
+			"	 <method name='check_privilege'>"
+			"	 </method>"
 			"  </interface>"
 			"  </node>";
 
@@ -235,6 +240,13 @@ int shortcut_add_widget(GVariant *parameters, GVariant **reply_body)
 
 	return ret;
 }
+
+/*  check shortcut privilege */
+int shortcut_check_privilege(void)
+{
+	return SERVICE_COMMON_ERROR_NONE;
+}
+
 
 /*!
  * MAIN THREAD
