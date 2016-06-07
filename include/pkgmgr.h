@@ -33,7 +33,7 @@ enum pkgmgr_status {
 extern int pkgmgr_init(void);
 extern int pkgmgr_fini(void);
 
-extern int pkgmgr_add_event_callback(enum pkgmgr_event_type type, int (*cb)(const char *pkgname, enum pkgmgr_status status, double value, void *data), void *data);
-extern void *pkgmgr_del_event_callback(enum pkgmgr_event_type type, int (*cb)(const char *pkgname, enum pkgmgr_status status, double value, void *data), void *data);
+extern int pkgmgr_add_event_callback(enum pkgmgr_event_type type, int (*cb)(uid_t uid, const char *pkgname, enum pkgmgr_status status, double value, void *data), void *data);
+extern void *pkgmgr_del_event_callback(enum pkgmgr_event_type type, int (*cb)(uid_t uid, const char *pkgname, enum pkgmgr_status status, double value, void *data), void *data);
 
 /* End of a file */
