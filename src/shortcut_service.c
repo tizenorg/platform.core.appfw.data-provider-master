@@ -22,8 +22,7 @@
 #include "debug.h"
 
 #define PROVIDER_SHORTCUT_INTERFACE_NAME "org.tizen.data_provider_shortcut_service"
-
-static GList *_monitoring_list = NULL;
+static GHashTable *_monitoring_hash = NULL;
 
 static void _on_name_appeared(GDBusConnection *connection,
 		const gchar     *name,
@@ -39,17 +38,10 @@ static void _on_name_vanished(GDBusConnection *connection,
 {
 	DbgPrint("name vanished : %s", name);
 	monitoring_info_s *info = (monitoring_info_s *)user_data;
-
 	if (info) {
+		DbgPrint("name vanished uid : %d", info->uid);
 		g_bus_unwatch_name(info->watcher_id);
-
-		if (info->bus_name) {
-			_monitoring_list = g_list_remove(_monitoring_list, info->bus_name);
-			free(info->bus_name);
-		}
-		free(info);
 	}
-
 }
 
 static void _shortcut_dbus_method_call_handler(GDBusConnection *conn,
@@ -62,16 +54,19 @@ static void _shortcut_dbus_method_call_handler(GDBusConnection *conn,
 	DbgPrint("shortcut method_name: %s", method_name);
 	GVariant *reply_body = NULL;
 	int ret = SHORTCUT_ERROR_NOT_SUPPORTED;
+	uid_t uid = get_sender_uid(sender);
+	GList *monitoring_list = NULL;
 
+	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &uid);
 	if (g_strcmp0(method_name, "shortcut_service_register") == 0)
 		ret = service_register(parameters, &reply_body, sender,
-		 _on_name_appeared, _on_name_vanished, &_monitoring_list);
+		 _on_name_appeared, _on_name_vanished, &_monitoring_hash, uid);
 	else if (g_strcmp0(method_name, "add_shortcut") == 0)
-		ret = shortcut_add(parameters, &reply_body);
+		ret = shortcut_add(parameters, &reply_body, monitoring_list, uid);
 	else if (g_strcmp0(method_name, "add_shortcut_widget") == 0)
-		ret = shortcut_add_widget(parameters, &reply_body);
+		ret = shortcut_add_widget(parameters, &reply_body, monitoring_list, uid);
 	else if (g_strcmp0(method_name, "get_list") == 0)
-		ret = shortcut_get_shortcut_service_list(parameters, &reply_body);
+		ret = shortcut_get_shortcut_service_list(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "check_privilege") == 0)
 		ret = shortcut_check_privilege();
 
@@ -158,7 +153,7 @@ static void _release_shortcut_info(gpointer data)
 }
 
 /* get_list */
-int shortcut_get_shortcut_service_list(GVariant *parameters, GVariant **reply_body)
+int shortcut_get_shortcut_service_list(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int count;
 	GList *shortcut_list = NULL;
@@ -202,11 +197,11 @@ int shortcut_get_shortcut_service_list(GVariant *parameters, GVariant **reply_bo
 }
 
 /* add_shortcut */
-int shortcut_add(GVariant *parameters, GVariant **reply_body)
+int shortcut_add(GVariant *parameters, GVariant **reply_body, GList *monitoring_list, uid_t uid)
 {
 	int ret = SERVICE_COMMON_ERROR_NONE;
 
-	ret = send_notify(parameters, "add_shortcut_notify", _monitoring_list, PROVIDER_SHORTCUT_INTERFACE_NAME);
+	ret = send_notify(parameters, "add_shortcut_notify", monitoring_list, PROVIDER_SHORTCUT_INTERFACE_NAME);
 	if (ret != SERVICE_COMMON_ERROR_NONE) {
 		ErrPrint("failed to send notify:%d\n", ret);
 		return ret;
@@ -222,11 +217,11 @@ int shortcut_add(GVariant *parameters, GVariant **reply_body)
 }
 
 /* add_shortcut_widget */
-int shortcut_add_widget(GVariant *parameters, GVariant **reply_body)
+int shortcut_add_widget(GVariant *parameters, GVariant **reply_body, GList *monitoring_list, uid_t uid)
 {
 	int ret = SERVICE_COMMON_ERROR_NONE;
 
-	ret = send_notify(parameters, "add_shortcut_widget_notify", _monitoring_list, PROVIDER_SHORTCUT_INTERFACE_NAME);
+	ret = send_notify(parameters, "add_shortcut_widget_notify", monitoring_list, PROVIDER_SHORTCUT_INTERFACE_NAME);
 	if (ret != SERVICE_COMMON_ERROR_NONE) {
 		ErrPrint("failed to send notify:%d\n", ret);
 		return ret;
@@ -255,7 +250,7 @@ HAPI int shortcut_service_init(void)
 {
 	DbgPrint("Successfully initiated\n");
 	int result;
-
+	_monitoring_hash = g_hash_table_new_full(g_int_hash, g_int_equal, g_free, free_monitoring_list);
 	result = shortcut_register_dbus_interface();
 	if (result != SERVICE_COMMON_ERROR_NONE) {
 		ErrPrint("shortcut register dbus fail %d", result);
