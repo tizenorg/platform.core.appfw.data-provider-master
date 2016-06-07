@@ -27,7 +27,7 @@
 #include "debug.h"
 
 #define PROVIDER_BADGE_INTERFACE_NAME "org.tizen.data_provider_badge_service"
-static GList *_monitoring_list = NULL;
+static GHashTable *_monitoring_hash = NULL;
 
 static void _on_name_appeared(GDBusConnection *connection,
 		const gchar     *name,
@@ -43,15 +43,9 @@ static void _on_name_vanished(GDBusConnection *connection,
 {
 	DbgPrint("name vanished : %s", name);
 	monitoring_info_s *info = (monitoring_info_s *)user_data;
-
 	if (info) {
+		DbgPrint("name vanished uid : %d", info->uid);
 		g_bus_unwatch_name(info->watcher_id);
-
-		if (info->bus_name) {
-			_monitoring_list = g_list_remove(_monitoring_list, info->bus_name);
-			free(info->bus_name);
-		}
-		free(info);
 	}
 }
 
@@ -61,35 +55,37 @@ static void _badge_dbus_method_call_handler(GDBusConnection *conn,
 		GVariant *parameters, GDBusMethodInvocation *invocation,
 		gpointer user_data)
 {
-	/* TODO : sender authority(privilege) check */
 	DbgPrint("badge method_name: %s", method_name);
 
 	GVariant *reply_body = NULL;
 	int ret = BADGE_ERROR_INVALID_PARAMETER;
+	uid_t uid = get_sender_uid(sender);
+	GList *monitoring_list = NULL;
 
+	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &uid);
 	if (g_strcmp0(method_name, "badge_service_register") == 0)
 		ret = service_register(parameters, &reply_body, sender,
-		 _on_name_appeared, _on_name_vanished, &_monitoring_list);
+				_on_name_appeared, _on_name_vanished, &_monitoring_hash, uid);
 	else if (g_strcmp0(method_name, "get_badge_existing") == 0)
-		ret = badge_get_badge_existing(parameters, &reply_body);
+		ret = badge_get_badge_existing(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "get_list") == 0)
-		ret = badge_get_badge_list(parameters, &reply_body);
+		ret = badge_get_badge_list(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "insert_badge") == 0)
-		ret = badge_insert(parameters, &reply_body);
+		ret = badge_insert(parameters, &reply_body, monitoring_list, uid);
 	else if (g_strcmp0(method_name, "delete_badge") == 0)
-		ret = badge_delete(parameters, &reply_body);
+		ret = badge_delete(parameters, &reply_body, monitoring_list, uid);
 	else if (g_strcmp0(method_name, "set_badge_count") == 0)
-		ret = badge_set_badge_count(parameters, &reply_body);
+		ret = badge_set_badge_count(parameters, &reply_body, monitoring_list, uid);
 	else if (g_strcmp0(method_name, "get_badge_count") == 0)
-		ret = badge_get_badge_count(parameters, &reply_body);
+		ret = badge_get_badge_count(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "set_disp_option") == 0)
-		ret = badge_set_display_option(parameters, &reply_body);
+		ret = badge_set_display_option(parameters, &reply_body, monitoring_list, uid);
 	else if (g_strcmp0(method_name, "get_disp_option") == 0)
-		ret = badge_get_display_option(parameters, &reply_body);
+		ret = badge_get_display_option(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "set_noti_property") == 0)
-		ret = badge_set_setting_property(parameters, &reply_body);
+		ret = badge_set_setting_property(parameters, &reply_body, monitoring_list, uid);
 	else if (g_strcmp0(method_name, "get_noti_property") == 0)
-		ret = badge_get_setting_property(parameters, &reply_body);
+		ret = badge_get_setting_property(parameters, &reply_body, uid);
 
 	if (ret == BADGE_ERROR_NONE) {
 		DbgPrint("badge service success : %d", ret);
@@ -186,7 +182,7 @@ static void _release_badge_info(gpointer data)
 }
 
 /* get_badge_existing */
-int badge_get_badge_existing(GVariant *parameters, GVariant **reply_body)
+int badge_get_badge_existing(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
@@ -214,7 +210,7 @@ int badge_get_badge_existing(GVariant *parameters, GVariant **reply_body)
 }
 
 /* get_list */
-int badge_get_badge_list(GVariant *parameters, GVariant **reply_body)
+int badge_get_badge_list(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	GList *badge_list = NULL;
 	GList *iter_list = NULL;
@@ -251,7 +247,7 @@ int badge_get_badge_list(GVariant *parameters, GVariant **reply_body)
 }
 
 /* insert_badge */
-int badge_insert(GVariant *parameters, GVariant **reply_body)
+int badge_insert(GVariant *parameters, GVariant **reply_body, GList *monitoring_list, uid_t uid)
 {
 	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
@@ -276,7 +272,7 @@ int badge_insert(GVariant *parameters, GVariant **reply_body)
 		return BADGE_ERROR_OUT_OF_MEMORY;
 	}
 
-	ret = send_notify(body, "insert_badge_notify", _monitoring_list, PROVIDER_BADGE_INTERFACE_NAME);
+	ret = send_notify(body, "insert_badge_notify", monitoring_list, PROVIDER_BADGE_INTERFACE_NAME);
 	g_variant_unref(body);
 
 	if (ret != BADGE_ERROR_NONE) {
@@ -294,7 +290,7 @@ int badge_insert(GVariant *parameters, GVariant **reply_body)
 }
 
 /* delete_badge */
-int badge_delete(GVariant *parameters, GVariant **reply_body)
+int badge_delete(GVariant *parameters, GVariant **reply_body, GList *monitoring_list, uid_t uid)
 {
 	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
@@ -318,7 +314,7 @@ int badge_delete(GVariant *parameters, GVariant **reply_body)
 		ErrPrint("cannot make gvariant to noti");
 		return BADGE_ERROR_OUT_OF_MEMORY;
 	}
-	ret = send_notify(body, "delete_badge_notify", _monitoring_list, PROVIDER_BADGE_INTERFACE_NAME);
+	ret = send_notify(body, "delete_badge_notify", monitoring_list, PROVIDER_BADGE_INTERFACE_NAME);
 	g_variant_unref(body);
 
 	if (ret != BADGE_ERROR_NONE) {
@@ -335,7 +331,7 @@ int badge_delete(GVariant *parameters, GVariant **reply_body)
 }
 
 /* set_badge_count */
-int badge_set_badge_count(GVariant *parameters, GVariant **reply_body)
+int badge_set_badge_count(GVariant *parameters, GVariant **reply_body, GList *monitoring_list, uid_t uid)
 {
 	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
@@ -360,7 +356,7 @@ int badge_set_badge_count(GVariant *parameters, GVariant **reply_body)
 		return BADGE_ERROR_OUT_OF_MEMORY;
 	}
 
-	ret = send_notify(body, "set_badge_count_notify", _monitoring_list, PROVIDER_BADGE_INTERFACE_NAME);
+	ret = send_notify(body, "set_badge_count_notify", monitoring_list, PROVIDER_BADGE_INTERFACE_NAME);
 	g_variant_unref(body);
 
 	if (ret != BADGE_ERROR_NONE) {
@@ -378,7 +374,7 @@ int badge_set_badge_count(GVariant *parameters, GVariant **reply_body)
 }
 
 /* get_badge_count */
-int badge_get_badge_count(GVariant *parameters, GVariant **reply_body)
+int badge_get_badge_count(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
@@ -405,7 +401,7 @@ int badge_get_badge_count(GVariant *parameters, GVariant **reply_body)
 }
 
 /* set_disp_option */
-int badge_set_display_option(GVariant *parameters, GVariant **reply_body)
+int badge_set_display_option(GVariant *parameters, GVariant **reply_body, GList *monitoring_list, uid_t uid)
 {
 	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
@@ -432,7 +428,7 @@ int badge_set_display_option(GVariant *parameters, GVariant **reply_body)
 		return BADGE_ERROR_OUT_OF_MEMORY;
 	}
 
-	ret = send_notify(body, "set_disp_option_notify", _monitoring_list, PROVIDER_BADGE_INTERFACE_NAME);
+	ret = send_notify(body, "set_disp_option_notify", monitoring_list, PROVIDER_BADGE_INTERFACE_NAME);
 	g_variant_unref(body);
 
 	if (ret != BADGE_ERROR_NONE) {
@@ -450,7 +446,7 @@ int badge_set_display_option(GVariant *parameters, GVariant **reply_body)
 }
 
 /* get_disp_option */
-int badge_get_display_option(GVariant *parameters, GVariant **reply_body)
+int badge_get_display_option(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
@@ -478,7 +474,7 @@ int badge_get_display_option(GVariant *parameters, GVariant **reply_body)
 }
 
 /* set_noti_property */
-int badge_set_setting_property(GVariant *parameters, GVariant **reply_body)
+int badge_set_setting_property(GVariant *parameters, GVariant **reply_body, GList *monitoring_list, uid_t uid)
 {
 	int ret = 0;
 	int is_display = 0;
@@ -510,7 +506,7 @@ int badge_set_setting_property(GVariant *parameters, GVariant **reply_body)
 				ErrPrint("cannot make gvariant to noti");
 				return BADGE_ERROR_OUT_OF_MEMORY;
 			}
-			ret = send_notify(body, "set_disp_option_notify", _monitoring_list, PROVIDER_BADGE_INTERFACE_NAME);
+			ret = send_notify(body, "set_disp_option_notify", monitoring_list, PROVIDER_BADGE_INTERFACE_NAME);
 			g_variant_unref(body);
 			if (ret != BADGE_ERROR_NONE) {
 				ErrPrint("failed to send notify:%d\n", ret);
@@ -530,7 +526,7 @@ int badge_set_setting_property(GVariant *parameters, GVariant **reply_body)
 }
 
 /* get_noti_property */
-int badge_get_setting_property(GVariant *parameters, GVariant **reply_body)
+int badge_get_setting_property(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret = 0;
 	char *pkgname = NULL;
@@ -563,6 +559,8 @@ int badge_get_setting_property(GVariant *parameters, GVariant **reply_body)
 HAPI int badge_service_init(void)
 {
 	int result;
+
+	_monitoring_hash = g_hash_table_new_full(g_int_hash, g_int_equal, g_free, free_monitoring_list);
 	result = badge_db_init();
 	if (result != BADGE_ERROR_NONE) {
 		ErrPrint("badge db init fail %d", result);

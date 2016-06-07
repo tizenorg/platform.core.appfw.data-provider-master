@@ -30,7 +30,6 @@
 #include "notification_service.h"
 #include "debug.h"
 
-
 #include <notification_noti.h>
 #include <notification_internal.h>
 #include <notification_ipc.h>
@@ -38,8 +37,9 @@
 #include <notification_db.h>
 
 #define PROVIDER_NOTI_INTERFACE_NAME "org.tizen.data_provider_noti_service"
-static GList *_monitoring_list = NULL;
-static int _update_noti(GVariant **reply_body, notification_h noti);
+
+static GHashTable *_monitoring_hash = NULL;
+static int _update_noti(GVariant **reply_body, notification_h noti, GList *monitoring_list);
 
 /*!
  * SERVICE HANDLER
@@ -63,15 +63,9 @@ static void _on_name_vanished(GDBusConnection *connection,
 {
 	DbgPrint("name vanished : %s", name);
 	monitoring_info_s *info = (monitoring_info_s *)user_data;
-
 	if (info) {
+		DbgPrint("name vanished uid : %d", info->uid);
 		g_bus_unwatch_name(info->watcher_id);
-
-		if (info->bus_name) {
-			_monitoring_list = g_list_remove(_monitoring_list, info->bus_name);
-			free(info->bus_name);
-		}
-		free(info);
 	}
 }
 
@@ -86,40 +80,41 @@ static void _noti_dbus_method_call_handler(GDBusConnection *conn,
 
 	GVariant *reply_body = NULL;
 	int ret = NOTIFICATION_ERROR_INVALID_OPERATION;
+	int uid = get_sender_uid(sender);
 
 	if (g_strcmp0(method_name, "noti_service_register") == 0)
 		ret = service_register(parameters, &reply_body, sender,
-		 _on_name_appeared, _on_name_vanished, &_monitoring_list);
+				_on_name_appeared, _on_name_vanished, &_monitoring_hash, uid);
 	else if (g_strcmp0(method_name, "update_noti") == 0)
-		ret = notification_update_noti(parameters, &reply_body);
+		ret = notification_update_noti(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "add_noti") == 0)
-		ret = notification_add_noti(parameters, &reply_body);
+		ret = notification_add_noti(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "refresh_noti") == 0)
-		ret = notification_refresh_noti(parameters, &reply_body);
+		ret = notification_refresh_noti(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "del_noti_single") == 0)
-		ret = notification_del_noti_single(parameters, &reply_body);
+		ret = notification_del_noti_single(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "del_noti_multiple") == 0)
-		ret = notification_del_noti_multiple(parameters, &reply_body);
+		ret = notification_del_noti_multiple(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "get_noti_count") == 0)
-		ret = notification_get_noti_count(parameters, &reply_body);
+		ret = notification_get_noti_count(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "update_noti_setting") == 0)
-		ret = notification_update_noti_setting(parameters, &reply_body);
+		ret = notification_update_noti_setting(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "update_noti_sys_setting") == 0)
-		ret = notification_update_noti_sys_setting(parameters, &reply_body);
+		ret = notification_update_noti_sys_setting(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "load_noti_by_tag") == 0)
-		ret = notification_load_noti_by_tag(parameters, &reply_body);
+		ret = notification_load_noti_by_tag(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "load_noti_by_priv_id") == 0)
-		ret = notification_load_noti_by_priv_id(parameters, &reply_body);
+		ret = notification_load_noti_by_priv_id(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "load_noti_grouping_list") == 0)
-		ret = notification_load_grouping_list(parameters, &reply_body);
+		ret = notification_load_grouping_list(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "load_noti_detail_list") == 0)
-		ret = notification_load_detail_list(parameters, &reply_body);
+		ret = notification_load_detail_list(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "get_setting_array") == 0)
-		ret = notification_get_setting_array(parameters, &reply_body);
+		ret = notification_get_setting_array(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "get_setting_by_package_name") == 0)
-		ret = notification_get_setting_by_package_name(parameters, &reply_body);
+		ret = notification_get_setting_by_package_name(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "load_system_setting") == 0)
-		ret = notification_load_system_setting(parameters, &reply_body);
+		ret = notification_load_system_setting(parameters, &reply_body, uid);
 
 	if (ret == NOTIFICATION_ERROR_NONE) {
 		DbgPrint("notification service success : %d", ret);
@@ -148,6 +143,7 @@ int notification_register_dbus_interface()
 			"  <node>"
 			"  <interface name='org.tizen.data_provider_noti_service'>"
 			"        <method name='noti_service_register'>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"        </method>"
 
 			"        <method name='add_noti'>"
@@ -161,35 +157,41 @@ int notification_register_dbus_interface()
 			"        </method>"
 
 			"        <method name='refresh_noti'>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"        </method>"
 
 			"        <method name='del_noti_single'>"
 			"          <arg type='s' name='pkgname' direction='in'/>"
 			"          <arg type='i' name='priv_id' direction='in'/>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"          <arg type='i' name='priv_id' direction='out'/>"
 			"        </method>"
 
 			"        <method name='del_noti_multiple'>"
 			"          <arg type='s' name='pkgname' direction='in'/>"
 			"          <arg type='i' name='priv_id' direction='in'/>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"          <arg type='i' name='priv_id' direction='out'/>"
 			"        </method>"
 
 			"        <method name='load_noti_by_tag'>"
 			"          <arg type='s' name='pkgname' direction='in'/>"
 			"          <arg type='s' name='tag' direction='in'/>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"          <arg type='v' name='noti' direction='out'/>"
 			"        </method>"
 
 			"        <method name='load_noti_by_priv_id'>"
 			"          <arg type='s' name='pkgname' direction='in'/>"
 			"          <arg type='i' name='priv_id' direction='in'/>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"          <arg type='v' name='noti' direction='out'/>"
 			"        </method>"
 
 			"        <method name='load_noti_grouping_list'>"
 			"          <arg type='i' name='type' direction='in'/>"
 			"          <arg type='i' name='count' direction='in'/>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"          <arg type='a(v)' name='noti_list' direction='out'/>"
 			"        </method>"
 
@@ -198,6 +200,7 @@ int notification_register_dbus_interface()
 			"          <arg type='i' name='group_id' direction='in'/>"
 			"          <arg type='i' name='priv_id' direction='in'/>"
 			"          <arg type='i' name='count' direction='in'/>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"          <arg type='a(v)' name='noti_list' direction='out'/>"
 			"        </method>"
 
@@ -206,6 +209,7 @@ int notification_register_dbus_interface()
 			"          <arg type='s' name='pkgname' direction='in'/>"
 			"          <arg type='i' name='group_id' direction='in'/>"
 			"          <arg type='i' name='priv_id' direction='in'/>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"          <arg type='i' name='ret_count' direction='out'/>"
 			"        </method>"
 
@@ -214,24 +218,29 @@ int notification_register_dbus_interface()
 			"          <arg type='i' name='allow_to_notify' direction='in'/>"
 			"          <arg type='i' name='do_not_disturb_except' direction='in'/>"
 			"          <arg type='i' name='visibility_class' direction='in'/>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"        </method>"
 
 			"        <method name='update_noti_sys_setting'>"
 			"          <arg type='i' name='do_not_disturb' direction='in'/>"
 			"          <arg type='i' name='visibility_class' direction='in'/>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"        </method>"
 
 			"        <method name='get_setting_array'>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"          <arg type='i' name='setting_cnt' direction='out'/>"
 			"          <arg type='a(v)' name='setting_arr' direction='out'/>"
 			"        </method>"
 
 			"        <method name='get_setting_by_package_name'>"
 			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"          <arg type='v' name='setting' direction='out'/>"
 			"        </method>"
 
 			"        <method name='load_system_setting'>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"          <arg type='v' name='setting' direction='out'/>"
 			"        </method>"
 
@@ -244,7 +253,7 @@ int notification_register_dbus_interface()
 }
 
 /* add noti */
-static int _add_noti(GVariant **reply_body, notification_h noti)
+static int _add_noti(GVariant **reply_body, notification_h noti, GList *monitoring_list)
 {
 	int ret;
 	int priv_id = NOTIFICATION_PRIV_ID_NONE;
@@ -265,7 +274,7 @@ static int _add_noti(GVariant **reply_body, notification_h noti)
 		ErrPrint("cannot make gvariant to noti");
 		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
 	}
-	ret = send_notify(body, "add_noti_notify", _monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
+	ret = send_notify(body, "add_noti_notify", monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
 	g_variant_unref(body);
 
 	if (ret != NOTIFICATION_ERROR_NONE) {
@@ -283,11 +292,68 @@ static int _add_noti(GVariant **reply_body, notification_h noti)
 	return ret;
 }
 
-int notification_add_noti(GVariant *parameters, GVariant **reply_body)
+static int _validate_and_set_noti_with_uid(uid_t uid, notification_h noti, uid_t *noti_uid)
+{
+	int ret = NOTIFICATION_ERROR_NONE;
+
+	ret = notification_get_uid(noti, noti_uid);
+	if (ret != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("notification_get_uid fail ret : %d", ret);
+		return ret;
+	}
+
+	if (uid > NORMAL_UID_BASE && uid != *noti_uid) {
+		ErrPrint("invalid seder uid : %d, noti_uid : %d", uid, *noti_uid);
+		return NOTIFICATION_ERROR_INVALID_PARAMETER;
+	} else if (uid <= NORMAL_UID_BASE) {
+		if (*noti_uid <= NORMAL_UID_BASE) {
+			if (*noti_uid != uid)
+				return NOTIFICATION_ERROR_INVALID_PARAMETER;
+
+			DbgPrint("system defualt noti post change noti_uid to default");
+			/*
+			IF system (uid <= NORMAL_UID_BASE) try to send noti without specipic destination uid (using notification_pot API)
+			Send it to default user (TZ_SYS_DEFAULT_USER)
+			*/
+			*noti_uid = tzplatform_getuid(TZ_SYS_DEFAULT_USER);
+			ret = notification_set_uid(noti, *noti_uid);
+			if (ret != NOTIFICATION_ERROR_NONE) {
+				ErrPrint("notification_set_uid fail ret : %d", ret);
+				return ret;
+			}
+			DbgPrint("changed noti_uid %d", *noti_uid);
+		}
+	}
+	return ret;
+}
+
+static int _validate_and_set_param_uid_with_uid(uid_t uid, uid_t *param_uid)
+{
+	int ret = NOTIFICATION_ERROR_NONE;
+	if (uid > NORMAL_UID_BASE && uid != *param_uid) {
+		ErrPrint("invalid seder uid : %d, param_uid : %d", uid, *param_uid);
+		return NOTIFICATION_ERROR_INVALID_PARAMETER;
+	} else if (uid <= NORMAL_UID_BASE) {
+		if (*param_uid <= NORMAL_UID_BASE) {
+			if (*param_uid != uid)
+				return NOTIFICATION_ERROR_INVALID_PARAMETER;
+			/*
+			IF system (uid <= NORMAL_UID_BASE) try to send noti without specipic destination uid (using notification_pot API)
+			Send it to default user (TZ_SYS_DEFAULT_USER)
+			*/
+			*param_uid = tzplatform_getuid(TZ_SYS_DEFAULT_USER);
+		}
+	}
+	return ret;
+}
+
+int notification_add_noti(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret;
 	notification_h noti;
 	GVariant *body = NULL;
+	GList *monitoring_list = NULL;
+	uid_t noti_uid = 0;
 
 	noti = notification_create(NOTIFICATION_TYPE_NOTI);
 	if (noti != NULL) {
@@ -295,12 +361,17 @@ int notification_add_noti(GVariant *parameters, GVariant **reply_body)
 		ret = notification_ipc_make_noti_from_gvariant(noti, body);
 		g_variant_unref(body);
 
+		ret = _validate_and_set_noti_with_uid(uid, noti, &noti_uid);
+		if (ret != NOTIFICATION_ERROR_NONE)
+			return ret;
+
+		monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &noti_uid);
 		if (ret == NOTIFICATION_ERROR_NONE) {
 			ret = notification_noti_check_tag(noti);
 			if (ret == NOTIFICATION_ERROR_NOT_EXIST_ID)
-				ret = _add_noti(reply_body, noti);
+				ret = _add_noti(reply_body, noti, monitoring_list);
 			else if (ret == NOTIFICATION_ERROR_ALREADY_EXIST_ID)
-				ret = _update_noti(reply_body, noti);
+				ret = _update_noti(reply_body, noti, monitoring_list);
 		}
 		notification_free(noti);
 
@@ -313,7 +384,7 @@ int notification_add_noti(GVariant *parameters, GVariant **reply_body)
 }
 
 /* update noti */
-static int _update_noti(GVariant **reply_body, notification_h noti)
+static int _update_noti(GVariant **reply_body, notification_h noti, GList *monitoring_list)
 {
 	int ret;
 	GVariant *body = NULL;
@@ -333,7 +404,7 @@ static int _update_noti(GVariant **reply_body, notification_h noti)
 		return NOTIFICATION_ERROR_IO_ERROR;
 	}
 
-	ret = send_notify(body, "update_noti_notify", _monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
+	ret = send_notify(body, "update_noti_notify", monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
 	g_variant_unref(body);
 
 	if (ret != NOTIFICATION_ERROR_NONE) {
@@ -350,11 +421,13 @@ static int _update_noti(GVariant **reply_body, notification_h noti)
 	return ret;
 }
 
-int notification_update_noti(GVariant *parameters, GVariant **reply_body)
+int notification_update_noti(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	notification_h noti;
 	int ret;
 	GVariant *body = NULL;
+	uid_t noti_uid;
+	GList *monitoring_list = NULL;
 
 	noti = notification_create(NOTIFICATION_TYPE_NOTI);
 	if (noti != NULL) {
@@ -362,8 +435,13 @@ int notification_update_noti(GVariant *parameters, GVariant **reply_body)
 		ret = notification_ipc_make_noti_from_gvariant(noti, body);
 		g_variant_unref(body);
 
+		ret = _validate_and_set_noti_with_uid(uid, noti, &noti_uid);
+		if (ret != NOTIFICATION_ERROR_NONE)
+			return ret;
+
+		monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &noti_uid);
 		if (ret == NOTIFICATION_ERROR_NONE)
-			ret = _update_noti(reply_body, noti);
+			ret = _update_noti(reply_body, noti, monitoring_list);
 
 		notification_free(noti);
 	} else {
@@ -373,18 +451,23 @@ int notification_update_noti(GVariant *parameters, GVariant **reply_body)
 }
 
 /* load_noti_by_tag */
-int notification_load_noti_by_tag(GVariant *parameters, GVariant **reply_body)
+int notification_load_noti_by_tag(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret;
 	char *tag = NULL;
 	char *pkgname = NULL;
 	notification_h noti;
+	uid_t param_uid;
 
 	noti = notification_create(NOTIFICATION_TYPE_NOTI);
 	if (noti != NULL) {
-		g_variant_get(parameters, "(&s&s)", &pkgname, &tag);
+		g_variant_get(parameters, "(&s&si)", &pkgname, &tag, &param_uid);
+		ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+		if (ret != NOTIFICATION_ERROR_NONE)
+			return ret;
+
 		DbgPrint("_load_noti_by_tag pkgname : %s, tag : %s ", pkgname, tag);
-		ret = notification_noti_get_by_tag(noti, pkgname, tag);
+		ret = notification_noti_get_by_tag(noti, pkgname, tag, param_uid);
 
 		DbgPrint("notification_noti_get_by_tag ret : %d", ret);
 		print_noti(noti);
@@ -404,18 +487,23 @@ int notification_load_noti_by_tag(GVariant *parameters, GVariant **reply_body)
 }
 
 /* load_noti_by_priv_id */
-int notification_load_noti_by_priv_id(GVariant *parameters, GVariant **reply_body)
+int notification_load_noti_by_priv_id(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret;
 	int priv_id = NOTIFICATION_PRIV_ID_NONE;
 	char *pkgname = NULL;
 	notification_h noti;
+	uid_t param_uid;
 
 	noti = notification_create(NOTIFICATION_TYPE_NOTI);
 	if (noti != NULL) {
-		g_variant_get(parameters, "(&si)", &pkgname, &priv_id);
+		g_variant_get(parameters, "(&sii)", &pkgname, &priv_id, &param_uid);
+		ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+		if (ret != NOTIFICATION_ERROR_NONE)
+			return ret;
+
 		DbgPrint("load_noti_by_priv_id pkgname : %s, priv_id : %d ", pkgname, priv_id);
-		ret = notification_noti_get_by_priv_id(noti, pkgname, priv_id);
+		ret = notification_noti_get_by_priv_id(noti, pkgname, priv_id, param_uid);
 
 		DbgPrint("notification_noti_get_by_priv_id ret : %d", ret);
 		print_noti(noti);
@@ -436,7 +524,7 @@ int notification_load_noti_by_priv_id(GVariant *parameters, GVariant **reply_bod
 }
 
 /* load_noti_grouping_list */
-int notification_load_grouping_list(GVariant *parameters, GVariant **reply_body)
+int notification_load_grouping_list(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret;
 	notification_h noti;
@@ -446,11 +534,15 @@ int notification_load_grouping_list(GVariant *parameters, GVariant **reply_body)
 	notification_list_h list_iter;
 	GVariantBuilder *builder;
 	int count = 0;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(ii)", &type, &count);
+	g_variant_get(parameters, "(iii)", &type, &count, &param_uid);
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != NOTIFICATION_ERROR_NONE)
+		return ret;
 	DbgPrint("load grouping list type : %d, count : %d ", type, count);
 
-	ret = notification_noti_get_grouping_list(type, count, &get_list);
+	ret = notification_noti_get_grouping_list(type, count, &get_list, param_uid);
 	if (ret != NOTIFICATION_ERROR_NONE)
 		return ret;
 
@@ -481,7 +573,7 @@ int notification_load_grouping_list(GVariant *parameters, GVariant **reply_body)
 }
 
 /* get_setting_array */
-int notification_get_setting_array(GVariant *parameters, GVariant **reply_body)
+int notification_get_setting_array(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret;
 	GVariant *body;
@@ -490,8 +582,14 @@ int notification_get_setting_array(GVariant *parameters, GVariant **reply_body)
 	int i;
 	notification_setting_h setting_array = NULL;
 	notification_setting_h temp;
+	uid_t param_uid;
 
-	ret = noti_setting_get_setting_array(&setting_array, &count);
+	g_variant_get(parameters, "(i)", &param_uid);
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != NOTIFICATION_ERROR_NONE)
+		return ret;
+
+	ret = noti_setting_get_setting_array(&setting_array, &count, param_uid);
 	if (ret != NOTIFICATION_ERROR_NONE)
 		return ret;
 
@@ -520,17 +618,21 @@ int notification_get_setting_array(GVariant *parameters, GVariant **reply_body)
 }
 
 /* get_setting_array */
-int notification_get_setting_by_package_name(GVariant *parameters, GVariant **reply_body)
+int notification_get_setting_by_package_name(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret;
 	GVariant *body;
 	char *pkgname = NULL;
 	notification_setting_h setting = NULL;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&s)", &pkgname);
+	g_variant_get(parameters, "(&si)", &pkgname, &param_uid);
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != NOTIFICATION_ERROR_NONE)
+		return ret;
 	DbgPrint("get setting by pkgname : %s", pkgname);
 
-	ret = noti_setting_service_get_setting_by_package_name(pkgname, &setting);
+	ret = noti_setting_service_get_setting_by_package_name(pkgname, &setting, param_uid);
 	if (ret == NOTIFICATION_ERROR_NONE) {
 		body = notification_ipc_make_gvariant_from_setting(setting);
 		notification_setting_free_notification(setting);
@@ -552,13 +654,19 @@ int notification_get_setting_by_package_name(GVariant *parameters, GVariant **re
 }
 
 /* load_system_setting */
-int notification_load_system_setting(GVariant *parameters, GVariant **reply_body)
+int notification_load_system_setting(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret;
 	GVariant *body;
 	notification_system_setting_h setting = NULL;
+	uid_t param_uid;
 
-	ret = noti_system_setting_load_system_setting(&setting);
+	g_variant_get(parameters, "(i)", &param_uid);
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != NOTIFICATION_ERROR_NONE)
+		return ret;
+
+	ret = noti_system_setting_load_system_setting(&setting, param_uid);
 	if (ret == NOTIFICATION_ERROR_NONE) {
 		body = notification_ipc_make_gvariant_from_system_setting(setting);
 		notification_system_setting_free_system_setting(setting);
@@ -581,7 +689,7 @@ int notification_load_system_setting(GVariant *parameters, GVariant **reply_body
 }
 
 /* load_noti_detail_list */
-int notification_load_detail_list(GVariant *parameters, GVariant **reply_body)
+int notification_load_detail_list(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret;
 	notification_h noti;
@@ -593,13 +701,17 @@ int notification_load_detail_list(GVariant *parameters, GVariant **reply_body)
 	int group_id = NOTIFICATION_GROUP_ID_NONE;
 	int priv_id = NOTIFICATION_PRIV_ID_NONE;
 	int count = 0;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&siii)", &pkgname, &group_id, &priv_id, &count);
+	g_variant_get(parameters, "(&siiii)", &pkgname, &group_id, &priv_id, &count, &param_uid);
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != NOTIFICATION_ERROR_NONE)
+		return ret;
 	DbgPrint("load detail list pkgname : %s, group_id : %d, priv_id : %d, count : %d ",
 			pkgname, group_id, priv_id, count);
 
 	ret = notification_noti_get_detail_list(pkgname, group_id, priv_id,
-			count, &get_list);
+			count, &get_list, param_uid);
 	if (ret != NOTIFICATION_ERROR_NONE)
 		return ret;
 
@@ -631,10 +743,19 @@ int notification_load_detail_list(GVariant *parameters, GVariant **reply_body)
 }
 
 /* refresh_noti */
-int notification_refresh_noti(GVariant *parameters, GVariant **reply_body)
+int notification_refresh_noti(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret;
-	ret = send_notify(parameters, "refresh_noti_notify", _monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
+	uid_t param_uid;
+	GList *monitoring_list = NULL;
+
+	g_variant_get(parameters, "(i)", &param_uid);
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != NOTIFICATION_ERROR_NONE)
+		return ret;
+
+	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &param_uid);
+	ret = send_notify(parameters, "refresh_noti_notify", monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
 	if (ret != NOTIFICATION_ERROR_NONE) {
 		ErrPrint("failed to send notify:%d\n", ret);
 		return ret;
@@ -651,18 +772,22 @@ int notification_refresh_noti(GVariant *parameters, GVariant **reply_body)
 }
 
 /* del_noti_single */
-int notification_del_noti_single(GVariant *parameters, GVariant **reply_body)
+int notification_del_noti_single(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret;
 	int num_changes = 0;
 	int priv_id = NOTIFICATION_PRIV_ID_NONE;
 	char *pkgname = NULL;
 	GVariant *body = NULL;
+	uid_t param_uid;
+	GList *monitoring_list = NULL;
 
-	g_variant_get(parameters, "(&si)", &pkgname, &priv_id);
-	ret = notification_noti_delete_by_priv_id_get_changes(pkgname, priv_id, &num_changes);
+	g_variant_get(parameters, "(&sii)", &pkgname, &priv_id, &param_uid);
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != NOTIFICATION_ERROR_NONE)
+		return ret;
+	ret = notification_noti_delete_by_priv_id_get_changes(pkgname, priv_id, &num_changes, param_uid);
 	DbgPrint("priv_id: [%d] num_delete:%d\n", priv_id, num_changes);
-
 	if (ret != NOTIFICATION_ERROR_NONE) {
 		ErrPrint("failed to delete a notification:%d %d\n", ret, num_changes);
 		return ret;
@@ -674,7 +799,8 @@ int notification_del_noti_single(GVariant *parameters, GVariant **reply_body)
 			ErrPrint("cannot make gvariant to noti");
 			return NOTIFICATION_ERROR_OUT_OF_MEMORY;
 		}
-		ret = send_notify(body, "delete_single_notify", _monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
+		monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &param_uid);
+		ret = send_notify(body, "delete_single_notify", monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
 		g_variant_unref(body);
 		if (ret != NOTIFICATION_ERROR_NONE) {
 			ErrPrint("failed to send notify:%d\n", ret);
@@ -692,7 +818,7 @@ int notification_del_noti_single(GVariant *parameters, GVariant **reply_body)
 }
 
 /* del_noti_multiple */
-int notification_del_noti_multiple(GVariant *parameters, GVariant **reply_body)
+int notification_del_noti_multiple(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret;
 	char *pkgname = NULL;
@@ -702,11 +828,16 @@ int notification_del_noti_multiple(GVariant *parameters, GVariant **reply_body)
 	GVariant *deleted_noti_list;
 	GVariantBuilder *builder;
 	int i;
+	uid_t param_uid;
+	GList *monitoring_list = NULL;
 
-	g_variant_get(parameters, "(&si)", &pkgname, &type);
+	g_variant_get(parameters, "(&sii)", &pkgname, &type, &param_uid);
 	DbgPrint("pkgname: [%s] type: [%d]\n", pkgname, type);
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != NOTIFICATION_ERROR_NONE)
+		return ret;
 
-	ret = notification_noti_delete_all(type, pkgname, &num_deleted, &list_deleted);
+	ret = notification_noti_delete_all(type, pkgname, &num_deleted, &list_deleted, param_uid);
 	DbgPrint("ret: [%d] num_deleted: [%d]\n", ret, num_deleted);
 
 	if (ret != NOTIFICATION_ERROR_NONE) {
@@ -723,7 +854,8 @@ int notification_del_noti_multiple(GVariant *parameters, GVariant **reply_body)
 			g_variant_builder_add(builder, "(i)", *(list_deleted + i));
 		}
 		deleted_noti_list = g_variant_new("(a(i))", builder);
-		ret = send_notify(deleted_noti_list, "delete_multiple_notify", _monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
+		monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &param_uid);
+		ret = send_notify(deleted_noti_list, "delete_multiple_notify", monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
 
 		g_variant_builder_unref(builder);
 		g_variant_unref(deleted_noti_list);
@@ -745,7 +877,7 @@ int notification_del_noti_multiple(GVariant *parameters, GVariant **reply_body)
 }
 
 /* get_noti_count */
-int notification_get_noti_count(GVariant *parameters, GVariant **reply_body)
+int notification_get_noti_count(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret;
 	notification_type_e type = NOTIFICATION_TYPE_NONE;
@@ -753,11 +885,17 @@ int notification_get_noti_count(GVariant *parameters, GVariant **reply_body)
 	int group_id = NOTIFICATION_GROUP_ID_NONE;
 	int priv_id = NOTIFICATION_PRIV_ID_NONE;
 	int noti_count = 0;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(i&sii)", &type, &pkgname, &group_id, &priv_id);
+	g_variant_get(parameters, "(i&sii)", &type, &pkgname, &group_id, &priv_id, &param_uid);
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("_validate_uid fail ret : %d", ret);
+		return NOTIFICATION_ERROR_IO_ERROR;
+	}
 
 	ret = notification_noti_get_count(type, pkgname, group_id, priv_id,
-			&noti_count);
+			&noti_count, param_uid);
 	if (ret != NOTIFICATION_ERROR_NONE) {
 		ErrPrint("failed to get count : %d\n", ret);
 		return ret;
@@ -773,23 +911,29 @@ int notification_get_noti_count(GVariant *parameters, GVariant **reply_body)
 }
 
 /* update_noti_setting */
-int notification_update_noti_setting(GVariant *parameters, GVariant **reply_body)
+int notification_update_noti_setting(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret;
 	char *pkgname = NULL;
 	int allow_to_notify = 0;
 	int do_not_disturb_except = 0;
 	int visivility_class = 0;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&siii)",
+	g_variant_get(parameters, "(&siiii)",
 			&pkgname,
 			&allow_to_notify,
 			&do_not_disturb_except,
-			&visivility_class);
+			&visivility_class,
+			&param_uid);
+
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != NOTIFICATION_ERROR_NONE)
+		return ret;
 
 	DbgPrint("package_name: [%s] allow_to_notify: [%d] do_not_disturb_except: [%d] visivility_class: [%d]\n",
 			pkgname, allow_to_notify, do_not_disturb_except, visivility_class);
-	ret = notification_setting_db_update(pkgname, allow_to_notify, do_not_disturb_except, visivility_class);
+	ret = notification_setting_db_update(pkgname, allow_to_notify, do_not_disturb_except, visivility_class, param_uid);
 	if (ret != NOTIFICATION_ERROR_NONE) {
 		ErrPrint("failed to setting db update : %d\n", ret);
 		return ret;
@@ -805,18 +949,24 @@ int notification_update_noti_setting(GVariant *parameters, GVariant **reply_body
 }
 
 /* update_noti_sys_setting */
-int notification_update_noti_sys_setting(GVariant *parameters, GVariant **reply_body)
+int notification_update_noti_sys_setting(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret;
 	int do_not_disturb = 0;
 	int visivility_class = 0;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(ii)",
+	g_variant_get(parameters, "(iii)",
 			&do_not_disturb,
-			&visivility_class);
+			&visivility_class,
+			&param_uid);
+
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != NOTIFICATION_ERROR_NONE)
+		return ret;
 
 	DbgPrint("do_not_disturb [%d] visivility_class [%d]\n", do_not_disturb, visivility_class);
-	ret = notification_setting_db_update_system_setting(do_not_disturb, visivility_class);
+	ret = notification_setting_db_update_system_setting(do_not_disturb, visivility_class, param_uid);
 	if (ret != NOTIFICATION_ERROR_NONE) {
 		ErrPrint("failed to setting db update system setting : %d\n", ret);
 		return ret;
@@ -841,7 +991,7 @@ static void _notification_data_init(void)
 	notification_list_h noti_list_head = NULL;
 	notification_type_e noti_type = NOTIFICATION_TYPE_NONE;
 
-	notification_noti_get_grouping_list(NOTIFICATION_TYPE_NONE, -1, &noti_list);
+	notification_noti_get_grouping_list(NOTIFICATION_TYPE_NONE, -1, &noti_list, NOTIFICATION_GLOBAL_UID);
 	noti_list_head = noti_list;
 
 	while (noti_list != NULL) {
@@ -883,6 +1033,8 @@ static int _package_uninstall_cb(const char *pkgname, enum pkgmgr_status status,
 HAPI int notification_service_init(void)
 {
 	int result;
+
+	_monitoring_hash = g_hash_table_new_full(g_int_hash, g_int_equal, g_free, free_monitoring_list);
 	result = notification_db_init();
 	if (result != NOTIFICATION_ERROR_NONE) {
 		ErrPrint("notification db init fail %d", result);
