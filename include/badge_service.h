@@ -19,16 +19,16 @@
 extern int badge_service_init(void);
 extern int badge_service_fini(void);
 
-int badge_get_badge_existing(GVariant *parameters, GVariant **reply_body);
-int badge_get_badge_list(GVariant *parameters, GVariant **reply_body);
-int badge_insert(GVariant *parameters, GVariant **reply_body);
-int badge_delete(GVariant *parameters, GVariant **reply_body);
-int badge_set_badge_count(GVariant *parameters, GVariant **reply_body);
-int badge_get_badge_count(GVariant *parameters, GVariant **reply_body);
-int badge_set_display_option(GVariant *parameters, GVariant **reply_body);
-int badge_get_display_option(GVariant *parameters, GVariant **reply_body);
-int badge_set_setting_property(GVariant *parameters, GVariant **reply_body);
-int badge_get_setting_property(GVariant *parameters, GVariant **reply_body);
+int badge_get_badge_existing(GVariant *parameters, GVariant **reply_body, uid_t uid);
+int badge_get_badge_list(GVariant *parameters, GVariant **reply_body, uid_t uid);
+int badge_insert(GVariant *parameters, GVariant **reply_body, GList *monitoring_list, uid_t uid);
+int badge_delete(GVariant *parameters, GVariant **reply_body, GList *monitoring_list, uid_t uid);
+int badge_set_badge_count(GVariant *parameters, GVariant **reply_body, GList *monitoring_list, uid_t uid);
+int badge_get_badge_count(GVariant *parameters, GVariant **reply_body, uid_t uid);
+int badge_set_display_option(GVariant *parameters, GVariant **reply_body, GList *monitoring_list, uid_t uid);
+int badge_get_display_option(GVariant *parameters, GVariant **reply_body, uid_t uid);
+int badge_set_setting_property(GVariant *parameters, GVariant **reply_body, GList *monitoring_list, uid_t uid);
+int badge_get_setting_property(GVariant *parameters, GVariant **reply_body, uid_t uid);
 int badge_register_dbus_interface();
 
 /* End of a file */

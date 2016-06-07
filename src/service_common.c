@@ -57,6 +57,61 @@ void print_noti(notification_h noti)
 	DbgPrint("provider print_noti  vibration_path  = %s %d", vibration_path, type);
 }
 
+static void _free_monitoring_info(gpointer data)
+{
+	monitoring_info_s *info = (monitoring_info_s *)data;
+	if (info) {
+		free(info->bus_name);
+		g_bus_unwatch_name(info->watcher_id);
+		free(info);
+	}
+}
+
+void free_monitoring_list(gpointer data)
+{
+	GList *monitoring_list = (GList *)data;
+	g_list_free_full(monitoring_list, _free_monitoring_info);
+}
+
+uid_t get_sender_uid(const char *sender_name)
+{
+	GDBusMessage *msg = NULL;
+	GDBusMessage *reply = NULL;
+	GError *err = NULL;
+	GVariant *body;
+	uid_t uid = 0;
+
+	msg = g_dbus_message_new_method_call("org.freedesktop.DBus", "/org/freedesktop/DBus",
+			"org.freedesktop.DBus", "GetConnectionUnixUser");
+	if (!msg) {
+		LOGE("Can't allocate new method call");
+		goto out;
+	}
+
+	g_dbus_message_set_body(msg, g_variant_new("(s)", sender_name));
+	reply = g_dbus_connection_send_message_with_reply_sync(_gdbus_conn, msg,
+			G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err);
+
+	if (!reply) {
+		if (err != NULL) {
+			LOGE("Failed to get uid [%s]", err->message);
+			g_error_free(err);
+		}
+		goto out;
+	}
+
+	body = g_dbus_message_get_body(reply);
+	g_variant_get(body, "(u)", &uid);
+
+out:
+	if (msg)
+		g_object_unref(msg);
+	if (reply)
+		g_object_unref(reply);
+
+	return uid;
+}
+
 int send_notify(GVariant *body, char *cmd, GList *monitoring_app_list, char *interface_name)
 {
 	GError *err = NULL;
@@ -103,21 +158,32 @@ static int _monitoring_app_list_compare_cb(gconstpointer a, gconstpointer b)
 }
 
 int service_register(GVariant *parameters, GVariant **reply_body, const gchar *sender,
-	GBusNameAppearedCallback name_appeared_handler,
-	GBusNameVanishedCallback name_vanished_handler,
-	GList **monitoring_list)
+		GBusNameAppearedCallback name_appeared_handler,
+		GBusNameVanishedCallback name_vanished_handler,
+		GHashTable **monitoring_hash,
+		uid_t uid)
 {
-	GList *added_list;
+	GList *added_list = NULL;
 	const char *bus_name = sender;
 	monitoring_info_s *m_info = NULL;
+	uid_t request_uid = 0;
+	GList *monitoring_list = NULL;
+	int *hash_key;
 
 	if (sender == NULL)
 		return SERVICE_COMMON_ERROR_IO_ERROR;
 
-	added_list = g_list_find_custom(*monitoring_list, bus_name,
+	g_variant_get(parameters, "(i)", &request_uid);
+	if (uid > NORMAL_UID_BASE && uid != request_uid)
+		return SERVICE_COMMON_ERROR_IO_ERROR;
+
+	DbgPrint("service_register : uid %d , request_uid %d", uid, request_uid);
+	monitoring_list = (GList *)g_hash_table_lookup(*monitoring_hash, &uid);
+	added_list = g_list_find_custom(monitoring_list, bus_name,
 			(GCompareFunc)_monitoring_app_list_compare_cb);
 
 	if (added_list == NULL) {
+		DbgPrint("add new sender to list");
 		m_info = (monitoring_info_s *)calloc(1, sizeof(monitoring_info_s));
 		if (m_info == NULL) {
 			ErrPrint("Can not alloc monitoring_info_s");
@@ -142,9 +208,14 @@ int service_register(GVariant *parameters, GVariant **reply_body, const gchar *s
 			DbgPrint("watch on %s success", bus_name);
 		}
 
-		*monitoring_list = g_list_append(*monitoring_list, strdup(bus_name));
+		monitoring_list = g_list_append(monitoring_list, strdup(bus_name));
 		DbgPrint("service_register : register success sender is %s , length : %d",
-				sender, g_list_length(*monitoring_list));
+				sender, g_list_length(monitoring_list));
+		if (g_hash_table_lookup(*monitoring_hash, &uid) == NULL) {
+			hash_key = (int *)calloc(1, sizeof(int));
+			*hash_key = uid;
+			g_hash_table_insert(*monitoring_hash, hash_key, monitoring_list);
+		}
 
 	} else {
 		ErrPrint("service_register : register sender %s already exist", sender);
@@ -154,11 +225,10 @@ int service_register(GVariant *parameters, GVariant **reply_body, const gchar *s
 	if (*reply_body == NULL) {
 		free(m_info->bus_name);
 		free(m_info);
-		*monitoring_list = g_list_remove(*monitoring_list, bus_name);
+		monitoring_list = g_list_remove(monitoring_list, bus_name);
 		ErrPrint("cannot make reply_body");
 		return SERVICE_COMMON_ERROR_OUT_OF_MEMORY;
 	}
-
 	return SERVICE_COMMON_ERROR_NONE;
 }
 

@@ -19,9 +19,9 @@
 extern int shortcut_service_init(void);
 extern int shortcut_service_fini(void);
 
-int shortcut_add(GVariant *parameters, GVariant **reply_body);
-int shortcut_add_widget(GVariant *parameters, GVariant **reply_body);
+int shortcut_add(GVariant *parameters, GVariant **reply_body, GList *monitoring_list, uid_t uid);
+int shortcut_add_widget(GVariant *parameters, GVariant **reply_body, GList *monitoring_list, uid_t uid);
 int shortcut_register_dbus_interface();
-int shortcut_get_shortcut_service_list(GVariant *parameters, GVariant **reply_body);
+int shortcut_get_shortcut_service_list(GVariant *parameters, GVariant **reply_body, uid_t uid);
 int shortcut_check_privilege(void);
 /* End of a file */

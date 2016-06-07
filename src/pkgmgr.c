@@ -29,6 +29,7 @@
 #include "conf.h"
 
 struct item {
+	uid_t uid;
 	char *pkgname;
 	char *icon;
 
@@ -57,82 +58,82 @@ static struct {
 };
 
 struct event_item {
-	int (*cb)(const char *pkgname, enum pkgmgr_status status, double value, void *data);
+	int (*cb)(uid_t uid, const char *pkgname, enum pkgmgr_status status, double value, void *data);
 	void *data;
 };
 
-static inline void invoke_install_event_handler(const char *pkgname, enum pkgmgr_status status, double value)
+static inline void invoke_install_event_handler(uid_t uid, const char *pkgname, enum pkgmgr_status status, double value)
 {
 	Eina_List *l;
 	struct event_item *item;
 
 	EINA_LIST_FOREACH(s_info.install_event, l, item) {
 		if (item->cb)
-			item->cb(pkgname, status, value, item->data);
+			item->cb(uid, pkgname, status, value, item->data);
 	}
 }
 
-static inline void invoke_uninstall_event_handler(const char *pkgname, enum pkgmgr_status status, double value)
+static inline void invoke_uninstall_event_handler(uid_t uid, const char *pkgname, enum pkgmgr_status status, double value)
 {
 	Eina_List *l;
 	struct event_item *item;
 
 	EINA_LIST_FOREACH(s_info.uninstall_event, l, item) {
 		if (item->cb)
-			item->cb(pkgname, status, value, item->data);
+			item->cb(uid, pkgname, status, value, item->data);
 	}
 }
 
-static inline void invoke_update_event_handler(const char *pkgname, enum pkgmgr_status status, double value)
+static inline void invoke_update_event_handler(uid_t uid, const char *pkgname, enum pkgmgr_status status, double value)
 {
 	Eina_List *l;
 	struct event_item *item;
 
 	EINA_LIST_FOREACH(s_info.update_event, l, item) {
 		if (item->cb)
-			item->cb(pkgname, status, value, item->data);
+			item->cb(uid, pkgname, status, value, item->data);
 	}
 }
 
-static inline void invoke_download_event_handler(const char *pkgname, enum pkgmgr_status status, double value)
+static inline void invoke_download_event_handler(uid_t uid, const char *pkgname, enum pkgmgr_status status, double value)
 {
 	Eina_List *l;
 	struct event_item *item;
 
 	EINA_LIST_FOREACH(s_info.download_event, l, item) {
 		if (item->cb)
-			item->cb(pkgname, status, value, item->data);
+			item->cb(uid, pkgname, status, value, item->data);
 	}
 }
 
-static inline void invoke_recover_event_handler(const char *pkgname, enum pkgmgr_status status, double value)
+static inline void invoke_recover_event_handler(uid_t uid, const char *pkgname, enum pkgmgr_status status, double value)
 {
 	Eina_List *l;
 	struct event_item *item;
 
 	EINA_LIST_FOREACH(s_info.recover_event, l, item) {
 		if (item->cb)
-			item->cb(pkgname, status, value, item->data);
+			item->cb(uid, pkgname, status, value, item->data);
 	}
 }
 
-static inline void invoke_callback(const char *pkgname, struct item *item, double value)
+static inline void invoke_callback(uid_t uid, const char *pkgname, struct item *item, double value)
 {
 	switch (item->type) {
 	case PKGMGR_EVENT_DOWNLOAD:
-		invoke_download_event_handler(pkgname, item->status, value);
+		invoke_download_event_handler(uid, pkgname, item->status, value);
 		break;
 	case PKGMGR_EVENT_UNINSTALL:
-		invoke_uninstall_event_handler(pkgname, item->status, value);
+		invoke_uninstall_event_handler(uid, pkgname, item->status, value);
 		break;
 	case PKGMGR_EVENT_INSTALL:
-		invoke_install_event_handler(pkgname, item->status, value);
+		invoke_install_event_handler(uid, pkgname, item->status, value);
 		break;
 	case PKGMGR_EVENT_UPDATE:
-		invoke_update_event_handler(pkgname, item->status, value);
+		invoke_update_event_handler(uid, pkgname, item->status, value);
 		break;
 	case PKGMGR_EVENT_RECOVER:
-		invoke_recover_event_handler(pkgname, item->status, value);
+		invoke_recover_event_handler(uid, pkgname, item->status, value);
 		break;
 	default:
 		ErrPrint("Unknown type: %d\n", item->type);
@@ -167,7 +168,7 @@ static inline int is_valid_status(struct item *item, const char *status)
 	return !strcasecmp(status, expected_status);
 }
 
-static struct item *find_item(const char *pkgname)
+static struct item *find_item(const char *pkgname, uid_t uid)
 {
 	Eina_List *l;
 	struct item *item;
@@ -178,7 +179,7 @@ static struct item *find_item(const char *pkgname)
 	}
 
 	EINA_LIST_FOREACH(s_info.item_list, l, item) {
-		if (strcmp(item->pkgname, pkgname))
+		if (uid != item->uid || strcmp(item->pkgname, pkgname))
 			continue;
 
 		return item;
@@ -188,7 +189,7 @@ static struct item *find_item(const char *pkgname)
 	return NULL;
 }
 
-static int start_cb(const char *pkgname, const char *val, void *data)
+static int start_cb(uid_t uid, const char *pkgname, const char *val, void *data)
 {
 	struct item *item;
 
@@ -207,6 +208,7 @@ static int start_cb(const char *pkgname, const char *val, void *data)
 		return SERVICE_COMMON_ERROR_OUT_OF_MEMORY;
 	}
 
+	item->uid = uid;
 	item->status = PKGMGR_STATUS_START;
 
 	if (!strcasecmp(val, "download")) {
@@ -225,20 +227,19 @@ static int start_cb(const char *pkgname, const char *val, void *data)
 		ErrPrint("Invalid val: %s\n", val);
 		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
 	}
-
 	s_info.item_list = eina_list_append(s_info.item_list, item);
 
-	invoke_callback(pkgname, item, 0.0f);
+	invoke_callback(uid, pkgname, item, 0.0f);
 	return SERVICE_COMMON_ERROR_NONE;
 }
 
-static int icon_path_cb(const char *pkgname, const char *val, void *data)
+static int icon_path_cb(uid_t uid, const char *pkgname, const char *val, void *data)
 {
 	struct item *item;
 
 	DbgPrint("[%s] %s\n", pkgname, val);
 
-	item = find_item(pkgname);
+	item = find_item(pkgname, uid);
 	if (!item)
 		return SERVICE_COMMON_ERROR_NOT_EXIST;
 
@@ -254,13 +255,13 @@ static int icon_path_cb(const char *pkgname, const char *val, void *data)
 	return SERVICE_COMMON_ERROR_NONE;
 }
 
-static int command_cb(const char *pkgname, const char *val, void *data)
+static int command_cb(uid_t uid, const char *pkgname, const char *val, void *data)
 {
 	struct item *item;
 
 	DbgPrint("[%s] %s\n", pkgname, val);
 
-	item = find_item(pkgname);
+	item = find_item(pkgname, uid);
 	if (!item)
 		return SERVICE_COMMON_ERROR_NOT_EXIST;
 
@@ -270,34 +271,34 @@ static int command_cb(const char *pkgname, const char *val, void *data)
 	}
 
 	item->status = PKGMGR_STATUS_COMMAND;
-	invoke_callback(pkgname, item, 0.0f);
+	invoke_callback(uid, pkgname, item, 0.0f);
 	return SERVICE_COMMON_ERROR_NONE;
 }
 
-static int error_cb(const char *pkgname, const char *val, void *data)
+static int error_cb(uid_t uid, const char *pkgname, const char *val, void *data)
 {
 	/* val = error */
 	struct item *item;
 
 	DbgPrint("[%s] %s\n", pkgname, val);
 
-	item = find_item(pkgname);
+	item = find_item(pkgname, uid);
 	if (!item)
 		return SERVICE_COMMON_ERROR_NOT_EXIST;
 
 	item->status = PKGMGR_STATUS_ERROR;
-	invoke_callback(pkgname, item, 0.0f);
+	invoke_callback(uid, pkgname, item, 0.0f);
 	return SERVICE_COMMON_ERROR_NONE;
 }
 
-static int change_pkgname_cb(const char *pkgname, const char *val, void *data)
+static int change_pkgname_cb(uid_t uid, const char *pkgname, const char *val, void *data)
 {
 	struct item *item;
 	char *new_pkgname;
 
 	DbgPrint("[%s] %s\n", pkgname, val);
 
-	item = find_item(pkgname);
+	item = find_item(pkgname, uid);
 	if (!item)
 		return SERVICE_COMMON_ERROR_NOT_EXIST;
 
@@ -312,7 +313,7 @@ static int change_pkgname_cb(const char *pkgname, const char *val, void *data)
 	return SERVICE_COMMON_ERROR_NONE;
 }
 
-static int download_cb(const char *pkgname, const char *val, void *data)
+static int download_cb(uid_t uid, const char *pkgname, const char *val, void *data)
 {
 	/* val = integer */
 	struct item *item;
@@ -320,7 +321,7 @@ static int download_cb(const char *pkgname, const char *val, void *data)
 
 	DbgPrint("[%s] %s\n", pkgname, val);
 
-	item = find_item(pkgname);
+	item = find_item(pkgname, uid);
 	if (!item) {
 		DbgPrint("ITEM is not started from the start_cb\n");
 		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
@@ -349,11 +350,11 @@ static int download_cb(const char *pkgname, const char *val, void *data)
 		value = (double)SERVICE_COMMON_ERROR_INVALID_PARAMETER;
 	}
 
-	invoke_download_event_handler(pkgname, item->status, value);
+	invoke_download_event_handler(uid, pkgname, item->status, value);
 	return SERVICE_COMMON_ERROR_NONE;
 }
 
-static int progress_cb(const char *pkgname, const char *val, void *data)
+static int progress_cb(uid_t uid, const char *pkgname, const char *val, void *data)
 {
 	/* val = integer */
 	struct item *item;
@@ -361,7 +362,7 @@ static int progress_cb(const char *pkgname, const char *val, void *data)
 
 	DbgPrint("[%s] %s\n", pkgname, val);
 
-	item = find_item(pkgname);
+	item = find_item(pkgname, uid);
 	if (!item) {
 		ErrPrint("ITEM is not started from the start_cb\n");
 		return SERVICE_COMMON_ERROR_INVALID_PARAMETER;
@@ -385,23 +386,23 @@ static int progress_cb(const char *pkgname, const char *val, void *data)
 		value = (double)SERVICE_COMMON_ERROR_INVALID_PARAMETER;
 	}
 
-	invoke_callback(pkgname, item, value);
+	invoke_callback(uid, pkgname, item, value);
 	return SERVICE_COMMON_ERROR_NONE;
 }
 
-static int end_cb(const char *pkgname, const char *val, void *data)
+static int end_cb(uid_t uid, const char *pkgname, const char *val, void *data)
 {
 	struct item *item;
 
 	DbgPrint("[%s] %s\n", pkgname, val);
 
-	item = find_item(pkgname);
+	item = find_item(pkgname, uid);
 	if (!item)
 		return SERVICE_COMMON_ERROR_NOT_EXIST;
 
 	item->status = !strcasecmp(val, "ok") ? PKGMGR_STATUS_END : PKGMGR_STATUS_ERROR;
 
-	invoke_callback(pkgname, item, 0.0f);
+	invoke_callback(uid, pkgname, item, 0.0f);
 
 	s_info.item_list = eina_list_remove(s_info.item_list, item);
 	free(item->icon);
@@ -412,7 +413,7 @@ static int end_cb(const char *pkgname, const char *val, void *data)
 
 static struct pkgmgr_handler {
 	const char *key;
-	int (*func)(const char *package, const char *val, void *data);
+	int (*func)(uid_t uid, const char *package, const char *val, void *data);
 } handler[] = {
 	{ "install_percent", progress_cb },
 	{ "download_percent", download_cb },
@@ -433,15 +434,22 @@ static int pkgmgr_cb(uid_t target_uid, int req_id, const char *type, const char 
 {
 	register int i;
 	int ret;
+	uid_t uid;
+
+	#ifdef __FEATURE_TIZEN_2_4_PKGMGR__
+	uid = tzplatform_getuid(TZ_SYS_DEFAULT_USER);
+	#else /* __FEATURE_TIZEN_2_4_PKGMGR__ */
+	uid = target_uid;
+	#endif /* __FEATURE_TIZEN_2_4_PKGMGR__ */
 
 	for (i = 0; handler[i].key; i++) {
 		if (strcasecmp(key, handler[i].key))
 			continue;
 
-		ret = handler[i].func(pkgname, val, data);
+		ret = handler[i].func(uid, pkgname, val, data);
 		if (ret < 0) {
-			DbgPrint("REQ[%d] pkgname[%s], type[%s], key[%s], val[%s], ret = %d\n",
-					req_id, pkgname, type, key, val, ret);
+			DbgPrint("REQ[%d], UID[%d], pkgname[%s], type[%s], key[%s], val[%s], ret = %d\n",
+					req_id, uid, pkgname, type, key, val, ret);
 		}
 	}
 
@@ -505,7 +513,7 @@ HAPI int pkgmgr_fini(void)
 	return SERVICE_COMMON_ERROR_NONE;
 }
 
-HAPI int pkgmgr_add_event_callback(enum pkgmgr_event_type type, int (*cb)(const char *pkgname, enum pkgmgr_status status, double value, void *data), void *data)
+HAPI int pkgmgr_add_event_callback(enum pkgmgr_event_type type, int (*cb)(uid_t uid, const char *pkgname, enum pkgmgr_status status, double value, void *data), void *data)
 {
 	struct event_item *item;
 
@@ -542,7 +550,7 @@ HAPI int pkgmgr_add_event_callback(enum pkgmgr_event_type type, int (*cb)(const 
 	return SERVICE_COMMON_ERROR_NONE;
 }
 
-HAPI void *pkgmgr_del_event_callback(enum pkgmgr_event_type type, int (*cb)(const char *pkgname, enum pkgmgr_status status, double value, void *data), void *data)
+HAPI void *pkgmgr_del_event_callback(enum pkgmgr_event_type type, int (*cb)(uid_t uid, const char *pkgname, enum pkgmgr_status status, double value, void *data), void *data)
 {
 	struct event_item *item;
 	Eina_List *l;
