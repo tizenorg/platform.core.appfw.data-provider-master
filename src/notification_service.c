@@ -38,6 +38,8 @@
 #include <notification_db.h>
 
 #define PROVIDER_NOTI_INTERFACE_NAME "org.tizen.data_provider_noti_service"
+#define SYSTEM_UID_BASE 5000
+
 static GList *_monitoring_list = NULL;
 static int _update_noti(GVariant **reply_body, notification_h noti);
 
@@ -86,6 +88,7 @@ static void _noti_dbus_method_call_handler(GDBusConnection *conn,
 
 	GVariant *reply_body = NULL;
 	int ret = NOTIFICATION_ERROR_INVALID_OPERATION;
+	uid_t uid = get_sender_uid(sender);
 
 	if (g_strcmp0(method_name, "noti_service_register") == 0)
 		ret = service_register(parameters, &reply_body, sender,
@@ -93,7 +96,7 @@ static void _noti_dbus_method_call_handler(GDBusConnection *conn,
 	else if (g_strcmp0(method_name, "update_noti") == 0)
 		ret = notification_update_noti(parameters, &reply_body);
 	else if (g_strcmp0(method_name, "add_noti") == 0)
-		ret = notification_add_noti(parameters, &reply_body);
+		ret = notification_add_noti(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "refresh_noti") == 0)
 		ret = notification_refresh_noti(parameters, &reply_body);
 	else if (g_strcmp0(method_name, "del_noti_single") == 0)
@@ -283,17 +286,31 @@ static int _add_noti(GVariant **reply_body, notification_h noti)
 	return ret;
 }
 
-int notification_add_noti(GVariant *parameters, GVariant **reply_body)
+int notification_add_noti(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret;
 	notification_h noti;
 	GVariant *body = NULL;
+	uid_t noti_uid = 0;
 
 	noti = notification_create(NOTIFICATION_TYPE_NOTI);
 	if (noti != NULL) {
 		g_variant_get(parameters, "(v)", &body);
 		ret = notification_ipc_make_noti_from_gvariant(noti, body);
 		g_variant_unref(body);
+
+		ret = notification_get_uid(noti, &noti_uid);
+		if (ret != NOTIFICATION_ERROR_NONE) {
+			ErrPrint("notification_get_uid fail ret : %d", ret);
+			notification_free(noti);
+			return NOTIFICATION_ERROR_IO_ERROR;
+		}
+
+		if (uid > SYSTEM_UID_BASE && uid != noti_uid) {
+			ErrPrint("notification_add_noti invalid seder uid : %d, noti_uid : %d", uid, noti_uid);
+			notification_free(noti);
+			return NOTIFICATION_ERROR_IO_ERROR;
+		}
 
 		if (ret == NOTIFICATION_ERROR_NONE) {
 			ret = notification_noti_check_tag(noti);

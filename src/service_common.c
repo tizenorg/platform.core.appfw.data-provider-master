@@ -57,6 +57,45 @@ void print_noti(notification_h noti)
 	DbgPrint("provider print_noti  vibration_path  = %s %d", vibration_path, type);
 }
 
+uid_t get_sender_uid(const char *sender_name)
+{
+	GDBusMessage *msg = NULL;
+	GDBusMessage *reply = NULL;
+	GError *err = NULL;
+	GVariant *body;
+	uid_t uid = 0;
+
+	msg = g_dbus_message_new_method_call("org.freedesktop.DBus", "/org/freedesktop/DBus",
+			"org.freedesktop.DBus", "GetConnectionUnixUser");
+	if (!msg) {
+		LOGE("Can't allocate new method call");
+		goto out;
+	}
+
+	g_dbus_message_set_body(msg, g_variant_new("(s)", sender_name));
+	reply = g_dbus_connection_send_message_with_reply_sync(_gdbus_conn, msg,
+							G_DBUS_SEND_MESSAGE_FLAGS_NONE, -1, NULL, NULL, &err);
+
+	if (!reply) {
+		if (err != NULL) {
+			LOGE("Failed to get uid [%s]", err->message);
+			g_error_free(err);
+		}
+		goto out;
+	}
+
+	body = g_dbus_message_get_body(reply);
+	g_variant_get(body, "(u)", &uid);
+
+out:
+	if (msg)
+		g_object_unref(msg);
+	if (reply)
+		g_object_unref(reply);
+
+	return uid;
+}
+
 int send_notify(GVariant *body, char *cmd, GList *monitoring_app_list, char *interface_name)
 {
 	GError *err = NULL;

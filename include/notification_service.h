@@ -20,7 +20,7 @@ extern int notification_service_init(void);
 extern int notification_service_fini(void);
 
 int notification_server_register(GVariant *parameters, GVariant **reply_body);
-int notification_add_noti(GVariant *parameters, GVariant **reply_body);
+int notification_add_noti(GVariant *parameters, GVariant **reply_body, uid_t uid);
 int notification_update_noti(GVariant *parameters, GVariant **reply_body);
 int notification_refresh_noti(GVariant *parameters, GVariant **reply_body);
 int notification_del_noti_single(GVariant *parameters, GVariant **reply_body);
