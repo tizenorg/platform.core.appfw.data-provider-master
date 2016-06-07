@@ -20,6 +20,8 @@
 #include <shortcut.h>
 #include <stdlib.h>
 
+#define NORMAL_UID_BASE 5000
+
 typedef enum {
 	NOTIFICATION_SERVICE = 0,
 	SHORTCUT_SERVICE,
@@ -41,6 +43,7 @@ enum service_common_error {
 typedef struct monitoring_info {
 	int watcher_id;
 	char *bus_name;
+	uid_t uid;
 } monitoring_info_s;
 
 void print_noti(notification_h noti);
@@ -48,8 +51,11 @@ int send_notify(GVariant *body, char *cmd, GList *monitoring_app_list, char *int
 int service_register(GVariant *parameters, GVariant **reply_body, const gchar *sender,
 	GBusNameAppearedCallback name_appeared_handler,
 	GBusNameVanishedCallback name_vanished_handler,
-	GList **monitoring_list);
+	GHashTable **monitoring_hash,
+	uid_t uid);
 GDBusConnection *service_common_get_connection();
 int service_common_register_dbus_interface(char *introspection_xml, GDBusInterfaceVTable interface_vtable);
+uid_t get_sender_uid(const char *sender_name);
+void free_monitoring_list(gpointer data);
 
 /* End of a file */
