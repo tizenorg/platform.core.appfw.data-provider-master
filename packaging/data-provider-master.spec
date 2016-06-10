@@ -27,7 +27,9 @@ BuildRequires: pkgconfig(pkgmgr)
 BuildRequires: pkgconfig(pkgmgr-info)
 BuildRequires: pkgconfig(notification)
 BuildRequires: pkgconfig(badge)
+%if "%{profile}" == "mobile"
 BuildRequires: pkgconfig(shortcut)
+%endif
 BuildRequires: pkgconfig(libsystemd-daemon)
 BuildRequires: pkgconfig(cynara-client)
 BuildRequires: pkgconfig(cynara-session)
@@ -56,7 +58,7 @@ export FFLAGS="${FFLAGS} -DTIZEN_ENGINEER_MODE"
 export ENGINEER=true
 %endif
 
-%if "%{_repository}" == "wearable"
+%if "%{profile}" == "wearable"
 export MOBILE=Off
 export WEARABLE=On
 %else

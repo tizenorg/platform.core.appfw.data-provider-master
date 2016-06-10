@@ -17,8 +17,10 @@
 #include <gio/gio.h>
 #include <notification.h>
 #include <badge.h>
-#include <shortcut.h>
 #include <stdlib.h>
+#ifndef WEARABLE
+#include <shortcut.h>
+#endif
 
 typedef enum {
 	NOTIFICATION_SERVICE = 0,

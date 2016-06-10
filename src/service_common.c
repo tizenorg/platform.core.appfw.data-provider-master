@@ -28,7 +28,9 @@
 
 #include "notification_service.h"
 #include "badge_service.h"
+#ifndef WEARABLE
 #include "shortcut_service.h"
+#endif
 
 #define PROVIDER_BUS_NAME "org.tizen.data_provider_service"
 #define PROVIDER_OBJECT_PATH "/org/tizen/data_provider_service"
