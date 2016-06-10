@@ -37,9 +37,11 @@
 #include "util.h"
 #include "critical_log.h"
 #include "service_common.h"
-#include "shortcut_service.h"
 #include "notification_service.h"
 #include "badge_service.h"
+#ifndef WEARABLE
+#include "shortcut_service.h"
+#endif
 
 static void lang_key_changed_cb(keynode_t *node EINA_UNUSED, void *first)
 {
@@ -70,11 +72,11 @@ static inline int app_create(void)
 		DbgPrint("VCONFKEY_LANGSET notify key chenaged: %d\n", ret);
 
 	lang_key_changed_cb(NULL, NULL);
-
+#ifndef WEARABLE
 	ret = shortcut_service_init();
 	if (ret < 0)
 		DbgPrint("shortcut: %d\n", ret);
-
+#endif
 	ret = notification_service_init();
 	if (ret < 0)
 		DbgPrint("noti: %d\n", ret);
@@ -97,11 +99,11 @@ static inline int app_terminate(void)
 	ret = notification_service_fini();
 	if (ret < 0)
 		DbgPrint("noti: %d\n", ret);
-
+#ifndef WEARABLE
 	ret = shortcut_service_fini();
 	if (ret < 0)
 		DbgPrint("shortcut: %d\n", ret);
-
+#endif
 	DbgPrint("Terminated\n");
 	return 0;
 }

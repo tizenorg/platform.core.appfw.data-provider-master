@@ -6,31 +6,56 @@ SET(EXEC_PREFIX "\${prefix}")
 SET(LIBDIR ${LIB_INSTALL_DIR})
 SET(INCLUDEDIR "\${prefix}/include")
 
-
-INCLUDE(FindPkgConfig)
-pkg_check_modules(pkg REQUIRED
-	dlog
-	aul
-	vconf
-	sqlite3
-	db-util
-	glib-2.0
-	gio-2.0
-	bundle
-	ecore
-	eina
-	pkgmgr
-	notification
-	badge
-	libsmack
-	shortcut
-	pkgmgr-info
-	libsystemd-daemon
-	capi-appfw-app-manager
-	cynara-client
-	cynara-session
-	cynara-creds-socket
-)
+IF (MOBILE)
+	INCLUDE(FindPkgConfig)
+	pkg_check_modules(pkg REQUIRED
+		dlog
+		aul
+		vconf
+		sqlite3
+		db-util
+		glib-2.0
+		gio-2.0
+		bundle
+		ecore
+		eina
+		pkgmgr
+		notification
+		badge
+		shortcut
+		libsmack
+		pkgmgr-info
+		libsystemd-daemon
+		capi-appfw-app-manager
+		cynara-client
+		cynara-session
+		cynara-creds-socket
+		)
+ELSEIF (WEARABLE)
+	INCLUDE(FindPkgConfig)
+	pkg_check_modules(pkg REQUIRED
+		dlog
+		aul
+		vconf
+		sqlite3
+		db-util
+		glib-2.0
+		gio-2.0
+		bundle
+		ecore
+		eina
+		pkgmgr
+		notification
+		badge
+		libsmack
+		pkgmgr-info
+		libsystemd-daemon
+		capi-appfw-app-manager
+		cynara-client
+		cynara-session
+		cynara-creds-socket
+		)
+ENDIF (MOBILE)
 
 SET(PACKAGE "${PROJECT_NAME}")
 SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Winline -Werror -fno-builtin-malloc -fno-omit-frame-pointer -g -fPIE")
@@ -61,16 +86,28 @@ ELSEIF (WEARABLE)
 	ADD_DEFINITIONS("-DWEARABLE")
 ENDIF (MOBILE)
 
-SET(BUILD_SOURCE
-	src/main.c
-	src/util.c
-	src/pkgmgr.c
-	src/shortcut_service.c
-	src/badge_service.c
-	src/notification_service.c
-	src/service_common.c
-	src/critical_log.c
-)
+IF (MOBILE)
+	SET(BUILD_SOURCE
+		src/main.c
+		src/util.c
+		src/pkgmgr.c
+		src/badge_service.c
+		src/notification_service.c
+		src/service_common.c
+		src/critical_log.c
+		src/shortcut_service.c
+		)
+ELSEIF (WEARABLE)
+	SET(BUILD_SOURCE
+		src/main.c
+		src/util.c
+		src/pkgmgr.c
+		src/badge_service.c
+		src/notification_service.c
+		src/service_common.c
+		src/critical_log.c
+		)
+ENDIF (MOBILE)
 
 STRING(REPLACE "-L-l" "-l" pkg_fixed_LDFLAGS ${pkg_LDFLAGS})
 STRING(REPLACE "-l" " -l" pkg_LDFLAGS ${pkg_fixed_LDFLAGS})
