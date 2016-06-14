@@ -27,7 +27,7 @@ BuildRequires: pkgconfig(pkgmgr)
 BuildRequires: pkgconfig(pkgmgr-info)
 BuildRequires: pkgconfig(notification)
 BuildRequires: pkgconfig(badge)
-%if "%{profile}" == "mobile"
+%if "%{profile}" != "wearable"
 BuildRequires: pkgconfig(shortcut)
 %endif
 BuildRequires: pkgconfig(libsystemd-daemon)
