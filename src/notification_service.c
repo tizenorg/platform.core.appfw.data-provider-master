@@ -224,6 +224,12 @@ int notification_register_dbus_interface()
 			"        <method name='update_noti_sys_setting'>"
 			"          <arg type='i' name='do_not_disturb' direction='in'/>"
 			"          <arg type='i' name='visibility_class' direction='in'/>"
+			"          <arg type='i' name='dnd_schedule_enabled' direction='in'/>"
+			"          <arg type='i' name='dnd_schedule_day' direction='in'/>"
+			"          <arg type='i' name='dnd_start_hour' direction='in'/>"
+			"          <arg type='i' name='dnd_start_min' direction='in'/>"
+			"          <arg type='i' name='dnd_end_hour' direction='in'/>"
+			"          <arg type='i' name='dnd_end_min' direction='in'/>"
 			"          <arg type='i' name='uid' direction='in'/>"
 			"        </method>"
 
@@ -954,19 +960,41 @@ int notification_update_noti_sys_setting(GVariant *parameters, GVariant **reply_
 	int ret;
 	int do_not_disturb = 0;
 	int visivility_class = 0;
+	int dnd_schedule_enabled = 0;
+	int dnd_schedule_day = 0;
+	int dnd_start_hour = 0;
+	int dnd_start_min = 0;
+	int dnd_end_hour = 0;
+	int dnd_end_min = 0;
 	uid_t param_uid;
 
-	g_variant_get(parameters, "(iii)",
-			&do_not_disturb,
-			&visivility_class,
-			&param_uid);
+	g_variant_get(parameters, "(iiiiiiiii)",
+				&do_not_disturb,
+				&visivility_class,
+				&dnd_schedule_enabled,
+				&dnd_schedule_day,
+				&dnd_start_hour,
+				&dnd_start_min,
+				&dnd_end_hour,
+				&dnd_end_min,
+				&param_uid);
 
 	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
 	if (ret != NOTIFICATION_ERROR_NONE)
 		return ret;
 
-	DbgPrint("do_not_disturb [%d] visivility_class [%d]\n", do_not_disturb, visivility_class);
-	ret = notification_setting_db_update_system_setting(do_not_disturb, visivility_class, param_uid);
+	DbgPrint("do_not_disturb [%d] visivility_class [%d] set_schedule [%d]\n",
+			do_not_disturb, visivility_class, dnd_schedule_enabled);
+
+	ret = notification_setting_db_update_system_setting(do_not_disturb,
+				visivility_class,
+				dnd_schedule_enabled,
+				dnd_schedule_day,
+				dnd_start_hour,
+				dnd_start_min,
+				dnd_end_hour,
+				dnd_end_min,
+				param_uid);
 	if (ret != NOTIFICATION_ERROR_NONE) {
 		ErrPrint("failed to setting db update system setting : %d\n", ret);
 		return ret;
@@ -977,6 +1005,7 @@ int notification_update_noti_sys_setting(GVariant *parameters, GVariant **reply_
 		ErrPrint("cannot make reply_body");
 		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
 	}
+
 	DbgPrint("_update_noti_sys_setting_service done !! %d", ret);
 	return ret;
 }
