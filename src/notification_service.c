@@ -794,7 +794,7 @@ int notification_del_noti_single(GVariant *parameters, GVariant **reply_body, ui
 	}
 
 	if (num_changes > 0) {
-		body = g_variant_new("(ii)", 1, priv_id);
+		body = g_variant_new("(iii)", 1, priv_id, param_uid);
 		if (body == NULL) {
 			ErrPrint("cannot make gvariant to noti");
 			return NOTIFICATION_ERROR_OUT_OF_MEMORY;
@@ -853,7 +853,7 @@ int notification_del_noti_multiple(GVariant *parameters, GVariant **reply_body, 
 		for (i = 0; i < num_deleted; i++) {
 			g_variant_builder_add(builder, "(i)", *(list_deleted + i));
 		}
-		deleted_noti_list = g_variant_new("(a(i))", builder);
+		deleted_noti_list = g_variant_new("(a(i)i)", builder, param_uid);
 		monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &param_uid);
 		ret = send_notify(deleted_noti_list, "delete_multiple_notify", monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
 
