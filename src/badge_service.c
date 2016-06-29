@@ -188,11 +188,12 @@ int badge_get_badge_existing(GVariant *parameters, GVariant **reply_body, uid_t 
 	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
 	bool existing = 0;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&s)", &pkgname);
+	g_variant_get(parameters, "(&si)", &pkgname, &param_uid);
 	DbgPrint("badge_get_badge_existing %s", pkgname);
 	if (pkgname != NULL)
-		ret = badge_db_is_existing(pkgname, &existing);
+		ret = badge_db_is_existing(pkgname, &existing, param_uid);
 	else
 		return BADGE_ERROR_INVALID_PARAMETER;
 
@@ -219,8 +220,11 @@ int badge_get_badge_list(GVariant *parameters, GVariant **reply_body, uid_t uid)
 	badge_info_s *badge;
 	GVariantBuilder *builder;
 	int ret;
+	uid_t param_uid;
 
-	ret = badge_db_get_list(&badge_list);
+	g_variant_get(parameters, "(i)", &param_uid);
+
+	ret = badge_db_get_list(&badge_list, param_uid);
 	if (ret != BADGE_ERROR_NONE) {
 		ErrPrint("badge get list fail : %d", ret);
 		return ret;
@@ -255,10 +259,11 @@ int badge_insert(GVariant *parameters, GVariant **reply_body, GList *monitoring_
 	char *writable_pkg = NULL;
 	char *caller = NULL;
 	GVariant *body = NULL;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&s&s&s)", &pkgname, &writable_pkg, &caller);
+	g_variant_get(parameters, "(&s&s&si)", &pkgname, &writable_pkg, &caller, &param_uid);
 	if (pkgname != NULL && writable_pkg != NULL && caller != NULL)
-		ret = badge_db_insert(pkgname, writable_pkg, caller);
+		ret = badge_db_insert(pkgname, writable_pkg, caller, param_uid);
 	else
 		return BADGE_ERROR_INVALID_PARAMETER;
 
@@ -267,7 +272,7 @@ int badge_insert(GVariant *parameters, GVariant **reply_body, GList *monitoring_
 		return ret;
 	}
 
-	body = g_variant_new("(s)", pkgname);
+	body = g_variant_new("(si)", pkgname, param_uid);
 	if (body == NULL) {
 		ErrPrint("cannot make gvariant to noti");
 		return BADGE_ERROR_OUT_OF_MEMORY;
@@ -297,10 +302,11 @@ int badge_delete(GVariant *parameters, GVariant **reply_body, GList *monitoring_
 	char *pkgname = NULL;
 	char *caller = NULL;
 	GVariant *body = NULL;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&s&s)", &pkgname, &caller);
+	g_variant_get(parameters, "(&s&si)", &pkgname, &caller, &param_uid);
 	if (pkgname != NULL && caller != NULL) {
-		ret = badge_db_delete(pkgname, caller);
+		ret = badge_db_delete(pkgname, caller, param_uid);
 	} else {
 		return BADGE_ERROR_INVALID_PARAMETER;
 	}
@@ -310,7 +316,7 @@ int badge_delete(GVariant *parameters, GVariant **reply_body, GList *monitoring_
 		return ret;
 	}
 
-	body = g_variant_new("(s)", pkgname);
+	body = g_variant_new("(si)", pkgname, param_uid);
 	if (body == NULL) {
 		ErrPrint("cannot make gvariant to noti");
 		return BADGE_ERROR_OUT_OF_MEMORY;
@@ -339,10 +345,11 @@ int badge_set_badge_count(GVariant *parameters, GVariant **reply_body, GList *mo
 	char *caller = NULL;
 	unsigned int count = 0;
 	GVariant *body = NULL;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&s&si)", &pkgname, &caller, &count);
+	g_variant_get(parameters, "(&s&sii)", &pkgname, &caller, &count, &param_uid);
 	if (pkgname != NULL && caller != NULL)
-		ret = badge_db_set_count(pkgname, caller, count);
+		ret = badge_db_set_count(pkgname, caller, count, param_uid);
 	else
 		return BADGE_ERROR_INVALID_PARAMETER;
 
@@ -351,7 +358,7 @@ int badge_set_badge_count(GVariant *parameters, GVariant **reply_body, GList *mo
 		return ret;
 	}
 
-	body = g_variant_new("(si)", pkgname, count);
+	body = g_variant_new("(sii)", pkgname, count, param_uid);
 	if (body == NULL) {
 		ErrPrint("cannot make gvariant to noti");
 		return BADGE_ERROR_OUT_OF_MEMORY;
@@ -380,10 +387,11 @@ int badge_get_badge_count(GVariant *parameters, GVariant **reply_body, uid_t uid
 	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
 	unsigned int count = 0;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&s)", &pkgname);
+	g_variant_get(parameters, "(&si)", &pkgname, &param_uid);
 	if (pkgname != NULL)
-		ret =  badge_db_get_count(pkgname, &count);
+		ret =  badge_db_get_count(pkgname, &count, param_uid);
 	else
 		return BADGE_ERROR_INVALID_PARAMETER;
 
@@ -409,12 +417,13 @@ int badge_set_display_option(GVariant *parameters, GVariant **reply_body, GList 
 	char *caller = NULL;
 	unsigned int is_display = 0;
 	GVariant *body = NULL;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&s&si)", &pkgname, &caller, &is_display);
+	g_variant_get(parameters, "(&s&sii)", &pkgname, &caller, &is_display, &param_uid);
 	DbgPrint("set disp option : %s, %s, %d", pkgname, caller, is_display);
 
 	if (pkgname != NULL && caller != NULL)
-		ret = badge_db_set_display_option(pkgname, caller, is_display);
+		ret = badge_db_set_display_option(pkgname, is_display, param_uid);
 	else
 		return BADGE_ERROR_INVALID_PARAMETER;
 
@@ -423,7 +432,7 @@ int badge_set_display_option(GVariant *parameters, GVariant **reply_body, GList 
 		return ret;
 	}
 
-	body = g_variant_new("(si)", pkgname, is_display);
+	body = g_variant_new("(sii)", pkgname, is_display, param_uid);
 	if (body == NULL) {
 		ErrPrint("cannot make gvariant to noti");
 		return BADGE_ERROR_OUT_OF_MEMORY;
@@ -452,12 +461,13 @@ int badge_get_display_option(GVariant *parameters, GVariant **reply_body, uid_t 
 	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
 	unsigned int is_display = 0;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&s)", &pkgname);
+	g_variant_get(parameters, "(&si)", &pkgname, &param_uid);
 	DbgPrint("get disp option : %s", pkgname);
 
 	if (pkgname != NULL)
-		ret = badge_db_get_display_option(pkgname, &is_display);
+		ret = badge_db_get_display_option(pkgname, &is_display, param_uid);
 	else
 		return BADGE_ERROR_INVALID_PARAMETER;
 
@@ -483,10 +493,11 @@ int badge_set_setting_property(GVariant *parameters, GVariant **reply_body, GLis
 	char *property = NULL;
 	char *value = NULL;
 	GVariant *body = NULL;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&s&s&s)", &pkgname, &property, &value);
+	g_variant_get(parameters, "(&s&s&si)", &pkgname, &property, &value, &param_uid);
 	if (pkgname != NULL && property != NULL && value != NULL)
-		ret = badge_setting_db_set(pkgname, property, value);
+		ret = badge_setting_db_set(pkgname, property, value, param_uid);
 	else
 		return BADGE_ERROR_INVALID_PARAMETER;
 
@@ -533,10 +544,11 @@ int badge_get_setting_property(GVariant *parameters, GVariant **reply_body, uid_
 	char *pkgname = NULL;
 	char *property = NULL;
 	char *value = NULL;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&s&s)", &pkgname, &property);
+	g_variant_get(parameters, "(&s&si)", &pkgname, &property, &param_uid);
 	if (pkgname != NULL && property != NULL)
-		ret = badge_setting_db_get(pkgname, property, &value);
+		ret = badge_setting_db_get(pkgname, property, &value, uid);
 	else
 		return BADGE_ERROR_INVALID_PARAMETER;
 
