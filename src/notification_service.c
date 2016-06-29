@@ -224,6 +224,7 @@ int notification_register_dbus_interface()
 			"        <method name='update_noti_sys_setting'>"
 			"          <arg type='i' name='do_not_disturb' direction='in'/>"
 			"          <arg type='i' name='visibility_class' direction='in'/>"
+			"          <arg type='i' name='lock_screen_level' direction='in'/>"
 			"          <arg type='i' name='uid' direction='in'/>"
 			"        </method>"
 
@@ -954,19 +955,25 @@ int notification_update_noti_sys_setting(GVariant *parameters, GVariant **reply_
 	int ret;
 	int do_not_disturb = 0;
 	int visivility_class = 0;
+	int lock_screen_level = 0;
 	uid_t param_uid;
 
 	g_variant_get(parameters, "(iii)",
-			&do_not_disturb,
-			&visivility_class,
-			&param_uid);
+				&do_not_disturb,
+				&visivility_class,
+				&lock_screen_level,
+				&param_uid);
 
 	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
 	if (ret != NOTIFICATION_ERROR_NONE)
 		return ret;
 
-	DbgPrint("do_not_disturb [%d] visivility_class [%d]\n", do_not_disturb, visivility_class);
-	ret = notification_setting_db_update_system_setting(do_not_disturb, visivility_class, param_uid);
+	DbgPrint("do_not_disturb [%d] visivility_class [%d] lock_screen_content [%d]\n",
+			do_not_disturb, visivility_class, lock_screen_level);
+	ret = notification_setting_db_update_system_setting(do_not_disturb,
+				visivility_class,
+				lock_screen_level,
+				param_uid);
 	if (ret != NOTIFICATION_ERROR_NONE) {
 		ErrPrint("failed to setting db update system setting : %d\n", ret);
 		return ret;
@@ -977,6 +984,7 @@ int notification_update_noti_sys_setting(GVariant *parameters, GVariant **reply_
 		ErrPrint("cannot make reply_body");
 		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
 	}
+
 	DbgPrint("_update_noti_sys_setting_service done !! %d", ret);
 	return ret;
 }
