@@ -21,6 +21,7 @@
 #include <badge_db.h>
 #include <badge_setting_service.h>
 #include <badge_internal.h>
+#include <tzplatform_config.h>
 
 #include "service_common.h"
 #include "badge_service.h"
@@ -60,9 +61,7 @@ static void _badge_dbus_method_call_handler(GDBusConnection *conn,
 	GVariant *reply_body = NULL;
 	int ret = BADGE_ERROR_INVALID_PARAMETER;
 	uid_t uid = get_sender_uid(sender);
-	GList *monitoring_list = NULL;
 
-	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &uid);
 	if (g_strcmp0(method_name, "badge_service_register") == 0)
 		ret = service_register(parameters, &reply_body, sender,
 				_on_name_appeared, _on_name_vanished, &_monitoring_hash, uid);
@@ -71,19 +70,19 @@ static void _badge_dbus_method_call_handler(GDBusConnection *conn,
 	else if (g_strcmp0(method_name, "get_list") == 0)
 		ret = badge_get_badge_list(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "insert_badge") == 0)
-		ret = badge_insert(parameters, &reply_body, monitoring_list, uid);
+		ret = badge_insert(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "delete_badge") == 0)
-		ret = badge_delete(parameters, &reply_body, monitoring_list, uid);
+		ret = badge_delete(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "set_badge_count") == 0)
-		ret = badge_set_badge_count(parameters, &reply_body, monitoring_list, uid);
+		ret = badge_set_badge_count(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "get_badge_count") == 0)
 		ret = badge_get_badge_count(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "set_disp_option") == 0)
-		ret = badge_set_display_option(parameters, &reply_body, monitoring_list, uid);
+		ret = badge_set_display_option(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "get_disp_option") == 0)
 		ret = badge_get_display_option(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "set_noti_property") == 0)
-		ret = badge_set_setting_property(parameters, &reply_body, monitoring_list, uid);
+		ret = badge_set_setting_property(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "get_noti_property") == 0)
 		ret = badge_get_setting_property(parameters, &reply_body, uid);
 
@@ -117,30 +116,36 @@ int badge_register_dbus_interface()
 			"        </method>"
 			"        <method name='get_badge_existing'>"
 			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"          <arg type='i' name='exist' direction='out'/>"
 			"        </method>"
 			"        <method name='get_list'>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"          <arg type='a(v)' name='badge_list' direction='out'/>"
 			"        </method>"
 			"        <method name='insert_badge'>"
 			"          <arg type='s' name='pkgname' direction='in'/>"
 			"          <arg type='s' name='writable_pkg' direction='in'/>"
 			"          <arg type='s' name='caller' direction='in'/>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"        </method>"
 
 			"        <method name='delete_badge'>"
 			"          <arg type='s' name='pkgname' direction='in'/>"
 			"          <arg type='s' name='caller' direction='in'/>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"        </method>"
 
 			"        <method name='set_badge_count'>"
 			"          <arg type='s' name='pkgname' direction='in'/>"
 			"          <arg type='s' name='caller' direction='in'/>"
 			"          <arg type='i' name='count' direction='in'/>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"        </method>"
 
 			"        <method name='get_badge_count'>"
 			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"          <arg type='i' name='count' direction='out'/>"
 			"        </method>"
 
@@ -148,10 +153,12 @@ int badge_register_dbus_interface()
 			"          <arg type='s' name='pkgname' direction='in'/>"
 			"          <arg type='s' name='caller' direction='in'/>"
 			"          <arg type='i' name='is_display' direction='in'/>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"        </method>"
 
 			"        <method name='get_disp_option'>"
 			"          <arg type='s' name='pkgname' direction='in'/>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"          <arg type='i' name='is_display' direction='out'/>"
 			"        </method>"
 
@@ -159,17 +166,36 @@ int badge_register_dbus_interface()
 			"          <arg type='s' name='pkgname' direction='in'/>"
 			"          <arg type='s' name='property' direction='in'/>"
 			"          <arg type='s' name='value' direction='in'/>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"        </method>"
 
 			"        <method name='get_noti_property'>"
 			"          <arg type='s' name='pkgname' direction='in'/>"
 			"          <arg type='s' name='property' direction='in'/>"
+			"          <arg type='i' name='uid' direction='in'/>"
 			"          <arg type='s' name='value' direction='out'/>"
 			"        </method>"
 			"  </interface>"
 			"  </node>";
 
 	return service_common_register_dbus_interface(introspection_xml, _badge_interface_vtable);
+}
+
+static int _validate_and_set_param_uid_with_uid(uid_t uid, uid_t *param_uid)
+{
+	int ret = BADGE_ERROR_NONE;
+
+	if (uid > NORMAL_UID_BASE && uid != *param_uid) {
+		ErrPrint("invalid sender uid : %d, param_uid : %d", uid, *param_uid);
+		return BADGE_ERROR_INVALID_PARAMETER;
+	} else if (uid <= NORMAL_UID_BASE) {
+		if (*param_uid <= NORMAL_UID_BASE) {
+			if (*param_uid != uid)
+				return BADGE_ERROR_INVALID_PARAMETER;
+			*param_uid = tzplatform_getuid(TZ_SYS_DEFAULT_USER);
+		}
+	}
+	return ret;
 }
 
 static void _release_badge_info(gpointer data)
@@ -188,11 +214,17 @@ int badge_get_badge_existing(GVariant *parameters, GVariant **reply_body, uid_t 
 	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
 	bool existing = 0;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&s)", &pkgname);
+	g_variant_get(parameters, "(&si)", &pkgname, &param_uid);
 	DbgPrint("badge_get_badge_existing %s", pkgname);
+
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != BADGE_ERROR_NONE)
+		return ret;
+
 	if (pkgname != NULL)
-		ret = badge_db_is_existing(pkgname, &existing);
+		ret = badge_db_is_existing(pkgname, &existing, param_uid);
 	else
 		return BADGE_ERROR_INVALID_PARAMETER;
 
@@ -219,8 +251,15 @@ int badge_get_badge_list(GVariant *parameters, GVariant **reply_body, uid_t uid)
 	badge_info_s *badge;
 	GVariantBuilder *builder;
 	int ret;
+	uid_t param_uid;
 
-	ret = badge_db_get_list(&badge_list);
+	g_variant_get(parameters, "(i)", &param_uid);
+
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != BADGE_ERROR_NONE)
+		return ret;
+
+	ret = badge_db_get_list(&badge_list, param_uid);
 	if (ret != BADGE_ERROR_NONE) {
 		ErrPrint("badge get list fail : %d", ret);
 		return ret;
@@ -248,17 +287,24 @@ int badge_get_badge_list(GVariant *parameters, GVariant **reply_body, uid_t uid)
 }
 
 /* insert_badge */
-int badge_insert(GVariant *parameters, GVariant **reply_body, GList *monitoring_list, uid_t uid)
+int badge_insert(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
 	char *writable_pkg = NULL;
 	char *caller = NULL;
 	GVariant *body = NULL;
+	GList *monitoring_list = NULL;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&s&s&s)", &pkgname, &writable_pkg, &caller);
+	g_variant_get(parameters, "(&s&s&si)", &pkgname, &writable_pkg, &caller, &param_uid);
+
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != BADGE_ERROR_NONE)
+		return ret;
+
 	if (pkgname != NULL && writable_pkg != NULL && caller != NULL)
-		ret = badge_db_insert(pkgname, writable_pkg, caller);
+		ret = badge_db_insert(pkgname, writable_pkg, caller, param_uid);
 	else
 		return BADGE_ERROR_INVALID_PARAMETER;
 
@@ -267,12 +313,13 @@ int badge_insert(GVariant *parameters, GVariant **reply_body, GList *monitoring_
 		return ret;
 	}
 
-	body = g_variant_new("(s)", pkgname);
+	body = g_variant_new("(si)", pkgname, param_uid);
 	if (body == NULL) {
 		ErrPrint("cannot make gvariant to noti");
 		return BADGE_ERROR_OUT_OF_MEMORY;
 	}
 
+	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &param_uid);
 	ret = send_notify(body, "insert_badge_notify", monitoring_list, PROVIDER_BADGE_INTERFACE_NAME);
 	g_variant_unref(body);
 
@@ -291,16 +338,23 @@ int badge_insert(GVariant *parameters, GVariant **reply_body, GList *monitoring_
 }
 
 /* delete_badge */
-int badge_delete(GVariant *parameters, GVariant **reply_body, GList *monitoring_list, uid_t uid)
+int badge_delete(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
 	char *caller = NULL;
 	GVariant *body = NULL;
+	GList *monitoring_list = NULL;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&s&s)", &pkgname, &caller);
+	g_variant_get(parameters, "(&s&si)", &pkgname, &caller, &param_uid);
+
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != BADGE_ERROR_NONE)
+		return ret;
+
 	if (pkgname != NULL && caller != NULL) {
-		ret = badge_db_delete(pkgname, caller);
+		ret = badge_db_delete(pkgname, caller, param_uid);
 	} else {
 		return BADGE_ERROR_INVALID_PARAMETER;
 	}
@@ -310,11 +364,13 @@ int badge_delete(GVariant *parameters, GVariant **reply_body, GList *monitoring_
 		return ret;
 	}
 
-	body = g_variant_new("(s)", pkgname);
+	body = g_variant_new("(si)", pkgname, param_uid);
 	if (body == NULL) {
 		ErrPrint("cannot make gvariant to noti");
 		return BADGE_ERROR_OUT_OF_MEMORY;
 	}
+
+	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &param_uid);
 	ret = send_notify(body, "delete_badge_notify", monitoring_list, PROVIDER_BADGE_INTERFACE_NAME);
 	g_variant_unref(body);
 
@@ -332,17 +388,24 @@ int badge_delete(GVariant *parameters, GVariant **reply_body, GList *monitoring_
 }
 
 /* set_badge_count */
-int badge_set_badge_count(GVariant *parameters, GVariant **reply_body, GList *monitoring_list, uid_t uid)
+int badge_set_badge_count(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
 	char *caller = NULL;
 	unsigned int count = 0;
 	GVariant *body = NULL;
+	GList *monitoring_list = NULL;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&s&si)", &pkgname, &caller, &count);
+	g_variant_get(parameters, "(&s&sii)", &pkgname, &caller, &count, &param_uid);
+
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != BADGE_ERROR_NONE)
+		return ret;
+
 	if (pkgname != NULL && caller != NULL)
-		ret = badge_db_set_count(pkgname, caller, count);
+		ret = badge_db_set_count(pkgname, caller, count, param_uid);
 	else
 		return BADGE_ERROR_INVALID_PARAMETER;
 
@@ -351,12 +414,13 @@ int badge_set_badge_count(GVariant *parameters, GVariant **reply_body, GList *mo
 		return ret;
 	}
 
-	body = g_variant_new("(si)", pkgname, count);
+	body = g_variant_new("(sii)", pkgname, count, param_uid);
 	if (body == NULL) {
 		ErrPrint("cannot make gvariant to noti");
 		return BADGE_ERROR_OUT_OF_MEMORY;
 	}
 
+	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &param_uid);
 	ret = send_notify(body, "set_badge_count_notify", monitoring_list, PROVIDER_BADGE_INTERFACE_NAME);
 	g_variant_unref(body);
 
@@ -380,10 +444,16 @@ int badge_get_badge_count(GVariant *parameters, GVariant **reply_body, uid_t uid
 	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
 	unsigned int count = 0;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&s)", &pkgname);
+	g_variant_get(parameters, "(&si)", &pkgname, &param_uid);
+
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != BADGE_ERROR_NONE)
+		return ret;
+
 	if (pkgname != NULL)
-		ret =  badge_db_get_count(pkgname, &count);
+		ret =  badge_db_get_count(pkgname, &count, param_uid);
 	else
 		return BADGE_ERROR_INVALID_PARAMETER;
 
@@ -402,19 +472,26 @@ int badge_get_badge_count(GVariant *parameters, GVariant **reply_body, uid_t uid
 }
 
 /* set_disp_option */
-int badge_set_display_option(GVariant *parameters, GVariant **reply_body, GList *monitoring_list, uid_t uid)
+int badge_set_display_option(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
 	char *caller = NULL;
 	unsigned int is_display = 0;
 	GVariant *body = NULL;
+	GList *monitoring_list = NULL;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&s&si)", &pkgname, &caller, &is_display);
+	g_variant_get(parameters, "(&s&sii)", &pkgname, &caller, &is_display, &param_uid);
+
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != BADGE_ERROR_NONE)
+		return ret;
+
 	DbgPrint("set disp option : %s, %s, %d", pkgname, caller, is_display);
 
 	if (pkgname != NULL && caller != NULL)
-		ret = badge_db_set_display_option(pkgname, caller, is_display);
+		ret = badge_db_set_display_option(pkgname, is_display, param_uid);
 	else
 		return BADGE_ERROR_INVALID_PARAMETER;
 
@@ -423,12 +500,13 @@ int badge_set_display_option(GVariant *parameters, GVariant **reply_body, GList 
 		return ret;
 	}
 
-	body = g_variant_new("(si)", pkgname, is_display);
+	body = g_variant_new("(sii)", pkgname, is_display, param_uid);
 	if (body == NULL) {
 		ErrPrint("cannot make gvariant to noti");
 		return BADGE_ERROR_OUT_OF_MEMORY;
 	}
 
+	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &param_uid);
 	ret = send_notify(body, "set_disp_option_notify", monitoring_list, PROVIDER_BADGE_INTERFACE_NAME);
 	g_variant_unref(body);
 
@@ -452,12 +530,18 @@ int badge_get_display_option(GVariant *parameters, GVariant **reply_body, uid_t 
 	int ret = BADGE_ERROR_NONE;
 	char *pkgname = NULL;
 	unsigned int is_display = 0;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&s)", &pkgname);
+	g_variant_get(parameters, "(&si)", &pkgname, &param_uid);
+
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != BADGE_ERROR_NONE)
+		return ret;
+
 	DbgPrint("get disp option : %s", pkgname);
 
 	if (pkgname != NULL)
-		ret = badge_db_get_display_option(pkgname, &is_display);
+		ret = badge_db_get_display_option(pkgname, &is_display, param_uid);
 	else
 		return BADGE_ERROR_INVALID_PARAMETER;
 
@@ -475,7 +559,7 @@ int badge_get_display_option(GVariant *parameters, GVariant **reply_body, uid_t 
 }
 
 /* set_noti_property */
-int badge_set_setting_property(GVariant *parameters, GVariant **reply_body, GList *monitoring_list, uid_t uid)
+int badge_set_setting_property(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret = 0;
 	int is_display = 0;
@@ -483,10 +567,17 @@ int badge_set_setting_property(GVariant *parameters, GVariant **reply_body, GLis
 	char *property = NULL;
 	char *value = NULL;
 	GVariant *body = NULL;
+	GList *monitoring_list = NULL;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&s&s&s)", &pkgname, &property, &value);
+	g_variant_get(parameters, "(&s&s&si)", &pkgname, &property, &value, &param_uid);
+
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != BADGE_ERROR_NONE)
+		return ret;
+
 	if (pkgname != NULL && property != NULL && value != NULL)
-		ret = badge_setting_db_set(pkgname, property, value);
+		ret = badge_setting_db_set(pkgname, property, value, param_uid);
 	else
 		return BADGE_ERROR_INVALID_PARAMETER;
 
@@ -507,6 +598,8 @@ int badge_set_setting_property(GVariant *parameters, GVariant **reply_body, GLis
 				ErrPrint("cannot make gvariant to noti");
 				return BADGE_ERROR_OUT_OF_MEMORY;
 			}
+
+			monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &param_uid);
 			ret = send_notify(body, "set_disp_option_notify", monitoring_list, PROVIDER_BADGE_INTERFACE_NAME);
 			g_variant_unref(body);
 			if (ret != BADGE_ERROR_NONE) {
@@ -533,10 +626,16 @@ int badge_get_setting_property(GVariant *parameters, GVariant **reply_body, uid_
 	char *pkgname = NULL;
 	char *property = NULL;
 	char *value = NULL;
+	uid_t param_uid;
 
-	g_variant_get(parameters, "(&s&s)", &pkgname, &property);
+	g_variant_get(parameters, "(&s&si)", &pkgname, &property, &param_uid);
+
+	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
+	if (ret != BADGE_ERROR_NONE)
+		return ret;
+
 	if (pkgname != NULL && property != NULL)
-		ret = badge_setting_db_get(pkgname, property, &value);
+		ret = badge_setting_db_get(pkgname, property, &value, param_uid);
 	else
 		return BADGE_ERROR_INVALID_PARAMETER;
 
