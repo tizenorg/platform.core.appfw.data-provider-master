@@ -29,6 +29,7 @@ IF (WEARABLE)
 		cynara-client
 		cynara-session
 		cynara-creds-socket
+		alarm-service
 		)
 ELSE (WEARABLE)
 	INCLUDE(FindPkgConfig)
@@ -54,6 +55,7 @@ ELSE (WEARABLE)
 		cynara-client
 		cynara-session
 		cynara-creds-socket
+		alarm-service
 		)
 ENDIF (WEARABLE)
 
