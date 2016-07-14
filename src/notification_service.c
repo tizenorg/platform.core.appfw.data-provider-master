@@ -226,6 +226,7 @@ int notification_register_dbus_interface()
 			"        </method>"
 
 			"        <method name='update_noti_sys_setting'>"
+			"          <arg type='i' name='allow_to_notify' direction='in'/>"
 			"          <arg type='i' name='do_not_disturb' direction='in'/>"
 			"          <arg type='i' name='visibility_class' direction='in'/>"
 			"          <arg type='i' name='dnd_schedule_enabled' direction='in'/>"
@@ -1007,6 +1008,7 @@ static int _add_alarm(int dnd_schedule_day, int dnd_start_hour, int dnd_start_mi
 int notification_update_noti_sys_setting(GVariant *parameters, GVariant **reply_body, uid_t uid)
 {
 	int ret;
+	int allow_to_notify = 0;
 	int do_not_disturb = 0;
 	int visivility_class = 0;
 	int dnd_schedule_enabled = 0;
@@ -1018,7 +1020,8 @@ int notification_update_noti_sys_setting(GVariant *parameters, GVariant **reply_
 	int lock_screen_level = 0;
 	uid_t param_uid;
 
-	g_variant_get(parameters, "(iiiiiiiiii)",
+	g_variant_get(parameters, "(iiiiiiiiiii)",
+				&allow_to_notify,
 				&do_not_disturb,
 				&visivility_class,
 				&dnd_schedule_enabled,
@@ -1034,10 +1037,13 @@ int notification_update_noti_sys_setting(GVariant *parameters, GVariant **reply_
 	if (ret != NOTIFICATION_ERROR_NONE)
 		return ret;
 
-	DbgPrint("do_not_disturb [%d] visivility_class [%d] set_schedule [%d] lock_screen_level [%d]\n",
-			do_not_disturb, visivility_class, dnd_schedule_enabled, lock_screen_level);
+	DbgPrint("allow_to_notify [%d] do_not_disturb [%d] visivility_class [%d]\
+		 set_schedule [%d] lock_screen_level [%d]\n",
+		allow_to_notify, do_not_disturb, visivility_class,
+		dnd_schedule_enabled, lock_screen_level);
 
-	ret = notification_setting_db_update_system_setting(do_not_disturb,
+	ret = notification_setting_db_update_system_setting(allow_to_notify,
+				do_not_disturb,
 				visivility_class,
 				dnd_schedule_enabled,
 				dnd_schedule_day,
