@@ -176,6 +176,7 @@ int service_register(GVariant *parameters, GVariant **reply_body, const gchar *s
 		return SERVICE_COMMON_ERROR_IO_ERROR;
 
 	g_variant_get(parameters, "(i)", &request_uid);
+
 	if (uid > NORMAL_UID_BASE && uid != request_uid)
 		return SERVICE_COMMON_ERROR_IO_ERROR;
 
