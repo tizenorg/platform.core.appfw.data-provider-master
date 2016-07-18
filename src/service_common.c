@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <gio/gio.h>
 #include <dlog.h>
+#include <systemd/sd-login.h>
 #include <cynara-client.h>
 #include <cynara-session.h>
 #include <cynara-creds-socket.h>
@@ -112,6 +113,55 @@ out:
 		g_object_unref(reply);
 
 	return uid;
+}
+
+int find_login_user(uid_t *uid)
+{
+	int ret, i;
+	uid_t *uids;
+	char *state;
+
+	*uid = -1;
+
+	ret = sd_get_uids(&uids);
+	if (ret <= 0)
+		return -1;
+
+	for (i = 0; i < ret; i++) {
+		if (sd_uid_get_state(uids[i], &state) < 0) {
+			free(uids);
+			return -1;
+		} else {
+			if (!strncmp(state, "online", 6)) {
+			    *uid = uids[i];
+			    free(uids);
+			    free(state);
+			    return 0;
+			}
+		}
+	}
+
+	if (*uid == -1) {
+		for (i = 0; i < ret; i++) {
+			if (sd_uid_get_state(uids[i], &state) < 0) {
+				free(uids);
+			} else {
+				if (!strncmp(state, "opening", 7)) {
+					*uid = uids[i];
+					free(uids);
+					free(state);
+					return 0;
+				}
+			}
+		}
+	}
+
+	if (uids)
+		free(uids);
+	if (state)
+		free(state);
+
+	return -1;
 }
 
 int send_notify(GVariant *body, char *cmd, GList *monitoring_app_list, char *interface_name)

@@ -58,6 +58,7 @@ int service_register(GVariant *parameters, GVariant **reply_body, const gchar *s
 GDBusConnection *service_common_get_connection();
 int service_common_register_dbus_interface(char *introspection_xml, GDBusInterfaceVTable interface_vtable);
 uid_t get_sender_uid(const char *sender_name);
+int find_login_user(uid_t *uid);
 void free_monitoring_list(gpointer data);
 
 /* End of a file */
