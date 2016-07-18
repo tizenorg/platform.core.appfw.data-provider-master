@@ -19,7 +19,6 @@
 
 #include <dlog.h>
 #include <sys/smack.h>
-
 #include <pkgmgr-info.h>
 
 #include <notification.h>
@@ -39,11 +38,18 @@
 
 #define PROVIDER_NOTI_INTERFACE_NAME "org.tizen.data_provider_noti_service"
 
-static GHashTable *_monitoring_hash = NULL;
+typedef struct _dnd_alarm_id dnd_alarm_id_s;
+
+static GHashTable *_monitoring_hash;
 static int _update_noti(GVariant **reply_body, notification_h noti, GList *monitoring_list);
 
-static alarm_id_t dnd_schedule_start_alarm_id;
-static alarm_id_t dnd_schedule_end_alarm_id;
+static GList *_dnd_alarm_id_list;
+
+typedef struct _dnd_alarm_id {
+	uid_t uid;
+	alarm_id_t dnd_start_id;
+	alarm_id_t dnd_end_id;
+} dnd_alarm_id_s;
 
 /*!
  * SERVICE HANDLER
@@ -861,9 +867,9 @@ int notification_del_noti_multiple(GVariant *parameters, GVariant **reply_body, 
 	if (num_deleted > 0) {
 		builder = g_variant_builder_new(G_VARIANT_TYPE("a(i)"));
 
-		for (i = 0; i < num_deleted; i++) {
+		for (i = 0; i < num_deleted; i++)
 			g_variant_builder_add(builder, "(i)", *(list_deleted + i));
-		}
+
 		deleted_noti_list = g_variant_new("(a(i)i)", builder, param_uid);
 		monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &param_uid);
 		ret = send_notify(deleted_noti_list, "delete_multiple_notify", monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
@@ -961,17 +967,53 @@ int notification_update_noti_setting(GVariant *parameters, GVariant **reply_body
 
 static int _dnd_schedule_alarm_cb(alarm_id_t alarm_id, void *data)
 {
-	/* need to get current uid, use default user here. temporarily */
-	if (alarm_id == dnd_schedule_start_alarm_id) {
-		notification_setting_db_update_do_not_disturb(1, tzplatform_getuid(TZ_SYS_DEFAULT_USER));
-	} else if (alarm_id == dnd_schedule_end_alarm_id) {
-		notification_setting_db_update_do_not_disturb(0, tzplatform_getuid(TZ_SYS_DEFAULT_USER));
-	} else {
-		ErrPrint("notification wrong alarm [%d]", alarm_id);
+	int ret;
+	int do_not_disturb;
+	bool dnd_id_found = false;
+	GVariant *body = NULL;
+	GList *dnd_found_list = NULL;
+	GList *monitoring_list = NULL;
+	dnd_alarm_id_s *dnd_id_data = NULL;
+	uid_t uid;
+
+	dnd_found_list = g_list_first(_dnd_alarm_id_list);
+
+	for (; dnd_found_list != NULL; dnd_found_list = dnd_found_list->next) {
+		dnd_id_data = dnd_found_list->data;
+		if (alarm_id == dnd_id_data->dnd_start_id) {
+			do_not_disturb = 1;
+			dnd_id_found = true;
+			uid = dnd_id_data->uid;
+			break;
+		} else if (alarm_id == dnd_id_data->dnd_end_id) {
+			do_not_disturb = 0;
+			dnd_id_found = true;
+			uid = dnd_id_data->uid;
+			break;
+		}
+	}
+
+	if (dnd_id_found == false) {
+		ErrPrint("notification wrong alarm [%d] [%d] [%d]",
+			 alarm_id, dnd_id_data->dnd_start_id, dnd_id_data->dnd_end_id);
 		return -1;
 	}
 
-	return 0;
+	notification_setting_db_update_do_not_disturb(do_not_disturb, uid);
+
+	body = g_variant_new("(ii)", do_not_disturb, uid);
+
+	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &uid);
+	ret = send_notify(body, "change_dnd_notify", monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
+	g_variant_unref(body);
+
+	if (ret != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("failed to send notify:%d\n", ret);
+		return ret;
+	}
+
+	DbgPrint("_dnd_schedule_alarm_cb done");
+	return ret;
 }
 
 static int _get_current_time(struct tm *date)
@@ -1065,12 +1107,27 @@ out:
 	return err;
 }
 
-static int _add_alarm(int dnd_schedule_day, int dnd_start_hour, int dnd_start_min, int dnd_end_hour, int dnd_end_min)
+static gint _dnd_data_compare(gconstpointer a, gconstpointer b)
+{
+	const dnd_alarm_id_s *data = NULL;
+
+	if (!a)
+		return -1;
+	data = a;
+
+	if (data->uid == (uid_t)b)
+		return 0;
+
+	return 1;
+}
+
+static int _add_alarm(int dnd_schedule_day, int dnd_start_hour, int dnd_start_min, int dnd_end_hour, int dnd_end_min, uid_t uid)
 {
 	int ret = NOTIFICATION_ERROR_NONE;
-
-	if (dnd_schedule_start_alarm_id)
-		alarmmgr_remove_alarm(dnd_schedule_start_alarm_id);
+	GList *found_list = NULL;
+	dnd_alarm_id_s *dnd_id_data = NULL;
+	alarm_id_t dnd_schedule_start_alarm_id;
+	alarm_id_t dnd_schedule_end_alarm_id;
 
 	ret = _noti_system_setting_set_alarm(dnd_schedule_day,
 				dnd_start_hour, dnd_start_min,
@@ -1080,15 +1137,42 @@ static int _add_alarm(int dnd_schedule_day, int dnd_start_hour, int dnd_start_mi
 		return ret;
 	}
 
-	if (dnd_schedule_end_alarm_id)
-		alarmmgr_remove_alarm(dnd_schedule_end_alarm_id);
-
 	ret = _noti_system_setting_set_alarm(dnd_schedule_day,
 				dnd_end_hour, dnd_end_min,
 				_dnd_schedule_alarm_cb, &dnd_schedule_end_alarm_id);
 	if (ret != NOTIFICATION_ERROR_NONE) {
 		ErrPrint("_add_alarm fail %d", ret);
 		return ret;
+	}
+
+	dnd_id_data = (dnd_alarm_id_s *)malloc(sizeof(dnd_alarm_id_s));
+	if (dnd_id_data == NULL) {
+		ErrPrint("memory allocation fail");
+		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+
+	dnd_id_data->uid = uid;
+	dnd_id_data->dnd_start_id = dnd_schedule_start_alarm_id;
+	dnd_id_data->dnd_end_id = dnd_schedule_end_alarm_id;
+
+	if (_dnd_alarm_id_list == NULL) {
+		_dnd_alarm_id_list = g_list_append(_dnd_alarm_id_list, dnd_id_data);
+	} else {
+		found_list = g_list_find_custom(_dnd_alarm_id_list, (gconstpointer)uid,
+					   _dnd_data_compare);
+		if (found_list) {
+			dnd_id_data = g_list_nth_data(found_list, 0);
+			if (dnd_id_data->dnd_start_id) {
+				alarmmgr_remove_alarm(dnd_id_data->dnd_start_id);
+				dnd_id_data->dnd_start_id = dnd_schedule_start_alarm_id;
+			}
+			if (dnd_id_data->dnd_end_id) {
+				alarmmgr_remove_alarm(dnd_id_data->dnd_end_id);
+				dnd_id_data->dnd_end_id = dnd_schedule_end_alarm_id;
+			}
+		} else {
+			_dnd_alarm_id_list = g_list_append(_dnd_alarm_id_list, dnd_id_data);
+		}
 	}
 
 	return ret;
@@ -1124,7 +1208,6 @@ int notification_update_noti_sys_setting(GVariant *parameters, GVariant **reply_
 	ret = _validate_and_set_param_uid_with_uid(uid, &param_uid);
 	if (ret != NOTIFICATION_ERROR_NONE)
 		return ret;
-
 	DbgPrint("do_not_disturb [%d] visivility_class [%d] set_schedule [%d] lock_screen_level [%d]\n",
 			do_not_disturb, visivility_class, dnd_schedule_enabled, lock_screen_level);
 
@@ -1151,7 +1234,7 @@ int notification_update_noti_sys_setting(GVariant *parameters, GVariant **reply_
 
 	if (dnd_schedule_enabled) {
 		ret = _add_alarm(dnd_schedule_day, dnd_start_hour, dnd_start_min,
-				dnd_end_hour, dnd_end_min);
+				dnd_end_hour, dnd_end_min, param_uid);
 		if (ret != NOTIFICATION_ERROR_NONE)
 			ErrPrint("failed to add alarm for dnd_schedule");
 	}
@@ -1206,7 +1289,7 @@ static int _package_uninstall_cb(uid_t uid, const char *pkgname, enum pkgmgr_sta
 	return 0;
 }
 
-static int _check_dnd_schedule(void)
+static int _check_dnd_schedule(uid_t uid)
 {
 	int ret;
 	notification_system_setting_h setting = NULL;
@@ -1217,8 +1300,7 @@ static int _check_dnd_schedule(void)
 	int dnd_end_hour = 0;
 	int dnd_end_min = 0;
 
-	ret = noti_system_setting_load_system_setting(&setting,
-				tzplatform_getuid(TZ_SYS_DEFAULT_USER));
+	ret = noti_system_setting_load_system_setting(&setting, uid);
 	if (ret != NOTIFICATION_ERROR_NONE) {
 		ErrPrint("noti_system_setting_load_system_setting fail %d", ret);
 		return ret;
@@ -1253,7 +1335,7 @@ static int _check_dnd_schedule(void)
 			goto out;
 		}
 
-		_add_alarm(dnd_schedule_day, dnd_start_hour, dnd_start_min, dnd_end_hour, dnd_end_min);
+		_add_alarm(dnd_schedule_day, dnd_start_hour, dnd_start_min, dnd_end_hour, dnd_end_min, uid);
 	}
 
 out:
@@ -1268,7 +1350,9 @@ out:
  */
 HAPI int notification_service_init(void)
 {
-	int ret;
+	int ret, i;
+	int count = 0;
+	uid_t *uids;
 
 	_monitoring_hash = g_hash_table_new_full(g_int_hash, g_int_equal, g_free, free_monitoring_list);
 	ret = notification_db_init();
@@ -1286,7 +1370,11 @@ HAPI int notification_service_init(void)
 	_notification_data_init();
 	notification_setting_refresh_setting_table(tzplatform_getuid(TZ_SYS_DEFAULT_USER));
 
-	_check_dnd_schedule();
+	ret = notification_system_setting_get_dnd_enabled_uid(&uids, &count);
+	if (ret == NOTIFICATION_ERROR_NONE && count > 0) {
+		for (i = 0; i < count; i++)
+			_check_dnd_schedule(uids[i]);
+	}
 
 	pkgmgr_init();
 	pkgmgr_add_event_callback(PKGMGR_EVENT_INSTALL, _package_install_cb, NULL);
