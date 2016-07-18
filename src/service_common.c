@@ -177,6 +177,7 @@ int service_register(GVariant *parameters, GVariant **reply_body, const gchar *s
 		return SERVICE_COMMON_ERROR_IO_ERROR;
 
 	DbgPrint("service_register : uid %d , request_uid %d", uid, request_uid);
+
 	monitoring_list = (GList *)g_hash_table_lookup(*monitoring_hash, &request_uid);
 	added_list = g_list_find_custom(monitoring_list, bus_name,
 			(GCompareFunc)_monitoring_app_list_compare_cb);
