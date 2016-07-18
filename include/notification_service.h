@@ -36,6 +36,9 @@ int notification_load_detail_list(GVariant *parameters, GVariant **reply_body, u
 int notification_get_setting_array(GVariant *parameters, GVariant **reply_body, uid_t uid);
 int notification_get_setting_by_package_name(GVariant *parameters, GVariant **reply_body, uid_t uid);
 int notification_load_system_setting(GVariant *parameters, GVariant **reply_body, uid_t uid);
+int notification_add_noti_template(GVariant *parameters, GVariant **reply_body, uid_t uid);
+int notification_get_noti_template(GVariant *parameters, GVariant **reply_body, uid_t uid);
+int notification_get_noti_package_template(GVariant *parameters, GVariant **reply_body, uid_t uid);
 int notification_register_dbus_interface();
 
 /* End of a file */
