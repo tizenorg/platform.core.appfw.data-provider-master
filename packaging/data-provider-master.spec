@@ -35,6 +35,7 @@ BuildRequires: pkgconfig(cynara-client)
 BuildRequires: pkgconfig(cynara-session)
 BuildRequires: pkgconfig(cynara-creds-socket)
 BuildRequires: pkgconfig(alarm-service)
+BuildRequires: pkgconfig(libsystemd-login)
 
 Requires(post): dbus
 

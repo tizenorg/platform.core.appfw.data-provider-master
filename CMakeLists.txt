@@ -30,6 +30,7 @@ IF (WEARABLE)
 		cynara-session
 		cynara-creds-socket
 		alarm-service
+		libsystemd-login
 		)
 ELSE (WEARABLE)
 	INCLUDE(FindPkgConfig)
@@ -56,6 +57,7 @@ ELSE (WEARABLE)
 		cynara-session
 		cynara-creds-socket
 		alarm-service
+		libsystemd-login
 		)
 ENDIF (WEARABLE)
 
