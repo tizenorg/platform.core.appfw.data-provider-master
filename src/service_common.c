@@ -18,9 +18,6 @@
 #include <unistd.h>
 #include <gio/gio.h>
 #include <dlog.h>
-#include <cynara-client.h>
-#include <cynara-session.h>
-#include <cynara-creds-socket.h>
 #include <notification.h>
 
 #include "service_common.h"

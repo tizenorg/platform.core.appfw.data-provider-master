@@ -31,9 +31,6 @@ BuildRequires: pkgconfig(badge)
 BuildRequires: pkgconfig(shortcut)
 %endif
 BuildRequires: pkgconfig(libsystemd-daemon)
-BuildRequires: pkgconfig(cynara-client)
-BuildRequires: pkgconfig(cynara-session)
-BuildRequires: pkgconfig(cynara-creds-socket)
 BuildRequires: pkgconfig(alarm-service)
 
 Requires(post): dbus

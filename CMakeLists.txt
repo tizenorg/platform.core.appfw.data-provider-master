@@ -26,9 +26,6 @@ IF (WEARABLE)
 		pkgmgr-info
 		libsystemd-daemon
 		capi-appfw-app-manager
-		cynara-client
-		cynara-session
-		cynara-creds-socket
 		alarm-service
 		)
 ELSE (WEARABLE)
@@ -52,9 +49,6 @@ ELSE (WEARABLE)
 		pkgmgr-info
 		libsystemd-daemon
 		capi-appfw-app-manager
-		cynara-client
-		cynara-session
-		cynara-creds-socket
 		alarm-service
 		)
 ENDIF (WEARABLE)
