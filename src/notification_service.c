@@ -974,6 +974,97 @@ static int _dnd_schedule_alarm_cb(alarm_id_t alarm_id, void *data)
 	return 0;
 }
 
+static int _get_current_time(struct tm *date)
+{
+	time_t now;
+
+	if (date == NULL) {
+		ErrPrint("NOTIFICATION_ERROR_INVALID_PARAMETER");
+		return NOTIFICATION_ERROR_INVALID_PARAMETER;
+	}
+
+	time(&now);
+	localtime_r(&now, date);
+
+	return NOTIFICATION_ERROR_NONE;
+}
+
+static int _noti_system_setting_set_alarm(int week_flag, int hour, int min, alarm_cb_t handler, alarm_id_t *dnd_schedule_alarm_id)
+{
+	int err = NOTIFICATION_ERROR_NONE;
+	struct tm struct_time;
+	alarm_entry_t *alarm_info = NULL;
+	alarm_date_t alarm_time;
+	alarm_id_t alarm_id = -1;
+
+	err = alarmmgr_init("notification");
+	if (err < 0) {
+		ErrPrint("alarmmgr_init failed (%d)", err);
+		goto out;
+	}
+
+	err = alarmmgr_set_cb(handler, NULL);
+	if (err < 0) {
+		ErrPrint("alarmmgr_set_cb failed (%d)", err);
+		goto out;
+	}
+
+	err = _get_current_time(&struct_time);
+	if (err != NOTIFICATION_ERROR_NONE) {
+		ErrPrint("get_current_time failed");
+		goto out;
+	}
+
+	alarm_info = alarmmgr_create_alarm();
+	if (alarm_info == NULL) {
+		ErrPrint("alarmmgr_create_alarm failed");
+		goto out;
+	}
+
+	alarm_time.year = struct_time.tm_year + 1900;
+	alarm_time.month = struct_time.tm_mon + 1;
+	alarm_time.day = struct_time.tm_mday;
+	alarm_time.hour = hour;
+	alarm_time.min = min;
+	alarm_time.sec = 0;
+
+	err = alarmmgr_set_time(alarm_info, alarm_time);
+	if (err != ALARMMGR_RESULT_SUCCESS) {
+		ErrPrint("alarmmgr_set_time failed (%d)", err);
+		goto out;
+	}
+
+	if (week_flag) {
+		err = alarmmgr_set_repeat_mode(alarm_info, ALARM_REPEAT_MODE_WEEKLY, week_flag);
+		if (err != ALARMMGR_RESULT_SUCCESS) {
+			ErrPrint("alarmmgr_set_repeat_mode failed (%d)", err);
+			goto out;
+		}
+	}
+
+	err = alarmmgr_set_type(alarm_info, ALARM_TYPE_VOLATILE);
+	if (err != ALARMMGR_RESULT_SUCCESS) {
+		ErrPrint("alarmmgr_set_type failed (%d)", err);
+		goto out;
+	}
+
+	err = alarmmgr_add_alarm_with_localtime(alarm_info, NULL, &alarm_id);
+	if (err != ALARMMGR_RESULT_SUCCESS) {
+		ErrPrint("alarmmgr_add_alarm_with_localtime failed (%d)", err);
+		goto out;
+	}
+
+	*dnd_schedule_alarm_id = alarm_id;
+
+	DbgPrint("alarm_id [%d]", *dnd_schedule_alarm_id);
+
+out:
+	if (alarm_info)
+		alarmmgr_free_alarm(alarm_info);
+
+	return err;
+}
+
 static int _add_alarm(int dnd_schedule_day, int dnd_start_hour, int dnd_start_min, int dnd_end_hour, int dnd_end_min)
 {
 	int ret = NOTIFICATION_ERROR_NONE;
@@ -981,7 +1072,7 @@ static int _add_alarm(int dnd_schedule_day, int dnd_start_hour, int dnd_start_mi
 	if (dnd_schedule_start_alarm_id)
 		alarmmgr_remove_alarm(dnd_schedule_start_alarm_id);
 
-	ret = noti_system_setting_set_alarm(dnd_schedule_day,
+	ret = _noti_system_setting_set_alarm(dnd_schedule_day,
 				dnd_start_hour, dnd_start_min,
 				_dnd_schedule_alarm_cb, &dnd_schedule_start_alarm_id);
 	if (ret != NOTIFICATION_ERROR_NONE) {
@@ -992,7 +1083,7 @@ static int _add_alarm(int dnd_schedule_day, int dnd_start_hour, int dnd_start_mi
 	if (dnd_schedule_end_alarm_id)
 		alarmmgr_remove_alarm(dnd_schedule_end_alarm_id);
 
-	ret = noti_system_setting_set_alarm(dnd_schedule_day,
+	ret = _noti_system_setting_set_alarm(dnd_schedule_day,
 				dnd_end_hour, dnd_end_min,
 				_dnd_schedule_alarm_cb, &dnd_schedule_end_alarm_id);
 	if (ret != NOTIFICATION_ERROR_NONE) {
