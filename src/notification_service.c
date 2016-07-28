@@ -38,6 +38,7 @@
 #include <notification_db.h>
 
 #define PROVIDER_NOTI_INTERFACE_NAME "org.tizen.data_provider_noti_service"
+#define NOTI_TEMPLATE_LIMIT 10
 
 static GHashTable *_monitoring_hash = NULL;
 static int _update_noti(GVariant **reply_body, notification_h noti, GList *monitoring_list);
@@ -119,6 +120,12 @@ static void _noti_dbus_method_call_handler(GDBusConnection *conn,
 		ret = notification_get_setting_by_package_name(parameters, &reply_body, uid);
 	else if (g_strcmp0(method_name, "load_system_setting") == 0)
 		ret = notification_load_system_setting(parameters, &reply_body, uid);
+	else if (g_strcmp0(method_name, "save_as_template") == 0)
+		ret = notification_add_noti_template(parameters, &reply_body, uid);
+	else if (g_strcmp0(method_name, "create_from_template") == 0)
+		ret = notification_get_noti_template(parameters, &reply_body, uid);
+	else if (g_strcmp0(method_name, "create_from_package_template") == 0)
+		ret = notification_get_noti_package_template(parameters, &reply_body, uid);
 
 	if (ret == NOTIFICATION_ERROR_NONE) {
 		DbgPrint("notification service success : %d", ret);
@@ -253,6 +260,22 @@ int notification_register_dbus_interface()
 			"        <method name='load_system_setting'>"
 			"          <arg type='i' name='uid' direction='in'/>"
 			"          <arg type='v' name='setting' direction='out'/>"
+			"        </method>"
+
+			"        <method name='save_as_template'>"
+			"          <arg type='v' name='noti' direction='in'/>"
+			"          <arg type='s' name='name' direction='in'/>"
+			"        </method>"
+
+			"        <method name='create_from_template'>"
+			"          <arg type='s' name='name' direction='in'/>"
+			"          <arg type='v' name='noti' direction='out'/>"
+			"        </method>"
+
+			"        <method name='create_from_package_template'>"
+			"          <arg type='s' name='appid' direction='in'/>"
+			"          <arg type='s' name='name' direction='in'/>"
+			"          <arg type='v' name='noti' direction='out'/>"
 			"        </method>"
 
 			"        <method name='post_toast'>"
@@ -883,6 +906,7 @@ int notification_del_noti_multiple(GVariant *parameters, GVariant **reply_body, 
 		ErrPrint("cannot make reply_body");
 		return NOTIFICATION_ERROR_OUT_OF_MEMORY;
 	}
+
 	DbgPrint("_del_noti_multiple done !!");
 	return ret;
 }
@@ -1161,6 +1185,112 @@ int notification_update_noti_sys_setting(GVariant *parameters, GVariant **reply_
 	return ret;
 }
 
+int notification_add_noti_template(GVariant *parameters, GVariant **reply_body, uid_t uid)
+{
+	notification_h noti;
+	int ret;
+	GVariant *body = NULL;
+	GVariant *coupled_body = NULL;
+	char *template_name = NULL;
+	int count = 0;
+
+	noti = notification_create(NOTIFICATION_TYPE_NOTI);
+	if (noti != NULL) {
+		g_variant_get(parameters, "(v&s)", &coupled_body, &template_name);
+		g_variant_get(coupled_body, "(v)", &body);
+
+		ret = notification_ipc_make_noti_from_gvariant(noti, body);
+		g_variant_unref(coupled_body);
+		g_variant_unref(body);
+		if (ret != NOTIFICATION_ERROR_NONE) {
+			ErrPrint("failed to make a notification:%d\n", ret);
+			return ret;
+		}
+
+		ret = notification_noti_check_count_for_template(noti, &count);
+		if (count > NOTI_TEMPLATE_LIMIT)
+			return NOTIFICATION_ERROR_MAX_EXCEEDED;
+
+		ret = notification_noti_is_exist_for_template(noti, template_name);
+		if (ret == NOTIFICATION_ERROR_NOT_EXIST_ID)
+			ret = notification_noti_add_template(noti, template_name);
+		else if (ret == NOTIFICATION_ERROR_ALREADY_EXIST_ID)
+			ret = notification_noti_update_template(noti, template_name);
+
+		if (ret != NOTIFICATION_ERROR_NONE) {
+			ErrPrint("failed to update a notification:%d\n", ret);
+			return ret;
+		}
+	} else {
+		ret = NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+
+	return ret;
+}
+
+int notification_get_noti_template(GVariant *parameters, GVariant **reply_body, uid_t uid)
+{
+	int ret;
+	char *template_name = NULL;
+	notification_h noti;
+
+	noti = notification_create(NOTIFICATION_TYPE_NOTI);
+	if (noti != NULL) {
+		g_variant_get(parameters, "(&s)", &template_name);
+
+		ret = notification_noti_get_template(noti, template_name);
+		if (ret != NOTIFICATION_ERROR_NONE) {
+			DbgPrint("failed to get template:%d", ret);
+			return ret;
+		}
+
+		*reply_body = notification_ipc_make_gvariant_from_noti(noti, false);
+		notification_free(noti);
+
+		if (*reply_body == NULL) {
+			ErrPrint("cannot make reply_body");
+			return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+		}
+	} else {
+		ret = NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+
+	DbgPrint("_get_noti_template done !!");
+	return ret;
+}
+
+int notification_get_noti_package_template(GVariant *parameters, GVariant **reply_body, uid_t uid)
+{
+	int ret;
+	char *pkgname = NULL;
+	char *template_name = NULL;
+	notification_h noti;
+
+	noti = notification_create(NOTIFICATION_TYPE_NOTI);
+	if (noti != NULL) {
+		g_variant_get(parameters, "(&s&s)", &pkgname, &template_name);
+
+		ret = notification_noti_get_package_template(noti, pkgname, template_name);
+		if (ret != NOTIFICATION_ERROR_NONE) {
+			DbgPrint("failed to get template:%d", ret);
+			return ret;
+		}
+
+		*reply_body = notification_ipc_make_gvariant_from_noti(noti, false);
+		notification_free(noti);
+
+		if (*reply_body == NULL) {
+			ErrPrint("cannot make reply_body");
+			return NOTIFICATION_ERROR_OUT_OF_MEMORY;
+		}
+	} else {
+		ret = NOTIFICATION_ERROR_OUT_OF_MEMORY;
+	}
+
+	DbgPrint("_get_noti_package_template done !!");
+	return ret;
+}
+
 static void _notification_data_init(void)
 {
 	int property = 0;
@@ -1203,6 +1333,7 @@ static int _package_install_cb(uid_t uid, const char *pkgname, enum pkgmgr_statu
 static int _package_uninstall_cb(uid_t uid, const char *pkgname, enum pkgmgr_status status, double value, void *data)
 {
 	notification_setting_delete_package_for_uid(pkgname, uid);
+	notification_noti_delete_template(pkgname);
 	return 0;
 }
 
