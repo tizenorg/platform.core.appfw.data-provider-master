@@ -319,7 +319,7 @@ int badge_insert(GVariant *parameters, GVariant **reply_body, uid_t uid)
 		return BADGE_ERROR_OUT_OF_MEMORY;
 	}
 
-	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &param_uid);
+	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, GUINT_TO_POINTER(param_uid));
 	ret = send_notify(body, "insert_badge_notify", monitoring_list, PROVIDER_BADGE_INTERFACE_NAME);
 	g_variant_unref(body);
 
@@ -370,7 +370,7 @@ int badge_delete(GVariant *parameters, GVariant **reply_body, uid_t uid)
 		return BADGE_ERROR_OUT_OF_MEMORY;
 	}
 
-	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &param_uid);
+	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, GUINT_TO_POINTER(param_uid));
 	ret = send_notify(body, "delete_badge_notify", monitoring_list, PROVIDER_BADGE_INTERFACE_NAME);
 	g_variant_unref(body);
 
@@ -420,7 +420,7 @@ int badge_set_badge_count(GVariant *parameters, GVariant **reply_body, uid_t uid
 		return BADGE_ERROR_OUT_OF_MEMORY;
 	}
 
-	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &param_uid);
+	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, GUINT_TO_POINTER(param_uid));
 	ret = send_notify(body, "set_badge_count_notify", monitoring_list, PROVIDER_BADGE_INTERFACE_NAME);
 	g_variant_unref(body);
 
@@ -506,7 +506,7 @@ int badge_set_display_option(GVariant *parameters, GVariant **reply_body, uid_t 
 		return BADGE_ERROR_OUT_OF_MEMORY;
 	}
 
-	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &param_uid);
+	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, GUINT_TO_POINTER(param_uid));
 	ret = send_notify(body, "set_disp_option_notify", monitoring_list, PROVIDER_BADGE_INTERFACE_NAME);
 	g_variant_unref(body);
 
@@ -599,7 +599,7 @@ int badge_set_setting_property(GVariant *parameters, GVariant **reply_body, uid_
 				return BADGE_ERROR_OUT_OF_MEMORY;
 			}
 
-			monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &param_uid);
+			monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, GUINT_TO_POINTER(param_uid));
 			ret = send_notify(body, "set_disp_option_notify", monitoring_list, PROVIDER_BADGE_INTERFACE_NAME);
 			g_variant_unref(body);
 			if (ret != BADGE_ERROR_NONE) {
@@ -660,7 +660,7 @@ HAPI int badge_service_init(void)
 {
 	int result;
 
-	_monitoring_hash = g_hash_table_new_full(g_int_hash, g_int_equal, g_free, free_monitoring_list);
+	_monitoring_hash = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, free_monitoring_list);
 	result = badge_db_init();
 	if (result != BADGE_ERROR_NONE) {
 		ErrPrint("badge db init fail %d", result);

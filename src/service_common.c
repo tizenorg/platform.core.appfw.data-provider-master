@@ -167,7 +167,6 @@ int service_register(GVariant *parameters, GVariant **reply_body, const gchar *s
 	monitoring_info_s *m_info = NULL;
 	uid_t request_uid = 0;
 	GList *monitoring_list = NULL;
-	int *hash_key;
 
 	if (sender == NULL)
 		return SERVICE_COMMON_ERROR_IO_ERROR;
@@ -177,7 +176,7 @@ int service_register(GVariant *parameters, GVariant **reply_body, const gchar *s
 		return SERVICE_COMMON_ERROR_IO_ERROR;
 
 	DbgPrint("service_register : uid %d , request_uid %d", uid, request_uid);
-	monitoring_list = (GList *)g_hash_table_lookup(*monitoring_hash, &request_uid);
+	monitoring_list = (GList *)g_hash_table_lookup(*monitoring_hash, GUINT_TO_POINTER(request_uid));
 	added_list = g_list_find_custom(monitoring_list, bus_name,
 			(GCompareFunc)_monitoring_app_list_compare_cb);
 
@@ -210,10 +209,8 @@ int service_register(GVariant *parameters, GVariant **reply_body, const gchar *s
 		monitoring_list = g_list_append(monitoring_list, strdup(bus_name));
 		DbgPrint("service_register : register success sender is %s , length : %d",
 				sender, g_list_length(monitoring_list));
-		if (g_hash_table_lookup(*monitoring_hash, &request_uid) == NULL) {
-			hash_key = (int *)calloc(1, sizeof(int));
-			*hash_key = request_uid;
-			g_hash_table_insert(*monitoring_hash, hash_key, monitoring_list);
+		if (g_hash_table_lookup(*monitoring_hash, GUINT_TO_POINTER(request_uid)) == NULL) {
+			g_hash_table_insert(*monitoring_hash, GUINT_TO_POINTER(request_uid), monitoring_list);
 		}
 
 	} else {

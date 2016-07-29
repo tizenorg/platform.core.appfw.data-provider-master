@@ -376,7 +376,7 @@ int notification_add_noti(GVariant *parameters, GVariant **reply_body, uid_t uid
 		if (ret != NOTIFICATION_ERROR_NONE)
 			return ret;
 
-		monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &noti_uid);
+		monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, GUINT_TO_POINTER(noti_uid));
 		if (ret == NOTIFICATION_ERROR_NONE) {
 			ret = notification_noti_check_tag(noti);
 			if (ret == NOTIFICATION_ERROR_NOT_EXIST_ID)
@@ -450,7 +450,7 @@ int notification_update_noti(GVariant *parameters, GVariant **reply_body, uid_t 
 		if (ret != NOTIFICATION_ERROR_NONE)
 			return ret;
 
-		monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &noti_uid);
+		monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, GUINT_TO_POINTER(noti_uid));
 		if (ret == NOTIFICATION_ERROR_NONE)
 			ret = _update_noti(reply_body, noti, monitoring_list);
 
@@ -765,7 +765,7 @@ int notification_refresh_noti(GVariant *parameters, GVariant **reply_body, uid_t
 	if (ret != NOTIFICATION_ERROR_NONE)
 		return ret;
 
-	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &param_uid);
+	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, GUINT_TO_POINTER(param_uid));
 	ret = send_notify(parameters, "refresh_noti_notify", monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
 	if (ret != NOTIFICATION_ERROR_NONE) {
 		ErrPrint("failed to send notify:%d\n", ret);
@@ -810,7 +810,7 @@ int notification_del_noti_single(GVariant *parameters, GVariant **reply_body, ui
 			ErrPrint("cannot make gvariant to noti");
 			return NOTIFICATION_ERROR_OUT_OF_MEMORY;
 		}
-		monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &param_uid);
+		monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, GUINT_TO_POINTER(param_uid));
 		ret = send_notify(body, "delete_single_notify", monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
 		g_variant_unref(body);
 		if (ret != NOTIFICATION_ERROR_NONE) {
@@ -865,7 +865,7 @@ int notification_del_noti_multiple(GVariant *parameters, GVariant **reply_body, 
 			g_variant_builder_add(builder, "(i)", *(list_deleted + i));
 		}
 		deleted_noti_list = g_variant_new("(a(i)i)", builder, param_uid);
-		monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &param_uid);
+		monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, GUINT_TO_POINTER(param_uid));
 		ret = send_notify(deleted_noti_list, "delete_multiple_notify", monitoring_list, PROVIDER_NOTI_INTERFACE_NAME);
 
 		g_variant_builder_unref(builder);
@@ -1270,7 +1270,7 @@ HAPI int notification_service_init(void)
 {
 	int ret;
 
-	_monitoring_hash = g_hash_table_new_full(g_int_hash, g_int_equal, g_free, free_monitoring_list);
+	_monitoring_hash = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, free_monitoring_list);
 	ret = notification_db_init();
 	if (ret != NOTIFICATION_ERROR_NONE) {
 		ErrPrint("notification db init fail %d", ret);

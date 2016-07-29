@@ -57,7 +57,7 @@ static void _shortcut_dbus_method_call_handler(GDBusConnection *conn,
 	uid_t uid = get_sender_uid(sender);
 	GList *monitoring_list = NULL;
 
-	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, &uid);
+	monitoring_list = (GList *)g_hash_table_lookup(_monitoring_hash, GUINT_TO_POINTER(uid));
 	if (g_strcmp0(method_name, "shortcut_service_register") == 0)
 		ret = service_register(parameters, &reply_body, sender,
 		 _on_name_appeared, _on_name_vanished, &_monitoring_hash, uid);
@@ -251,7 +251,7 @@ HAPI int shortcut_service_init(void)
 {
 	DbgPrint("Successfully initiated\n");
 	int result;
-	_monitoring_hash = g_hash_table_new_full(g_int_hash, g_int_equal, g_free, free_monitoring_list);
+	_monitoring_hash = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, free_monitoring_list);
 	result = shortcut_register_dbus_interface();
 	if (result != SERVICE_COMMON_ERROR_NONE) {
 		ErrPrint("shortcut register dbus fail %d", result);
